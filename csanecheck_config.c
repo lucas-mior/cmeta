@@ -471,7 +471,7 @@ csane_known_rule(char *id) {
         "FMT-MULTIPLY", "FMT-BINARY-SPACING", "FMT-ASSIGN-SPACING",
         "FMT-ASSIGN-EQ", "FMT-CALL-FIRST", "FMT-FUNC-ALIGN",
         "FMT-LITERAL-ALIGN", "FMT-ARG-ALIGN", "FMT-FORMAT-LINE",
-        "FMT-RELATED-ARGS",
+        "FMT-RELATED-ARGS", "FMT-CALL-WRAP", "FMT-ASSIGN-WRAP",
     };
     for (int32 i = 0; i < (int32)(SIZEOF(known)/SIZEOF(known[0]));
          i += 1) {

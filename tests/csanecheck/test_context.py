@@ -100,7 +100,8 @@ class CsaneContextTests(unittest.TestCase):
                     "    ASSERT_GE(\n"
                     "        x, 0);\n"
                     "    ASSERT_LT(x, n);\n"
-                    "}\n", ["STYLE-ASSERT-BOUNDS", "FMT-CALL-FIRST"])
+                    "}\n", ["STYLE-ASSERT-BOUNDS", "FMT-CALL-FIRST",
+                          "FMT-CALL-WRAP"])
 
     def test_bounds_nested_control(self):
         self.expect("void f(int x, int n) {\n"
@@ -165,7 +166,7 @@ class CsaneContextTests(unittest.TestCase):
                     "    status = operation();\n"
                     "    ASSERT_LE(\n"
                     "        status, 0);\n"
-                    "}\n", ["FMT-CALL-FIRST"])
+                    "}\n", ["FMT-CALL-FIRST", "FMT-CALL-WRAP"])
 
     def test_status_extra_references(self):
         self.expect("void f(void) {\n"
