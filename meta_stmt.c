@@ -222,6 +222,52 @@ stmt_expression(StmtCursor *c, int32 node, TokenRange range) {
     }
 }
 
+/* When a typedef comes from an unparsed header, "Name *variable;" can
+ * otherwise be mistaken for the expression "Name * variable;". The C grammar
+ * cannot resolve this without knowing what Name denotes. Probe a declaration
+ * with Name provisionally bound as a typedef. If it parses, leave the block
+ * item unsupported instead of committing a possibly incorrect expression.
+ * Known ordinary names retain their unambiguous expression interpretation.
+ */
+static bool
+stmt_ambiguous_pointer_decl(StmtCursor *c, int32 first, int32 semi) {
+    CAst *ast = c->ast;
+    Tokenization *tokens = ast->tokenization;
+    int32 next = stmt_sig(c, first + 1);
+    int32 declarations;
+    int32 declarators;
+    int32 records;
+    int32 enumerators;
+    int32 bindings;
+    int32 scopes;
+    int32 current_scope;
+    CDeclParseResult result;
+
+    if (first >= semi || tokens->tokens[first].kind != TOKEN_IDENT
+        || !stmt_at(c, next, "*")
+        || c_ast_lookup(ast, first) != C_NAME_UNKNOWN) {
+        return false;
+    }
+    declarations = ast->declaration_count;
+    declarators = ast->declarator_count;
+    records = ast->record_count;
+    enumerators = ast->enumerator_count;
+    bindings = ast->binding_count;
+    scopes = ast->scope_count;
+    current_scope = ast->current_scope;
+    c_ast_scope_push(ast);
+    c_ast_bind(ast, first, C_NAME_TYPEDEF);
+    result = c_ast_parse_declaration(ast, (TokenRange){first, semi + 1});
+    ast->declaration_count = declarations;
+    ast->declarator_count = declarators;
+    ast->record_count = records;
+    ast->enumerator_count = enumerators;
+    ast->binding_count = bindings;
+    ast->scope_count = scopes;
+    ast->current_scope = current_scope;
+    return result.status == C_DECL_PARSE_OK;
+}
+
 static int32 stmt_parse_one(StmtCursor *);
 
 /* A declaration is a block item, not a directly controlled statement in
@@ -433,6 +479,11 @@ stmt_parse_for(StmtCursor *c, int32 first) {
             c_ast_parse_declaration(c->ast, (TokenRange){open + 1, a + 1});
         if (decl.status == C_DECL_PARSE_OK) {
             c->ast->statements[node].declaration = decl.declaration;
+        } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION
+                   && stmt_ambiguous_pointer_decl(c,
+                                                  stmt_sig(c, open + 1), a)) {
+            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
+                       (TokenRange){open + 1, a + 1});
         } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION) {
             CExprParseResult expr =
                 c_ast_parse_expression(c->ast, (TokenRange){open + 1, a});
@@ -647,6 +698,11 @@ stmt_parse_one(StmtCursor *c) {
         if (decl.status == C_DECL_PARSE_OK) {
             node = stmt_new(c, C_STMT_DECLARATION, first);
             c->ast->statements[node].declaration = decl.declaration;
+        } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION
+                   && stmt_ambiguous_pointer_decl(c, first, semi)) {
+            node = stmt_new(c, C_STMT_UNSUPPORTED, first);
+            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, first,
+                       (TokenRange){first, semi + 1});
         } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION) {
             node = stmt_new(c, C_STMT_EXPRESSION, first);
             stmt_expression(c, node, (TokenRange){first, semi});
@@ -832,12 +888,49 @@ stmt_test_malformed_headers(void) {
     free_tokenization(&t);
 }
 
+static void
+stmt_test_unresolved_pointer_declarations(void) {
+    char *src = "{ Arena *arena; GenericArrayHeader **headers; "
+                "int a = 2; int b = 3; a * b; "
+                "for (Arena *item = arena; item; item = item->next) {} }";
+    Tokenization t = tokenize(src, strlen32(src));
+    CAst ast;
+    ASSERT(c_ast_init(&ast, &t));
+    CStmtParseResult r =
+        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
+    int32 child = ast.statements[r.statement].first_child;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
+    child = ast.statements[child].next;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
+    child = ast.statements[child].next;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_DECLARATION);
+    child = ast.statements[child].next;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_DECLARATION);
+    child = ast.statements[child].next;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_EXPRESSION);
+    ASSERT_EQ(ast.expressions[ast.statements[child].expression].kind,
+              C_EXPR_BINARY);
+    child = ast.statements[child].next;
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_FOR);
+    ASSERT_LT(ast.statements[child].for_init_expression, 0);
+    ASSERT_GE(ast.statements[child].expression, 0);
+    ASSERT_GE(ast.issue_count, 3);
+    ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "Arena", 0)),
+              C_NAME_UNKNOWN);
+    ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "GenericArrayHeader", 0)),
+              C_NAME_UNKNOWN);
+    ASSERT_EQ(ast.current_scope, 0);
+    c_ast_free(&ast);
+    free_tokenization(&t);
+}
+
 int
 main(void) {
     stmt_test_control_flow();
     stmt_test_preprocessor();
     stmt_test_recovery();
     stmt_test_malformed_headers();
+    stmt_test_unresolved_pointer_declarations();
     return 0;
 }
 #endif /* TESTING_meta_stmt */
