@@ -123,6 +123,7 @@ void csane_structure_check(CsaneFile *);
 void csane_context_check(CsaneFile *);
 void csane_layout_check(CsaneFile *);
 void csane_calls_check(CsaneFile *);
+void csane_wrap_check(CsaneFile *);
 int32 csane_rules_check(CsaneFile *);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 

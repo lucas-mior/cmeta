@@ -358,6 +358,7 @@ csane_rules_check(CsaneFile *file) {
         {"STYLE", csane_context_check, false},
         {"LAYOUT", csane_layout_check, false},
         {"CALL-LAYOUT", csane_calls_check, false},
+        {"WRAP-LAYOUT", csane_wrap_check, false},
     };
     ASSERT(file != NULL);
     ASSERT(file->tokens != NULL);

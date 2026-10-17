@@ -11,7 +11,7 @@ import unittest
 
 EXECUTABLE = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None
 sys.argv[1:] = []
-RULE = re.compile(r"error\[([^]]+)\]")
+RULE = re.compile(r"error\[((?!FMT-CALL-WRAP|FMT-ASSIGN-WRAP)[^]]+)\]")
 
 
 class CsaneCallLayoutTests(unittest.TestCase):
@@ -28,9 +28,11 @@ class CsaneCallLayoutTests(unittest.TestCase):
                                  *flags], cwd=self.root, capture_output=True,
                                 text=True, check=False, timeout=30)
         self.assertEqual(result.stderr, "", result.stderr)
+        # Phase 6.3 wraps have separate group-sensitive regression tests.
         found = sorted(RULE.findall(result.stdout))
         self.assertEqual(found, sorted(expected), result.stdout)
-        self.assertEqual(result.returncode, int(bool(found)), result.stdout)
+        self.assertEqual(result.returncode,
+                         int("error[" in result.stdout), result.stdout)
         return result
 
     def test_call_first(self):
