@@ -46,4 +46,15 @@ fast_feedback)
     ;;
 esac
 
-TEST_MAXDEPTH=1 common_test "$target" .
+mkdir -p bin
+# One translation unit keeps the shared cbase/cmeta implementation model.
+# Do not execute csanecheck while bootstrapping its own binary.
+# shellcheck disable=SC2086
+$CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck_main.c $LDFLAGS
+
+if [ "$mode" = test ]; then
+    TEST_MAXDEPTH=1 common_test "$target" .
+    if [ -z "$target" ]; then
+        python3 tests/csanecheck/test_cli.py bin/csanecheck
+    fi
+fi
