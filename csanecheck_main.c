@@ -18,6 +18,7 @@
 #include "csanecheck_structure.c"
 #include "csanecheck_context.c"
 #include "csanecheck_layout.c"
+#include "csanecheck_calls.c"
 #include "csanecheck_rules.c"
 #include "csanecheck.c"
 
