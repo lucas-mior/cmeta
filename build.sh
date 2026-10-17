@@ -10,14 +10,10 @@ cd "$dir" || exit
 . "./cbase/common.sh"
 
 script=$(basename "$0")
-mode="test"
-target=
-if [ "$#" -gt 0 ]; then
-    common_build_parse_args "$@"
-fi
+common_build_parse_args "$@"
 
 case "$mode" in
-debug|test)
+build|debug|debug-fast|fast_feedback|test)
     ;;
 *)
     common_build_unknown_mode
@@ -28,7 +24,26 @@ common_build_print_invocation "$script"
 
 CC=$(common_get_compiler "$mode")
 CPPFLAGS="$CPPFLAGS -I. -Icbase"
-CFLAGS="$CFLAGS -std=c11 -Wfatal-errors -g3 -DDEBUGGING=1"
+CFLAGS="$CFLAGS -std=c11 -Wfatal-errors"
 LDFLAGS="$LDFLAGS -lm"
+
+case "$mode" in
+debug|test)
+    CFLAGS="$CFLAGS -g3"
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
+    ;;
+debug-fast)
+    CFLAGS="$CFLAGS -g2 -O2 -flto"
+    CFLAGS="$CFLAGS -fsanitize-trap=undefined"
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
+    ;;
+build)
+    CFLAGS="$CFLAGS -g -O2 -flto"
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
+    ;;
+fast_feedback)
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
+    ;;
+esac
 
 TEST_MAXDEPTH=1 common_test "$target" .
