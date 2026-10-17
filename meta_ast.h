@@ -160,6 +160,94 @@ typedef struct CExprParseResult {
     int32 issue_token;
 } CExprParseResult;
 
+/* Statement and translation-unit syntax borrows the original token stream.
+ * Expression and declaration indices refer to the existing AST arrays.
+ * The first_child/next lists contain only immediate children. A preprocessor
+ * alternative is represented separately and is never joined to its siblings.
+ */
+enum CStatementKind {
+    C_STMT_COMPOUND = 1,
+    C_STMT_DECLARATION,
+    C_STMT_EXPRESSION,
+    C_STMT_EMPTY,
+    C_STMT_IF,
+    C_STMT_WHILE,
+    C_STMT_DO,
+    C_STMT_FOR,
+    C_STMT_SWITCH,
+    C_STMT_CASE,
+    C_STMT_DEFAULT,
+    C_STMT_RETURN,
+    C_STMT_BREAK,
+    C_STMT_CONTINUE,
+    C_STMT_GOTO,
+    C_STMT_LABEL,
+    C_STMT_PP_DIRECTIVE,
+    C_STMT_PP_GROUP,
+    C_STMT_PP_BRANCH,
+    C_STMT_UNSUPPORTED,
+};
+
+enum CExternalKind {
+    C_EXTERNAL_DECLARATION = 1,
+    C_EXTERNAL_PP_DIRECTIVE,
+    C_EXTERNAL_PP_GROUP,
+    C_EXTERNAL_PP_BRANCH,
+    C_EXTERNAL_UNSUPPORTED,
+};
+
+enum CParseIssueKind {
+    C_PARSE_ISSUE_MALFORMED = 1,
+    C_PARSE_ISSUE_UNSUPPORTED,
+    C_PARSE_ISSUE_PREPROCESSOR,
+};
+
+typedef struct CStatement {
+    TokenRange tokens;
+    TokenRange condition; /* Header expression, or case label expression. */
+    TokenRange for_init;
+    TokenRange for_step;
+    enum CStatementKind kind;
+    int32 expression; /* Condition, return value or expression statement. */
+    int32 for_init_expression;
+    int32 for_step_expression;
+    int32 declaration; /* Declaration AST index, or -1. */
+    int32 first_child;
+    int32 next;
+    int32 else_child;
+    int32 token; /* Label name or goto target, or -1. */
+    int32 directive; /* Preprocessor directive or group index, or -1. */
+} CStatement;
+
+typedef struct CExternal {
+    TokenRange tokens;
+    enum CExternalKind kind;
+    int32 declaration;
+    int32 function_body; /* CStatement index, or -1. */
+    int32 first_child;
+    int32 next;
+    int32 directive; /* Directive or group index, depending on kind. */
+} CExternal;
+
+typedef struct CParseIssue {
+    enum CParseIssueKind kind;
+    int32 token;
+    TokenRange tokens;
+} CParseIssue;
+
+typedef struct CStmtParseResult {
+    int32 statement;
+    int32 next_token;
+    int32 issue_token;
+    enum CParseIssueKind issue; /* Zero on success. */
+} CStmtParseResult;
+
+typedef struct CUnitParseResult {
+    int32 first_external;
+    int32 external_count;
+    int32 issue_count; /* Newly emitted issues. */
+} CUnitParseResult;
+
 typedef struct CAst {
     Tokenization *tokenization;
     CDeclaratorNode *declarators;
@@ -170,6 +258,9 @@ typedef struct CAst {
     CBinding *bindings;
     CExpression *expressions;
     CExprArgument *arguments;
+    CStatement *statements;
+    CExternal *externals;
+    CParseIssue *issues;
     int32 declarator_count;
     int32 declarator_capacity;
     int32 declaration_count;
@@ -187,6 +278,12 @@ typedef struct CAst {
     int32 expression_capacity;
     int32 argument_count;
     int32 argument_capacity;
+    int32 statement_count;
+    int32 statement_capacity;
+    int32 external_count;
+    int32 external_capacity;
+    int32 issue_count;
+    int32 issue_capacity;
 } CAst;
 
 typedef struct CDeclParseResult {
@@ -224,5 +321,18 @@ bool c_ast_is_type_name(CAst *, TokenRange);
  */
 CExprParseResult c_ast_parse_expression(CAst *, TokenRange);
 CExprParseResult c_ast_parse_initializer(CAst *, TokenRange);
+
+/* Statement parser consumes one complete statement and commits its AST.
+ * Pass a preprocessor analysis to prevent parsing through directives. The
+ * analysis is borrowed and must be for the same tokenization.
+ */
+CStmtParseResult c_ast_parse_statement(CAst *, TokenRange,
+                                       CPreprocessorAnalysis *);
+/* Parse a whole source range and record each external declaration or
+ * preprocessor region. Independent failures create issues and do not prevent
+ * parsing later declarations. Does not evaluate conditional directives.
+ */
+CUnitParseResult c_ast_parse_translation_unit(CAst *, TokenRange,
+                                              CPreprocessorAnalysis *);
 
 #endif /* META_AST_H */
