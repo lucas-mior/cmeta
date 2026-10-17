@@ -13,7 +13,7 @@ script=$(basename "$0")
 common_build_parse_args "$@"
 
 case "$mode" in
-build|debug|debug-fast|fast_feedback|test)
+build|debug|debug-fast|fast_feedback|install|test)
     ;;
 *)
     common_build_unknown_mode
@@ -21,6 +21,19 @@ build|debug|debug-fast|fast_feedback|test)
 esac
 
 common_build_print_invocation "$script"
+
+if [ "$mode" = install ]; then
+    PREFIX="${PREFIX:-/usr/local}"
+    DESTDIR="${DESTDIR:-}"
+    case "$PREFIX" in
+    /*)
+        ;;
+    *)
+        error "PREFIX must be an absolute path: %s\n" "$PREFIX"
+        exit 1
+        ;;
+    esac
+fi
 
 CC=$(common_get_compiler "$mode")
 CPPFLAGS="$CPPFLAGS -I. -Icbase"
@@ -37,7 +50,7 @@ debug-fast)
     CFLAGS="$CFLAGS -fsanitize-trap=undefined"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
     ;;
-build)
+build|install)
     CFLAGS="$CFLAGS -g -O2 -flto"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
     ;;
@@ -51,6 +64,10 @@ mkdir -p bin
 # Do not execute csanecheck while bootstrapping its own binary.
 # shellcheck disable=SC2086
 $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck_main.c $LDFLAGS
+
+if [ "$mode" = install ]; then
+    install -Dm755 bin/csanecheck "${DESTDIR}${PREFIX}/bin/csanecheck"
+fi
 
 if [ "$mode" = test ]; then
     TEST_MAXDEPTH=1 common_test "$target" .
@@ -66,5 +83,6 @@ if [ "$mode" = test ]; then
         python3 tests/csanecheck/test_wrap.py bin/csanecheck
         python3 tests/csanecheck/audit_rules.py
         python3 tests/csanecheck/compare.py bin/csanecheck
+        python3 tests/csanecheck/test_install.py
     fi
 fi

@@ -6,6 +6,27 @@ Build from the cmeta root with `./build.sh build` (release) or
 normal cmeta unit tests. The build does **not** invoke the new executable on
 its own sources during compilation (avoiding a self-bootstrap dependency).
 
+## Installation
+
+`./build.sh install` compiles a release build and installs `csanecheck` to
+`/usr/local/bin/csanecheck` by default. Run with appropriate permissions for
+that destination. Override the installation prefix or use a staging directory
+without root privileges:
+
+```sh
+PREFIX=/opt/cmeta ./build.sh install
+DESTDIR=/tmp/cmeta-package PREFIX=/usr/local ./build.sh install
+```
+
+The second example installs to
+`/tmp/cmeta-package/usr/local/bin/csanecheck`. `PREFIX` must be an absolute
+path; `DESTDIR` is prepended for packaging. Installation does not copy the
+source tree, policy files, or test fixtures: the executable includes default
+policy names and may load project-local overrides during analysis.
+
+`./build.sh test` includes installation tests using temporary staging
+folders, without modifying `/usr/local`.
+
 ## CLI
 
 ```
