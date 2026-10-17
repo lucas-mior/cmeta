@@ -1,0 +1,4 @@
+void f(void) {
+    call(very_short,
+         arg);
+}

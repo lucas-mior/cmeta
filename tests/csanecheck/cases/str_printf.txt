@@ -1,0 +1,3 @@
+void f(void) {
+    str_printf(&s, "%d", value);
+}

@@ -1,0 +1,3 @@
+void f(void) {
+    ASSERT(x >= 1);
+}

@@ -1,0 +1,4 @@
+void f(void) {
+    run(x,
+        y, other);
+}
