@@ -54,6 +54,10 @@ c_ast_free(CAst *ast) {
     free2(ast->enumerators,
           (int64)ast->enumerator_capacity*SIZEOF(CEnumerator));
     free2(ast->records, (int64)ast->record_capacity*SIZEOF(CRecord));
+    free2(ast->expressions,
+          (int64)ast->expression_capacity*SIZEOF(CExpression));
+    free2(ast->arguments,
+          (int64)ast->argument_capacity*SIZEOF(CExprArgument));
     free2(ast->scopes, (int64)ast->scope_capacity*SIZEOF(CScope));
     free2(ast->bindings, (int64)ast->binding_capacity*SIZEOF(CBinding));
     *ast = (CAst){0};

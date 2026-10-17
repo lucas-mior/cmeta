@@ -103,6 +103,63 @@ typedef struct CBinding {
     enum CNameClass name_class;
 } CBinding;
 
+/* Expression syntax refers to token indices in the same Tokenization as
+ * declarations. Children and argument lists use stable array indices.
+ * An absent child, operator or argument has index -1.
+ */
+enum CExpressionKind {
+    C_EXPR_IDENTIFIER = 1,
+    C_EXPR_LITERAL,
+    C_EXPR_PAREN,
+    C_EXPR_UNARY,
+    C_EXPR_POSTFIX,
+    C_EXPR_BINARY,
+    C_EXPR_ASSIGN,
+    C_EXPR_CONDITIONAL,
+    C_EXPR_COMMA,
+    C_EXPR_CALL,
+    C_EXPR_SUBSCRIPT,
+    C_EXPR_MEMBER,
+    C_EXPR_CAST,
+    C_EXPR_SIZEOF_EXPR,
+    C_EXPR_SIZEOF_TYPE,
+    C_EXPR_ALIGNOF_TYPE,
+    C_EXPR_COMPOUND_LITERAL,
+    C_EXPR_INITIALIZER_LIST,
+};
+
+enum CExprParseStatus {
+    C_EXPR_PARSE_OK = 1,
+    C_EXPR_PARSE_NOT_EXPRESSION,
+    C_EXPR_PARSE_UNSUPPORTED,
+    C_EXPR_PARSE_MALFORMED,
+};
+
+typedef struct CExpression {
+    TokenRange tokens;
+    TokenRange type_tokens; /* For cast, type-sizeof and compound literal. */
+    enum CExpressionKind kind;
+    int32 operator_token;
+    int32 left;
+    int32 right;
+    int32 third;
+    int32 first_argument;
+    int32 argument_count;
+} CExpression;
+
+typedef struct CExprArgument {
+    TokenRange designator; /* Empty unless this is a designated initializer. */
+    int32 expression;
+    int32 next;
+} CExprArgument;
+
+typedef struct CExprParseResult {
+    enum CExprParseStatus status;
+    int32 expression;
+    int32 next_token;
+    int32 issue_token;
+} CExprParseResult;
+
 typedef struct CAst {
     Tokenization *tokenization;
     CDeclaratorNode *declarators;
@@ -111,6 +168,8 @@ typedef struct CAst {
     CRecord *records;
     CScope *scopes;
     CBinding *bindings;
+    CExpression *expressions;
+    CExprArgument *arguments;
     int32 declarator_count;
     int32 declarator_capacity;
     int32 declaration_count;
@@ -124,6 +183,10 @@ typedef struct CAst {
     int32 binding_count;
     int32 binding_capacity;
     int32 current_scope;
+    int32 expression_count;
+    int32 expression_capacity;
+    int32 argument_count;
+    int32 argument_capacity;
 } CAst;
 
 typedef struct CDeclParseResult {
@@ -151,5 +214,15 @@ enum CNameClass c_ast_lookup_tag(CAst *, int32);
  * Typedefs from headers must be registered with c_ast_bind beforehand.
  */
 CDeclParseResult c_ast_parse_declaration(CAst *, TokenRange);
+/* Recognizes a complete C type-name using declaration rules and the active
+ * typedef namespace. Speculative parsing does not commit any AST changes.
+ */
+bool c_ast_is_type_name(CAst *, TokenRange);
+/* Parses the entire range (ignoring trivia); failed parses roll back all
+ * expression and argument nodes. next_token is the next significant token.
+ * Use parse_initializer for brace-enclosed initializer lists.
+ */
+CExprParseResult c_ast_parse_expression(CAst *, TokenRange);
+CExprParseResult c_ast_parse_initializer(CAst *, TokenRange);
 
 #endif /* META_AST_H */

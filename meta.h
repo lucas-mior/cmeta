@@ -626,5 +626,6 @@ _Generic((TOKEN),                              \
 #include "meta_generate.c"
 #include "meta_scope.c"
 #include "meta_decl.c"
+#include "meta_expr.c"
 
 #endif
