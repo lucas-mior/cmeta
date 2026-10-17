@@ -27,7 +27,31 @@ typedef struct CsaneStats {
     int64 externals;
     int64 parse_issues;
     int64 preprocessor_issues;
+    int64 violations;
 } CsaneStats;
+
+/* A rule can examine any layer independently of successful AST parsing.
+ * Every reference is borrowed and valid only during its source-file check.
+ */
+typedef struct CsaneFile {
+    char *path;
+    Tokenization *tokens;
+    CPreprocessorAnalysis *preprocessor;
+    CAst *ast;
+    int32 violations;
+    int32 column_limit;
+    bool in_cbase;
+    bool is_ryu;
+} CsaneFile;
+
+typedef struct CsaneRule {
+    char *id;
+    void (*check)(CsaneFile *);
+    bool include_fixtures;
+} CsaneRule;
+
+int32 csane_rules_check(CsaneFile *);
+void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
 bool csane_paths_add(CsanePaths *, char *);
 void csane_paths_sort_unique(CsanePaths *);
