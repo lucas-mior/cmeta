@@ -57,5 +57,7 @@ if [ "$mode" = test ]; then
     if [ -z "$target" ]; then
         python3 tests/csanecheck/test_cli.py bin/csanecheck
         python3 tests/csanecheck/test_rules.py bin/csanecheck
+        python3 tests/csanecheck/test_policy.py bin/csanecheck
+        python3 tests/csanecheck/compare.py bin/csanecheck
     fi
 fi
