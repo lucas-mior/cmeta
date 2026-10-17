@@ -343,6 +343,9 @@ typedef struct Tokenization {
     int32 line_count;
     int32 line_capacity;
     int32 *line_starts;
+
+    /* Non-NULL only for tokenize_copy; released by free_tokenization. */
+    char *owned_text;
 } Tokenization;
 
 /*
@@ -490,6 +493,83 @@ int32 c_preprocessor_define_parameter_count(Tokenization *,
                                             CPreprocessorDefine *);
 bool c_preprocessor_define_parameter(Tokenization *, CPreprocessorDefine *,
                                      int32, TokenRange *);
+/*
+ * Preprocessor structure, without evaluating conditions or expanding macros.
+ * Every conditional alternative has its own branch. A branch's body excludes
+ * its own #if/#elif/#else/#endif directives, but may contain nested groups.
+ * Parent indices and -1 sentinels refer to the arrays in the analysis.
+ * All ranges are half-open; directive/branch indices are zero-based.
+ */
+enum CPreprocessorTokenRole {
+    C_PP_TOKEN_CODE = 0,
+    C_PP_TOKEN_DIRECTIVE,
+    C_PP_TOKEN_MACRO_PARAMETERS,
+    C_PP_TOKEN_MACRO_REPLACEMENT,
+};
+
+enum CPreprocessorIssueKind {
+    C_PP_ISSUE_STRAY_ELIF = 1,
+    C_PP_ISSUE_STRAY_ELSE,
+    C_PP_ISSUE_STRAY_ENDIF,
+    C_PP_ISSUE_ELIF_AFTER_ELSE,
+    C_PP_ISSUE_DUPLICATE_ELSE,
+    C_PP_ISSUE_UNCLOSED_IF,
+    C_PP_ISSUE_BAD_DEFINE,
+};
+
+typedef struct CPreprocessorBranch {
+    SourceRange body_source;
+    TokenRange body_tokens;
+    int32 group_index;
+    int32 parent_branch;
+    int32 directive_index;
+    int32 next_branch;
+} CPreprocessorBranch;
+
+typedef struct CPreprocessorGroup {
+    SourceRange source;
+    int32 parent_branch;
+    int32 first_branch;
+    int32 last_branch;
+    int32 endif_directive;
+    bool has_else;
+} CPreprocessorGroup;
+
+typedef struct CPreprocessorIssue {
+    enum CPreprocessorIssueKind kind;
+    int32 directive_index;
+} CPreprocessorIssue;
+
+typedef struct CPreprocessorAnalysis {
+    Tokenization *tokenization; /* Borrowed. Must outlive this analysis. */
+    CPreprocessorDirective *directives;
+    CPreprocessorBranch *branches;
+    CPreprocessorGroup *groups;
+    CPreprocessorIssue *issues;
+    int32 *token_directives;
+    int32 *token_branches;
+    enum CPreprocessorTokenRole *token_roles;
+    int32 directive_count;
+    int32 directive_capacity;
+    int32 branch_count;
+    int32 branch_capacity;
+    int32 group_count;
+    int32 group_capacity;
+    int32 issue_count;
+    int32 issue_capacity;
+} CPreprocessorAnalysis;
+
+/* Returns false for bad arguments or a malformed conditional structure.
+ * On a syntax failure, the partially built analysis and issues remain usable
+ * and must still be freed. No macro condition is assumed true or false.
+ */
+bool c_preprocessor_analysis_init(CPreprocessorAnalysis *, Tokenization *);
+void c_preprocessor_analysis_free(CPreprocessorAnalysis *);
+/* Invalid token indices produce false and do not modify the outputs. */
+bool c_preprocessor_token_context(CPreprocessorAnalysis *, int32,
+                                  enum CPreprocessorTokenRole *, int32 *,
+                                  int32 *);
+
 int32 tokenization_logical_line_start_offset(Tokenization *, int32);
 bool tokenization_newline_between(Tokenization *, int32, int32);
 int32 tokenization_next_significant(Tokenization *, int32);
@@ -500,9 +580,12 @@ int32 tokenization_physical_line_start_offset(Tokenization *, int32);
 int32 tokenization_previous_significant(Tokenization *, int32);
 SourceLocation tokenization_source_location(Tokenization *, int32);
 int32 tokenization_significant_at_or_after(Tokenization *, int32);
+/* O(log token_count); returns token_count when no token overlaps or follows. */
 int32 tokenization_token_at_or_after_offset(Tokenization *, int32);
 SourceLocation tokenization_token_location(Tokenization *, int32);
 Tokenization tokenize(char *, int32);
+/* Unlike tokenize, owns a copy of the text until free_tokenization. */
+Tokenization tokenize_copy(char *, int32, int32);
 Tokenization tokenize_with_flags(char *, int32, int32);
 void c_emit_wrapped_expr(String *, char *, char *, char *, char *);
 String c_identifier(char *, int32);
@@ -538,6 +621,7 @@ _Generic((TOKEN),                              \
 #include "meta_tokenize.c"
 #include "meta_split.c"
 #include "meta_preproc.c"
+#include "meta_preproc_analysis.c"
 #include "meta_generate.c"
 
 #endif

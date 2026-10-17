@@ -1525,14 +1525,25 @@ tokenization_previous_significant(Tokenization *tokenization,
 int32
 tokenization_token_at_or_after_offset(Tokenization *tokenization,
                                       int32 offset) {
-    for (int32 i = 0; i < tokenization->token_count; i += 1) {
-        Token *token = &tokenization->tokens[i];
+    int32 first;
+    int32 end;
 
-        if (offset < token->offset + token->len) {
-            return i;
+    if (tokenization == NULL) {
+        return -1;
+    }
+    first = 0;
+    end = tokenization->token_count;
+    while (first < end) {
+        int32 middle = first + (end - first)/2;
+        Token *token = &tokenization->tokens[middle];
+
+        if (offset >= token->offset + token->len) {
+            first = middle + 1;
+        } else {
+            end = middle;
         }
     }
-    return tokenization->token_count;
+    return first;
 }
 
 int32
@@ -1568,34 +1579,11 @@ tokenization_logical_line_start_offset(Tokenization *tokenization,
 bool
 tokenization_is_in_preprocessor_define(Tokenization *tokenization,
                                        int32 token_index) {
-    int32 line_start_offset;
-    int32 offset;
-    int32 i;
+    CPreprocessorDirective directive;
 
-    if ((token_index < 0) || (token_index >= tokenization->token_count)) {
-        return false;
-    }
-    offset = tokenization->tokens[token_index].offset;
-    line_start_offset = tokenization_logical_line_start_offset(tokenization,
-                                                               offset);
-    i = tokenization_token_at_or_after_offset(tokenization, line_start_offset);
-    while ((i < tokenization->token_count)
-           && ((tokenization->tokens[i].kind == TOKEN_SPACE)
-               || (tokenization->tokens[i].kind == TOKEN_COMMENT))) {
-        i += 1;
-    }
-    if ((i >= tokenization->token_count)
-        || !TOKEN_IS(&tokenization->tokens[i], "#")) {
-        return false;
-    }
-    i += 1;
-    while ((i < tokenization->token_count)
-           && ((tokenization->tokens[i].kind == TOKEN_SPACE)
-               || (tokenization->tokens[i].kind == TOKEN_COMMENT))) {
-        i += 1;
-    }
-    return (i < tokenization->token_count)
-           && TOKEN_IS(&tokenization->tokens[i], "define");
+    return c_preprocessor_directive_containing(tokenization, token_index,
+                                               &directive)
+           && (directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
 }
 
 int32
@@ -1643,6 +1631,25 @@ tokenize(char *text, int32 text_len) {
     return tokenize_with_flags(text, text_len, TOKENIZE_DEFAULT);
 }
 
+Tokenization
+tokenize_copy(char *text, int32 text_len, int32 flags) {
+    Tokenization result = {0};
+    char *copy;
+
+    if ((text_len < 0) || (text_len >= INT32_MAX)
+        || ((text == NULL) && (text_len > 0))) {
+        return result;
+    }
+    copy = malloc2((int64)text_len + 1);
+    if (text_len > 0) {
+        memcpy64(copy, text, text_len);
+    }
+    copy[text_len] = 0;
+    result = tokenize_with_flags(copy, text_len, flags);
+    result.owned_text = copy;
+    return result;
+}
+
 void
 free_tokenization(Tokenization *tokenization) {
     if (tokenization == NULL) {
@@ -1653,6 +1660,9 @@ free_tokenization(Tokenization *tokenization) {
           tokenization->token_capacity*SIZEOF(*tokenization->tokens));
     free2(tokenization->line_starts,
           tokenization->line_capacity*SIZEOF(*tokenization->line_starts));
+    if (tokenization->owned_text != NULL) {
+        free2(tokenization->owned_text, (int64)tokenization->text_len + 1);
+    }
 
     tokenization->tokens = NULL;
     tokenization->token_count = 0;
@@ -1662,6 +1672,7 @@ free_tokenization(Tokenization *tokenization) {
     tokenization->line_starts = NULL;
     tokenization->line_count = 0;
     tokenization->line_capacity = 0;
+    tokenization->owned_text = NULL;
 
     return;
 }
@@ -1671,6 +1682,7 @@ static inline void
 meta_tokenize_sink(void) {
     (void)meta_tokenize_sink;
     (void)free_tokenization;
+    (void)tokenize_copy;
     (void)token_is_number;
     (void)token_is_open_delimiter;
     (void)token_is_close_delimiter;
@@ -2583,6 +2595,63 @@ test_tokenize_with_flags_returns_source_metadata(void) {
     return;
 }
 
+static void
+test_tokenize_copy_and_offsets(void) {
+    char mutable_text[] = "a\r\n \n abc\n";
+    Tokenization tokenization;
+    SourceLocation location;
+    int32 offset;
+
+    tokenization = tokenize_copy(mutable_text, strlen32(mutable_text),
+                                 TOKENIZE_SKIP_WHITESPACE);
+    ASSERT(tokenization.owned_text != NULL);
+    ASSERT(tokenization.text != mutable_text);
+    mutable_text[0] = 'z';
+    ASSERT(TOKEN_IS(&tokenization.tokens[0], "a"));
+    ASSERT_EQ(tokenization_physical_line_count(&tokenization), 4);
+    offset = tokenization_token_at_or_after_offset(&tokenization, 2);
+    ASSERT_EQ(offset, 1);
+    offset = tokenization_token_at_or_after_offset(&tokenization,
+                                                   tokenization.text_len);
+    ASSERT_EQ(offset, tokenization.token_count);
+    location = tokenization_source_location(&tokenization, 8);
+    ASSERT_EQ(location.line, 3);
+    ASSERT_EQ(location.column, 3);
+    free_tokenization(&tokenization);
+    ASSERT_NULL(tokenization.owned_text);
+    ASSERT_NULL(tokenization.text);
+
+    tokenization = tokenize_copy(NULL, 0, TOKENIZE_DEFAULT);
+    ASSERT(tokenization.owned_text != NULL);
+    ASSERT_ZERO(tokenization.token_count);
+    free_tokenization(&tokenization);
+    tokenization = tokenize_copy(NULL, 1, TOKENIZE_DEFAULT);
+    ASSERT_NULL(tokenization.owned_text);
+    return;
+}
+
+static void
+test_tokenization_define_digraph_and_continuation(void) {
+    char *text = "%:define F(x) \\\n"
+                 "    (x)\n"
+                 "int z;\n";
+    Tokenization tokenization;
+    int32 inside;
+    int32 outside;
+
+    tokenization = tokenize(text, strlen32(text));
+    inside = token_range_next_text(&tokenization,
+                                   (TokenRange){0, tokenization.token_count},
+                                   -1, STRLIT("x"));
+    outside = token_range_next_text(&tokenization,
+                                    (TokenRange){0, tokenization.token_count},
+                                    -1, STRLIT("int"));
+    ASSERT(tokenization_is_in_preprocessor_define(&tokenization, inside));
+    ASSERT(!tokenization_is_in_preprocessor_define(&tokenization, outside));
+    free_tokenization(&tokenization);
+    return;
+}
+
 int
 main(void) {
     test_token_predicates();
@@ -2610,6 +2679,8 @@ main(void) {
     test_token_range_deep_delimiters();
     test_tokenization_find_matching();
     test_tokenize_with_flags_returns_source_metadata();
+    test_tokenize_copy_and_offsets();
+    test_tokenization_define_digraph_and_continuation();
     return 0;
 }
 
