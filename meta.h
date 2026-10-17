@@ -611,6 +611,7 @@ _Generic((TOKEN),                              \
 #define TOKEN_IS(...) SELECT_ON_NUM_ARGS(token_is_, __VA_ARGS__)
 
 #define CMETA_DECLARATIONS_COMPLETE 1
+#include "meta_ast.h"
 #endif /* META_H */
 
 #if defined(CMETA_IMPLEMENT) && defined(CMETA_DECLARATIONS_COMPLETE) \
@@ -623,5 +624,7 @@ _Generic((TOKEN),                              \
 #include "meta_preproc.c"
 #include "meta_preproc_analysis.c"
 #include "meta_generate.c"
+#include "meta_scope.c"
+#include "meta_decl.c"
 
 #endif
