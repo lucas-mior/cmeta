@@ -22,7 +22,8 @@ import baseline
 HERE = Path(__file__).resolve().parent
 SUPPORTED = {
     "API-NEVER", "API-CBASE-ONLY", "PP-DEFINED", "PP-SIZEOF",
-    "SRC-TABS", "SRC-TRAILING", "SRC-COLUMNS", "RYU-ENDIF-COMMENT",
+    "SRC-TABS", "SRC-TRAILING", "SRC-COLUMNS", "AST-DECL-ONE",
+    "RYU-ENDIF-COMMENT",
     "RYU-FINAL-NEWLINE",
 }
 CLEAN_CASES = {"preprocessor_defined", "sizeof_macro_definition",

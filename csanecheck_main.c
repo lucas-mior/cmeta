@@ -15,6 +15,7 @@
 #include "csanecheck.h"
 #include "csanecheck_files.c"
 #include "csanecheck_config.c"
+#include "csanecheck_structure.c"
 #include "csanecheck_rules.c"
 #include "csanecheck.c"
 

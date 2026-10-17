@@ -50,7 +50,20 @@ typedef struct CsaneOptions {
     bool report_parse;
     bool strict_parse;
     bool statistics;
+    bool coverage;
 } CsaneOptions;
+
+typedef struct CsaneCoverage {
+    int32 declarations;
+    int32 function_declarations;
+    int32 function_definitions;
+    int32 statements;
+    int32 expressions;
+    int32 unsupported_statements;
+    int32 unsupported_externals;
+    int32 malformed_issues;
+    int32 unsupported_issues;
+} CsaneCoverage;
 
 typedef struct CsaneStats {
     int32 files;
@@ -59,6 +72,15 @@ typedef struct CsaneStats {
     int64 parse_issues;
     int64 preprocessor_issues;
     int64 violations;
+    int64 declarations;
+    int64 function_declarations;
+    int64 function_definitions;
+    int64 statements;
+    int64 expressions;
+    int64 unsupported_statements;
+    int64 unsupported_externals;
+    int64 malformed_issues;
+    int64 unsupported_issues;
 } CsaneStats;
 
 /* A rule can examine any layer independently of successful AST parsing.
@@ -96,6 +118,8 @@ bool csane_policy_rule_allowed(CsanePolicy *, char *, char *);
 int32 csane_policy_columns(CsanePolicy *, char *);
 bool csane_policy_filter(char *, char *);
 bool csane_policy_selected(CsanePolicy *, char *, char *);
+CsaneCoverage csane_coverage_collect(CAst *);
+void csane_structure_check(CsaneFile *);
 int32 csane_rules_check(CsaneFile *);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
