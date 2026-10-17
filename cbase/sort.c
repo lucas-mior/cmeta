@@ -1,0 +1,291 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+#define CBASE_INCLUDE_ONLY 1
+
+#if !defined(SORT_C)
+#define SORT_C
+
+#if !defined(TESTING_sort)
+#if defined(__INCLUDE_LEVEL__) && (__INCLUDE_LEVEL__ == 0)
+#define TESTING_sort 1
+#else
+#define TESTING_sort 0
+#endif
+#endif
+
+#include "cbase.h"
+
+typedef struct HeapNode {
+    void *value;
+    int32 p_index;
+    int32 unused;
+} HeapNode;
+
+extern void sort_heapify(HeapNode *, int32, int32, int32 (*)(void *, void *));
+extern void sort_merge_subsorted(
+    void *,
+    int32,
+    int32,
+    int64,
+    int32 (*)(void *, void *)
+);
+extern void sort_shuffle(void *, int64, int64);
+
+#if !defined(SORT_COMPARE)
+#define SORT_COMPARE(A, B) compare_func(A, B)
+#endif
+
+void
+sort_shuffle(void *array, int64 n, int64 size) {
+    char *tmp = malloc2(size);
+    char *arr = array;
+
+    if (n > 1) {
+        for (int64 i = 0; i < n - 1; i += 1) {
+            int64 rnd = rand_int();
+            int64 j = i + rnd / (INT32_MAX / (n - i) + 1);
+
+            memcpy64(tmp, arr + j*size, size);
+            memcpy64(arr + j*size, arr + i*size, size);
+            memcpy64(arr + i*size, tmp, size);
+        }
+    }
+
+    free2(tmp, size);
+    return;
+}
+
+void
+sort_heapify(HeapNode *heap, int32 p, int32 i,
+             int32 (*compare_func)(void *a, void *b)) {
+    (void)compare_func;
+    while (true) {
+        int32 smallest = i;
+        int32 left = 2*i + 1;
+        int32 right = 2*i + 2;
+
+        if (left >= p) {
+            break;
+        }
+
+        if (SORT_COMPARE(heap[left].value, heap[smallest].value) < 0) {
+            smallest = left;
+        }
+        if ((right < p)
+            && SORT_COMPARE(heap[right].value, heap[smallest].value) < 0) {
+            smallest = right;
+        }
+
+        if (smallest == i) {
+            break;
+        }
+
+        {
+            HeapNode temp = heap[i];
+            heap[i] = heap[smallest];
+            heap[smallest] = temp;
+            i = smallest;
+        }
+    }
+    return;
+}
+
+void
+sort_merge_subsorted(
+    void *array,
+    int32 n,
+    int32 p,
+    int64 obj_size,
+    int32 (*compare)(void *a, void *b)
+) {
+    HeapNode heap[MAX_NTHREADS];
+    int32 n_sub[MAX_NTHREADS];
+    int32 indices[MAX_NTHREADS] = {0};
+    int32 offsets[MAX_NTHREADS];
+    int32 heap_length;
+    int64 memory_size;
+    char *output;
+    char *array2 = array;
+
+    ASSERT_GE(n, 0);
+    ASSERT_GT(p, 0);
+    ASSERT_LE(p, MAX_NTHREADS);
+
+    if ((n <= 1) || (p == 1)) {
+        return;
+    }
+
+    ASSERT_LE_VAR(p, n);
+    ASSERT_GT(obj_size, 0);
+    ASSERT(array);
+    ASSERT(compare);
+
+    memory_size = obj_size*n;
+    output = malloc2(memory_size);
+
+    for (int32 k = 0; k < (p - 1); k += 1) {
+        n_sub[k] = n / p;
+    }
+    {
+        int32 k = p - 1;
+        n_sub[k] = n / p + (n % p);
+    }
+
+    offsets[0] = 0;
+    for (int32 k = 1; k < p; k += 1) {
+        offsets[k] = offsets[k - 1] + n_sub[k - 1];
+    }
+
+    heap[0].value = &array2[offsets[0]*obj_size];
+    heap[0].p_index = 0;
+    for (int32 k = 1; k < p; k += 1) {
+        heap[k].value = &array2[offsets[k]*obj_size];
+        heap[k].p_index = k;
+    }
+
+    for (int32 k = p / 2 - 1; k >= 0; k -= 1) {
+        sort_heapify(heap, p, k, compare);
+    }
+
+    heap_length = p;
+    for (int32 i = 0; i < n; i += 1) {
+        int32 k = heap[0].p_index;
+        int32 i_sub;
+
+        memcpy64(&output[i*obj_size], heap[0].value, obj_size);
+        i_sub = (indices[k] += 1);
+
+        if (i_sub < n_sub[k]) {
+            heap[0].value = &array2[(offsets[k] + i_sub)*obj_size];
+        } else {
+            heap_length -= 1;
+            if (heap_length > 0) {
+                heap[0] = heap[heap_length];
+            }
+        }
+        if (heap_length > 0) {
+            sort_heapify(heap, heap_length, 0, compare);
+        }
+    }
+
+    ASSERT_ZERO(heap_length);
+    memcpy64(array2, output, memory_size);
+    free2(output, memory_size);
+    return;
+}
+
+#if 0 == TESTING_sort
+static inline void
+sort_functions_sink(void) {
+    (void)sort_functions_sink;
+    (void)sort_shuffle;
+    (void)sort_heapify;
+    (void)sort_merge_subsorted;
+    return;
+}
+#endif
+
+#if TESTING_sort
+#define CBASE_IMPLEMENT
+#include "cbase.h"
+
+static int32 possibleN[] = {31, 32, 33, 50};
+static int32 possibleP[] = {1, 2, 3, 8};
+
+static int32
+compare_int(void *a, void *b) {
+    const int32 *aa = a;
+    const int32 *bb = b;
+    return *aa - *bb;
+}
+
+static void
+test_sorting(int32 n, int32 p) {
+    int32 *array = malloc2(n*SIZEOF(*array));
+    int32 *n_sub = malloc2(p*SIZEOF(*n_sub));
+
+    if (n < p*2) {
+        fprintf(stderr, "n=%d must be larger than p*2=%d*2\n", n, p);
+        exit(EXIT_SUCCESS);
+    }
+
+    for (int32 i = 0; i < (p - 1); i += 1) {
+        n_sub[i] = n / p;
+    }
+    {
+        int32 i = p - 1;
+        n_sub[i] = n / p + (n % p);
+    }
+
+    fmt_printf("n_sub[P - 1] = %d\n", n_sub[p - 1]);
+
+    rand_int_seed(42);
+    for (int32 i = 0; i < n; i += 1) {
+        array[i] = rand_int() % 10000;
+    }
+
+    sort_shuffle(array, n, SIZEOF(*array));
+
+    {
+        int32 offset = 0;
+        for (int32 i = 0; i < p; i += 1) {
+            qsort64(&array[offset], n_sub[i], SIZEOF(*array), compare_int);
+            offset += n_sub[i];
+        }
+    }
+
+    sort_merge_subsorted(array, n, p, SIZEOF(*array), compare_int);
+
+    for (int32 i = 0; i < n; i += 1) {
+        if (i < (n - 1)) {
+            ASSERT_LE_VAR(array[i], array[i + 1]);
+        }
+    }
+
+    free2(array, n*SIZEOF(*array));
+    free2(n_sub, p*SIZEOF(*n_sub));
+    return;
+}
+
+static void
+test_partition_removal(void) {
+    int32 array[] = {
+        4,
+        1,
+        3,
+        2,
+    };
+    int32 expected[] = {
+        1,
+        2,
+        3,
+        4,
+    };
+
+    sort_merge_subsorted(array, LENGTH(array), LENGTH(array),
+                         SIZEOF(*array), compare_int);
+
+    for (int32 i = 0; i < LENGTH(array); i += 1) {
+        ASSERT_EQ(array[i], expected[i]);
+    }
+    return;
+}
+
+int
+main(void) {
+    test_partition_removal();
+
+    for (int32 in = 0; in < LENGTH(possibleN); in += 1) {
+        for (int32 ip = 0; ip < LENGTH(possibleP); ip += 1) {
+            test_sorting(possibleN[in], possibleP[ip]);
+        }
+    }
+    exit(EXIT_SUCCESS);
+}
+
+#endif /* TESTING_sort */
+
+#endif /* SORT_C */
+
+#undef CBASE_INCLUDE_ONLY

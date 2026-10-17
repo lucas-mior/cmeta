@@ -1,0 +1,1091 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+#if !defined(CBASE_H)
+#define CBASE_H
+
+#if !defined(DEBUGGING)
+#define DEBUGGING 0
+#endif
+
+#if !defined(TESTING)
+#define TESTING 0
+#endif
+
+#if !defined(ERROR_NOTIFY)
+#define ERROR_NOTIFY 0
+#endif
+
+#include "platform_detection.h"
+#include "warnings.h"
+#include "libc.h"
+#include "primitives.h"
+#include "base_macros.h"
+
+extern char *program;
+extern int32 program_len;
+
+#define error(...)  error_impl(__FILE__, __LINE__, FUNC__, __VA_ARGS__)
+#define error2(...) fprintf(stderr, __VA_ARGS__)
+noreturn void fatal(int32 status);
+void error_impl(char *file, int32 line, char *func, char *format, ...)
+    ATTR_PRINTF(4, 5);
+int memcmp64(void *left, void *right, int64 size);
+void *memmem64(void *haystack, int64 haystack_len, void *needle,
+               int64 needle_len);
+void *memchr64(void *pointer, int32 value, int64 size);
+void *memrchr64(void *pointer, int32 value, int64 size);
+bool util_glob_match(char *string, int32 string_len,
+                     char *glob, int32 glob_len);
+char *bool_str(bool x);
+
+typedef struct rapidhash128_t {
+    uint64 lo;
+    uint64 hi;
+} rapidhash128_t;
+
+rapidhash128_t rapidhash128(void *key, uint64 len);
+uint64 rapidhash(void *key, int64 len);
+
+int64 ceil64(double x);
+int64 floor64(double x);
+
+int fdtruncate64(int32 fd, int64 len);
+
+INLINE int32
+strlen32(char *string) {
+    size_t len;
+
+    if (DEBUGGING) {
+        if (string == NULL) {
+            TRAP();
+        }
+    }
+    len = strlen(string);
+
+    if (DEBUGGING) {
+        if (len >= INT32_MAX) {
+            error("Error: string (%.*s ...) is too long.\n", 50, string);
+            fatal(EXIT_FAILURE);
+        }
+    }
+
+    return (int32)len;
+}
+
+INLINE int32
+strnlen32(char *string, int32 limit) {
+    size_t len;
+
+    if (DEBUGGING) {
+        if (string == NULL) {
+            TRAP();
+        }
+        if (limit < 0) {
+            TRAP();
+        }
+    }
+    len = strnlen(string, (size_t)limit);
+
+    if (DEBUGGING) {
+        if (len >= INT32_MAX) {
+            error("Error: string (%.*s ...) is too long.\n", 50, string);
+            fatal(EXIT_FAILURE);
+        }
+    }
+
+    return (int32)len;
+}
+
+INLINE int32
+opt_strlen32(char *string) {
+    if (string == NULL) {
+        return 0;
+    }
+    return strlen32(string);
+}
+
+// For a binary floating type, MANT_DIG - MIN_EXP is the number of decimal
+// fractional places needed to represent its smallest subnormal exactly.
+enum {
+    FMT_FLOAT_RYU_BUFFER_SIZE = 2000,
+    FMT_DOUBLE_MAX_DECIMAL_PRECISION = DBL_MANT_DIG - DBL_MIN_EXP,
+    FMT_LDOUBLE_MAX_DECIMAL_PRECISION = LDBL_MANT_DIG - LDBL_MIN_EXP,
+    FMT_FLOAT_MAX_FIXED_PREFIX = 312,
+    FMT_FLOAT_MAX_EXP_PREFIX = 8,
+    FMT_LDOUBLE_MAX_FIXED_PREFIX = LDBL_MAX_10_EXP + 8,
+    FMT_DOUBLE_PRINTF_BUFFER_SIZE = FMT_FLOAT_MAX_FIXED_PREFIX
+                                    + FMT_DOUBLE_MAX_DECIMAL_PRECISION + 8,
+    FMT_LDOUBLE_PRINTF_BUFFER_SIZE = FMT_LDOUBLE_MAX_FIXED_PREFIX
+                                     + FMT_LDOUBLE_MAX_DECIMAL_PRECISION + 8,
+    FMT_DOUBLE_HEX_DIGITS = 13,
+    FMT_LDOUBLE_MAX_HEX_DIGITS = (LDBL_MANT_DIG - 1 + 3)/4,
+    FMT_DOUBLE_FRACTION_BITS = 52,
+    FMT_DOUBLE_EXPONENT_BIAS = 1023,
+    FMT_DOUBLE_SUBNORMAL_EXPONENT = -1022,
+    FMT_BIG_UINT_WORD_BITS = 32,
+    // log2(10) is less than 10/3, so this bounds every decimal body.
+    FMT_BIG_UINT_MAX_BITS = (FMT_LDOUBLE_PRINTF_BUFFER_SIZE*10 + 2)/3,
+    FMT_BIG_UINT_MAX_WORDS = (FMT_BIG_UINT_MAX_BITS
+                              + FMT_BIG_UINT_WORD_BITS - 1)
+                             /FMT_BIG_UINT_WORD_BITS,
+    FMT_LDOUBLE_DOUBLE_FRACTION_BITS = 52,
+    FMT_LDOUBLE_DOUBLE_EXPONENT_BIAS = 1023,
+    FMT_LDOUBLE_X87_FRACTION_BITS = 63,
+    FMT_LDOUBLE_X87_EXPONENT_BIAS = 16383,
+    FMT_LDOUBLE_X87_EXPONENT_MASK = 0x7fff,
+    FMT_LDOUBLE_BINARY128_FRACTION_BITS = 112,
+    FMT_LDOUBLE_BINARY128_EXPONENT_BIAS = 16383,
+};
+
+#include "i18n.h"
+#include "allocator.h"
+#include "memory.h"
+#include "arena.h"
+#include "ryu.h"
+
+#include "assertions.h"
+#include "generic.h"
+#include "minmax.c"
+
+#define UTF_INVALID 0xFFFD
+
+typedef struct DirEntry {
+    int32 name_len;
+    char name[256];
+} DirEntry;
+
+int32 get_directory_entries(char *directory, DirEntry **directory_list);
+int32 utf8_random_string(char *buffer, int32 capacity, int32 min_len);
+int32 utf8_byte_position(char *string, int32 string_len, int32 character);
+int32 utf8_capitalize_first_letters(char *string, int32 string_len,
+                                    char *buffer, int32 buffer_capacity);
+int32 utf8_char_width(uint32 rune);
+int32 utf8_characters(char *string, int32 string_len);
+int32 utf8_cut_width(char *string, int32 string_len, int32 max_width);
+int32 utf8_decode(char *string, int32 string_len, uint32 *rune);
+uint32 utf8_decode_byte(char c, int32 *i);
+int32 utf8_decode_raw(char *c, uint32 *u, int32 clen);
+int32 utf8_encode(uint32 rune, char *buffer, int32 buffer_capacity);
+char utf8_encode_byte(uint32 u, int32 i);
+int32 utf8_encode_raw(uint32 u, char *c);
+bool utf8_has_bom(char *text, int32 text_len);
+bool utf8_valid(char *text, int32 text_len, int32 *bad_offset);
+int32 utf8_next_position(char *string, int32 string_len, int32 byte);
+int32 utf8_suffix_width_position(char *string, int32 string_len,
+                                 int32 max_width);
+int32 utf8_validate(uint32 *u, int32 i);
+int32 utf8_width(char *string, int32 string_len);
+int32 ascii_normalize_lower_snake(char *out, char *string, int32 string_len);
+int32 ascii_normalize_upper_snake(char *out, char *string, int32 string_len);
+int32 ascii_normalize_upper_compact(char *out, char *string, int32 string_len);
+int32 ascii_normalize_camel_compact(char *out, char *string, int32 string_len);
+
+#if !defined(MAX_FILES_COPY)
+#define MAX_FILES_COPY 256
+#endif
+
+// owned and dynamic string type.
+// avoid using it for strings that never grow
+
+typedef struct String {
+    char *data;
+    int32 len;
+    int32 cap;
+} String;
+
+typedef struct StringArray {
+    String *items;
+    int32 len;
+    int32 cap;
+} StringArray;
+
+// Use StrFlex and StrFlexList for groups of strings that never grow within a
+// specific lifetime of the application. This allows both low memory usage and
+// good cache locality. StrFlex can also be used as trailing member of a struct
+// and then a Struct **items can be built with the same logic.
+
+typedef struct StrFlex {
+    int32 len;
+    char data[];
+} StrFlex;
+
+typedef struct StrFlexList {
+    StrFlex **items;
+    Arena *arena;
+} StrFlexList;
+
+#define SFLIT(literal) ((StrFlex *)&(struct {  \
+    int32 len;                                 \
+    char data[SIZEOF(literal)];                \
+}){ SIZEOF(literal) - 1, literal })
+
+// Macro trick to pass the int32 len and char *data for "%.*s" formatters.
+// Note: the single argument version is just for exploration purposes,
+// don't use it. The two argument version is allowed and useful for SOA design.
+#define SP_2(ARRAY, INDEX) ARRAY##_lens[INDEX], ARRAY[INDEX]
+#define SP_1(STR_REPR)                      \
+    _Generic((STR_REPR),                    \
+            String *:        string_ptr,    \
+            StrFlex *:       strflex_ptr,   \
+            String:          string_val     \
+            )(STR_REPR).len,                \
+    _Generic((STR_REPR),                    \
+            String *:        string_ptr,    \
+            StrFlex *:       strflex_ptr,   \
+            String:          string_val     \
+            )(STR_REPR).data
+
+#define SP(...) SELECT_ON_NUM_ARGS(SP_, __VA_ARGS__)
+
+static String UNUSED
+string_ptr(String *string) {
+    return *string;
+}
+
+static String UNUSED
+string_val(String string) {
+    return string;
+}
+
+static String UNUSED
+strflex_ptr(StrFlex *string) {
+    return (String){
+        .data = string->data,
+        .len = string->len,
+        .cap = string->len,
+    };
+}
+
+#if OS_UNIX
+typedef struct UtilCopyFilesAsync {
+    struct pollfd pipes[MAX_FILES_COPY];
+    int dests[MAX_FILES_COPY];
+    int32 nfds;
+    int32 unused;
+} UtilCopyFilesAsync;
+
+int32 util_copy_file_async(char *destination, char *source, int *dest_fd);
+void util_copy_file_async_parsed(UtilCopyFilesAsync *);
+void *util_copy_file_async_thread(void *arg);
+#endif
+
+noreturn void util_segv_handler(int32 signal_number);
+int32 itoa2(char *buffer, int32 size, llong num);
+int32 parse_integer(char *str, int32 str_len, llong *result);
+llong atoi2(char *str, int32 str_len);
+llong atoi_base(char *str, int32 str_len);
+llong atoi2sat(char *str, int32 str_len);
+llong atoi_base_sat(char *str, int32 str_len);
+bool util_is_integer(char *string);
+char *basename2(char *path, int32 *full_length, int32 *base_len);
+char *begins_with(char *string, int32 string_len,
+                  char *prefix, int32 prefix_len);
+bool byte_matches_any(char byte, void *memory, int64 memory_len);
+int32 bytes_pretty(char *buffer, int64 raw);
+int32 fmt_time_elapsed(char *buffer, double elapsed);
+void catfile(int where, char *file);
+double deg2rad(double degrees);
+int32 dirname2(char *buffer, char *path, int32 *path_len);
+char *ends_with(char *string, int32 string_len, char *suffix,
+                int32 suffix_len);
+void error_async_safe(char *message, int32 message_len);
+void normalize(char *restrict path, int32 *restrict length);
+int32 parse_option(char **parsed, char *arg, char *option_name);
+char *path_basename(char *path, int32 path_len);
+void print_timings(char *file, int32 line, char *func, int64 nitems,
+                   struct timespec t0, struct timespec t1);
+void qsort64(void *base, int64 n, int64 size,
+             int (*compar)(void *a, void *b));
+void random_filename_inplace(char *buffer, int32 buffer_len);
+void rand_int_seed(uint64 seed);
+int32 rand_int(void);
+double rand_float(void);
+int32 rand_int_range(int32 upper_bound);
+void rand_shuffle(void *items, int32 item_count, int32 item_size);
+double rad2deg(double radians);
+int32 random_ascii_string(char *buffer, int32 capacity, int32 min_len);
+bool path_missing(char *path);
+int32 read_entire_file(char *path, char **file_bytes);
+char *remove_escape_sequences(char *data, int32 *data_len);
+void str_append(String *string, char *data, int64 data_len);
+void str_append_byte(String *string, char byte);
+void str_append_byte_if_not(String *string, char byte);
+void str_clear(String *);
+int32 str_copy(String *dest, String *source);
+void str_free(String *);
+void str_itoa(String *string, llong num);
+void str_float64(String *string, double value);
+void str_float64_fixed(String *string, double value, int32 precision);
+void str_float64_exp(String *string, double value, int32 precision);
+void str_bytes_pretty(String *string, llong size);
+void str_move(String *dest, String *source);
+void str_printf(String *string, char *fmt, ...);
+void str_reserve(String *string, int64 extra);
+int32 str_set(String *string, char *data, int32 data_len);
+char *str_steal(String *string, int32 *len);
+char *str_opt_cstr(String *);
+char *signal_get_name(int32 signum);
+void send_signal(char *executable, int32 signal_number);
+
+INLINE bool32
+is_ascii(int32 c) {
+    return (c >= 0) && (c < 128);
+}
+
+INLINE bool32
+is_cntrl(int32 c) {
+    return (c <= 0x1f) || (c == 0x7f);
+}
+
+INLINE bool32
+is_blank(int32 c) {
+    return (c == ' ') || (c == '\t');
+}
+
+INLINE bool32
+is_space(int32 c) {
+    return ((c >= '\t') && (c <= '\r')) || (c == ' ');
+}
+
+INLINE bool32
+is_digit(int32 c) {
+    return (c >= '0') && (c <= '9');
+}
+
+INLINE bool32
+is_upper(int32 c) {
+    return (c >= 'A') && (c <= 'Z');
+}
+
+INLINE bool32
+is_lower(int32 c) {
+    return (c >= 'a') && (c <= 'z');
+}
+
+INLINE bool32
+is_alpha(int32 c) {
+    return is_upper(c) || is_lower(c);
+}
+
+INLINE bool32
+is_alnum(int32 c) {
+    return is_alpha(c) || is_digit(c);
+}
+
+INLINE bool32
+is_xdigit(int32 c) {
+    return is_digit(c)
+           || ((c >= 'A') && (c <= 'F'))
+           || ((c >= 'a') && (c <= 'f'));
+}
+
+INLINE bool32
+is_print(int32 c) {
+    return (c >= 0x20) && (c <= 0x7e);
+}
+
+INLINE bool32
+is_graph(int32 c) {
+    return (c >= 0x21) && (c <= 0x7e);
+}
+
+INLINE bool32
+is_punct(int32 c) {
+    return is_graph(c) && !is_alnum(c);
+}
+
+INLINE bool32
+is_ident_start(int32 c) {
+    return is_alpha(c) || c == '_';
+}
+
+INLINE bool32
+is_ident(int32 c) {
+    return is_alnum(c) || c == '_';
+}
+
+// Caller-owned parsed-format storage. Treat all fields as implementation
+// details. Normal format strings include at most 255 bytes plus the null
+// terminator. Cached plans keep a pointer to at most 127 format bytes plus the
+// null terminator; the caller must keep that string alive and unmodified while
+// the plan is in use.
+enum {
+    FMT_MAX_FORMAT_LEN = 256,
+    FMT_PLAN_MAX_FORMAT_LEN = 128,
+    FMT_PLAN_MAX_SPECS = (FMT_PLAN_MAX_FORMAT_LEN - 1)/2,
+};
+
+typedef struct FmtPlanSpec {
+    int32 width;
+    int32 precision;
+    uint8 literal_offset;
+    uint8 literal_len;
+    uint8 flags;
+    uint8 width_kind;
+    uint8 precision_kind;
+    uint8 length;
+    char conversion;
+} FmtPlanSpec;
+
+typedef struct FmtPlan {
+    char *format;
+    FmtPlanSpec specs[FMT_PLAN_MAX_SPECS];
+    uint8 spec_count;
+    uint8 tail_offset;
+    uint8 tail_len;
+    bool valid;
+} FmtPlan;
+
+// Caller-owned immutable locale data for fmt_strftime_l. Strings are opaque
+// bytes and may contain UTF-8. Locale format strings may use fmt_strftime
+// directives but must not form recursive %c/%x/%X/%r expansion cycles.
+typedef struct FmtLocale {
+    const char *weekday_abbr[7];
+    const char *weekday[7];
+    const char *month_abbr[12];
+    const char *month[12];
+    const char *am;
+    const char *pm;
+    const char *am_lower;
+    const char *pm_lower;
+    const char *date_time_fmt;
+    const char *date_fmt;
+    const char *time_fmt;
+    const char *time_12_fmt;
+} FmtLocale;
+
+extern const FmtLocale fmt_locale_c;
+
+// cbase fmt_printf-compatible formatter. It returns the byte count that would
+// have been written, excluding the terminating '\0'. It writes a terminating
+// '\0' when capacity is positive. buffer may be NULL only when capacity is
+// zero. Negative returns are errno-style failures. Floating precision is
+// bounded by the exact fixed-decimal limit of the argument type; larger
+// explicit precisions return -ERANGE. See cbase/README.md for the exact
+// supported grammar and deliberate differences from libc fmt_printf.
+// The runtime NULL-string representation is process configuration. Call this
+// only during single-threaded initialization, before any formatter use. Passing
+// NULL is a programmer error. The selected string is not copied and must remain
+// alive and unmodified for the rest of the process.
+void fmt_set_null_string(char *string);
+int32 fmt_vsnprintf(char *, int64, char *, va_list)           ATTR_PRINTF(3, 0);
+int32 fmt_snprintf(char *, int64, char *, ...)                ATTR_PRINTF(3, 4);
+int32 fmt_vsprintf(char *, int64, char *, va_list)            ATTR_PRINTF(3, 0);
+int32 fmt_sprintf(char *, int64, char *, ...)                 ATTR_PRINTF(3, 4);
+int32 fmt_printf(char *, ...)                                 ATTR_PRINTF(1, 2);
+int32 fmt_vsnprintf_estimate(char *, va_list)                 ATTR_PRINTF(1, 0);
+int32 fmt_snprintf_estimate(char *, ...)                      ATTR_PRINTF(1, 2);
+int32 fmt_vsnprintf_estimate_plan(FmtPlan *, char *, va_list) ATTR_PRINTF(2, 0);
+int32 fmt_vsnprintf_planned(FmtPlan *, char *, int64, va_list);
+// Async-signal-safe strftime. fmt_strftime() uses fmt_locale_c, while the _l
+// variant uses only the supplied immutable locale data. Locale strings must
+// remain valid and unmodified during the call. On Unix, %z and %Z use only
+// tm_gmtoff/tm_zone already present in struct tm.
+int32 fmt_strftime(char *, int64, char *, struct tm *);
+int32 fmt_strftime_l(char *, int64, char *, struct tm *, const FmtLocale *);
+
+String *string_array_append(StringArray *);
+int32 string_array_append_copy(StringArray *array, String *item);
+void string_array_clear(StringArray *);
+int32 string_array_copy(StringArray *dest, StringArray *source);
+void string_array_destroy(StringArray *);
+void string_array_move(StringArray *dest, StringArray *source);
+int32 string_array_reserve(StringArray *array, int32 extra);
+void string_array_swap(StringArray *left, StringArray *right);
+StrFlex *strflex_list_push(StrFlexList *, char *, int32);
+StrFlex *strflex_list_printf(StrFlexList *, char *, ...);
+void strflex_list_destroy(StrFlexList *);
+void strflex_list_clear(StrFlexList *);
+int32 strflex_list_len(StrFlexList *);
+StrFlex *strflex_list_at(StrFlexList *, int32);
+
+// Float formatting functions return the formatted byte count, excluding the
+// terminating '\0'. Negative return values are errno-style failures:
+// -EINVAL for invalid input, -ENOSPC when capacity is insufficient, and
+// -ERANGE when the requested precision is unsupported. Fixed/exp
+// double precision is capped at DBL_MANT_DIG - DBL_MIN_EXP.
+
+// This layer exposes shortest round-trip, fixed precision, and exp
+// precision formatting. It intentionally does not expose a %g/general format
+// helper: exact %g behavior needs a separate policy layer to choose between
+// fixed and exp output and to handle trailing-zero rules.
+int32 fmt_float32_shortest(char *buffer, int64 capacity, float value);
+int32 fmt_float64_shortest(char *buffer, int64 capacity, double value);
+int32 fmt_float64_fixed(char *, int64, double, int32);
+int32 fmt_float64_exp(char *, int64, double, int32);
+
+int32 string_from_strings(char *buffer, int32 size, char *separator,
+                          char **array, int32 length);
+int32 string_from_doubles(char *buffer, int32 size, char *separator,
+                          double *array, int32 length);
+double clamp_double(double x, double min, double max);
+double square_double(double x);
+int64 clamp_int64(int64 x, int64 min, int64 max);
+int32 clamp_int32(int32 x, int32 min, int32 max);
+int64 square_int64(int64 x);
+int32 square_int32(int32 x);
+
+#define MEM_LITERAL_SHORT_N 2
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 3
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 4
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 5
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 6
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 7
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 8
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 9
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 10
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 11
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 12
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 13
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 14
+#include "mem_literal_short.h"
+#define MEM_LITERAL_SHORT_N 15
+#include "mem_literal_short.h"
+
+// only call on null terminated strings
+// avoid this function,
+// prefer to always know the length of at least the first string
+// and use the STREQUAL macro.
+INLINE UNUSED bool32
+strequal(char *s1, char *s2) {
+    if (DEBUGGING) {
+        if ((s1 == NULL) || (s2 == NULL)) {
+            TRAP();
+        }
+    }
+    return !strcmp(s1, s2);
+}
+
+// don't call directly, use STREQUAL macro instead
+INLINE UNUSED bool32
+strequal2(char *a, int32 a_len, char *b, int32 b_len) {
+    if (a_len != b_len) {
+        return false;
+    }
+    if (a_len == 0) {
+        return true;
+    }
+    if (DEBUGGING) {
+        if ((a == NULL) || (b == NULL)) {
+            TRAP();
+        }
+    }
+
+    return !memcmp64(a, b, a_len);
+}
+
+INLINE UNUSED bool32
+optional_strequal(char *a, int32 a_len, char *b, int32 b_len) {
+    if (a && (b == NULL)) {
+        return false;
+    }
+    if (b && (a == NULL)) {
+        return false;
+    }
+    if ((a == NULL) && (b == NULL)) {
+        return true;
+    }
+
+    return strequal2(a, a_len, b, b_len);
+}
+
+bool32 striqual(char *s1, char *s2);
+bool32 striqual2(char *a, int32 a_len, char *b, int32 b_len);
+int32 strftime2(char *buffer, int64 size, char *format, struct tm *time_info);
+void time_localtime(time_t unix_timestamp, struct tm *time_info);
+int strncmp32(char *left, char *right, int64 size);
+void sleep_ms(int64 milliseconds);
+void sleep_ns(int64 nanoseconds);
+void sleep_us(int64 microseconds);
+double timediff(struct timespec t0, struct timespec t1);
+int64 time_elapsed_ms(int64 start, int64 end);
+int64 time_elapsed_ns(int64 start, int64 end);
+void time_monotonic_coarse(struct timespec *);
+int64 time_monotonic_now(void);
+void time_monotonic_precise(struct timespec *);
+void timezone_init(void);
+char *cbase_getcwd(char *buffer, int64 size);
+int32 cbase_mkdir(char *path);
+int32 cbase_rmdir(char *path);
+int32 cbase_unlink(char *path);
+int32 cbase_remove_file(char *path);
+int32 cbase_remove_empty_dir(char *path);
+int32 cbase_mkstemps(char *template_path, int32 suffix_len);
+int32 cbase_make_temp_file(char *buffer, int32 capacity, char *prefix,
+                           char *suffix);
+int32 fs_copy_file_sync(char *destination, char *source);
+void util_die_notify(char *title, char *body, ...);
+bool util_equal_files(char *filename_a, char *filename_b);
+bool util_file_exists(char *filename);
+int32 util_filename_from(char *buffer, int64 size, int fd);
+int32 util_nthreads(void);
+int64 read64(int32 fd, void *buffer, int64 len);
+int64 write64(int32 fd, void *buffer, int64 len);
+int64 fread64(void *data, int64 item_size, int64 nitems, FILE *file);
+int64 fwrite64(void *data, int64 item_size, int64 nitems, FILE *file);
+
+#if !defined(PARALLEL_FOR_MAX_THREADS)
+#define PARALLEL_FOR_MAX_THREADS 64
+#endif
+
+#if !defined(MIN_PARALLEL_ITEMS)
+#define MIN_PARALLEL_ITEMS 64
+#endif
+
+typedef void ParallelForFunction(int64 start, int64 end, int32 worker_id,
+                                 void *user_data);
+
+int32 parallel_for(int64 length,
+                   ParallelForFunction *function, void *user_data);
+int32 parallel_for_min_items(int64 length, int64 min_parallel_items,
+                             ParallelForFunction *function, void *user_data);
+int32 parallel_for_max_threads_min_items(int64 length, int32 max_threads,
+                                         int64 min_parallel_items,
+                                         ParallelForFunction *function,
+                                         void *user_data);
+void write_all(int fd, char *buffer, int64 left);
+int64 write_entire_file(char *path, char *text, int64 text_len);
+int xclose(char *file, int line, int *fd, char *fd_var_name,
+           char *filename);
+#if HAS_POSIX_WIN_SUBSET
+int xclosedir(DIR *dir, char *dirname);
+#endif
+char *cbase_mkdtemp(char *template_path);
+int xfclose(char *file, int32 line, char *func, FILE *f, char *filename);
+FILE *xfopen(char *file, int32 line, char *func, char *filename,
+             char *mode);
+#if OS_WINDOWS
+void windows_set_errno(DWORD error_code);
+#endif
+
+#if OS_UNIX
+void xdup2(int fd1, int fd2);
+void xkill(pid_t pid, int signum);
+void xpipe(int array[2]);
+void xpthread_cond_destroy(pthread_cond_t *);
+void xpthread_create(pthread_t *thread, pthread_attr_t *attr,
+                     void *(*function)(void *arg), void *arg);
+void xpthread_join(pthread_t *thread, void **thread_return);
+void xpthread_mutex_destroy(pthread_mutex_t *);
+void xpthread_mutex_init(pthread_mutex_t *mutex, pthread_mutexattr_t *attr);
+void xpthread_mutex_lock(pthread_mutex_t *mutex) ATTR_EXCLUSIVE_LOCK(*mutex);
+void xpthread_mutex_unlock(pthread_mutex_t *mutex) ATTR_UNLOCK(*mutex);
+#endif
+
+int xunlink(char *filename);
+bool xregular_file_exists(char *path);
+void test_make_temp_dir(char *buffer, int32 capacity, char *name);
+void test_remove_tree(char *path);
+void test_join_path(char *buffer, int64 buffer_len, char *dir, char *name);
+
+#if OS_UNIX
+bool test_cmd_exists(char *command);
+bool test_hardlink_supported(char *dir);
+bool test_symlink_supported(char *dir);
+#endif
+void here_impl(char *file, int32 line, char *func);
+
+#define STRING_FROM_ARRAY(BUFFER, SEP, ARRAY, LENGTH)  \
+_Generic((ARRAY),                                      \
+    double *: string_from_doubles,                     \
+    char **: string_from_strings                       \
+)(BUFFER, SIZEOF(BUFFER), SEP, ARRAY, LENGTH)
+
+#define CLAMP(VAR, VMIN, VMAX)                         \
+_Generic((VAR),                                        \
+    float:   clamp_double,                             \
+    double:  clamp_double,                             \
+    int32:   clamp_int32,                              \
+    default: clamp_int64                               \
+)(VAR, VMIN, VMAX)
+
+#define SQUARE(VAR)                                    \
+_Generic((VAR),                                        \
+    float:   square_double,                            \
+    double:  square_double,                            \
+    int32:   square_int32,                             \
+    default: square_int64                              \
+)(VAR)
+
+#define strequal2_3(A, A_LEN, B)        strequal2(A, A_LEN, B, STRLIT_LEN(B))
+#define strequal2_4(A, A_LEN, B, B_LEN) strequal2(A, A_LEN, B, B_LEN)
+#define STREQUAL(...) SELECT_ON_NUM_ARGS(strequal2_, __VA_ARGS__)
+
+#define striqual2_3(A, A_LEN, B)        striqual2(A, A_LEN, B, strlen32(B))
+#define striqual2_4(A, A_LEN, B, B_LEN) striqual2(A, A_LEN, B, B_LEN)
+#define STRIQUAL(...) SELECT_ON_NUM_ARGS(striqual2_, __VA_ARGS__)
+
+#define MEMMEM_3(LONG, LONG_LEN, SHORT)                                \
+    memmem64(LONG, LONG_LEN, SHORT, strlen32(SHORT))
+#define MEMMEM_4(LONG, LONG_LEN, SHORT, LEN)                           \
+    memmem64(LONG, LONG_LEN, SHORT, LEN)
+#define MEMMEM(...) SELECT_ON_NUM_ARGS(MEMMEM_, __VA_ARGS__)
+
+#define STRLIT_ARRAY(LITERAL, SIZE)                                    \
+    ((void)SIZEOF(struct {                                             \
+        _Static_assert(SIZEOF(LITERAL) <= ((SIZE) + 1),                \
+                       "string literal does not fit in STRLIT_ARRAY"); \
+        char dummy;                                                    \
+    }),                                                                \
+    (char[SIZE]){ LITERAL })
+
+#define MEM_LITERAL_SHORT_LENGTHS(XX)                                  \
+    XX(2),                                                             \
+    XX(3),                                                             \
+    XX(4),                                                             \
+    XX(5),                                                             \
+    XX(6),                                                             \
+    XX(7),                                                             \
+    XX(8),                                                             \
+    XX(9),                                                             \
+    XX(10),                                                            \
+    XX(11),                                                            \
+    XX(12),                                                            \
+    XX(13),                                                            \
+    XX(14),                                                            \
+    XX(15)
+
+#define MEM_LITERAL_SHORT_GENERIC_SLOT(N)                              \
+    char (*)[N]: CAT(mem_literal_short_, N)
+
+#define MEM_LITERAL_SHORT(HAYSTACK, HAYSTACK_LEN, LITERAL)             \
+_Generic((char (*)[STRLIT_LEN(LITERAL)])0,                             \
+    MEM_LITERAL_SHORT_LENGTHS(MEM_LITERAL_SHORT_GENERIC_SLOT),         \
+    default: memmem64                                                  \
+)(HAYSTACK, HAYSTACK_LEN, LITERAL, STRLIT_LEN(LITERAL))
+
+#define BEGINS_WITH_3(STRING, STRING_LEN, PREFIX)                      \
+    begins_with(STRING, STRING_LEN, PREFIX, STRLIT_LEN(PREFIX))
+#define BEGINS_WITH_4(STRING, STRING_LEN, PREFIX, PREFIX_LEN)          \
+    begins_with(STRING, STRING_LEN, PREFIX, PREFIX_LEN)
+#define BEGINS_WITH(...) SELECT_ON_NUM_ARGS(BEGINS_WITH_, __VA_ARGS__)
+
+#define ENDS_WITH_3(STRING, STRING_LEN, SUFFIX)                        \
+    ends_with(STRING, STRING_LEN, SUFFIX, STRLIT_LEN(SUFFIX))
+#define ENDS_WITH_4(STRING, STRING_LEN, SUFFIX, SUFFIX_LEN)            \
+    ends_with(STRING, STRING_LEN, SUFFIX, SUFFIX_LEN)
+#define ENDS_WITH(...) SELECT_ON_NUM_ARGS(ENDS_WITH_, __VA_ARGS__)
+
+#define BYTE_MATCHES_ANY_2(BYTE, MEMORY)                               \
+    byte_matches_any(BYTE, MEMORY, strlen32(MEMORY))
+#define BYTE_MATCHES_ANY_3(BYTE, MEMORY, MEMORY_LEN)                   \
+    byte_matches_any(BYTE, MEMORY, MEMORY_LEN)
+#define BYTE_MATCHES_ANY(...)                                          \
+    SELECT_ON_NUM_ARGS(BYTE_MATCHES_ANY_, __VA_ARGS__)
+
+#define ITOA(BUFFER, NUM) itoa2(BUFFER, SIZEOF(BUFFER), NUM)
+
+#define SNPRINTF(BUFFER, FORMAT, ...)                                  \
+    fmt_sprintf(BUFFER, SIZEOF(BUFFER), FORMAT, __VA_ARGS__)
+#define STRFTIME(BUFFER, FORMAT, TIME)                                 \
+    strftime2(BUFFER, SIZEOF(BUFFER), FORMAT, TIME)
+
+#define STRUCT_ARRAY_SIZE(STRUCT_OBJECT, ARRAY_TYPE, ARRAY_LENGTH)     \
+    (SIZEOF(*(STRUCT_OBJECT)) + (ARRAY_LENGTH)*SIZEOF(ARRAY_TYPE))
+
+#define XCLOSE_1(FD) xclose(__FILE__, __LINE__, FD, #FD, NULL)
+#define XCLOSE_2(FD, NAME) xclose(__FILE__, __LINE__, FD, #FD, NAME)
+#define XCLOSE(...) SELECT_ON_NUM_ARGS(XCLOSE_, __VA_ARGS__)
+
+#define XFOPEN(FILENAME, MODE)                                         \
+    xfopen(__FILE__, __LINE__, FUNC__, FILENAME, MODE)
+#define XFCLOSE(F, FILENAME)                                           \
+    xfclose(__FILE__, __LINE__, FUNC__, F, FILENAME)
+
+#define STR_APPEND_2(BUILDER, STRING)                                   \
+    str_append(BUILDER, STRING, STRLIT_LEN(STRING))
+#define STR_APPEND_3(BUILDER, STRING, LEN)                              \
+    str_append(BUILDER, STRING, LEN)
+#define STR_APPEND(...) SELECT_ON_NUM_ARGS(STR_APPEND_, __VA_ARGS__)
+
+#define HERE here_impl(__FILE__, __LINE__, FUNC__)
+
+#define NCALLS(INTERVAL) do {                                          \
+    static int64 ncalls_ncalls = 1;                                    \
+    if ((ncalls_ncalls % (INTERVAL)) == 0) {                           \
+        fprintf(stderr, "%s:%d:%s: called %lld times\n",               \
+                        __FILE__, __LINE__, FUNC__, ncalls_ncalls);    \
+    }                                                                  \
+    ncalls_ncalls += 1;                                                \
+} while (0)
+
+#define PRINT_TIMINGS_3(N, T0, T1)                                     \
+    print_timings(__FILE__, __LINE__, FUNC__, N, T0, T1)
+#define PRINT_TIMINGS_4(N, T0, T1, NAME)                               \
+    print_timings(__FILE__, __LINE__, NAME, N, T0, T1)
+#define PRINT_TIMINGS(...) SELECT_ON_NUM_ARGS(PRINT_TIMINGS_, __VA_ARGS__)
+
+#define GETENV(VAR) do {                                               \
+    if (((VAR) = getenv(#VAR)) == NULL) {                              \
+        if (DEBUGGING) {                                               \
+            error_impl(__FILE__, __LINE__, FUNC__,                     \
+                       RED("%s") " is not defined.", #VAR);            \
+        }                                                              \
+    }                                                                  \
+} while (0)
+
+#define PARSE_OPTION(ARG, NAME)                                        \
+    if (parse_option(&(NAME), ARG, #NAME) >= 0) {                      \
+        continue;                                                      \
+    }
+
+#define ENUM_NAME CommandFlag
+#define ENUM_BITFLAGS 1
+#define ENUM_PREFIX_ CMD_
+#define ENUM_FIELDS                                                    \
+    XX(CMD_CAPTURE_STDOUT)                                         \
+    XX(CMD_CAPTURE_STDERR)                                         \
+    XX(CMD_MERGE_STDERR)                                           \
+    XX(CMD_ASYNC)                                                  \
+    XX(CMD_DETACHED)                                               \
+    XX(CMD_NEW_SESSION)                                            \
+    XX(CMD_NEW_PROCESS_GROUP)                                      \
+    XX(CMD_STDIN_TTY)                                              \
+    XX(CMD_CLOSE_STDIN)
+#define XENUMS_DECLARE_ONLY 1
+#define XENUMS_NO_TESTS 1
+#include "xenums.c"
+#undef XENUMS_NO_TESTS
+
+typedef struct CommandResult {
+    int64 pid;
+
+    char *output;
+    char *stdout_output;
+    char *stderr_output;
+
+    int32 output_len;
+    int32 stdout_len;
+    int32 stderr_len;
+
+    int32 stdin_fd;
+    int32 stdout_fd;
+    int32 stderr_fd;
+
+    int32 status;
+    int32 error_status;
+    int32 exit_status;
+    int32 term_signal;
+
+    bool exited;
+    bool signaled;
+    uint8 padding[6];
+} CommandResult;
+
+typedef struct Command {
+    char **argv;
+    char **env;
+    char *cwd;
+    char *stdin_buffer;
+    Arena *argv_arena;
+
+    int32 *argv_lens;
+    int32 *env_lens;
+    int32 cwd_len;
+    int32 argc;
+    int32 env_len;
+    int32 cap;
+    int32 env_cap;
+    int32 error_status;
+    int64 stdin_buffer_len;
+    int64 run_elapsed_ns;
+
+    CommandResult result;
+} Command;
+
+void cmd_argv0_set(Command *command, char *argument);
+void cmd_child_env_apply(Command *);
+noreturn void cmd_child_exec(
+    Command *command,
+    enum CommandFlag flags,
+    int stdin_pipe[2],
+    int stdout_pipe[2],
+    int stderr_pipe[2]
+);
+#if OS_WINDOWS
+void cmd_windows_cmd_line(Command *command, char *cmdline,
+                                  int64 cmdline_len);
+char *cmd_windows_argv0(Command *command, char *argv0_windows,
+                            int32 *argv0_len);
+int32 cmd_windows_run_process(Command *command, enum CommandFlag flags);
+#endif
+void cmd_cwd_clear(Command *);
+void cmd_cwd_set(Command *command, char *cwd);
+void cmd_env_clear(Command *);
+void cmd_env_printf(Command *command, char *fmt, ...);
+void cmd_env_push(Command *command, char *assignment);
+void cmd_env_push_length(Command *command, char *assignment,
+                             int32 assignment_len);
+void cmd_error_set(Command *command, int32 error_status);
+bool cmd_flags_capture(enum CommandFlag);
+enum CommandFlag cmd_flags_normalized(enum CommandFlag);
+void cmd_free(Command *);
+void cmd_print(Command *);
+void cmd_printf(Command *command, char *fmt, ...);
+void cmd_push_length(Command *command, char *argument, int32 argument_len);
+void cmd_push_array(Command *command, int32 argc, char **argv);
+void cmd_push_owned_length(Command *command,
+                               char *argument, int32 argument_len);
+void cmd_push_split(Command *command, char *arguments, char *delimiters);
+int32 cmd_stdin_buffer_set(Command *command, char *data, int64 data_len);
+void cmd_stdin_buffer_clear(Command *);
+void cmd_reset(Command *);
+void cmd_result_append(String *output,
+                           String *stdout_output, String *stderr_output,
+                           bool is_stderr,
+                           char *data, int32 data_len);
+void cmd_result_file_descriptors_close(CommandResult *);
+void cmd_result_free(CommandResult *);
+void cmd_result_init(CommandResult *);
+void cmd_result_read_captured(Command *);
+void cmd_result_process_io(Command *command, enum CommandFlag flags);
+int32 cmd_run(Command *command, enum CommandFlag flags);
+int32 cmd_run_async(Command *command, enum CommandFlag flags);
+int32 cmd_run_capture(Command *command, enum CommandFlag flags);
+int32 cmd_run_capture_all(Command *);
+int32 cmd_run_capture_combined(Command *);
+int32 cmd_run_sync(Command *command, int *exit_status);
+int32 cmd_signal(Command *command, int32 signal_number,
+                     bool process_group);
+int32 cmd_start(Command *command, enum CommandFlag flags);
+int32 cmd_status_from_wait(int status, CommandResult *result);
+char *cmd_str(Command *command, int32 *len);
+int32 cmd_wait(Command *);
+
+#define CMD_PUSH(CMD, ...)                                    \
+    cmd_push_array(CMD,                                       \
+                   (int32)(SIZEOF((char *[]){__VA_ARGS__})      \
+                           /SIZEOF(char *)),                   \
+                   (char *[]){__VA_ARGS__})
+
+#define CMD_ENV_PUSH_2(A, B) cmd_env_push(A, B)
+#define CMD_ENV_PUSH_3(A, B, B_LEN)                        \
+    cmd_env_push_length(A, B, B_LEN)
+#define CMD_ENV_PUSH(...)                                  \
+    SELECT_ON_NUM_ARGS(CMD_ENV_PUSH_, __VA_ARGS__)
+
+#if !defined(MAX_NTHREADS)
+#define MAX_NTHREADS 64
+#endif
+
+// Note: it is fine to typedef union in this case
+#if CBASE_CRT_MSVC
+#pragma warning(push)
+#pragma warning(disable: 4324)
+#endif
+typedef union GenericArrayHeader {
+    struct {
+        int32 count;
+        int32 cap;
+    };
+    CbaseMaxAlign alignment;
+} GenericArrayHeader;
+#if CBASE_CRT_MSVC
+#pragma warning(pop)
+#endif
+
+void *generic_array_init(int32 cap, int64 item_size);
+void *generic_array_grow(void *array, int64 item_size);
+bool generic_array_reserve(void **array, int32 needed_count,
+                           int64 item_size);
+int32 generic_array_capacity(void *array);
+void generic_array_set_count(void *array, int32 count);
+
+#define ARRAY_HEADER(ARRAY)   ((GenericArrayHeader *)((void *)(ARRAY)) - 1)
+#define ARRAY_LEN(ARRAY)      ((ARRAY) ? ARRAY_HEADER(ARRAY)->count : 0)
+#define ARRAY_CAPACITY(ARRAY) generic_array_capacity(ARRAY)
+
+#define ARRAY_RESERVE(ARRAY, NEEDED_COUNT)                       \
+    generic_array_reserve((void **)&(ARRAY),                     \
+                          (NEEDED_COUNT),                        \
+                          SIZEOF(*(ARRAY)))
+#define ARRAY_SET_COUNT(ARRAY, COUNT)                            \
+    generic_array_set_count((ARRAY), (COUNT))
+
+#define ARRAY_INIT_COUNT(ARRAY, COUNT) do {                      \
+    ARRAY_INIT((ARRAY), (COUNT));                                \
+    ARRAY_SET_COUNT((ARRAY), (COUNT));                           \
+} while (0)
+#define ARRAY_CLEAR(ARRAY) do {                                  \
+    if (ARRAY) {                                                 \
+        ARRAY_HEADER(ARRAY)->count = 0;                          \
+    }                                                            \
+} while (0)
+#define ARRAY_FREE(ARRAY) do {                                   \
+    if (ARRAY) {                                                 \
+        GenericArrayHeader *array_header_ = ARRAY_HEADER(ARRAY); \
+        free2(array_header_, SIZEOF(*array_header_)              \
+              + array_header_->cap*SIZEOF(*(ARRAY)));            \
+        (ARRAY) = NULL;                                          \
+    }                                                            \
+} while (0)
+
+#define ARRAY_PUSH(ARRAY, ...)                                   \
+    ((ARRAY) = generic_array_grow((ARRAY), SIZEOF(*(ARRAY))),    \
+     (ARRAY)[ARRAY_HEADER(ARRAY)->count++] = (__VA_ARGS__))
+#define ARRAY_INIT(ARRAY, CAPACITY)                              \
+    ((ARRAY) = generic_array_init((CAPACITY), SIZEOF(*(ARRAY))))
+
+#if CC_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wstrict-prototypes"
+#endif
+
+// when you need a valid symbol
+// to silence clangd warnings in include-based templates.
+typedef void ThrowAwayFunction();
+void throw_away_function();
+
+#if CC_CLANG
+#pragma clang diagnostic pop
+#endif
+
+#define CBASE_DECLARATIONS_COMPLETE 1
+#endif /* CBASE_H */
+
+#if defined(CBASE_IMPLEMENT) && defined(CBASE_DECLARATIONS_COMPLETE) \
+        && !defined(CBASE_IMPLEMENTED) \
+        && !defined(CBASE_SEPARATE_COMPILATION)
+#define CBASE_IMPLEMENTED 1
+
+#include "arena.c"
+#include "allocator.c"
+#include "memory.c"
+#include "rapidhash.c"
+#include "generic.c"
+#include "assertions.c"
+#include "array.c"
+#include "utf8.c"
+#include "ascii_normalization.c"
+#include "util.c"
+#include "strtonum.c"
+#include "numtostr.c"
+#include "string.c"
+#include "time.c"
+#include "fs.c"
+#include "ryu.c"
+#if OS_WINDOWS
+#include "windows.c"
+#endif
+#include "directory.c"
+#include "threads.c"
+
+#include "some_math.c"
+#include "fmt.c"
+
+#include "command.c"
+#include "cbase.h"
+#endif

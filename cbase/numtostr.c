@@ -1,0 +1,437 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+#if !defined(NUMTOSTR_C)
+#define NUMTOSTR_C
+
+#if !defined(TESTING_numtostr)
+#if defined(__INCLUDE_LEVEL__) && (__INCLUDE_LEVEL__ == 0)
+#define TESTING_numtostr 1
+#else
+#define TESTING_numtostr 0
+#endif
+#endif
+
+#include "cbase.h"
+
+#if !defined(EOVERFLOW)
+#define EOVERFLOW ERANGE
+#endif
+
+enum {
+    NUMTOSTR_FLOAT_RYU_BUFFER_SIZE = 2000,
+    NUMTOSTR_FLOAT_MAX_PRECISION = DBL_MANT_DIG - DBL_MIN_EXP,
+};
+
+_Static_assert(DBL_MAX_10_EXP + NUMTOSTR_FLOAT_MAX_PRECISION + 4
+               < NUMTOSTR_FLOAT_RYU_BUFFER_SIZE,
+               "float formatting temporary buffer is too small");
+
+int32
+itoa2(char *buffer, int32 size, llong num) {
+    ullong magnitude;
+    int i = 0;
+    bool negative = false;
+
+    ASSERT_GE(size, 22);
+
+    if (num < 0) {
+        negative = true;
+        magnitude = (ullong)(-(num + 1)) + 1;
+    } else {
+        magnitude = (ullong)num;
+    }
+
+    do {
+        buffer[i] = (char)(magnitude % 10 + '0');
+        i += 1;
+        magnitude /= 10;
+    } while (magnitude > 0);
+
+    if (negative) {
+        buffer[i] = '-';
+        i += 1;
+    }
+
+    buffer[i] = '\0';
+
+    for (long j = 0; j < i / 2; j += 1) {
+        char temp = buffer[j];
+        buffer[j] = buffer[i - j - 1];
+        buffer[i - j - 1] = temp;
+    }
+
+    return i;
+}
+
+static int32
+fmt_float_validate_buffer(char *buffer, int64 capacity) {
+    if (buffer == NULL) {
+        return -EINVAL;
+    }
+    if (capacity <= 0) {
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+static int32
+fmt_float_validate_precision(int32 precision) {
+    if (precision < 0) {
+        return -EINVAL;
+    }
+    if (precision > NUMTOSTR_FLOAT_MAX_PRECISION) {
+        return -ERANGE;
+    }
+
+    return 0;
+}
+
+static int32
+fmt_float_copy(char *buffer, int64 capacity, char *source, int32 source_len) {
+    ASSERT(buffer != NULL);
+    ASSERT_GT(capacity, 0);
+    ASSERT(source != NULL);
+    ASSERT_BETWEEN(source_len, 0, NUMTOSTR_FLOAT_RYU_BUFFER_SIZE - 1);
+
+    if ((int64)source_len >= capacity) {
+        return -ENOSPC;
+    }
+
+    memcpy64(buffer, source, source_len);
+    buffer[source_len] = '\0';
+    return source_len;
+}
+
+int32
+fmt_float32_shortest(char *buffer, int64 capacity, float value) {
+    int32 status;
+    int32 len;
+    char temp[NUMTOSTR_FLOAT_RYU_BUFFER_SIZE];
+
+    if ((status = fmt_float_validate_buffer(buffer, capacity)) < 0) {
+        return status;
+    }
+
+    len = f2s_buffered_n(value, temp);
+    return fmt_float_copy(buffer, capacity, temp, len);
+}
+
+int32
+fmt_float64_shortest(char *buffer, int64 capacity, double value) {
+    int32 status;
+    int32 len;
+    char temp[NUMTOSTR_FLOAT_RYU_BUFFER_SIZE];
+
+    if ((status = fmt_float_validate_buffer(buffer, capacity)) < 0) {
+        return status;
+    }
+
+    len = d2s_buffered_n(value, temp);
+    return fmt_float_copy(buffer, capacity, temp, len);
+}
+
+int32
+fmt_float64_fixed(char *buffer, int64 capacity, double value, int32 precision) {
+    int32 status;
+    int32 len;
+    char temp[NUMTOSTR_FLOAT_RYU_BUFFER_SIZE];
+
+    if ((status = fmt_float_validate_buffer(buffer, capacity)) < 0) {
+        return status;
+    }
+    if ((status = fmt_float_validate_precision(precision)) < 0) {
+        return status;
+    }
+
+    len = d2fixed_buffered_n(value, (uint32)precision, temp);
+    return fmt_float_copy(buffer, capacity, temp, len);
+}
+
+int32
+fmt_float64_exp(char *buffer, int64 capacity, double value, int32 precision) {
+    int32 status;
+    int32 len;
+    char temp[NUMTOSTR_FLOAT_RYU_BUFFER_SIZE];
+
+    if ((status = fmt_float_validate_buffer(buffer, capacity)) < 0) {
+        return status;
+    }
+    if ((status = fmt_float_validate_precision(precision)) < 0) {
+        return status;
+    }
+
+    len = d2exp_buffered_n(value, (uint32)precision, temp);
+    return fmt_float_copy(buffer, capacity, temp, len);
+}
+
+int32
+bytes_pretty(char *buffer, int64 raw) {
+    static char *const suffixes[] = {
+        "B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"
+    };
+    double aux_pretty;
+    int64 i;
+    int32 precision;
+    int32 n;
+    int32 suffix_len;
+    char *suffix;
+
+    if (raw < 0) {
+        *buffer = '\0';
+        return 0;
+    }
+
+    if (raw <= 1023) {
+        n = itoa2(buffer, 22, raw);
+        buffer[n] = 'B';
+        n += 1;
+        buffer[n] = '\0';
+        return n;
+    }
+
+    aux_pretty = (double)raw;
+    i = 0;
+    while ((aux_pretty >= 1024.0) && (i < LENGTH(suffixes))) {
+        aux_pretty /= 1024.0;
+        i += 1;
+    }
+
+    if (aux_pretty >= 1000) {
+        precision = 1;
+    } else if (aux_pretty >= 100) {
+        precision = 2;
+    } else if (aux_pretty >= 10) {
+        precision = 3;
+    } else {
+        precision = 4;
+    }
+
+    suffix = suffixes[i];
+    suffix_len = strlen32(suffix);
+    n = d2fixed_buffered_n(aux_pretty, (uint32)precision, buffer);
+    ASSERT_LT(n + suffix_len, 16);
+
+    memcpy64(buffer + n, suffix, suffix_len);
+    n += suffix_len;
+    buffer[n] = '\0';
+    return n;
+}
+
+int32
+fmt_time_elapsed(char *buffer, double elapsed) {
+    bool negative = false;
+    char number[32];
+    char raw_seconds[32];
+    int64 total_milliseconds;
+    int64 total_seconds;
+    int64 milliseconds;
+    int64 days;
+    int64 hours;
+    int64 minutes;
+    int64 seconds;
+    int32 number_len;
+    int32 raw_len = 0;
+    int32 n = 0;
+
+    if (elapsed < 0) {
+        negative = true;
+        elapsed = -elapsed;
+    }
+
+    total_milliseconds = (int64)(elapsed*1000.0 + 0.5);
+    total_seconds = total_milliseconds/1000;
+    milliseconds = total_milliseconds%1000;
+
+    if (negative) {
+        raw_seconds[raw_len++] = '-';
+    }
+    number_len = itoa2(number, SIZEOF(number), total_seconds);
+    memcpy64(raw_seconds + raw_len, number, number_len);
+    raw_len += number_len;
+    raw_seconds[raw_len++] = '.';
+    raw_seconds[raw_len++] = (char)('0' + milliseconds/100);
+    raw_seconds[raw_len++] = (char)('0' + (milliseconds/10)%10);
+    raw_seconds[raw_len++] = (char)('0' + milliseconds%10);
+    raw_seconds[raw_len++] = 's';
+    raw_seconds[raw_len++] = '\0';
+
+    if (elapsed <= 60.0) {
+        memcpy64(buffer, raw_seconds, raw_len + 1);
+        return raw_len;
+    }
+
+    if (negative) {
+        buffer[n++] = '-';
+    }
+
+    if (elapsed <= 3600.0) {
+        minutes = total_seconds/60;
+        seconds = total_seconds%60;
+
+        number_len = itoa2(number, SIZEOF(number), minutes);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+        memcpy64(buffer + n, "min", 3);
+        n += 3;
+        number_len = itoa2(number, SIZEOF(number), seconds);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+
+        buffer[n++] = 's';
+    } else if (elapsed <= 3600.0*60.0) {
+        hours = total_seconds/3600;
+        minutes = (total_seconds%3600)/60;
+
+        number_len = itoa2(number, SIZEOF(number), hours);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+
+        buffer[n++] = 'h';
+
+        number_len = itoa2(number, SIZEOF(number), minutes);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+        memcpy64(buffer + n, "min", 3);
+        n += 3;
+    } else {
+        days = total_seconds/(24*3600);
+        hours = (total_seconds%(24*3600))/3600;
+        minutes = (total_seconds%3600)/60;
+
+        number_len = itoa2(number, SIZEOF(number), days);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+
+        buffer[n++] = 'd';
+
+        number_len = itoa2(number, SIZEOF(number), hours);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+
+        buffer[n++] = 'h';
+
+        number_len = itoa2(number, SIZEOF(number), minutes);
+        memcpy64(buffer + n, number, number_len);
+        n += number_len;
+        memcpy64(buffer + n, "min", 3);
+        n += 3;
+    }
+
+    memcpy64(buffer + n, " (", 2);
+    n += 2;
+    memcpy64(buffer + n, raw_seconds, raw_len);
+    n += raw_len;
+    buffer[n] = ')';
+    n += 1;
+
+    buffer[n] = '\0';
+    return n;
+}
+
+#if 0 == TESTING_numtostr
+static inline void
+numtostr_functions_sink(void) {
+    (void)numtostr_functions_sink;
+    (void)itoa2;
+    (void)bytes_pretty;
+    (void)fmt_float32_shortest;
+    (void)fmt_float64_shortest;
+    (void)fmt_float64_fixed;
+    (void)fmt_float64_exp;
+    return;
+}
+#endif
+
+#if TESTING_numtostr
+#define CBASE_IMPLEMENT
+#include "cbase.h"
+#include "ryu.h"
+
+static void
+test_numtostr_itoa(void) {
+    char buffer[32];
+    int32 len;
+
+    len = itoa2(buffer, SIZEOF(buffer), 0);
+    ASSERT_EQ(buffer, len, "0");
+
+    len = itoa2(buffer, SIZEOF(buffer), -9223372036854775807LL - 1);
+    ASSERT_EQ(buffer, len, "-9223372036854775808");
+
+    len = itoa2(buffer, SIZEOF(buffer), 9223372036854775807LL);
+    ASSERT_EQ(buffer, len, "9223372036854775807");
+    return;
+}
+
+static void
+test_numtostr_bytes_pretty(void) {
+    char buffer[32];
+    int32 len;
+
+    len = bytes_pretty(buffer, -1);
+    ASSERT_ZERO(len);
+    ASSERT_EQ((char *)buffer, "");
+
+    len = bytes_pretty(buffer, 512);
+    ASSERT_EQ(buffer, len, "512B");
+
+    len = bytes_pretty(buffer, 1024);
+    ASSERT_EQ(buffer, len, "1.0000kB");
+
+    len = bytes_pretty(buffer, SIZEMB(2));
+    ASSERT_EQ(buffer, len, "2.0000MB");
+    return;
+}
+
+static void
+test_numtostr_float_buffers(void) {
+    char buffer[64];
+    char large_buffer[NUMTOSTR_FLOAT_RYU_BUFFER_SIZE];
+    int32 len;
+
+    len = fmt_float64_shortest(buffer, SIZEOF(buffer), 0.1);
+    ASSERT_EQ(len, 4);
+    ASSERT_EQ((char *)buffer, "1E-1");
+
+    len = fmt_float32_shortest(buffer, SIZEOF(buffer), 0.1f);
+    ASSERT_EQ(len, 4);
+    ASSERT_EQ((char *)buffer, "1E-1");
+
+    len = fmt_float64_fixed(buffer, SIZEOF(buffer), 1.25, 2);
+    ASSERT_EQ(len, 4);
+    ASSERT_EQ((char *)buffer, "1.25");
+
+    len = fmt_float64_exp(buffer, SIZEOF(buffer), 1234.0, 2);
+    ASSERT_EQ(len, 8);
+    ASSERT_EQ((char *)buffer, "1.23e+03");
+
+    len = fmt_float64_fixed(large_buffer, SIZEOF(large_buffer), 0.0,
+                            NUMTOSTR_FLOAT_MAX_PRECISION);
+    ASSERT_EQ(len, NUMTOSTR_FLOAT_MAX_PRECISION + 2);
+    len = fmt_float64_exp(large_buffer, SIZEOF(large_buffer), 0.0,
+                          NUMTOSTR_FLOAT_MAX_PRECISION);
+    ASSERT_EQ(len, NUMTOSTR_FLOAT_MAX_PRECISION + 6);
+
+    ASSERT_EQ(fmt_float64_shortest(NULL, 64, 1.0), -EINVAL);
+    ASSERT_EQ(fmt_float64_shortest(buffer, 0, 1.0), -EINVAL);
+    ASSERT_EQ(fmt_float64_fixed(buffer, SIZEOF(buffer), 1.0, -1), -EINVAL);
+    ASSERT_EQ(fmt_float64_fixed(buffer, SIZEOF(buffer), 1.0,
+                                NUMTOSTR_FLOAT_MAX_PRECISION + 1),
+              -ERANGE);
+    ASSERT_EQ(fmt_float64_fixed(buffer, 4, 1.25, 2), -ENOSPC);
+    return;
+}
+
+int
+main(void) {
+    test_numtostr_itoa();
+    test_numtostr_bytes_pretty();
+    test_numtostr_float_buffers();
+    exit(EXIT_SUCCESS);
+}
+
+#endif
+
+#endif /* NUMTOSTR_C */

@@ -1,0 +1,683 @@
+# C formatting style for 64-bit PC programming
+## Note
+When a rule says "prefer", avoid changing already-readable code unless the
+specific form is listed as bad. Exceptions listed under a "prefer" rule should
+be preserved.
+
+For non-formatting coding guidelines, see `c-guidelines.md`.
+
+## Whitespace and indentation
+- For indentation, never use tabs.
+  * Use spaces for indentation.
+  * Use 4 spaces for each indentation level.
+    + Macros are more free: use 0, 2, or 4 spaces for continuation lines.
+- Trim trailing whitespace.
+- Keep line length at maximum 80 characters.
+
+## Operators
+- Space or newline (if at end of line) is mandatory after comma.
+- Space is mandatory around all assignment operators (`=`, `*=`, `+=`, etc).
+- Never begin a continuation line with an assignment `=`. If an assignment
+  needs to wrap, keep `=` at the end of the preceding line and break after it.
+  This restriction does not apply to the comparison operator `==`.
+  ```c
+  // bad
+  my_variable
+      = this_function_is_long_and_had_to_break_the_line(100, 200, arg, other_arg);
+
+  // good
+  my_variable =
+      this_function_is_long_and_had_to_break_the_line(100, 200, arg, other_arg);
+  ```
+- Space is forbidden around `*` used for multiplication.
+- Space is optional around `/` used for division (keep as is).
+- Space is mandatory around `+` and `-` used for binary operation.
+- Space is optional around modulo operator (`%`)
+- Space is optional around bitwise xor (`^`)
+- Space is optional around bitwise or (`|`)
+- Space is mandatory around bitwise and (`&`)
+- Space is mandatory around bitshifts (`<<` and `>>`)
+- Space is forbidden around dot and arrow (`.` and `->`) for acessing struct and
+  union fields.
+- Space is forbidden after dot used for initializing struct fields (but space
+  before the dot is fine).
+- Space is mandatory around boolean or and boolean and (`&&`, and `||`).
+- Space is mandatory around all comparison operators.
+- Space is forbidden between a unary operator and its operand.
+- In general, prefer `+= 1` instead of `++`.
+- In general, prefer `-= 1` instead of `--`.
+
+## Casts
+
+- Do not add space for casts:
+  ```c
+  int32 x = (int32)y;  // good
+  int32 x = (int32) y; // bad
+  ```
+
+## Pointers
+
+- For pointers, use space after the type and no space before the name:
+  ```c
+  char *string;
+  ```
+
+## Function calls
+
+- Never use space before parenthesis of function calls.
+
+### Never break function calls before the first argument:
+Exception: generated files ending in `.meta.h` may break before the first
+argument.
+
+The list below explains what to do:
+
+1. First, try to fit the entire call in a single line:
+  ```c
+  // bad
+  this_function_call(
+      argument, other, many, arguments, x, y, width, height);
+  // good
+  this_function_call(argument, other, many, arguments, x, y, width, height);
+  ```
+
+2. If it doesn't fit, try to break after the first argument:
+  ```c
+  // bad
+  this_function_call_is_very_long_but(
+      argument, other, many, arguments, x, y, width, height);
+  // good
+  this_function_call_is_very_long_but(argument, other, many, arguments,
+                                      x, y, width, height);
+  ```
+  * Note: remember to align subsequent lines so that they align correctly:
+  ```c
+  // bad
+  this_function_call_is_very_long_but(argument, other, many, arguments,
+                          x, y, width, height);
+
+  // good
+  this_function_call_is_very_long_but(argument, other, many, arguments,
+                                      x, y, width, height);
+  ```
+    + Note: if aligning subsequent arguments would overflow the 80 column limit,
+      then try doing alternatives 3, 4, 5, 6 and 7, below, then go back to 2.
+
+3. If it still does not fit, but it is an assignment, try to break after the
+   `=`:
+  ```c
+  // bad
+  int32 assignment = this_function_call_is_even_more_long_but(
+      argument_very_long, other, many, arguments, width, height);
+  // good
+  int32 assignment =
+      this_function_call_is_even_more_long_but(argument_very_long, other, many,
+                                               arguments,
+                                               width, height);
+  ```
+4. If it still does not fit, try creating aliases for the arguments as needed:
+  ```c
+  // bad
+  this_function_call_is_even_more_longer_still(
+      &this_is_array_to_use_right_here[i], 0);
+
+  // good
+  int32 *item = &this_is_array_to_use_right_here[i];
+  this_function_call_is_even_more_longer_still(item, 0);
+  );
+  ```
+5. If it still does not fit, change the name of the arguments to the function to
+   be shorter.
+6. If it still does not fit, change the name of the function to be shorter.
+7. If it still does not fit, and the function is from an external library that
+   we can't change, create a wrapper for it with a shorter name.
+
+Important: only try 2 if 1 does not work, only try 3 if 2 and 1 do not work,
+only try 4 if 1, 2, and 3 do not work, and so on. Remember to do a final pass,
+do the alignment, as explained in 2.
+
+## Rules for reducing long lines.
+When it happens that a line of code has more than 80 chars, the rules are:
+For function calls, check the rules above.
+
+For other types of lines, like
+assignments, macro definitions, array declarations, string literals, etc:
+
+1. Simple assignments: Break after the `=` sign
+2. Macro definitions: use backslash, reduce the macro name, or use helper macros
+3. For code that is too deeply nested: use early returns and continues when
+   possible, instead of nesting multiple ifs.
+4. Declarations: use line breaks for each struct/array member if necessary.
+5. String literals: avoid breaking them: try everything we mentioned above, even
+   reducing the name of local variables and local static functions, but if
+   unavoidable, prefer to break them at punctuation or right before prepositions
+   and conjuctions (of, in, to, with, on, and, but, or, because, if, etc).
+
+## Identation
+When breaking long lines that are long expressions, try to make them readable
+and aligned, see below for good examples:
+
+```c
+enum MyFlags flags = MY_FLAG_EXAMPLE1
+                     |MY_FLAG_EXAMPLE2
+                     |MY_FLAG_EXAMPLE3
+                     |MY_FLAG_EXAMPLE4
+                     |MY_FLAG_EXAMPLE5;
+
+if ((flags & MY_FLAG_EXAMPLE1)
+    && (some_other_condition || other_condition_yet)) {
+    // do stuff
+}
+```
+
+## Function headers
+Put qualifiers and return type in one line, function name and argument in the
+other:
+```c
+// good
+static int32
+my_function(int32 x, int32 y) {
+    return x*y;
+}
+```
+
+If the arguments do not fit all in a single line including the ending `) {`,
+then break (try to group related arguments together, like in function calls)
+and align:
+```c
+// bad (no need to break before the first argument).
+static void
+my_function(
+    StructType arg, int32 *what, int32 what_len, char *name, int32 name_len
+) {
+    return;
+}
+
+// better, but still bad
+// (we are separating what and what_len, which are clearly related)
+static void
+my_function(StructType arg, int32 *what,
+            int32 what_len, char *name, int32 name_len) {
+    return;
+}
+
+// good
+static void
+my_function(StructType arg,
+            int32 *what, int32 what_len, char *name, int32 name_len) {
+    return;
+}
+```
+
+When formatting printf-like function calls, try to fit the entire call in a
+single line; If it does not fit, try to fit the format string and the arguments
+in the same line; if it still does not fit, try to align the beggining of the
+first argument for the format string with the beggining of the format string; if
+it still does not fit; put the format string on a new line and the arguments for
+the format string below it. When wrapping the call, the line containing the end
+of the format string must contain either all format arguments or none of them.
+The format arguments may continue on later lines, but the first format-argument
+line must be aligned with the format string. See the examples below:
+```c
+static void
+function(void) {
+    String str = {0};
+    int32 x = 1;
+    int32 y = 2;
+
+    // good (all arguments fit in a single line)
+    str_printf(&str, "this fits in one line: %d\n", x);
+
+    // bad (unnecessarly breaking lines)
+    str_printf(&str,
+               "this fits in one line: %d\n",
+               x);
+
+    // bad (the format-string line contains some, but not all, arguments)
+    str_printf(&str, "this does not fit in single line because of: %d, %d\n", x,
+               y);
+
+    // good (format arguments are on the same line and aligned with fmt string)
+    str_printf(&str, "this does not fit in a single line because of: %d, %d\n",
+                     x, y);
+
+    // also good (the format-string line contains all format arguments)
+    str_printf(&str,
+               "this does not fit in a single line because of: %d, %d\n", x, y);
+
+    // bad (passes the 80 column limit)
+    str_printf(&str, "this is a format string for writing the numbers %d and %d.", x, y);
+
+    // also bad (the format-string line contains some, but not all, arguments)
+    str_printf(&str, "this is format string for writing numbers %d and %d.", x,
+                     y);
+
+    // good (the format-string line contains all format arguments)
+    str_printf(&str,
+               "this is format string for writing numbers %d and %d.", x, y);
+
+    // also good (the format-string line contains no format arguments)
+    str_printf(&str,
+               "this is a format string for writing the numbers %d and %d.",
+               x, y);
+
+    // also good (format arguments are aligned with the format string)
+    str_printf(&str, "this is a format string for writing numbers %d and %d.",
+                     x, y);
+
+    // bad (the format-string line contains some, but not all, arguments)
+    fmt_printf("some format string says: %s = %g\n", states[i],
+               X[final_step*nstates + i]);
+
+    // good (the format-string line contains no format arguments)
+    fmt_printf("some format string says: %s = %g\n",
+               states[i], X[final_step*nstates + i]);
+
+    // also good (the format-string line contains no format arguments; the
+    // arguments may continue on later lines)
+    fmt_printf("some format string says: %s = %g\n",
+               states[i],
+               X[final_step*nstates + i]);
+
+    return;
+}
+```
+
+If the format string itself does not fit in a single line, you can split it into
+multiple lines or maybe break the printing into multiple calls:
+```c
+static void
+function(void) {
+    String str = {0};
+    int32 x = 1;
+    int32 y = 2;
+
+    // bad (split the format string instead of exceeding the line limit)
+    str_printf(&str,
+               "this is a huge huge huge huge huge huge huge huge huge huge format string = %d",
+               x);
+
+    // good
+    str_printf(&str,
+               "this is a"
+               " huge huge huge huge huge huge huge huge huge huge"
+               " format string = %d", x);
+
+    // also good
+    STR_APPEND(&str, "this is a");
+    STR_APPEND(&str, " huge huge huge huge huge huge huge huge huge huge");
+    str_printf(&str, " format string = %d", x);
+
+    return;
+}
+```
+
+## Style for realloc2.
+Try to fit in a single line (good(1));
+If does not fit, use good(2);
+if still does not fit, use good(3).
+```c
+// good(1)
+pointer = realloc2(pointer, old_capacity, new_capacity, SIZEOF(*pointer));
+
+// good(2)
+pointer_name = realloc2(pointer_name,
+                        old_capacity, new_capacity, SIZEOF(*pointer_name));
+// good(3)
+pointer_name_long = realloc2(pointer_name_long,
+                             old_capacity, new_capacity,
+                             SIZEOF(*pointer_name_long));
+
+// bad
+pointer_name = realloc2(pointer_name, old_capacity,
+                        new_capacity, SIZEOF(*pointer_name));
+// bad
+pointer_name_long = realloc2(pointer_name_long, old_capacity, new_capacity,
+                             SIZEOF(*pointer_name_long));
+```
+
+## Switch formatting
+
+`case` must align with `switch`.
+
+```c
+switch (value) {
+case 0:
+    handle_zero();
+    break;
+default:
+    handle_default();
+    break;
+}
+```
+
+## Declaration and initialization formatting
+
+- Never declare more than one variable per line:
+  ```c
+  // bad
+  int32 x, y;
+
+  // good
+  int32 x;
+  int32 y;
+  ```
+- Always use trailing commas in array initializers, including single-line
+  initializers. For struct initializers, trailing commas are mandatory only
+  when the initializer spans multiple lines. Initializing with `{0}` is exempt:
+  ```c
+  int32 array[] = {1, 2, 3,};
+
+  int32 array2[10] = {0};
+
+  S horizontal = { "a", 1, var };
+
+  S vertical = {
+      "a",
+      1,
+      var,
+  };
+  ```
+
+## Curly braces
+
+- Always use curly braces for all control-flow blocks:
+  ```c
+  // good
+  if (condition) {
+      do_only_one_thing();
+  }
+
+  // bad
+  if (condition)
+      do_only_one_thing();
+  ```
+
+## If expressions
+when an operand of `&&` or `||` is itself a binary expression,
+parenthesize that operand:
+```c
+// bad
+if (x < 0 && y > 1) {
+}
+
+// good
+if ((x < 0) && (y > 1)) {
+}
+```
+
+Conditions that are unary operations in general don't need parenthesis:
+```c
+// bad
+if ((!condition1) || (!condition2)) {
+}
+
+// good
+if (!condition1 || !condition2) {
+}
+
+// bad
+if ((!condition1) || (x > 0)) {
+}
+
+// good
+if (!condition1 || (x > 0)) {
+}
+
+// bad
+if ((condition1) || (condition2)) {
+}
+
+// good
+if (condition1 || condition2) {
+}
+```
+
+### Confusing precedence
+If the subconditions are chained together using `&&` and `||`, try to make
+intent clear by adding parenthesis:
+```c
+// bad
+if (!condition1 && confusing_precedence || x > 0) {
+}
+
+// good
+if ((!condition1 && confusing_precedence) || (x > 0)) {
+}
+```
+
+If there are 3 or more `&&` or `||` operators chained together, add new lines:
+```c
+// bad
+if (this_condition && x < 0 && y > 1 && this_other_condition) {
+}
+
+// good
+if (this_condition
+    && (x < 0)
+    && (y > 1)
+    && this_other_condition) {
+}
+```
+
+## Function declaration and definition
+
+In the definition, put a newline before the function name and parameters:
+
+```c
+static int32
+function(int32 arg) {
+    return 0;
+}
+```
+
+If the function header is long, and needs more than one line,
+break the line but keep the identation, if it fits in 80 columns:
+```c
+// good
+static void
+function_with_long_name_and_multiple_arguments(void *pointer,
+                                               char *argument_long_name) {
+    return;
+}
+
+// bad
+static void
+function_with_long_name_and_multiple_arguments(
+    void *pointer,
+    char *argument_long_name
+) {
+    return;
+}
+```
+
+If the function header is long, and the identation makes it not fit in 80
+columns, break, put an extra new
+line before the closing parenthesis:
+```c
+// bad
+static void
+function_with_long_name_and_multiple_arguments(void *pointer,
+    char *argument_long_name_very_long) {
+    return;
+}
+
+// good
+static void
+function_with_long_name_and_multiple_arguments(
+    void *pointer,
+    char *argument_long_name_very_long
+) {
+    return;
+}
+```
+
+For function with many arguments, it is a good idea to group by types/intent of
+the parameter, even if it adds more lines:
+```c
+// bad
+static void
+function_with_long_name_and_multiple_arguments(MyStruct *handle, int32 x,
+                                               int32 y, double a, double b);
+
+// good
+static void
+function_with_long_name_and_multiple_arguments(MyStruct *handle,
+                                               int32 x, int32 y,
+                                               double a, double b);
+```
+
+In function calls/definitions/headers, try to make the `_len` of a variable in
+the same line of the object it refers to:
+```c
+// bad
+static void
+function_with_long_name_and_multiple_arguments_x(MyStruct *, char *,
+                                                 int32);
+function_with_long_name_and_multiple_arguments_x(handle, string_name,
+                                                 string_name_len);
+
+// good
+static void
+function_with_long_name_and_multiple_arguments(MyStruct *, char *, int32);
+function_with_long_name_and_multiple_arguments(handle,
+                                               string_name, string_name_len);
+
+// bad (note how the strings are not together with their lengths).
+if (STREQUAL(my_long_string,
+             my_long_string_len, my_other_long_string,
+             my_other_long_string_len)) {
+    // do stuff
+}
+
+// bad (note how my_other_long_string and my_other_long_string_len are apart).
+if (STREQUAL(my_long_string, my_long_string_len, my_other_long_string,
+             my_other_long_string_len)) {
+    // do stuff
+}
+
+// good (note how my_other_long_string and my_other_long_string_len are together).
+if (STREQUAL(my_long_string, my_long_string_len,
+             my_other_long_string, my_other_long_string_len)) {
+    // do stuff
+}
+
+// bad
+if (STREQUAL(string, string_len, other,
+             other_len)) {
+    // do stuff
+}
+
+// good
+if (STREQUAL(string, string_len, other, other_len)) {
+    // do stuff
+}
+```
+
+In the pattern above, if it is not possible to put string and string_len side by
+side withtout going over 80 columns, put them in separate lines.
+
+Functions declarations: add parameter names only when there are two or more
+parameters of that type:
+```c
+// bad
+void my_function(MyStruct *, int32, int32);
+
+// bad
+void my_function(MyStruct *struct, int32 x, int32 y);
+
+// good
+void my_function(MyStruct *, int32 x, int32 y);
+```
+
+Prefer to break after an argument than before the equal sign, specially if the
+first argument fits in the first line:
+```c
+// bad
+    array->items
+        = realloc2(array->items, old_cap, new_cap, SIZEOF(*array->items));
+// good (1)
+    array->items = realloc2(array->items,
+                            old_cap, new_cap, SIZEOF(*array->items));
+
+// bad
+    array->items = realloc2(extremelly_long_argument_that_does_not_fit_in_this_line,
+                            old_cap, new_cap, SIZEOF(*array->items));
+// good (2) (but ONLY IF good(1) style does not fit!!!)
+    array->items =
+        realloc2(extremelly_long_argument_that_does_not_fit_in_this_line,
+                 old_cap, new_cap, SIZEOF(*array->items));
+```
+
+## Preprocessor directives
+- Macro continuation line: indent using 0, 2 or 4 spaces (feel free to decide at
+  each case).
+Don't use `#ifdef` and `#ifndef`, use `#if defined()` and `#if !defined()`
+instead. Prefer explicitly setting the macro to 0 or 1 and checking its value
+directly instead of checking if it is defined:
+```c
+#if MY_MACRO_CONDITION
+// stuff
+#endif
+```
+
+Break lines longer than 80 characters with the backslash. Example:
+```c
+#define MY_VERY_EXTREMELY_LONG_MACRO_NAME \
+  12.4779847021478714732904782347234237409192312
+```
+
+## Initialization
+Use line breaks indentation for struct initialization,
+except when initializing to zero:
+
+```c
+typedef struct MyStruct {
+    char *string;
+    char *other;
+} MyStruct;
+
+// bad
+MyStruct my_struct = { .string = "string", };
+
+// good
+MyStruct my_struct = {
+    .string = "string",
+};
+
+// good
+MyStruct my_struct = {
+    .string = "string",
+    .other = "other",
+};
+
+// bad
+MyStruct my_struct = { .string = "string", .other = "other", };
+
+// bad
+MyStruct my_struct = {
+    0
+};
+
+// good
+MyStruct my_struct = {0};
+```
+
+Also indent structs inside structs.
+```c
+typedef struct MyStruct {
+    char *string;
+    struct {
+        char *inner_string;
+    } inner;
+} MyStruct;
+
+// good
+MyStruct my_struct = {
+    .string = "string",
+    .inner = {
+        .inner_string = "inner_string",
+    },
+};
+
+```
