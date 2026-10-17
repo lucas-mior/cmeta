@@ -353,6 +353,7 @@ csane_rules_check(CsaneFile *file) {
         {"SRC", csane_rule_source, false},
         {"PP", csane_rule_preprocessor, false},
         {"PP-SIZEOF", csane_rule_sizeof, false},
+        {"AST-DECL-ONE", csane_structure_check, false},
         {"API", csane_rule_calls, true},
     };
     ASSERT(file != NULL);

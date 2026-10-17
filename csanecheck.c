@@ -12,13 +12,14 @@ csane_usage(FILE *output) {
     fprintf(output,
             "usage: csanecheck [--root DIR] [--file PATH] [--file-list PATH]\n"
             "                  [--max-depth N] [--report-parse-issues]\n"
-            "                  [--strict-parse] [--stats] [--config FILE]\n"
+            "                  [--strict-parse] [--stats] [--coverage]\n"
+            "                  [--config FILE]\n"
             "                  [--exclude REGEX] [--filter MODULE]\n"
             "                  [--cbase-root DIR] [--no-column-limit REGEX]\n"
             "                  [--help]\n"
             "       csanecheck PATH [PATH ...]\n"
             "\n"
-            "Phase 4.3: configurable checks and legacy source filters.\n"
+            "Phase 5.1: declaration checks and parser coverage reporting.\n"
             "Without paths, search the current project directory.\n"
             "Exit: 0 clean, 1 rule/parse issues, 2 usage/I/O error.\n");
     return;
@@ -83,12 +84,36 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         .ast = &ast,
         .policy = &options->policy,
     };
+    /* Snapshot parser coverage before rules add speculative expression nodes
+     * for declaration initializers and macro replacement lists. */
+    CsaneCoverage coverage = csane_coverage_collect(&ast);
     int32 violations = csane_rules_check(&file);
     int32 issues = ast.issue_count + pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         issues += 1;
     }
     stats->violations += violations;
+    stats->declarations += coverage.declarations;
+    stats->function_declarations += coverage.function_declarations;
+    stats->function_definitions += coverage.function_definitions;
+    stats->statements += coverage.statements;
+    stats->expressions += coverage.expressions;
+    stats->unsupported_statements += coverage.unsupported_statements;
+    stats->unsupported_externals += coverage.unsupported_externals;
+    stats->malformed_issues += coverage.malformed_issues;
+    stats->unsupported_issues += coverage.unsupported_issues;
+    if (options->coverage) {
+        printf("coverage file=%s declarations=%d function_declarations=%d "
+               "function_definitions=%d statements=%d expressions=%d "
+               "unsupported_statements=%d unsupported_externals=%d "
+               "malformed_issues=%d unsupported_issues=%d "
+               "parse_issues=%d preprocessor_issues=%d\n",
+               path, coverage.declarations, coverage.function_declarations,
+               coverage.function_definitions, coverage.statements,
+               coverage.expressions, coverage.unsupported_statements,
+               coverage.unsupported_externals, coverage.malformed_issues,
+               coverage.unsupported_issues, ast.issue_count, pp.issue_count);
+    }
     stats->files += 1;
     stats->tokens += tokens.token_count;
     stats->externals += ast.external_count;
@@ -223,11 +248,15 @@ csane_run(int32 argc, char **argv) {
             goto cleanup;
         }
         if (!strcmp(arg, "--version")) {
-            puts("csanecheck phase 4.3");
+            puts("csanecheck phase 5.1");
             goto cleanup;
         }
         if (!strcmp(arg, "--stats")) {
             options.statistics = true;
+            continue;
+        }
+        if (!strcmp(arg, "--coverage")) {
+            options.coverage = true;
             continue;
         }
         if (!strcmp(arg, "--report-parse-issues")) {
@@ -325,11 +354,24 @@ csane_run(int32 argc, char **argv) {
     }
     if (options.statistics) {
         printf("files=%d tokens=%lld externals=%lld parse_issues=%lld "
-               "preprocessor_issues=%lld violations=%lld\n",
+               "preprocessor_issues=%lld violations=%lld "
+               "declarations=%lld function_declarations=%lld "
+               "function_definitions=%lld statements=%lld expressions=%lld "
+               "unsupported_statements=%lld unsupported_externals=%lld "
+               "malformed_issues=%lld unsupported_issues=%lld\n",
                stats.files, (long long)stats.tokens,
                (long long)stats.externals, (long long)stats.parse_issues,
                (long long)stats.preprocessor_issues,
-               (long long)stats.violations);
+               (long long)stats.violations,
+               (long long)stats.declarations,
+               (long long)stats.function_declarations,
+               (long long)stats.function_definitions,
+               (long long)stats.statements,
+               (long long)stats.expressions,
+               (long long)stats.unsupported_statements,
+               (long long)stats.unsupported_externals,
+               (long long)stats.malformed_issues,
+               (long long)stats.unsupported_issues);
     }
 cleanup:
     csane_paths_free(&options.files);

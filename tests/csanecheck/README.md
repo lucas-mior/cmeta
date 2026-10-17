@@ -16,3 +16,11 @@ contract, known legacy false positives, and reproduction instructions.
   trees at `TEST_MAXDEPTH=1`.
 
 The Python runner is not a dependency of the eventual `csanecheck` executable.
+
+## Phase 5.1 AST structural tests
+
+Run `python3 tests/csanecheck/test_structure.py bin/csanecheck` after
+building the executable. These cases check `AST-DECL-ONE` and the optional
+`--coverage` counters; the offline comparison script also includes the
+legacy declaration fixtures. See `docs/csanecheck-phase5.1.md` for scope and
+known coverage limits.
