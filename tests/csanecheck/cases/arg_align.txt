@@ -1,0 +1,5 @@
+static void
+run(void) {
+    function /* separator */ (inner(a, b),
+       other);
+}

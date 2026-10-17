@@ -1,0 +1,7 @@
+static void
+function(void) {
+    fmt_printf("A long aligned format string with value %s "
+              "and enough text to require wrapping; "
+              "another value is %d\n",
+               value, count);
+}

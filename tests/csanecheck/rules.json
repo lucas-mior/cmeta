@@ -1,0 +1,250 @@
+[
+  {
+    "id": "API-NEVER",
+    "status": "active",
+    "engine": "shell",
+    "layer": "lexical",
+    "diagnostic": "",
+    "note": "Never-use libc names (every project source), currently grep includes declarations/comments."
+  },
+  {
+    "id": "API-CBASE-ONLY",
+    "status": "active",
+    "engine": "shell",
+    "layer": "lexical",
+    "diagnostic": "",
+    "note": "Restricted libc calls permitted only within resolved cbase directory."
+  },
+  {
+    "id": "PP-DEFINED",
+    "status": "active",
+    "engine": "perl",
+    "layer": "preprocessor",
+    "diagnostic": "use #if defined or #if !defined",
+    "note": "Ban #ifdef and #ifndef; includes Ryu."
+  },
+  {
+    "id": "PP-SIZEOF",
+    "status": "active",
+    "engine": "perl",
+    "layer": "lexical",
+    "diagnostic": "use SIZEOF instead of sizeof",
+    "note": "Ban builtin sizeof outside Ryu and macro definition of SIZEOF."
+  },
+  {
+    "id": "SRC-TABS",
+    "status": "active",
+    "engine": "perl",
+    "layer": "source",
+    "diagnostic": "tab character is forbidden",
+    "note": "All files including Ryu."
+  },
+  {
+    "id": "SRC-TRAILING",
+    "status": "active",
+    "engine": "perl",
+    "layer": "source",
+    "diagnostic": "trailing whitespace",
+    "note": "All files including Ryu."
+  },
+  {
+    "id": "SRC-COLUMNS",
+    "status": "active",
+    "engine": "perl",
+    "layer": "source",
+    "diagnostic": "line exceeds \\d+ columns",
+    "note": "80 Unicode columns; 100 for cecup/src; no column limit for piscou config.h."
+  },
+  {
+    "id": "RYU-ENDIF-COMMENT",
+    "status": "active",
+    "engine": "perl",
+    "layer": "source",
+    "diagnostic": "use a block comment after #endif",
+    "note": "Only Ryu: block instead of // after #endif."
+  },
+  {
+    "id": "RYU-FINAL-NEWLINE",
+    "status": "active",
+    "engine": "perl",
+    "layer": "source",
+    "diagnostic": "missing final newline",
+    "note": "Only Ryu; other project files not checked."
+  },
+  {
+    "id": "AST-BRACES",
+    "status": "active",
+    "engine": "perl",
+    "layer": "statement",
+    "diagnostic": "\\b(?:if|else|for|while|switch|do) body must use curly braces",
+    "note": "All except Ryu; allows else if and empty for body."
+  },
+  {
+    "id": "AST-DECL-ONE",
+    "status": "active",
+    "engine": "perl",
+    "layer": "declaration",
+    "diagnostic": "only one variable declaration per line",
+    "note": "All except Ryu; catches comma declarators and multiple declarations per physical line."
+  },
+  {
+    "id": "AST-SWITCH-ALIGN",
+    "status": "active",
+    "engine": "perl",
+    "layer": "statement-layout",
+    "diagnostic": "(?:case|default) must align with switch",
+    "note": "All except Ryu; nearest enclosing switch."
+  },
+  {
+    "id": "AST-ARTIFICIAL-BLOCK",
+    "status": "active",
+    "engine": "perl",
+    "layer": "statement-layout",
+    "diagnostic": "artificial block at nesting level 3 or more is forbidden",
+    "note": "All except Ryu; limited to 12+ space indentation, excludes initializer and control headers."
+  },
+  {
+    "id": "FMT-CALL-FIRST",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "call breaks before the first argument",
+    "note": "Not .meta.h; indented candidate calls only."
+  },
+  {
+    "id": "FMT-FUNC-ALIGN",
+    "status": "active",
+    "engine": "perl",
+    "layer": "declaration-layout",
+    "diagnostic": "function header parameter is not aligned with first parameter",
+    "note": "Not .meta.h; two-line unindented return-type/function-name convention."
+  },
+  {
+    "id": "FMT-LITERAL-ALIGN",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "call string literal is not aligned with first literal",
+    "note": "Not .meta.h."
+  },
+  {
+    "id": "FMT-ARG-ALIGN",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "call argument is not aligned with its alignment anchor",
+    "note": "Not .meta.h; percent-containing format literal selects anchor."
+  },
+  {
+    "id": "FMT-FORMAT-LINE",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "format-string line must contain all format arguments or none",
+    "note": "Not .meta.h."
+  },
+  {
+    "id": "FMT-RELATED-ARGS",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "related (?:_len|x/y|width/height) arguments must be the only arguments on their lines",
+    "note": "Not .meta.h; pairs with other args must be kept together or isolated."
+  },
+  {
+    "id": "FMT-CALL-WRAP",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "call fits on one line but is split across multiple lines",
+    "note": "Not .meta.h; considers adjacent same-indent groups, comments and literals."
+  },
+  {
+    "id": "FMT-ASSIGN-EQ",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "assignment = must end the preceding line",
+    "note": "Except Ryu and .meta.h; do not conflate comparison ==."
+  },
+  {
+    "id": "FMT-ASSIGN-WRAP",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression-layout",
+    "diagnostic": "assignment fits on one line but is split after =",
+    "note": "Except Ryu and .meta.h; groups related adjacent assignments."
+  },
+  {
+    "id": "STYLE-ASSERT-REL",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression",
+    "diagnostic": "use ASSERT_(?:GE|GT|LE|LT) for comparison with integers",
+    "note": "Regex of ASSERT(identifier rel-op integer); script does not explicitly exclude Ryu."
+  },
+  {
+    "id": "STYLE-ASSERT-BOUNDS",
+    "status": "active",
+    "engine": "perl",
+    "layer": "statement",
+    "diagnostic": "use ASSERT_BETWEEN\\(",
+    "note": "Adjacent ASSERT_GE(v, 0) and ASSERT_LT(v, upper); except Ryu."
+  },
+  {
+    "id": "STYLE-STRLIT-LEN",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression",
+    "diagnostic": "STRLIT_LEN called on a literal string",
+    "note": "STRLIT_LEN(\"...\") redundant."
+  },
+  {
+    "id": "STYLE-STREQUAL",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression",
+    "diagnostic": "STREQUAL called with STRLIT literal",
+    "note": "Prefer direct literal usage without STRLIT wrapper."
+  },
+  {
+    "id": "STYLE-PRINTF",
+    "status": "active",
+    "engine": "perl",
+    "layer": "expression",
+    "diagnostic": "single-argument format string without literal content",
+    "note": "str_printf with format-only % conversion."
+  },
+  {
+    "id": "STYLE-STATUS-TEMP",
+    "status": "active",
+    "engine": "status",
+    "layer": "contextual",
+    "diagnostic": "inline the int32 status assignment/use pairs",
+    "note": "Function-local int32 status; adjacent one-line assign/use pairs."
+  },
+  {
+    "id": "STYLE-TERNARY",
+    "status": "disabled",
+    "engine": "perl",
+    "layer": "expression",
+    "diagnostic": "ternary operator is forbidden",
+    "note": "check_ternary_operators is implemented but invocation commented out."
+  },
+  {
+    "id": "FMT-MULTIPLY",
+    "status": "documented-only",
+    "engine": "none",
+    "layer": "expression-layout",
+    "diagnostic": "",
+    "note": "c-format.md forbids spaces around binary *, but legacy checker does not enforce it."
+  },
+  {
+    "id": "FMT-TRAILING-COMMA",
+    "status": "documented-only",
+    "engine": "none",
+    "layer": "source-layout",
+    "diagnostic": "",
+    "note": "Some format recommendations about commas are not enforced; confirm policy before implementing."
+  }
+]
