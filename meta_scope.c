@@ -58,6 +58,12 @@ c_ast_free(CAst *ast) {
           (int64)ast->expression_capacity*SIZEOF(CExpression));
     free2(ast->arguments,
           (int64)ast->argument_capacity*SIZEOF(CExprArgument));
+    free2(ast->statements,
+          (int64)ast->statement_capacity*SIZEOF(CStatement));
+    free2(ast->externals,
+          (int64)ast->external_capacity*SIZEOF(CExternal));
+    free2(ast->issues,
+          (int64)ast->issue_capacity*SIZEOF(CParseIssue));
     free2(ast->scopes, (int64)ast->scope_capacity*SIZEOF(CScope));
     free2(ast->bindings, (int64)ast->binding_capacity*SIZEOF(CBinding));
     *ast = (CAst){0};
