@@ -215,6 +215,34 @@ unit_preprocessor(UnitCursor *c, int32 first, int32 directive) {
     return node;
 }
 
+/* A directive can occur inside a function body. The normal boundary at
+ * that directive would cut off the declaration's closing brace. Retry with
+ * the remaining translation-unit range only when a function-like header has
+ * already opened a body. The declaration parser still decides whether it
+ * is genuinely a function definition, and must consume only that definition.
+ */
+static bool
+unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
+    Tokenization *tokens = c->ast->tokenization;
+    int32 previous = -1;
+    for (int32 i = unit_sig(c, first); i < boundary;
+         i = unit_sig(c, i + 1)) {
+        Token *token = &tokens->tokens[i];
+        if (TOKEN_IS(token, "{") && previous >= 0
+            && TOKEN_IS(&tokens->tokens[previous], ")")) {
+            StmtCursor view = {.ast = c->ast, .pp = c->pp,
+                               .range = c->range};
+            int32 aware = stmt_match(&view, i);
+            int32 raw = token_range_matching_delimiter_forward(tokens,
+                                                               c->range, i);
+            /* A raw match crossing divergent #if branches is unsafe. */
+            return (aware >= 0) && (raw == aware);
+        }
+        previous = i;
+    }
+    return false;
+}
+
 static int32
 unit_parse_one(UnitCursor *c) {
     int32 first = unit_sig(c, c->pos);
@@ -235,6 +263,12 @@ unit_parse_one(UnitCursor *c) {
     }
     end = unit_boundary(c, first);
     result = c_ast_parse_declaration(c->ast, (TokenRange){first, end});
+    if (result.status != C_DECL_PARSE_OK && end < c->range.end
+        && unit_maybe_function_body(c, first, end)) {
+        /* The initial parse rolled back its bindings and nodes. */
+        result = c_ast_parse_declaration(c->ast,
+                                         (TokenRange){first, c->range.end});
+    }
     if (result.status != C_DECL_PARSE_OK) {
         enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
         if (result.status == C_DECL_PARSE_UNSUPPORTED
@@ -405,6 +439,39 @@ unit_test_alternatives(void) {
 }
 
 static void
+unit_test_conditional_function_body(void) {
+    char *source = "void f(int x) {\n"
+                   "#if defined(A)\n"
+                   "    if (x) foo();\n"
+                   "#else\n"
+                   "    while (x) bar();\n"
+                   "#endif\n"
+                   "}\n";
+    Tokenization t = tokenize(source, strlen32(source));
+    CPreprocessorAnalysis pp;
+    CAst ast;
+    ASSERT(c_preprocessor_analysis_init(&pp, &t));
+    ASSERT(c_ast_init(&ast, &t));
+    CUnitParseResult result =
+        c_ast_parse_translation_unit(&ast, (TokenRange){0, t.token_count},
+                                     &pp);
+    ASSERT_EQ(result.issue_count, 0);
+    ASSERT_EQ(ast.externals[result.first_external].kind,
+              C_EXTERNAL_DECLARATION);
+    int32 root = ast.externals[result.first_external].function_body;
+    ASSERT_GE(root, 0);
+    int32 group = ast.statements[root].first_child;
+    ASSERT_EQ(ast.statements[group].kind, C_STMT_PP_GROUP);
+    int32 a = ast.statements[group].first_child;
+    int32 b = ast.statements[a].next;
+    ASSERT_EQ(ast.statements[ast.statements[a].first_child].kind, C_STMT_IF);
+    ASSERT_EQ(ast.statements[ast.statements[b].first_child].kind, C_STMT_WHILE);
+    c_ast_free(&ast);
+    c_preprocessor_analysis_free(&pp);
+    free_tokenization(&t);
+}
+
+static void
 unit_test_malformed_and_recovery(void) {
     char *source = "__attribute__((unused)) int bad; "
                    "int good(void) { return 1; } "
@@ -430,6 +497,7 @@ int
 main(void) {
     unit_test_functions();
     unit_test_alternatives();
+    unit_test_conditional_function_body();
     unit_test_malformed_and_recovery();
     return 0;
 }
