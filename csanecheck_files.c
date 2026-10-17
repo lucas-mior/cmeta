@@ -108,8 +108,9 @@ csane_extension(char *path) {
     if (len < 3) {
         return false;
     }
-    return !strcmp(path + len - 2, ".c")
-           || !strcmp(path + len - 2, ".h");
+    return (path[len - 2] == '.')
+           && (path[len - 1] == 'c' || path[len - 1] == 'C'
+               || path[len - 1] == 'h' || path[len - 1] == 'H');
 }
 
 static bool
@@ -208,6 +209,19 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
         }
     }
     csane_path_free(ryu);
+    /* The cbase repository can also be checked directly (with the policy
+     * lists in its root rather than under a cbase subdirectory).
+     */
+    char *standalone = csane_join(root, "functions_never_use.txt");
+    if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
+        ryu = csane_join(root, "ryu");
+        if (stat(ryu, &st) == 0 && S_ISDIR(st.st_mode)
+            && !csane_walk(paths, ryu, 0, -1)) {
+            ok = false;
+        }
+        csane_path_free(ryu);
+    }
+    csane_path_free(standalone);
     return ok;
 }
 

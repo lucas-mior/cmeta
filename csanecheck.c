@@ -12,10 +12,13 @@ csane_usage(FILE *output) {
     fprintf(output,
             "usage: csanecheck [--root DIR] [--file PATH] [--file-list PATH]\n"
             "                  [--max-depth N] [--report-parse-issues]\n"
-            "                  [--strict-parse] [--stats] [--help]\n"
+            "                  [--strict-parse] [--stats] [--config FILE]\n"
+            "                  [--exclude REGEX] [--filter MODULE]\n"
+            "                  [--cbase-root DIR] [--no-column-limit REGEX]\n"
+            "                  [--help]\n"
             "       csanecheck PATH [PATH ...]\n"
             "\n"
-            "Phase 4.2: guideline checks and optional parser reports.\n"
+            "Phase 4.3: configurable checks and legacy source filters.\n"
             "Without paths, search the current project directory.\n"
             "Exit: 0 clean, 1 rule/parse issues, 2 usage/I/O error.\n");
     return;
@@ -78,6 +81,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         .tokens = &tokens,
         .preprocessor = &pp,
         .ast = &ast,
+        .policy = &options->policy,
     };
     int32 violations = csane_rules_check(&file);
     int32 issues = ast.issue_count + pp.issue_count;
@@ -131,6 +135,15 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     return 0;
 }
 
+static bool
+csane_value_option(char *arg) {
+    return !strcmp(arg, "--root") || !strcmp(arg, "--file")
+           || !strcmp(arg, "--file-list") || !strcmp(arg, "--max-depth")
+           || !strcmp(arg, "--config") || !strcmp(arg, "--exclude")
+           || !strcmp(arg, "--filter") || !strcmp(arg, "--cbase-root")
+           || !strcmp(arg, "--no-column-limit");
+}
+
 int32
 csane_run(int32 argc, char **argv) {
     CsaneOptions options = {.max_depth = -1};
@@ -138,19 +151,80 @@ csane_run(int32 argc, char **argv) {
     bool had_inputs = false;
     bool good = true;
     int32 exit_status = 0;
+    char *value;
 
-    /* Read all options before discovering sources: --max-depth must apply
-     * regardless of whether it precedes or follows --root.
+    if (!csane_policy_init(&options.policy)) {
+        return 2;
+    }
+    options.filter = getenv("TEST_FILTER");
+    value = getenv("TEST_MAXDEPTH");
+    if (value != NULL && value[0] != '\0'
+        && !csane_depth(value, &options.max_depth)) {
+        fprintf(stderr, "invalid TEST_MAXDEPTH: %s\n", value);
+        exit_status = 2;
+        goto cleanup;
+    }
+    value = getenv("TEST_EXCLUDE_PATTERN");
+    if (value != NULL && value[0] != '\0'
+        && !csane_policy_add_regex(&options.policy.excludes, value,
+                                   NULL, 0)) {
+        exit_status = 2;
+        goto cleanup;
+    }
+
+    /* Discover repository policy roots first. Explicit configuration can
+     * then extend or override the imported project's default name lists.
      */
+    if (!csane_policy_project(&options.policy, ".")) {
+        exit_status = 2;
+        goto cleanup;
+    }
+    for (int32 i = 1; i < argc; i += 1) {
+        char *arg = argv[i];
+        if (csane_value_option(arg)) {
+            if (i + 1 < argc) {
+                if (!strcmp(arg, "--root")) {
+                    good = csane_policy_project(&options.policy, argv[i + 1]);
+                } else if (!strcmp(arg, "--file")) {
+                    good = csane_policy_source(&options.policy, argv[i + 1]);
+                } else if (!strcmp(arg, "--file-list")) {
+                    CsanePaths sources = {0};
+                    good = csane_collect_file_list(&sources, argv[i + 1]);
+                    for (int32 j = 0; good && j < sources.count; j += 1) {
+                        good = csane_policy_source(&options.policy,
+                                                   sources.items[j]);
+                    }
+                    csane_paths_free(&sources);
+                }
+                if (!good) {
+                    exit_status = 2;
+                    goto cleanup;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        if (arg[0] != '-') {
+            struct stat st;
+            if (stat(arg, &st) == 0 && S_ISDIR(st.st_mode)) {
+                if (!csane_policy_project(&options.policy, arg)) {
+                    exit_status = 2;
+                    goto cleanup;
+                }
+            }
+        }
+    }
+
+    /* All options are resolved before walking roots, independent of order. */
     for (int32 i = 1; i < argc; i += 1) {
         char *arg = argv[i];
         if (!strcmp(arg, "--help") || !strcmp(arg, "-h")) {
             csane_usage(stdout);
-            return 0;
+            goto cleanup;
         }
         if (!strcmp(arg, "--version")) {
-            puts("csanecheck phase 4.2");
-            return 0;
+            puts("csanecheck phase 4.3");
+            goto cleanup;
         }
         if (!strcmp(arg, "--stats")) {
             options.statistics = true;
@@ -164,46 +238,56 @@ csane_run(int32 argc, char **argv) {
             options.strict_parse = true;
             continue;
         }
-        if (!strcmp(arg, "--max-depth")) {
-            if ((i + 1 >= argc)
-                || !csane_depth(argv[i + 1], &options.max_depth)) {
-                fprintf(stderr, "--max-depth requires a nonnegative integer\n");
-                return 2;
-            }
-            i += 1;
-            continue;
-        }
-        if (!strcmp(arg, "--root") || !strcmp(arg, "--file")
-            || !strcmp(arg, "--file-list")) {
+        if (csane_value_option(arg)) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s requires a path\n", arg);
-                return 2;
+                fprintf(stderr, "%s requires a value\n", arg);
+                exit_status = 2;
+                goto cleanup;
             }
-            had_inputs = true;
+            value = argv[i + 1];
+            if (!strcmp(arg, "--max-depth")) {
+                good = csane_depth(value, &options.max_depth);
+            } else if (!strcmp(arg, "--config")) {
+                good = csane_policy_config(&options.policy, value);
+            } else if (!strcmp(arg, "--exclude")) {
+                good = csane_policy_add_regex(&options.policy.excludes,
+                                              value, NULL, 0);
+            } else if (!strcmp(arg, "--filter")) {
+                options.filter = value;
+            } else if (!strcmp(arg, "--cbase-root")) {
+                good = csane_policy_add_root(&options.policy, value);
+            } else if (!strcmp(arg, "--no-column-limit")) {
+                good = csane_policy_add_regex(&options.policy.no_columns,
+                                              value, NULL, 0);
+            } else if (!strcmp(arg, "--root") || !strcmp(arg, "--file")
+                       || !strcmp(arg, "--file-list")) {
+                had_inputs = true;
+            }
+            if (!good) {
+                fprintf(stderr, "invalid value for %s: %s\n", arg, value);
+                exit_status = 2;
+                goto cleanup;
+            }
             i += 1;
             continue;
         }
         if (arg[0] == '-') {
             fprintf(stderr, "unknown option: %s\n", arg);
-            return 2;
+            exit_status = 2;
+            goto cleanup;
         }
         had_inputs = true;
     }
     for (int32 i = 1; i < argc; i += 1) {
         char *arg = argv[i];
-        if (!strcmp(arg, "--max-depth")) {
-            i += 1;
-            continue;
-        }
-        if (!strcmp(arg, "--root") || !strcmp(arg, "--file")
-            || !strcmp(arg, "--file-list")) {
+        if (csane_value_option(arg)) {
             char *path = argv[i + 1];
             if (!strcmp(arg, "--root")) {
                 good = csane_collect_root(&options.files, path,
                                           options.max_depth);
             } else if (!strcmp(arg, "--file")) {
                 good = csane_collect_explicit(&options.files, path);
-            } else {
+            } else if (!strcmp(arg, "--file-list")) {
                 good = csane_collect_file_list(&options.files, path);
             }
             i += 1;
@@ -217,19 +301,24 @@ csane_run(int32 argc, char **argv) {
             }
         }
         if (!good) {
-            break;
+            exit_status = 2;
+            goto cleanup;
         }
     }
-    if (good && !had_inputs) {
-        good = csane_collect_root(&options.files, ".", options.max_depth);
-    }
-    if (!good) {
-        csane_paths_free(&options.files);
-        return 2;
+    if (!had_inputs
+        && !csane_collect_root(&options.files, ".", options.max_depth)) {
+        exit_status = 2;
+        goto cleanup;
     }
     csane_paths_sort_unique(&options.files);
+    csane_paths_sort_unique(&options.policy.cbase_roots);
     for (int32 i = 0; i < options.files.count; i += 1) {
-        int32 status = csane_analyze(options.files.items[i], &options, &stats);
+        char *path = options.files.items[i];
+        int32 status;
+        if (!csane_policy_selected(&options.policy, path, options.filter)) {
+            continue;
+        }
+        status = csane_analyze(path, &options, &stats);
         if (status > exit_status) {
             exit_status = status;
         }
@@ -242,7 +331,9 @@ csane_run(int32 argc, char **argv) {
                (long long)stats.preprocessor_issues,
                (long long)stats.violations);
     }
+cleanup:
     csane_paths_free(&options.files);
+    csane_policy_free(&options.policy);
     return exit_status;
 }
 

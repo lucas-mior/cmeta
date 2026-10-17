@@ -7,32 +7,15 @@
 #include "cbase.h"
 #include "csanecheck.h"
 
-/* Policy names match the checked-in cbase lists in this revision. Phase 4.3
- * will add external policy configuration. Sortedness is not required.
- */
-static char *csane_never_names[] = {
-    "stpcpy", "stpncpy", "strcat", "strchr", "strcpy", "strcspn",
-    "strdup", "strncat", "strncpy", "strndup", "strpbrk", "strrchr",
-    "strspn", "strstr", "strtok", "strtok_r", "strxfrm", "strxfrm_l",
-    "strsep", "isalnum", "isalpha", "isascii", "isblank", "iscntrl",
-    "isdigit", "isgraph", "islower", "isprint", "ispunct", "isspace",
-    "isupper", "isxdigit",
-};
-
-static char *csane_cbase_names[] = {
-    "memccpy", "memchr", "memcmp", "memcpy", "memmove", "memset",
-    "strlen", "strncmp", "strnlen",
-};
-
 static bool
-csane_name_in(Token *token, char **names, int32 count) {
+csane_name_in(Token *token, CsanePaths *names) {
     if (token->kind != TOKEN_IDENT) {
         return false;
     }
-    for (int32 i = 0; i < count; i += 1) {
-        int32 len = strlen32(names[i]);
+    for (int32 i = 0; i < names->count; i += 1) {
+        int32 len = strlen32(names->items[i]);
         if ((len == token->len)
-            && !memcmp64(token->text, names[i], len)) {
+            && !memcmp64(token->text, names->items[i], len)) {
             return true;
         }
     }
@@ -59,26 +42,6 @@ csane_path_segment(char *path, char *segment) {
 }
 
 static bool
-csane_ryu_path(char *path) {
-    int32 len = strlen32(path);
-    if (!csane_path_segment(path, "cbase")) {
-        return false;
-    }
-    for (int32 i = 0; i + 4 <= len; i += 1) {
-        if ((i == 0 || path[i - 1] == '/')
-            && !memcmp64(path + i, "ryu/", 4)) {
-            for (int32 j = i + 4; j < len; j += 1) {
-                if (path[j] == '/') {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
 csane_fixture_path(char *path) {
     int32 len = strlen32(path);
     for (int32 i = 0; i + 15 <= len; i += 1) {
@@ -93,6 +56,9 @@ csane_fixture_path(char *path) {
 void
 csane_rule_issue(CsaneFile *file, int32 offset, char *code, char *message) {
     SourceLocation loc;
+    if (csane_policy_rule_allowed(file->policy, file->path, code)) {
+        return;
+    }
     if (offset < 0) {
         offset = 0;
     }
@@ -366,15 +332,11 @@ csane_rule_calls(CsaneFile *file) {
             continue;
         }
         token = &file->tokens->tokens[token_index];
-        if (csane_name_in(token, csane_never_names,
-                          (int32)(SIZEOF(csane_never_names)
-                                  /SIZEOF(csane_never_names[0])))) {
+        if (csane_name_in(token, &file->policy->never_names)) {
             csane_rule_issue(file, token->offset, "API-NEVER",
                              "function must never be used");
         } else if (!file->in_cbase
-                   && csane_name_in(token, csane_cbase_names,
-                                    (int32)(SIZEOF(csane_cbase_names)
-                                            /SIZEOF(csane_cbase_names[0])))) {
+                   && csane_name_in(token, &file->policy->cbase_names)) {
             csane_rule_issue(file, token->offset, "API-CBASE-ONLY",
                              "function is allowed only inside cbase");
         }
@@ -399,10 +361,9 @@ csane_rules_check(CsaneFile *file) {
     ASSERT(file->ast != NULL);
     file->violations = 0;
     bool is_fixture = csane_fixture_path(file->path);
-    file->in_cbase = csane_path_segment(file->path, "cbase");
-    file->is_ryu = csane_ryu_path(file->path);
-    file->column_limit = csane_path_segment(file->path, "cecup/src")
-                         ? 100 : 80;
+    file->in_cbase = csane_policy_in_cbase(file->policy, file->path);
+    file->is_ryu = csane_policy_in_ryu(file->policy, file->path);
+    file->column_limit = csane_policy_columns(file->policy, file->path);
     for (int32 i = 0; i < (int32)(SIZEOF(rules)/SIZEOF(rules[0])); i += 1) {
         if (!is_fixture || rules[i].include_fixtures) {
             rules[i].check(file);
