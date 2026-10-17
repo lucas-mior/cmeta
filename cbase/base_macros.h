@@ -1,0 +1,260 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+// this is almost completely self contained,
+// it only depends on platform_detection.h,
+// but not on anything else on cbase/
+// We also have to include libc.h,
+// so that macros defined by system headers can be
+// undefined before I define them.
+
+#if !defined(BASE_MACROS_H)
+#define BASE_MACROS_H
+
+#include "platform_detection.h"
+#include "warnings.h"
+#include "libc.h"
+
+#define S(...) #__VA_ARGS__
+#define QUOTE(x) S(x)
+
+#define STRLIT_LEN(s) ((int32)(SIZEOF("" s) - 1))
+#define STRLIT(s) s, STRLIT_LEN(s)
+#define STRPASS(FIELD, s) .FIELD = s, .FIELD##_len = STRLIT_LEN(s)
+// I don't think there is any advantage of STRPASS2 over STRPASS. Don't use it.
+#define STRPASS2(FIELD, s) FIELD = s, FIELD##_len = STRLIT_LEN(s)
+
+#define CAT_(a, b) a ## b
+#define CAT_SELECT(a, b) CAT_(a, b)
+
+#define CAT1_(a)                      a
+#define CAT2_(a, b)                   a ## b
+#define CAT3_(a, b, c)                a ## b ## c
+#define CAT4_(a, b, c, d)             a ## b ## c ## d
+#define CAT5_(a, b, c, d, e)          a ## b ## c ## d ## e
+#define CAT6_(a, b, c, d, e, f)       a ## b ## c ## d ## e ## f
+#define CAT7_(a, b, c, d, e, f, g)    a ## b ## c ## d ## e ## f ## g
+#define CAT8_(a, b, c, d, e, f, g, h) a ## b ## c ## d ## e ## f ## g ## h
+
+#define CAT1(a)                       CAT1_(a)
+#define CAT2(a, b)                    CAT2_(a, b)
+#define CAT3(a, b, c)                 CAT3_(a, b, c)
+#define CAT4(a, b, c, d)              CAT4_(a, b, c, d)
+#define CAT5(a, b, c, d, e)           CAT5_(a, b, c, d, e)
+#define CAT6(a, b, c, d, e, f)        CAT6_(a, b, c, d, e, f)
+#define CAT7(a, b, c, d, e, f, g)     CAT7_(a, b, c, d, e, f, g)
+#define CAT8(a, b, c, d, e, f, g, h)  CAT8_(a, b, c, d, e, f, g, h)
+
+#define NUM_ARGS_(_1, _2, _3, _4, _5, _6, _7, _8, _9, n, ...) n
+#define NUM_ARGS(...) NUM_ARGS_(__VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, x)
+
+#define SELECT_ON_NUM_ARGS(macro, ...) \
+  CAT_SELECT(macro, NUM_ARGS(__VA_ARGS__))(__VA_ARGS__)
+#define CAT_SELECT_ON_NUM_ARGS(macro, ...) \
+  CAT_SELECT(macro, NUM_ARGS(__VA_ARGS__))(__VA_ARGS__)
+
+#define CAT(...) CAT_SELECT_ON_NUM_ARGS(CAT, __VA_ARGS__)
+
+#define RED0 "\x1b[0;31m"
+
+#define RESET      "\x1b[0m"
+
+#define RED(S)     "\x1b[0;31m" S RESET
+#define GREEN(S)   "\x1b[0;32m" S RESET
+#define YELLOW(S)  "\x1b[0;33m" S RESET
+#define BLUE(S)    "\x1b[0;34m" S RESET
+#define CYAN(S)    "\x1b[0;35m" S RESET
+#define PURPLE(S)  "\x1b[0;36m" S RESET
+
+#define BRED(S)    "\x1b[1;31m" S RESET
+#define BGREEN(S)  "\x1b[1;32m" S RESET
+#define BYELLOW(S) "\x1b[1;33m" S RESET
+#define BBLUE(S)   "\x1b[1;34m" S RESET
+#define BCYAN(S)   "\x1b[1;35m" S RESET
+
+#define SECONDS_AS_NANOS(X) ((X)*1000ll*1000ll*1000ll)
+#define MILLIS_AS_NANOS(X)  ((X)*1000ll*1000ll)
+#define MICROS_AS_NANOS(X)  ((X)*1000ll)
+
+#define SIZEKB(X) ((int64)(X)*1024ll)
+#define SIZEMB(X) ((int64)(X)*1024ll*1024ll)
+#define SIZEGB(X) ((int64)(X)*1024ll*1024ll*1024ll)
+
+#if defined(SIZEOF)
+#undef SIZEOF
+#endif
+#define SIZEOF(...) ((int64)sizeof(__VA_ARGS__))
+#define LENGTH(x) (int32)((SIZEOF(x) / SIZEOF(*x)))
+#define SWAP(x, y) do { __typeof__(x) SWAP = x; x = y; y = SWAP; } while (0)
+
+#define ALIGN_POWER_OF_2_(SIZE, A) (int64)(((SIZE) + ((A) - 1)) & ~((A) - 1))
+#define ALIGN16(x) (((x) + 15) & ~15)
+
+#define BETWEEN(x, a, b)    ((a) <= (x) && (x) <= (b))
+
+#define ALIGN_POWER_OF_2(SIZE, A) \
+_Generic((SIZE), \
+    ullong: ALIGN_POWER_OF_2_((ullong)SIZE, (ullong)A), \
+    ulong:  ALIGN_POWER_OF_2_((ulong)SIZE,  (ulong)A),  \
+    uint:   ALIGN_POWER_OF_2_((uint)SIZE,   (uint)A),   \
+    llong:  ALIGN_POWER_OF_2_((ullong)SIZE, (ullong)A), \
+    long:   ALIGN_POWER_OF_2_((ulong)SIZE,  (ulong)A),  \
+    int:    ALIGN_POWER_OF_2_((uint)SIZE,   (uint)A)    \
+)
+
+#if defined(__AVX2__) || defined(__AVX__)
+#define ALIGNMENT 32ul
+#elif defined(__SSE__) || defined(__x86_64__)
+#define ALIGNMENT 16ul
+#else
+#define ALIGNMENT 8ul
+#endif
+
+#if defined(ALIGN)
+#undef ALIGN
+#endif
+#define ALIGN(x) ALIGN_POWER_OF_2(x, ALIGNMENT)
+
+#if CC_GCC || CC_CLANG
+#define ASSUME_ALIGNED_EXPR(X) __builtin_assume_aligned((X), ALIGNMENT)
+#define ASSUME_ALIGNED(X) do { \
+    X = __builtin_assume_aligned(X, ALIGNMENT); \
+} while (0)
+#else
+#define ASSUME_ALIGNED_EXPR(X) (X)
+#define ASSUME_ALIGNED(X) do {} while (0)
+#endif
+
+#if !defined(DEBUGGING)
+#define DEBUGGING 0
+#endif
+
+#if !defined(TESTING)
+#define TESTING 0
+#endif
+
+#if !defined(GODBOLT)
+#define GODBOLT 0
+#endif
+
+#if DEBUGGING
+  #define INLINE static
+#else
+  #if CC_GCC || CC_CLANG
+    #define INLINE static inline __attribute__((always_inline))
+  #else
+    #define INLINE static inline
+  #endif
+#endif
+
+#if defined(__has_include)
+  #if __has_include(<valgrind/valgrind.h>)
+    #include <valgrind/valgrind.h>
+  #else
+    #define RUNNING_ON_VALGRIND 0
+  #endif
+#else
+    #define RUNNING_ON_VALGRIND 0
+#endif
+
+#if CC_GCC || CC_CLANG
+#define UNUSED __attribute((unused))
+#define ATTR_PRINTF(A, B) __attribute__((format(printf, A, B)))
+#else
+#define UNUSED
+#define ATTR_PRINTF(A, B)
+#endif
+
+#if CC_MSVC
+#define MSVC_WARNING_PUSH() __pragma(warning(push))
+#define MSVC_WARNING_DISABLE(W) __pragma(warning(disable: W))
+#define MSVC_WARNING_POP() __pragma(warning(pop))
+#else
+#define MSVC_WARNING_PUSH()
+#define MSVC_WARNING_DISABLE(W)
+#define MSVC_WARNING_POP()
+#endif
+
+#define PI  3.14159265358979323846264338327950288
+#define PI2 2*PI
+#define TAU 2*PI
+
+#if !defined(M_PI)
+#define M_PI PI
+#endif
+
+#if !defined(__has_builtin)
+  #define __has_builtin(x) 0
+#endif
+
+#if !defined(__has_attribute)
+  #define __has_attribute(x) 0
+#endif
+
+#if CC_CLANG && OS_FREEBSD && __has_attribute(exclusive_lock_function)
+  #define ATTR_EXCLUSIVE_LOCK(...) \
+    __attribute__((exclusive_lock_function(__VA_ARGS__)))
+#else
+  #define ATTR_EXCLUSIVE_LOCK(...)
+#endif
+
+#if CC_CLANG && OS_FREEBSD && __has_attribute(unlock_function)
+  #define ATTR_UNLOCK(...) __attribute__((unlock_function(__VA_ARGS__)))
+#else
+  #define ATTR_UNLOCK(...)
+#endif
+
+#if CC_CLANG && __has_attribute(no_thread_safety_analysis)
+  #define ATTR_NO_THREAD_SAFETY_ANALYSIS \
+    __attribute__((no_thread_safety_analysis))
+#else
+  #define ATTR_NO_THREAD_SAFETY_ANALYSIS
+#endif
+
+#if !defined(FALLTHROUGH)
+  #if (CC_GCC && (__GNUC__ >= 7)) \
+    || (CC_CLANG && __has_attribute(fallthrough))
+    #define FALLTHROUGH __attribute__((fallthrough))
+  #else
+    #define FALLTHROUGH ((void)0)
+  #endif
+#endif
+
+#if __has_builtin(__builtin_unreachable) || CC_TCC
+  #define UNREACHABLE() __builtin_unreachable()
+#elif defined(_MSC_VER)
+  #define UNREACHABLE() __assume(0)
+#else
+  #define UNREACHABLE() abort()
+#endif
+
+// __func__ returns const char *
+// which breaks the qualifiers when passing it around
+#define FUNC__ (char *)__func__
+#define FUNC FUNC__
+
+#if !defined(TESTING)
+#define TESTING 0
+#endif
+
+#if TESTING
+  #define TRAP(...) do { raise(SIGILL); exit(EXIT_FAILURE); } while (0)
+#else
+  #if CC_GCC || CC_CLANG
+    #define TRAP(...) __builtin_trap()
+  #elif defined(_MSC_VER)
+    #define TRAP(...) __debugbreak()
+  #else
+    #define TRAP(...) *(int *)0 = 0
+  #endif
+#endif
+
+#if CC_CLANG || CC_GCC
+  #define LIKELY(x)   __builtin_expect(x, 1)
+  #define UNLIKELY(x) __builtin_expect(x, 0)
+#else
+  #define LIKELY(x) (x)
+  #define UNLIKELY(x) (x)
+#endif
+
+#endif /* BASE_MACROS_H */

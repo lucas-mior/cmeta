@@ -1,0 +1,5 @@
+.cache/
+.tags.vim
+bin/
+compile_commands.json
+tags

@@ -1,0 +1,1672 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+#if !defined(ASSERTIONS_C)
+#define ASSERTIONS_C
+
+#if !defined(TESTING_assertions)
+#if defined(__INCLUDE_LEVEL__) && (__INCLUDE_LEVEL__ == 0)
+#define TESTING_assertions 1
+#else
+#define TESTING_assertions 0
+#endif
+#endif
+
+#include "cbase.h"
+
+#if OS_UNIX
+sigjmp_buf assert_traps_env;
+volatile sig_atomic_t assert_traps_caught = false;
+
+static struct sigaction assert_traps_old_signal_action;
+static bool assert_traps_signal_installed = false;
+
+static noreturn void
+assert_traps_signal_handler(int signal_number) {
+    (void)signal_number;
+    assert_traps_caught = true;
+    siglongjmp(assert_traps_env, 1);
+}
+
+void
+assert_traps_install(char *file, int32 line, char *func) {
+    struct sigaction signal_action = {0};
+
+    assert_traps_caught = false;
+    signal_action.sa_handler = assert_traps_signal_handler;
+    sigemptyset(&signal_action.sa_mask);
+    signal_action.sa_flags = SA_RESTART;
+
+    if (sigaction(SIGILL,
+                  &signal_action, &assert_traps_old_signal_action) < 0) {
+        assert_error(file, line, func,
+                     "Error in sigaction: %s.\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    assert_traps_signal_installed = true;
+    return;
+}
+
+void
+assert_traps_restore(char *file, int32 line, char *func) {
+    if (!assert_traps_signal_installed) {
+        return;
+    }
+
+    if (sigaction(SIGILL, &assert_traps_old_signal_action, NULL) < 0) {
+        assert_error(file, line, func,
+                     "Error in sigaction: %s.\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    assert_traps_signal_installed = false;
+    return;
+}
+#endif
+
+void
+assert_error(char *file, int32 line, char *func,
+             char *format, ...) {
+    va_list ap;
+
+    fflush(stdout);
+    fprintf(stderr,
+            "%s:%d:"RED("%s()")": Assertion failed:\n", file, line, func);
+
+    va_start(ap, format);
+    vfprintf(stderr, format, ap);
+    va_end(ap);
+
+    return;
+}
+
+AssertCompareValue
+assert_compare_value_pointer(char *file, int32 line, char *func,
+                             char *name, void *value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_POINTER;
+    result.pointer = value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_string(char *file, int32 line, char *func,
+                            char *name, char *value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_STRING;
+    result.string = value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_bool(char *file, int32 line, char *func,
+                          char *name, bool value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_BOOL;
+    result.boolean = value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_signed(char *file, int32 line, char *func,
+                            char *name, llong value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_INTEGER;
+    result.integer = value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_unsigned(char *file, int32 line, char *func,
+                              char *name, ullong value) {
+    AssertCompareValue result = {0};
+
+    if (value > LLONG_MAX) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %llu is larger than LLONG_MAX\n", name, value);
+        }
+        result.kind = ASSERT_COMPARE_VALUE_INVALID;
+        return result;
+    }
+
+    result.kind = ASSERT_COMPARE_VALUE_INTEGER;
+    result.integer = (llong)value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_float(char *file, int32 line, char *func,
+                           char *name, float value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_DOUBLE;
+    result.adouble = (double)value;
+    return result;
+}
+
+AssertCompareValue
+assert_compare_value_double(char *file, int32 line, char *func,
+                            char *name, double value) {
+    AssertCompareValue result = {0};
+
+    (void)file;
+    (void)line;
+    (void)func;
+    (void)name;
+    result.kind = ASSERT_COMPARE_VALUE_DOUBLE;
+    result.adouble = value;
+    return result;
+}
+
+static char *
+assert_compare_mode_symbol(enum AssertCompareMode mode) {
+    switch (mode) {
+    case ASSERT_COMPARE_MODE_LESS:
+        return "<";
+    case ASSERT_COMPARE_MODE_LESS_EQUAL:
+        return "<=";
+    case ASSERT_COMPARE_MODE_EQUAL:
+        return "==";
+    case ASSERT_COMPARE_MODE_NOT_EQUAL:
+        return "!=";
+    case ASSERT_COMPARE_MODE_GREATER:
+        return ">";
+    case ASSERT_COMPARE_MODE_GREATER_EQUAL:
+        return ">=";
+    default:
+        UNREACHABLE();
+    }
+}
+
+#define ASSERT_COMPARE_MODE_SWITCH(mode, VAR1, VAR2) \
+    switch (mode) {                                  \
+    case ASSERT_COMPARE_MODE_LESS:                   \
+        return (VAR1) < (VAR2);                      \
+    case ASSERT_COMPARE_MODE_LESS_EQUAL:             \
+        return (VAR1) <= (VAR2);                     \
+    case ASSERT_COMPARE_MODE_EQUAL:                  \
+        return (VAR1) == (VAR2);                     \
+    case ASSERT_COMPARE_MODE_NOT_EQUAL:              \
+        return (VAR1) != (VAR2);                     \
+    case ASSERT_COMPARE_MODE_GREATER:                \
+        return (VAR1) > (VAR2);                      \
+    case ASSERT_COMPARE_MODE_GREATER_EQUAL:          \
+        return (VAR1) >= (VAR2);                     \
+    default:                                         \
+        UNREACHABLE();                               \
+    }                                                \
+    UNREACHABLE()
+
+static bool
+assert_compare_const_integer(enum AssertCompareMode mode,
+                             llong var1, llong var2) {
+    ASSERT_COMPARE_MODE_SWITCH(mode, var1, var2);
+}
+
+static bool
+assert_compare_const_double(enum AssertCompareMode mode,
+                            double var1, double var2) {
+    ASSERT_COMPARE_MODE_SWITCH(mode, var1, var2);
+}
+
+static bool
+assert_compare_const_pointer(enum AssertCompareMode mode,
+                             void *var1, void *var2) {
+    uintptr pointer1 = (uintptr)var1;
+    uintptr pointer2 = (uintptr)var2;
+
+    ASSERT_COMPARE_MODE_SWITCH(mode, pointer1, pointer2);
+}
+
+static bool
+assert_compare_const_string(enum AssertCompareMode mode,
+                            char *var1, char *var2) {
+    int comparison;
+
+    if ((var1 == NULL) || (var2 == NULL)) {
+        return (var1 == NULL) && (var2 == NULL)
+               && (mode == ASSERT_COMPARE_MODE_EQUAL);
+    }
+
+    comparison = strcmp(var1, var2);
+    ASSERT_COMPARE_MODE_SWITCH(mode, comparison, 0);
+}
+
+static bool
+assert_compare_const_bool(enum AssertCompareMode mode,
+                          bool var1, bool var2) {
+    switch (mode) {
+    case ASSERT_COMPARE_MODE_EQUAL:
+        return var1 == var2;
+    case ASSERT_COMPARE_MODE_NOT_EQUAL:
+        return var1 != var2;
+    case ASSERT_COMPARE_MODE_LESS:
+    case ASSERT_COMPARE_MODE_LESS_EQUAL:
+    case ASSERT_COMPARE_MODE_GREATER:
+    case ASSERT_COMPARE_MODE_GREATER_EQUAL:
+        return false;
+    default:
+        UNREACHABLE();
+    }
+}
+
+#undef ASSERT_COMPARE_MODE_SWITCH
+
+static char *
+assert_compare_value_kind_name(enum AssertCompareValueKind kind) {
+    switch (kind) {
+    case ASSERT_COMPARE_VALUE_INVALID:
+        return "invalid";
+    case ASSERT_COMPARE_VALUE_POINTER:
+        return "pointer";
+    case ASSERT_COMPARE_VALUE_STRING:
+        return "string";
+    case ASSERT_COMPARE_VALUE_BOOL:
+        return "bool";
+    case ASSERT_COMPARE_VALUE_INTEGER:
+        return "integer";
+    case ASSERT_COMPARE_VALUE_DOUBLE:
+        return "floating-point";
+    default:
+        UNREACHABLE();
+    }
+}
+
+static bool
+assert_compare_const_unsupported(char *file, int32 line, char *func,
+                                 char *name1, char *name2,
+                                 AssertCompareValue var1,
+                                 AssertCompareValue var2) {
+    if (DEBUGGING) {
+        assert_error(file, line, func,
+                     "Unsupported comparison: %s (%s), %s (%s)\n",
+                     name1, assert_compare_value_kind_name(var1.kind),
+                     name2, assert_compare_value_kind_name(var2.kind));
+    }
+    return false;
+}
+
+bool
+assert_compare_const(char *file, int32 line, char *func,
+                     enum AssertCompareMode mode,
+                     char *name1, char *name2,
+                     AssertCompareValue var1, AssertCompareValue var2) {
+    bool result;
+    char *symbol = assert_compare_mode_symbol(mode);
+
+    if ((var1.kind == ASSERT_COMPARE_VALUE_INVALID)
+        || (var2.kind == ASSERT_COMPARE_VALUE_INVALID)) {
+        return false;
+    } else if ((var1.kind == ASSERT_COMPARE_VALUE_INTEGER)
+        && (var2.kind == ASSERT_COMPARE_VALUE_INTEGER)) {
+        result = assert_compare_const_integer(mode, var1.integer, var2.integer);
+        if (!result && DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %lld %s %lld = %s\n",
+                         name1, var1.integer, symbol, var2.integer, name2);
+        }
+    } else if (((var1.kind == ASSERT_COMPARE_VALUE_INTEGER)
+                || (var1.kind == ASSERT_COMPARE_VALUE_DOUBLE))
+               && ((var2.kind == ASSERT_COMPARE_VALUE_INTEGER)
+                   || (var2.kind == ASSERT_COMPARE_VALUE_DOUBLE))) {
+        double value1;
+        double value2;
+
+        if (var1.kind == ASSERT_COMPARE_VALUE_INTEGER) {
+            value1 = (double)var1.integer;
+        } else {
+            value1 = var1.adouble;
+        }
+        if (var2.kind == ASSERT_COMPARE_VALUE_INTEGER) {
+            value2 = (double)var2.integer;
+        } else {
+            value2 = var2.adouble;
+        }
+        result = assert_compare_const_double(mode, value1, value2);
+        if (!result && DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %f %s %f = %s\n",
+                         name1, value1, symbol, value2, name2);
+        }
+    } else if ((var1.kind == ASSERT_COMPARE_VALUE_STRING)
+               && (var2.kind == ASSERT_COMPARE_VALUE_STRING)) {
+        result = assert_compare_const_string(mode, var1.string, var2.string);
+        if (!result && DEBUGGING) {
+            if ((var1.string == NULL) || (var2.string == NULL)) {
+                assert_error(file, line, func,
+                             "%s = %p %s %p = %s\n",
+                             name1, (void *)var1.string, symbol,
+                             (void *)var2.string, name2);
+            } else {
+                assert_error(file, line, func,
+                             "%s = %s %s %s = %s\n",
+                             name1, var1.string, symbol, var2.string, name2);
+            }
+        }
+    } else if (((var1.kind == ASSERT_COMPARE_VALUE_POINTER)
+                || (var1.kind == ASSERT_COMPARE_VALUE_STRING))
+               && ((var2.kind == ASSERT_COMPARE_VALUE_POINTER)
+                   || (var2.kind == ASSERT_COMPARE_VALUE_STRING))) {
+        void *pointer1;
+        void *pointer2;
+
+        if (var1.kind == ASSERT_COMPARE_VALUE_STRING) {
+            pointer1 = var1.string;
+        } else {
+            pointer1 = var1.pointer;
+        }
+        if (var2.kind == ASSERT_COMPARE_VALUE_STRING) {
+            pointer2 = var2.string;
+        } else {
+            pointer2 = var2.pointer;
+        }
+        result = assert_compare_const_pointer(mode, pointer1, pointer2);
+        if (!result && DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %p %s %p = %s\n",
+                         name1, pointer1, symbol, pointer2, name2);
+        }
+    } else if ((var1.kind == ASSERT_COMPARE_VALUE_BOOL)
+               && (var2.kind == ASSERT_COMPARE_VALUE_BOOL)) {
+        result = assert_compare_const_bool(mode, var1.boolean, var2.boolean);
+        if (!result && DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %d %s %d = %s\n",
+                         name1, var1.boolean, symbol, var2.boolean, name2);
+        }
+    } else {
+        return assert_compare_const_unsupported(file, line, func,
+                                                name1, name2,
+                                                var1, var2);
+    }
+
+    return result;
+}
+
+bool
+assert_file_contains(char *file, int32 line, char *func,
+                     char *path, char *needle) {
+    char *buffer;
+    int32 buffer_len;
+    int32 needle_len = strlen32(needle);
+
+    if ((buffer_len = read_entire_file(path, &buffer)) < 0) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "Could not read file '%s'.\n", path);
+        }
+        return false;
+    }
+    if (!memmem64(buffer, buffer_len, needle, needle_len)) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "Needle '%s' not found in file '%s'.\n", needle, path);
+        }
+        return false;
+    }
+    free2(buffer, buffer_len + 1);
+    return true;
+}
+
+bool
+assert_contains(char *file, int32 line, char *func,
+                char *haystack, int32 haystack_len, char *needle) {
+    int32 needle_len = strlen32(needle);
+    if (memmem64(haystack, haystack_len, needle, needle_len) == NULL) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "expected to find substring'''\n"
+                         GREEN("%.*s")"''' in '''"BLUE("%.*s")"'''\n",
+                         needle_len, needle, haystack_len, haystack);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
+assert_not_contains(char *file, int32 line, char *func,
+                    char *haystack, int32 haystack_len, char *needle) {
+    int32 needle_len = strlen32(needle);
+    if (memmem64(haystack, haystack_len, needle, needle_len)) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "expected to not find substring'''\n"
+                         GREEN("%.*s")"''' in '''"BLUE("%.*s")"'''\n",
+                         needle_len, needle, haystack_len, haystack);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
+assert_equal_3(char *file, int32 line, char *func,
+               char *name1, char *name2,
+               char *var1, int32 var1_len, char *var2) {
+    int32 var2_len;
+
+    if (var1 == NULL) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s is NULL.\n", name1);
+        }
+        return false;
+    }
+    if (var2 == NULL) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s is NULL.\n", name2);
+        }
+        return false;
+    }
+
+    var2_len = strlen32(var2);
+    if (!strequal2(var1, var1_len, var2, var2_len)) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %.*s == %s = %s\n",
+                         name1, var1_len, var1, name2, var2);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool
+assert_equal_4(char *file, int32 line, char *func,
+               char *name1, char *name2,
+               char *var1, int32 var1_len, char *var2, int32 var2_len) {
+    if (var2 && (var1 == NULL)) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s is NULL while %s is not\n", name1, name2);
+        }
+        return false;
+    }
+    if (var1 && (var2 == NULL)) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s is NULL while %s is not\n", name2, name1);
+        }
+        return false;
+    }
+
+    if (var1_len != var2_len) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "len(%s) = %d == %d = len(%s)\n",
+                         name1, var1_len, var2_len, name2);
+        }
+        return false;
+    }
+    if ((var1 == NULL) && (var2 == NULL)) {
+        return true;
+    }
+    if (memcmp64(var1, var2, var1_len) != 0) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %.*s == %.*s = %s\n",
+                         name1, var1_len, var1, var2_len, var2, name2);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool
+assert_not_equal_3(char *file, int32 line, char *func,
+                   char *name1, char *name2,
+                   char *var1, int32 var1_len, char *var2) {
+    int32 var2_len;
+
+    if ((var1 == NULL) || (var2 == NULL)) {
+        if (var1 != var2) {
+            return true;
+        }
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = NULL != NULL = %s\n", name1, name2);
+        }
+        return false;
+    }
+
+    var2_len = strlen32(var2);
+    if (var1_len != var2_len) {
+        return true;
+    }
+    if (memcmp64(var1, var2, var1_len) == 0) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %.*s != %s = %s\n",
+                         name1, var1_len, var1, name2, var2);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool
+assert_not_equal_4(char *file, int32 line, char *func,
+                   char *name1, char *name2,
+                   char *var1, int32 var1_len, char *var2, int32 var2_len) {
+    if ((var1 == NULL) || (var2 == NULL)) {
+        if (var1 != var2) {
+            return true;
+        }
+        if (var1_len != var2_len) {
+            return true;
+        }
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = NULL != NULL = %s\n", name1, name2);
+        }
+        return false;
+    }
+
+    if (var1_len != var2_len) {
+        return true;
+    }
+    if (memcmp64(var1, var2, var1_len) == 0) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "%s = %.*s != %.*s = %s\n",
+                         name1, var1_len, var1, var2_len, var2, name2);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool
+assert_glob_match_impl(char *file, int32 line, char *func,
+                       char *string_name, char *glob_name,
+                       char *string, int32 string_len,
+                       char *glob, int32 glob_len,
+                       bool expected) {
+    if (util_glob_match(string, string_len, glob, glob_len) != expected) {
+        if (DEBUGGING) {
+            char *expected_text;
+
+            if (expected) {
+                expected_text = "expected glob to match";
+            } else {
+                expected_text = "expected glob to not match";
+            }
+
+            assert_error(file, line, func,
+                         "%s:\n"
+                         "  string: %s[%d] = '''"BLUE("%.*s")"'''\n"
+                         "  glob:   %s[%d] = '''"GREEN("%.*s")"'''\n",
+                         expected_text,
+                         string_name, string_len, string_len, string,
+                         glob_name, glob_len, glob_len, glob);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
+assert_outside(char *file, int32 line, char *func,
+               char *pointer_name, char *begin_name, char *end_name,
+               void *pointer, void *begin, void *end) {
+    uintptr pointer_address = (uintptr)pointer;
+    uintptr begin_address = (uintptr)begin;
+    uintptr end_address = (uintptr)end;
+
+    if (begin_address > end_address) {
+        if (DEBUGGING) {
+            assert_error(file, line, func,
+                         "invalid range: %s = %p must be before %s = %p\n",
+                         begin_name, begin, end_name, end);
+        }
+        return false;
+    }
+    if ((pointer_address < begin_address) || (pointer_address >= end_address)) {
+        return true;
+    }
+
+    if (DEBUGGING) {
+        assert_error(file, line, func,
+                     "%s = %p outside [%s = %p, %s = %p)\n",
+                     pointer_name, pointer, begin_name, begin, end_name, end);
+    }
+    return false;
+}
+
+#define GENERATE_ASSERT_STRINGS(MODE, SYMBOL)                                  \
+bool                                                                           \
+a_strings_##MODE(char *file, int32 line, char *func,                           \
+                 char *name1, char *name2,                                     \
+                 char *var1, char *var2) {                                     \
+    if (var2 && (var1 == NULL)) {                                              \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "%s is NULL, %s is \"%s\"\n", name1, name2, var2);    \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    if (var1 && (var2 == NULL)) {                                              \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "%s is NULL, %s is \"%s\"\n", name2, name1, var1);    \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    if ((var1 == NULL) && (var2 == NULL)) {                                    \
+        if (strcmp(#SYMBOL, "==")) {                                           \
+            return false;                                                      \
+        }                                                                      \
+        return true;                                                           \
+    }                                                                          \
+    if (!(strcmp(var1, var2) SYMBOL 0)) {                                      \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "%s = %s " #SYMBOL " %s = %s\n",                      \
+                         name1, var1, var2, name2);                            \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_STRINGS(less, <)
+GENERATE_ASSERT_STRINGS(less_equal, <=)
+GENERATE_ASSERT_STRINGS(equal, ==)
+GENERATE_ASSERT_STRINGS(not_equal, !=)
+GENERATE_ASSERT_STRINGS(greater, >)
+GENERATE_ASSERT_STRINGS(greater_equal, >=)
+
+#undef GENERATE_ASSERT_STRINGS
+
+#define GENERATE_ASSERT_POINTERS(MODE, SYMBOL)                                 \
+bool                                                                           \
+a_pointers_##MODE(char *file, int32 line, char *func,                          \
+                  char *name1, char *name2,                                    \
+                  void *var1, void *var2) {                                    \
+    if (!((uintptr)var1 SYMBOL (uintptr)var2)) {                               \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "%s = %p " #SYMBOL " %p = %s\n",                      \
+                         name1, var1, var2, name2);                            \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_POINTERS(less, <)
+GENERATE_ASSERT_POINTERS(less_equal, <=)
+GENERATE_ASSERT_POINTERS(equal, ==)
+GENERATE_ASSERT_POINTERS(not_equal, !=)
+GENERATE_ASSERT_POINTERS(greater, >)
+GENERATE_ASSERT_POINTERS(greater_equal, >=)
+
+#undef GENERATE_ASSERT_POINTERS
+
+#define GENERATE_ASSERT_INTEGERS_SAME_SIGN(SIGN, FMT, SYMBOL, MODE)           \
+bool                                                                          \
+a_both_##SIGN##_##MODE(char *file, int32 line, char *func,                    \
+                       char *name1, char *name2,                              \
+                       char *type1, char *type2,                              \
+                       int32 bits1, int32 bits2,                              \
+                       SIGN long long var1, SIGN long long var2) {            \
+    if (!(var1 SYMBOL var2)) {                                                \
+        if (DEBUGGING) {                                                      \
+            assert_error(file, line, func,                                    \
+                        "[%s%d]%s = "FMT" " #SYMBOL " "FMT" = %s[%s%d]\n",   \
+                        type1, bits1, name1, var1, var2, name2, type2,       \
+                        bits2);                                              \
+        }                                                                     \
+        return false;                                                         \
+    }                                                                         \
+    return true;                                                              \
+}
+
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", ==, equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", ==, equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", !=, not_equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", !=, not_equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", <,  less)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", <,  less)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", <=, less_equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", <=, less_equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", >,  greater)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", >,  greater)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(signed,   "%lld", >=, greater_equal)
+GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", >=, greater_equal)
+
+#undef GENERATE_ASSERT_INTEGERS_SAME_SIGN
+
+static int
+compare_sign_with_unsign(llong s, ullong u) {
+    ullong saux;
+    if (s < 0) {
+        return -1;
+    }
+    saux = (ullong)s;
+    if (saux < u) {
+        return -1;
+    } else if (saux == u) {
+        return 0;
+    } else {
+        return +1;
+    }
+}
+
+#define GENERATE_ASSERT_SIGNED_UNSIGNED(MODE, SYMBOL)                          \
+bool                                                                           \
+a_signed_unsigned##MODE(char *file, int32 line, char *func,                    \
+                        char *name1, char *name2,                              \
+                        char *type1, char *type2,                              \
+                        int32 bits1, int32 bits2,                              \
+                        llong var1, ullong var2) {                             \
+    if (!(compare_sign_with_unsign(var1, var2) SYMBOL 0)) {                    \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "[%s%d]%s = %lld " #SYMBOL " %llu = %s[%s%d]\n",      \
+                         type1, bits1, name1, var1,                            \
+                         var2, name2, type2, bits2);                           \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_SIGNED_UNSIGNED(equal, ==)
+GENERATE_ASSERT_SIGNED_UNSIGNED(not_equal, !=)
+GENERATE_ASSERT_SIGNED_UNSIGNED(less, <)
+GENERATE_ASSERT_SIGNED_UNSIGNED(less_equal, <=)
+GENERATE_ASSERT_SIGNED_UNSIGNED(greater, >)
+GENERATE_ASSERT_SIGNED_UNSIGNED(greater_equal, >=)
+
+#undef GENERATE_ASSERT_SIGNED_UNSIGNED
+
+#define GENERATE_ASSERT_UNSIGNED_SIGNED(MODE, SYMBOL)                          \
+bool                                                                           \
+a_unsigned_signed_##MODE(char *file, int32 line, char *func,                   \
+                         char *name1, char *name2,                             \
+                         char *type1, char *type2,                             \
+                         int32 bits1, int32 bits2,                             \
+                         ullong var1, llong var2) {                            \
+    if (!((-compare_sign_with_unsign(var2, var1)) SYMBOL 0)) {                 \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "[%s%d]%s = %llu " #SYMBOL " %lld = %s[%s%d]\n",      \
+                         type1, bits1, name1, var1, var2, name2, type2,        \
+                         bits2);                                               \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_UNSIGNED_SIGNED(equal, ==)
+GENERATE_ASSERT_UNSIGNED_SIGNED(not_equal, !=)
+GENERATE_ASSERT_UNSIGNED_SIGNED(less, <)
+GENERATE_ASSERT_UNSIGNED_SIGNED(less_equal, <=)
+GENERATE_ASSERT_UNSIGNED_SIGNED(greater, >)
+GENERATE_ASSERT_UNSIGNED_SIGNED(greater_equal, >=)
+
+#undef GENERATE_ASSERT_UNSIGNED_SIGNED
+
+#define GENERATE_ASSERT_DOUBLE(SYMBOL, MODE)                                   \
+bool                                                                           \
+a_double_##MODE(char *file, int32 line, char *func,                            \
+                char *name1, char *name2,                                      \
+                char *type1, char *type2,                                      \
+                int32 bits1, int32 bits2,                                      \
+                double var1, double var2) {                                    \
+    if (!(var1 SYMBOL var2)) {                                                 \
+        if (DEBUGGING) {                                                       \
+            assert_error(file, line, func,                                     \
+                         "[%s%d]%s = %f " #SYMBOL " %f = %s[%s%d]\n",          \
+                         type1, bits1, name1, var1,                            \
+                         var2, name2, type2, bits2);                           \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_DOUBLE(==, equal)
+GENERATE_ASSERT_DOUBLE(!=, not_equal)
+GENERATE_ASSERT_DOUBLE(<,  less)
+GENERATE_ASSERT_DOUBLE(>,  greater)
+GENERATE_ASSERT_DOUBLE(<=, less_equal)
+GENERATE_ASSERT_DOUBLE(>=, greater_equal)
+
+#undef GENERATE_ASSERT_DOUBLE
+
+static double
+assert_double_abs(double x) {
+    if (x < (double)0) {
+        return -x;
+    }
+    return x;
+}
+
+static bool
+assert_double_is_nan(double x) {
+    return x != x;
+}
+
+static bool
+assert_double_is_infinite(double x) {
+    return (x > (double)DBL_MAX) || (x < -(double)DBL_MAX);
+}
+
+static bool
+assert_double_is_negative(double x) {
+    union {
+        double as_double;
+        uint64 as_uint;
+    } bits;
+    uint64 sign_mask = 0x8000000000000000ull;
+
+    bits.as_double = x;
+    return (bits.as_uint & sign_mask) != 0;
+}
+
+static bool
+assert_double_is_zero(double x) {
+    return x == (double)0;
+}
+
+static int
+assert_fp_common_kind(int kind1, int kind2) {
+    if ((kind1 == ASSERT_FP_KIND_FLOAT) || (kind2 == ASSERT_FP_KIND_FLOAT)) {
+        return ASSERT_FP_KIND_FLOAT;
+    }
+    if ((kind1 == ASSERT_FP_KIND_DOUBLE) || (kind2 == ASSERT_FP_KIND_DOUBLE)) {
+        return ASSERT_FP_KIND_DOUBLE;
+    }
+    return ASSERT_FP_KIND_DOUBLE;
+}
+
+static ullong
+assert_fp_max_ulps(int common_kind) {
+    if (common_kind == ASSERT_FP_KIND_FLOAT) {
+        return (ullong)ASSERT_FLOAT_MAX_ULPS;
+    }
+    if (common_kind == ASSERT_FP_KIND_DOUBLE) {
+        return (ullong)ASSERT_DOUBLE_MAX_ULPS;
+    }
+    return (ullong)ASSERT_DOUBLE_MAX_ULPS;
+}
+
+static uint32
+assert_float_ordered_bits(float var) {
+    union {
+        float as_float;
+        uint32 as_uint;
+    } bits;
+    uint32 sign_mask = 0x80000000u;
+
+    bits.as_float = var;
+    if (bits.as_uint & sign_mask) {
+        return ~bits.as_uint;
+    }
+    return bits.as_uint|sign_mask;
+}
+
+static uint64
+assert_double_ordered_bits(double var) {
+    union {
+        double as_double;
+        uint64 as_uint;
+    } bits;
+    uint64 sign_mask = 0x8000000000000000ull;
+
+    bits.as_double = var;
+    if (bits.as_uint & sign_mask) {
+        return ~bits.as_uint;
+    }
+    return bits.as_uint|sign_mask;
+}
+
+static ullong
+assert_uint32_distance(uint32 a, uint32 b) {
+    if (a > b) {
+        return (ullong)(a - b);
+    }
+    return (ullong)(b - a);
+}
+
+static ullong
+assert_uint64_distance(uint64 a, uint64 b) {
+    if (a > b) {
+        return (ullong)(a - b);
+    }
+    return (ullong)(b - a);
+}
+
+static ullong
+assert_float_ulp_distance(float var1, float var2) {
+    uint32 bits1 = assert_float_ordered_bits(var1);
+    uint32 bits2 = assert_float_ordered_bits(var2);
+
+    return assert_uint32_distance(bits1, bits2);
+}
+
+static ullong
+assert_double_ulp_distance(double var1, double var2) {
+    uint64 bits1 = assert_double_ordered_bits(var1);
+    uint64 bits2 = assert_double_ordered_bits(var2);
+
+    return assert_uint64_distance(bits1, bits2);
+}
+
+static bool
+assert_double_special_close(double var1, double var2,
+                            double *diff_out, bool *handled_out,
+                            bool reject_opposite_sign) {
+    bool sign1;
+    bool sign2;
+
+    if (diff_out != NULL) {
+        *diff_out = (double)0;
+    }
+    *handled_out = true;
+
+    if (assert_double_is_infinite(var1) || assert_double_is_infinite(var2)) {
+        if (var1 == var2) {
+            return true;
+        }
+        if (diff_out != NULL) {
+            *diff_out = assert_double_abs(var1 - var2);
+        }
+        return false;
+    }
+
+    if (assert_double_is_nan(var1) || assert_double_is_nan(var2)) {
+        if (diff_out != NULL) {
+            *diff_out = var1 - var2;
+        }
+        return false;
+    }
+
+    sign1 = assert_double_is_negative(var1);
+    sign2 = assert_double_is_negative(var2);
+    if (sign1 != sign2) {
+        if (assert_double_is_zero(var1) && assert_double_is_zero(var2)) {
+            return true;
+        }
+        if (!reject_opposite_sign) {
+            *handled_out = false;
+            return false;
+        }
+        if (diff_out != NULL) {
+            *diff_out = assert_double_abs(var1 - var2);
+        }
+        return false;
+    }
+
+    if (var1 == var2) {
+        return true;
+    }
+
+    *handled_out = false;
+    return false;
+}
+
+static bool
+assert_double_close_ulps(double var1, double var2,
+                         int kind1, int kind2,
+                         double *diff_out,
+                         ullong *ulps_out,
+                         ullong *max_ulps_out) {
+    int common_kind;
+    bool handled;
+    double diff;
+    ullong ulps;
+    ullong max_ulps;
+
+    common_kind = assert_fp_common_kind(kind1, kind2);
+    max_ulps = assert_fp_max_ulps(common_kind);
+
+    if (ulps_out != NULL) {
+        *ulps_out = 0;
+    }
+    if (max_ulps_out != NULL) {
+        *max_ulps_out = max_ulps;
+    }
+
+    if (assert_double_special_close(var1, var2, diff_out, &handled, true)) {
+        return true;
+    }
+    if (handled) {
+        return false;
+    }
+
+    diff = assert_double_abs(var1 - var2);
+    if (diff_out != NULL) {
+        *diff_out = diff;
+    }
+
+    if (common_kind == ASSERT_FP_KIND_FLOAT) {
+        float float1;
+        float float2;
+
+        if ((assert_double_abs(var1) > (double)FLT_MAX)
+            || (assert_double_abs(var2) > (double)FLT_MAX)) {
+            if (ulps_out != NULL) {
+                *ulps_out = ULLONG_MAX;
+            }
+            return false;
+        }
+
+        float1 = (float)var1;
+        float2 = (float)var2;
+        ulps = assert_float_ulp_distance(float1, float2);
+    } else {
+        ulps = assert_double_ulp_distance(var1, var2);
+    }
+
+    if (ulps_out != NULL) {
+        *ulps_out = ulps;
+    }
+
+    return ulps <= max_ulps;
+}
+
+static bool
+assert_double_close_tol(double var1, double var2,
+                        double tolerance,
+                        double *diff_out,
+                        double *tolerance_out) {
+    bool handled;
+    double diff;
+
+    if (tolerance < 0.0) {
+        tolerance = -tolerance;
+    }
+
+    if (tolerance_out != NULL) {
+        *tolerance_out = tolerance;
+    }
+
+    if (assert_double_special_close(var1, var2, diff_out, &handled, false)) {
+        return true;
+    }
+    if (handled) {
+        return false;
+    }
+
+    diff = assert_double_abs(var1 - var2);
+    if (diff_out != NULL) {
+        *diff_out = diff;
+    }
+
+    return diff <= tolerance;
+}
+
+static bool
+assert_double_failure(char *file, int32 line, char *func,
+                      char *name1, char *name2,
+                      char *type1, char *type2,
+                      int32 bits1, int32 bits2,
+                      double var1, double var2,
+                      char *sym, double diff, double tolerance,
+                      ullong ulps, ullong max_ulps,
+                      bool use_tol) {
+    if (DEBUGGING) {
+        assert_error(file, line, func,
+                     "[%s%d]%s = %.17g %s %.17g = %s[%s%d]\n",
+                     type1, bits1, name1, var1, sym, var2, name2, type2, bits2);
+        if (use_tol) {
+            fprintf(stderr,
+                    "floating diff = %.17g, tolerance = %.17g\n",
+                    diff, tolerance);
+        } else {
+            fprintf(stderr,
+                    "floating diff = %.17g, ulps = %llu, max_ulps = %llu\n",
+                    diff, ulps, max_ulps);
+        }
+    }
+    return false;
+}
+
+#define GENERATE_A_DOUBLE_CLOSE(MODE, SYMBOL, EXPECT_CLOSE)                    \
+bool                                                                           \
+a_double_##MODE(char *file, int32 line, char *func,                            \
+                char *name1, char *name2,                                      \
+                char *type1, char *type2,                                      \
+                int32 bits1, int32 bits2,                                      \
+                int kind1, int kind2,                                          \
+                double var1, double var2) {                                    \
+    double diff;                                                               \
+    ullong ulps;                                                               \
+    ullong max_ulps;                                                           \
+                                                                               \
+    if (assert_double_close_ulps(var1, var2, kind1, kind2,                     \
+                                 &diff, &ulps, &max_ulps) != EXPECT_CLOSE) {   \
+        return assert_double_failure(file, line, func,                         \
+                                     name1, name2,                             \
+                                     type1, type2,                             \
+                                     bits1, bits2,                             \
+                                     var1, var2,                               \
+                                     SYMBOL, diff, (double)0,                  \
+                                     ulps, max_ulps, false);                   \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_A_DOUBLE_CLOSE(close, "~=", true)
+GENERATE_A_DOUBLE_CLOSE(not_close, "!~=", false)
+
+#undef GENERATE_A_DOUBLE_CLOSE
+
+#define GENERATE_A_DOUBLE_CLOSE_TOL(MODE, SYMBOL, EXPECT_CLOSE)           \
+bool                                                                      \
+a_double_##MODE(char *file, int32 line, char *func,                       \
+                char *name1, char *name2,                                 \
+                char *type1, char *type2,                                 \
+                int32 bits1, int32 bits2,                                 \
+                double var1, double var2,                                 \
+                double tolerance) {                                       \
+    double diff;                                                          \
+    double tolerance_abs;                                                 \
+                                                                          \
+    if (assert_double_close_tol(var1, var2, tolerance,                    \
+                                &diff, &tolerance_abs) != EXPECT_CLOSE) { \
+        return assert_double_failure(file, line, func,                    \
+                                     name1, name2,                        \
+                                     type1, type2,                        \
+                                     bits1, bits2,                        \
+                                     var1, var2,                          \
+                                     SYMBOL, diff, tolerance_abs,         \
+                                     0, 0, true);                         \
+    }                                                                     \
+    return true;                                                          \
+}
+
+GENERATE_A_DOUBLE_CLOSE_TOL(close_tol, "~=", true)
+GENERATE_A_DOUBLE_CLOSE_TOL(not_close_tol, "!~=", false)
+
+#undef GENERATE_A_DOUBLE_CLOSE_TOL
+
+#define GENERATE_ASSERT_BOOLS(MODE, SYMBOL)                                    \
+bool                                                                           \
+a_bool_##MODE(char *file, int32 line, char *func,                              \
+              char *name1, char *name2,                                        \
+              char *type1, char *type2,                                        \
+              int32 bits1, int32 bits2,                                        \
+              bool var1, bool var2) {                                          \
+    if (!(var1 SYMBOL var2)) {                                                 \
+        if (DEBUGGING) {                                                       \
+            char *s1 = "false";                                                \
+            char *s2 = "false";                                                \
+            if (var1) {                                                        \
+                s1 = "true";                                                   \
+            }                                                                  \
+            if (var2) {                                                        \
+                s2 = "true";                                                   \
+            }                                                                  \
+            assert_error(file, line, func,                                     \
+                         "[%s%d]%s = %s " #SYMBOL " %s = %s[%s%d]\n",          \
+                         type1, bits1, name1, s1, s2, name2, type2, bits2);    \
+        }                                                                      \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+}
+
+GENERATE_ASSERT_BOOLS(equal, ==)
+GENERATE_ASSERT_BOOLS(not_equal, !=)
+
+bool
+a_bool_greater(void *p, ...) {
+    (void)p;
+    return false;
+}
+bool
+a_bool_less(void *p, ...) {
+    (void)p;
+    return false;
+}
+bool
+a_bool_greater_equal(void *p, ...) {
+    (void)p;
+    return false;
+}
+bool
+a_bool_less_equal(void *p, ...) {
+    (void)p;
+    return false;
+}
+
+#undef GENERATE_ASSERT_BOOLS
+
+#if 0 == TESTING_assertions
+static inline void
+assert_functions_sink(void) {
+    (void)assert_functions_sink;
+    (void)a_strings_less;
+    (void)a_strings_less_equal;
+    (void)a_strings_equal;
+    (void)a_strings_not_equal;
+    (void)a_strings_greater;
+    (void)a_strings_greater_equal;
+
+    (void)a_pointers_less;
+    (void)a_pointers_less_equal;
+    (void)a_pointers_equal;
+    (void)a_pointers_not_equal;
+    (void)a_pointers_greater;
+    (void)a_pointers_greater_equal;
+
+    (void)a_both_signed_less;
+    (void)a_both_signed_less_equal;
+    (void)a_both_signed_equal;
+    (void)a_both_signed_not_equal;
+    (void)a_both_signed_greater;
+    (void)a_both_signed_greater_equal;
+
+    (void)a_both_unsigned_less;
+    (void)a_both_unsigned_less_equal;
+    (void)a_both_unsigned_equal;
+    (void)a_both_unsigned_not_equal;
+    (void)a_both_unsigned_greater;
+    (void)a_both_unsigned_greater_equal;
+
+    (void)a_signed_unsignedless;
+    (void)a_signed_unsignedless_equal;
+    (void)a_signed_unsignedequal;
+    (void)a_signed_unsignednot_equal;
+    (void)a_signed_unsignedgreater;
+    (void)a_signed_unsignedgreater_equal;
+
+    (void)a_unsigned_signed_less;
+    (void)a_unsigned_signed_less_equal;
+    (void)a_unsigned_signed_equal;
+    (void)a_unsigned_signed_not_equal;
+    (void)a_unsigned_signed_greater;
+    (void)a_unsigned_signed_greater_equal;
+
+    (void)a_double_close;
+    (void)a_double_not_close;
+    (void)a_double_less;
+    (void)a_double_less_equal;
+    (void)a_double_equal;
+    (void)a_double_not_equal;
+    (void)a_double_greater;
+    (void)a_double_greater_equal;
+    (void)a_double_close_tol;
+    (void)a_double_not_close_tol;
+    (void)assert_file_contains;
+    (void)assert_contains;
+    (void)assert_not_contains;
+    (void)assert_equal_3;
+    (void)assert_equal_4;
+    (void)assert_outside;
+
+    (void)a_bool_equal;
+    (void)a_bool_not_equal;
+    (void)a_bool_less_equal;
+    (void)a_bool_less;
+    (void)a_bool_greater_equal;
+    (void)a_bool_greater;
+    return;
+}
+#endif
+
+#if TESTING_assertions
+#define CBASE_IMPLEMENT
+#include "cbase.h"
+
+int
+main(void) {
+    ASSERT(true);
+    ASSERT(!false);
+    ASSERT(1);
+    ASSERT_ZERO(0);
+    ASSERT_ZERO(0u);
+    ASSERT_ZERO(0ll);
+
+    ASSERT_EQ(1, 1);
+    ASSERT_EQ(3, 1 + 2);
+    ASSERT_EQ((ullong)LLONG_MAX, LLONG_MAX);
+    ASSERT_LT(1, 2);
+    ASSERT_LE(1, 1);
+    ASSERT_GT(2, 1);
+    ASSERT_GE(1, 1);
+    ASSERT_EQ("constant", "constant");
+    {
+        void *pointer = NULL;
+        ASSERT_EQ(pointer, NULL);
+    }
+
+    ASSERT_GT(1, 0);
+    ASSERT_LT(-1, 0);
+
+    ASSERT_GE(0, 0);
+    ASSERT_LE(0, 0);
+    {
+        double positive = 0.5;
+        double negative = -0.5;
+
+        ASSERT_GT(positive, 0.0);
+        ASSERT_LT(negative, 0.0);
+        ASSERT_LE(0.0, 0.0);
+        ASSERT_LE(negative, 0.0);
+        ASSERT_GE(positive, 0.0);
+    }
+    {
+        char *string = NULL;
+        void *pointer = NULL;
+        ASSERT_EQ(string, pointer);
+        ASSERT_NULL(string);
+    }
+    {
+        ullong a = (ullong)LLONG_MAX;
+        ullong b = (ullong)LLONG_MAX;
+        ullong c = (ullong)LLONG_MAX - 1;
+
+        ASSERT_EQ(a, b);
+        ASSERT_NE(a, c);
+    } {
+        int a = 1;
+        int b = 1;
+        ASSERT_EQ(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GE_VAR(a, b);
+    } {
+        int a = 1;
+        uint b = 1;
+        ASSERT_EQ(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GE_VAR(a, b);
+    } {
+        int a = 1;
+        uint b = 2;
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        long a = -1;
+        ulong b = 0;
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        long a = MINOF(a);
+        ullong b = (ullong)LLONG_MAX;
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        ulong a = MINOF(a);
+        long b = MAXOF(b);
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        char *a = "aaa";
+        char *b = "aaa";
+        ASSERT_EQ(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GE_VAR(b, a);
+    } {
+        char *a = "aaabbb";
+        ASSERT_EQ(a, 3, "aaa");
+        ASSERT_NE(a, 3, "bbb");
+    } {
+        char *a = "aaabbb";
+        char *b = "aaaccc";
+        ASSERT_EQ(a, 3, b, 3);
+        ASSERT_NE(a, 6, b, 6);
+    } {
+        char *a = "aaa";
+        char *b = "bbb";
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        long a = -1;
+        ASSERT_LT(a, 0);
+        ASSERT_LT(a, 0);
+        ASSERT_LE(a, 0);
+        ASSERT_LT(a, 0);
+        ASSERT_LE(a, 0);
+    } {
+        double a = 0.123;
+        ASSERT_NE(a, 0.123000001);
+        ASSERT_LT(a, 0.123000001);
+        ASSERT_LE(a, 0.123000001);
+        ASSERT_GT_VAR(0.123000001, a);
+        ASSERT_GE_VAR(0.123000001, a);
+    } {
+        double a = 0.1 + 0.2;
+        double b = 0.3;
+        double c = -1.0e-16;
+        ASSERT_CLOSE(a, b);
+        ASSERT_CLOSE(b, a);
+        ASSERT_NE(a, b + 1.0e-9);
+        ASSERT_LT_VAR(b, a);
+        ASSERT_GT_VAR(a, b);
+        ASSERT_CLOSE(a, b, 0.01);
+        ASSERT_CLOSE(c, 0.0, 0.01);
+        ASSERT_CLOSE(0.0, c, 0.01);
+        ASSERT_NOT_CLOSE(a, b + 1.0e-9);
+        ASSERT_NOT_CLOSE(a, b + 0.02, 0.01);
+        ASSERT_NOT_CLOSE(c, 0.02, 0.01);
+    } {
+        float a = 0.3f;
+        double b = 0.3;
+        ASSERT_CLOSE(a, b);
+        ASSERT_NOT_CLOSE(a, b + 1.0);
+    } {
+        float a = 0.1f + 0.2f;
+        double b = 0.3;
+        ASSERT_CLOSE(a, b);
+    } {
+        long a = -1;
+        double b = -1;
+        ASSERT_EQ(a, b);
+        ASSERT_EQ(b, b);
+        ASSERT_GE_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+    } {
+        double a = -1;
+        long b = -1;
+        ASSERT_EQ(a, b);
+        ASSERT_EQ(b, b);
+        ASSERT_GE_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+    } {
+        double a = -1;
+        double b = 0;
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        float a = -1;
+        double b = 1;
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        llong a = 1;
+        double b = 1;
+        ASSERT_EQ(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GE_VAR(b, a);
+    } {
+        void *a = NULL;
+        void *b = &a;
+        ASSERT_NE(a, b);
+    } {
+        int array[100];
+        void *a = &array[0];
+        void *b = &array[1];
+        ASSERT_NE(a, b);
+        ASSERT_LT_VAR(a, b);
+        ASSERT_LE_VAR(a, b);
+        ASSERT_GT_VAR(b, a);
+        ASSERT_GE_VAR(b, a);
+    } {
+        bool a = true;
+        bool b = true;
+        ASSERT_EQ(a, b);
+    } {
+        bool a = true;
+        bool b = false;
+        ASSERT_NE(a, b);
+    } {
+        char haystack[] = "alpha beta gamma";
+        char binary_haystack[] = { 'a', 'b', '\0', 'c', 'd' };
+
+        ASSERT_CONTAINS(haystack, SIZEOF(haystack) - 1, "alpha");
+        ASSERT_CONTAINS(haystack, SIZEOF(haystack) - 1, "beta");
+        ASSERT_CONTAINS(binary_haystack, SIZEOF(binary_haystack), "cd");
+        ASSERT_NOT_CONTAINS(haystack, SIZEOF(haystack) - 1, "delta");
+        ASSERT_NOT_CONTAINS(haystack, 10, "gamma");
+        ASSERT_NOT_CONTAINS(binary_haystack, SIZEOF(binary_haystack), "bc");
+        ASSERT_GLOB_MATCH(haystack, "alpha*gamma");
+        ASSERT_GLOB_MATCH(binary_haystack, SIZEOF(binary_haystack), "a*d");
+        ASSERT_GLOB_NO_MATCH(haystack, "alpha*delta");
+        ASSERT_GLOB_NO_MATCH(binary_haystack, SIZEOF(binary_haystack), "a*c");
+    } {
+        int32 array[4] = {0};
+        int32 separate = 0;
+
+        ASSERT_OUTSIDE(&separate, array, array + LENGTH(array));
+        ASSERT_OUTSIDE(&array[4], array, array + LENGTH(array));
+    } {
+        int32 x = 5;
+
+        ASSERT_BETWEEN(x, 5, 10);
+        ASSERT_BETWEEN(x, 0, 5);
+        ASSERT_BETWEEN(x, 0, 10);
+    } {
+        // uncomment to trigger linking error in the variable path
+        /* double x = 0.1; */
+        /* void *a = NULL; */
+        /* ASSERT_GE_VAR(x, a); */
+        /* ASSERT_GE_VAR(a, x); */
+
+        // uncomment to trigger a non-constant RHS compile error
+        /* int y = 1; */
+        /* ASSERT_LT(1, y); */
+    }
+
+#if OS_UNIX
+    {
+        int a = 0;
+        double b = 1;
+        double close_a = 0.1 + 0.2;
+        double close_b = 0.3;
+        float array[10] = {0};
+        char *string_null = NULL;
+        char *string_some = "some";
+        ullong too_large = ULLONG_MAX;
+
+        fprintf(stderr, "\nThe following assertions are supposed to fail\n");
+
+        ASSERT_TRAPS(ASSERT_EQ(a, b));
+        ASSERT_TRAPS(ASSERT_EQ(string_null, string_some));
+        ASSERT_TRAPS(ASSERT_EQ(string_some, 3, "none"));
+        ASSERT_TRAPS(ASSERT_NE(string_some, 4, "some"));
+        ASSERT_TRAPS(ASSERT_NE(string_some, 4, "some", 4));
+        ASSERT_TRAPS(ASSERT_GT_VAR(a, b));
+        ASSERT_TRAPS(ASSERT_LT_VAR(b, a));
+        ASSERT_TRAPS(ASSERT_GE_VAR(a, b));
+        ASSERT_TRAPS(ASSERT_LE_VAR(b, a));
+        ASSERT_TRAPS(ASSERT_GT(-0.5, 0.0));
+        ASSERT_TRAPS(ASSERT_LE(0.5, 0.0));
+        ASSERT_TRAPS(ASSERT_LT_VAR((void *)&array[1], (void *)&array[0]));
+        ASSERT_TRAPS(ASSERT_EQ(true, false));
+        ASSERT_TRAPS(ASSERT_EQ(too_large, 0));
+        ASSERT_TRAPS(ASSERT_EQ(0, too_large));
+        ASSERT_TRAPS(ASSERT_NE(too_large, 0));
+        ASSERT_TRAPS(ASSERT_NE(0, too_large));
+        ASSERT_TRAPS(ASSERT_NOT_CLOSE(close_a, close_b));
+        ASSERT_TRAPS(ASSERT_NOT_CLOSE(close_a, close_b, 0.01));
+        ASSERT_TRAPS(ASSERT_CONTAINS("alpha beta gamma\n", 17, "delta\n"));
+        ASSERT_TRAPS(ASSERT_NOT_CONTAINS("alpha beta\n gamma\n", 18, "beta\n"));
+        ASSERT_TRAPS(ASSERT_GLOB_MATCH("alpha beta gamma", "alpha*delta"));
+        ASSERT_TRAPS(ASSERT_GLOB_NO_MATCH("alpha beta gamma", "alpha*gamma"));
+        ASSERT_TRAPS(ASSERT_OUTSIDE(array, array + LENGTH(array), array));
+        ASSERT_TRAPS(ASSERT_OUTSIDE(&array[0], array, array + LENGTH(array)));
+        ASSERT_TRAPS(ASSERT_BETWEEN(-1, 0, 1));
+        ASSERT_TRAPS(ASSERT_BETWEEN(2, 0, 1));
+    }
+#endif
+
+    ASSERT(true);
+    ASSERT(!false);
+    ASSERT_EQ(true, true);
+    ASSERT_EQ(0 < 1, 1 < 3);
+
+    {
+        char temp_dir[PATH_MAX];
+        char path[PATH_MAX];
+        FILE *file;
+
+        test_make_temp_dir(temp_dir, SIZEOF(temp_dir), "assertions");
+        test_join_path(path, SIZEOF(path), temp_dir, "test_assert.txt");
+
+        if ((file = XFOPEN(path, "w")) == NULL) {
+            fatal(EXIT_FAILURE);
+        }
+
+        fprintf(file, "contents\n");
+        if (fclose(file)) {
+            fatal(EXIT_FAILURE);
+        }
+        ASSERT_FILE_CONTAINS(path, "ontents");
+        test_remove_tree(temp_dir);
+    }
+
+    fmt_printf("All assertions tests passed.\n");
+    exit(EXIT_SUCCESS);
+}
+#endif
+
+#endif /* ASSERTIONS_C */
