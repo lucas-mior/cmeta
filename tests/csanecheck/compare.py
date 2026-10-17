@@ -26,6 +26,8 @@ SUPPORTED = {
     "AST-BRACES", "AST-SWITCH-ALIGN", "AST-ARTIFICIAL-BLOCK",
     "RYU-ENDIF-COMMENT",
     "RYU-FINAL-NEWLINE",
+    "STYLE-ASSERT-REL", "STYLE-ASSERT-BOUNDS", "STYLE-STRLIT-LEN",
+    "STYLE-STREQUAL", "STYLE-PRINTF", "STYLE-STATUS-TEMP",
 }
 CLEAN_CASES = {"preprocessor_defined", "sizeof_macro_definition",
                "non_ryu_newline"}
