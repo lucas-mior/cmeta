@@ -25,6 +25,14 @@ spacing on the same line without attempting to reformat line breaks.
   tokenizer. The AST stores no duplicate source text.
 - Expression spacing checks require recognized AST nodes. Declaration
   initializer `=` positions are derived from declarator initializer ranges.
+  A pointer declaration such as `Arena *arena;` is syntactically ambiguous
+  with multiplication if `Arena` is a typedef from an unavailable header.
+  The statement parser now probes the declaration interpretation and marks
+  such unresolved constructs as unsupported, rather than emitting an
+  incorrect multiplication diagnostic. Known ordinary identifiers still
+  produce binary-expression nodes. This conservative fallback also means
+  that a bare `unknown * other;` expression may be left unchecked until
+  the source's typedef/identifier context is available.
   Unsupported syntax can still hide violations; `--coverage` and
   `--report-parse-issues` expose those limitations.
 - `FMT-ASSIGN-EQ` uses the original token stream and preprocessor token roles,

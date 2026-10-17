@@ -40,6 +40,29 @@ class CsaneLayoutTests(unittest.TestCase):
                    "    *pointer = a*b;\n"
                    "}\n", ["FMT-MULTIPLY"])
 
+    def test_typedefs_from_headers_are_not_multiplication(self):
+        # Arena and GenericArrayHeader are typedefs in included headers.
+        # Their declarations must not become guessed binary expressions.
+        self.check("""#include "cbase.h"
+void f(void) {
+    Arena *arena;
+    {
+        Arena *small_arena;
+    }
+    for (Arena *a = arena; a; a = a->next) {
+    }
+    Arena *arenas[2];
+    GenericArrayHeader *header;
+}
+""")
+
+    def test_real_multiplication_still_detected_with_known_operands(self):
+        self.check("void f(int a, int b) {\n"
+                   "    int result = a * b;\n"
+                   "    (void)(a * b);\n"
+                   "    a * b;\n"
+                   "}\n", ["FMT-MULTIPLY"] * 3)
+
     def test_multiplication_each_side_and_parentheses(self):
         for expression in ("a* b", "a *b", "a * b", "(a) * (b)"):
             with self.subTest(expression=expression):
