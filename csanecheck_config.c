@@ -468,6 +468,8 @@ csane_known_rule(char *id) {
         "AST-BRACES", "AST-SWITCH-ALIGN", "AST-ARTIFICIAL-BLOCK",
         "STYLE-ASSERT-REL", "STYLE-ASSERT-BOUNDS", "STYLE-STRLIT-LEN",
         "STYLE-STREQUAL", "STYLE-PRINTF", "STYLE-STATUS-TEMP",
+        "FMT-MULTIPLY", "FMT-BINARY-SPACING", "FMT-ASSIGN-SPACING",
+        "FMT-ASSIGN-EQ",
     };
     for (int32 i = 0; i < (int32)(SIZEOF(known)/SIZEOF(known[0]));
          i += 1) {
