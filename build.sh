@@ -63,10 +63,14 @@ mkdir -p bin
 # One translation unit keeps the shared cbase/cmeta implementation model.
 # Do not execute csanecheck while bootstrapping its own binary.
 # shellcheck disable=SC2086
+trace_on
 $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck_main.c $LDFLAGS
+trace_off
 
 if [ "$mode" = install ]; then
+    trace_on
     install -Dm755 bin/csanecheck "${DESTDIR}${PREFIX}/bin/csanecheck"
+    trace_off
 fi
 
 if [ "$mode" = test ]; then
