@@ -724,6 +724,67 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
     return result;
 }
 
+/* Type-name probing must not introduce declarations or typedef bindings.
+ * All potentially created nodes and names are discarded, even on success.
+ */
+bool
+c_ast_is_type_name(CAst *ast, TokenRange range) {
+    DeclCursor c;
+    int32 declaration_count;
+    int32 declarator_count;
+    int32 record_count;
+    int32 enumerator_count;
+    int32 binding_count;
+    int32 scope_count;
+    int32 current_scope;
+    int32 d;
+    int32 i;
+    bool valid = false;
+
+    if ((ast == NULL) || (ast->tokenization == NULL)
+        || !token_range_is_valid(ast->tokenization, range)) {
+        return false;
+    }
+    c = (DeclCursor){.ast = ast, .range = range, .pos = range.first,
+                     .issue = -1, .status = C_DECL_PARSE_OK};
+    declaration_count = ast->declaration_count;
+    declarator_count = ast->declarator_count;
+    record_count = ast->record_count;
+    enumerator_count = ast->enumerator_count;
+    binding_count = ast->binding_count;
+    scope_count = ast->scope_count;
+    current_scope = ast->current_scope;
+    d = decl_make_declaration(&c, C_DECLARATION_PARAMETER);
+    if (!decl_parse_specifiers(&c, d)) {
+        goto cleanup;
+    }
+    for (i = decl_sig(&c, range.first);
+         i < ast->declarations[d].specifiers.end;
+         i = decl_sig(&c, i + 1)) {
+        enum CKeyword k = c_token_keyword(&ast->tokenization->tokens[i]);
+        if (decl_is_storage(k) || (k == C_KEYWORD_ALIGNAS)) {
+            goto cleanup;
+        }
+    }
+    i = decl_next(&c);
+    if (i < range.end) {
+        int32 root = decl_parse_declarator(&c, true);
+        if ((root < 0) || (decl_name(ast, root) >= 0)) {
+            goto cleanup;
+        }
+    }
+    valid = (c.status == C_DECL_PARSE_OK) && (decl_next(&c) == range.end);
+cleanup:
+    ast->declaration_count = declaration_count;
+    ast->declarator_count = declarator_count;
+    ast->record_count = record_count;
+    ast->enumerator_count = enumerator_count;
+    ast->binding_count = binding_count;
+    ast->scope_count = scope_count;
+    ast->current_scope = current_scope;
+    return valid;
+}
+
 #if TESTING_meta_decl
 #define CBASE_IMPLEMENT
 #include "cbase.h"
