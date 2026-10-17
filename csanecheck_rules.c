@@ -356,6 +356,7 @@ csane_rules_check(CsaneFile *file) {
         {"AST-DECL-ONE", csane_structure_check, false},
         {"API", csane_rule_calls, true},
         {"STYLE", csane_context_check, false},
+        {"LAYOUT", csane_layout_check, false},
     };
     ASSERT(file != NULL);
     ASSERT(file->tokens != NULL);
