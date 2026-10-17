@@ -355,6 +355,7 @@ csane_rules_check(CsaneFile *file) {
         {"PP-SIZEOF", csane_rule_sizeof, false},
         {"AST-DECL-ONE", csane_structure_check, false},
         {"API", csane_rule_calls, true},
+        {"STYLE", csane_context_check, false},
     };
     ASSERT(file != NULL);
     ASSERT(file->tokens != NULL);

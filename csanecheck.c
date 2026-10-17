@@ -19,7 +19,7 @@ csane_usage(FILE *output) {
             "                  [--help]\n"
             "       csanecheck PATH [PATH ...]\n"
             "\n"
-            "Phase 5.1: declaration checks and parser coverage reporting.\n"
+            "Phase 5.3: structural and contextual checks.\n"
             "Without paths, search the current project directory.\n"
             "Exit: 0 clean, 1 rule/parse issues, 2 usage/I/O error.\n");
     return;
@@ -54,6 +54,30 @@ csane_issue(char *path, Tokenization *tokens, int32 index,
     return;
 }
 
+/* These are actual typedefs exported by cbase/primitives.h. Seed only
+ * names present in the token stream; this is not type-name guessing based on
+ * capitalization or suffixes. Header-specific typedefs still need context. */
+static void
+csane_cbase_types(CAst *ast) {
+    static char *names[] = {
+        "uchar", "ushort", "uint", "ulong", "ullong", "schar",
+        "llong", "ldouble", "int8", "int16", "int32", "int64",
+        "uint8", "uint16", "uint32", "uint64", "bool32",
+        "uintptr", "intptr", "CbaseMaxAlign",
+    };
+    Tokenization *tokens = ast->tokenization;
+    for (int32 n = 0; n < (int32)(SIZEOF(names)/SIZEOF(names[0]));
+         n += 1) {
+        for (int32 i = 0; i < tokens->token_count; i += 1) {
+            Token *token = &tokens->tokens[i];
+            if (token->kind == TOKEN_IDENT && TOKEN_IS(token, names[n])) {
+                c_ast_bind(ast, i, C_NAME_TYPEDEF);
+                break;
+            }
+        }
+    }
+}
+
 static int32
 csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     char *source = NULL;
@@ -74,6 +98,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         return 2;
     }
     if (pp_ok) {
+        csane_cbase_types(&ast);
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, tokens.token_count}, &pp);
     }
