@@ -15,9 +15,9 @@ csane_usage(FILE *output) {
             "                  [--strict-parse] [--stats] [--help]\n"
             "       csanecheck PATH [PATH ...]\n"
             "\n"
-            "Phase 4.1: parse sources; no guideline rules yet.\n"
+            "Phase 4.2: guideline checks and optional parser reports.\n"
             "Without paths, search the current project directory.\n"
-            "Exit: 0 success, 1 strict parse issues, 2 usage/I/O error.\n");
+            "Exit: 0 clean, 1 rule/parse issues, 2 usage/I/O error.\n");
     return;
 }
 
@@ -73,10 +73,18 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, tokens.token_count}, &pp);
     }
+    CsaneFile file = {
+        .path = path,
+        .tokens = &tokens,
+        .preprocessor = &pp,
+        .ast = &ast,
+    };
+    int32 violations = csane_rules_check(&file);
     int32 issues = ast.issue_count + pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         issues += 1;
     }
+    stats->violations += violations;
     stats->files += 1;
     stats->tokens += tokens.token_count;
     stats->externals += ast.external_count;
@@ -117,7 +125,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
     free2(source, (int64)len + 1);
-    if (options->strict_parse && issues > 0) {
+    if (violations > 0 || (options->strict_parse && issues > 0)) {
         return 1;
     }
     return 0;
@@ -141,7 +149,7 @@ csane_run(int32 argc, char **argv) {
             return 0;
         }
         if (!strcmp(arg, "--version")) {
-            puts("csanecheck phase 4.1");
+            puts("csanecheck phase 4.2");
             return 0;
         }
         if (!strcmp(arg, "--stats")) {
@@ -228,10 +236,11 @@ csane_run(int32 argc, char **argv) {
     }
     if (options.statistics) {
         printf("files=%d tokens=%lld externals=%lld parse_issues=%lld "
-               "preprocessor_issues=%lld\n",
+               "preprocessor_issues=%lld violations=%lld\n",
                stats.files, (long long)stats.tokens,
                (long long)stats.externals, (long long)stats.parse_issues,
-               (long long)stats.preprocessor_issues);
+               (long long)stats.preprocessor_issues,
+               (long long)stats.violations);
     }
     csane_paths_free(&options.files);
     return exit_status;

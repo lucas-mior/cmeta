@@ -56,5 +56,6 @@ if [ "$mode" = test ]; then
     TEST_MAXDEPTH=1 common_test "$target" .
     if [ -z "$target" ]; then
         python3 tests/csanecheck/test_cli.py bin/csanecheck
+        python3 tests/csanecheck/test_rules.py bin/csanecheck
     fi
 fi

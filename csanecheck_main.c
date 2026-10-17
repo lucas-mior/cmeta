@@ -14,6 +14,7 @@
 #include "meta.h"
 #include "csanecheck.h"
 #include "csanecheck_files.c"
+#include "csanecheck_rules.c"
 #include "csanecheck.c"
 
 #if CC_CLANG
