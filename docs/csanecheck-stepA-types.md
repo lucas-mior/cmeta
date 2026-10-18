@@ -56,3 +56,21 @@ shadowing, typedef declaration order, and missing includes.
   guessed incorrectly.
 - Typedef discovery is lexical and intentionally incomplete; it does not
   interpret macro-generated typedefs or implement compiler include paths.
+
+## Include-guard recognition
+
+The header collector recognizes an include guard by the structure of its
+preprocessor group, not by its position in the file or percentage of bytes
+covered. An eligible top-level group has exactly one `#ifndef NAME` or
+`#if !defined(NAME)` branch, starts with the matching `#define NAME`, and has
+a matching `#endif`. Only comments, whitespace, or preprocessing directives
+may occur outside that group. This permits preliminary conditional includes
+and trailing implementation-only include sections.
+
+Feature-dependent groups (including compound conditions), groups with
+`#elif`/`#else`, groups without a matching definition, and groups leaving
+ordinary C declarations outside the guard are not treated as unconditional.
+Typedef names nested inside feature-dependent branches are not imported.
+
+The regression suite covers the two conditional sections in `meta_ast.h`, the
+implementation section after `META_H`, and compound literals in `meta_stmt.c`.

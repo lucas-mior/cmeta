@@ -165,41 +165,131 @@ csane_types_resolve(char *including, char *name, CsanePolicy *policy,
     return false;
 }
 
-/* A conventional, file-wide include guard is not a feature-dependent
- * alternative. Ignore it when deciding whether a typedef is conditional. */
+/* Recognize a guard condition only when it consists exactly of a single
+ * negated macro definition. Conditions involving other feature macros do not
+ * establish that their typedefs are unconditionally available. */
+static int32
+csane_types_guard_name(CPreprocessorAnalysis *pp, int32 branch) {
+    Tokenization *tokens = pp->tokenization;
+    CPreprocessorDirective *opening =
+        &pp->directives[pp->branches[branch].directive_index];
+    TokenRange range = opening->tokens;
+    int32 i = csane_types_next(tokens, opening->keyword_token);
+    if (opening->kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF) {
+        if (i < range.end && tokens->tokens[i].kind == TOKEN_IDENT
+            && csane_types_next(tokens, i) >= range.end) {
+            return i;
+        }
+        return -1;
+    }
+    if (opening->kind != C_PREPROCESSOR_DIRECTIVE_IF
+        || i >= range.end || !TOKEN_IS(&tokens->tokens[i], "!")) {
+        return -1;
+    }
+    i = csane_types_next(tokens, i);
+    if (i >= range.end || !TOKEN_IS(&tokens->tokens[i], "defined")) {
+        return -1;
+    }
+    i = csane_types_next(tokens, i);
+    bool parenthesized = i < range.end
+                         && TOKEN_IS(&tokens->tokens[i], "(");
+    if (parenthesized) {
+        i = csane_types_next(tokens, i);
+    }
+    if (i >= range.end || tokens->tokens[i].kind != TOKEN_IDENT) {
+        return -1;
+    }
+    int32 name = i;
+    i = csane_types_next(tokens, i);
+    if (parenthesized) {
+        if (i >= range.end || !TOKEN_IS(&tokens->tokens[i], ")")) {
+            return -1;
+        }
+        i = csane_types_next(tokens, i);
+    }
+    return (i >= range.end) ? name : -1;
+}
+
+static bool
+csane_types_guard_define(CPreprocessorAnalysis *pp, int32 branch,
+                         int32 name) {
+    Tokenization *tokens = pp->tokenization;
+    int32 opening = pp->branches[branch].directive_index;
+    int32 closing = pp->groups[pp->branches[branch].group_index]
+                        .endif_directive;
+    CPreprocessorDirective *first = NULL;
+    for (int32 i = opening + 1; i < closing; i += 1) {
+        CPreprocessorDirective *directive = &pp->directives[i];
+        if (pp->token_branches[directive->hash_token] == branch) {
+            first = directive;
+            break;
+        }
+    }
+    if (first == NULL || first->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE) {
+        return false;
+    }
+    CPreprocessorDefine define;
+    if (!c_preprocessor_define_info(tokens, first, &define)
+        || define.open_paren_token >= 0) {
+        return false;
+    }
+    Token *expected = &tokens->tokens[name];
+    Token *actual = &tokens->tokens[define.name_token];
+    if (expected->len != actual->len
+        || memcmp64(expected->text, actual->text, expected->len)) {
+        return false;
+    }
+    /* No declarations or statements may precede the guard definition. */
+    int32 start = pp->directives[opening].tokens.end;
+    for (int32 i = start; i < first->tokens.first; i += 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* An include guard may have directive-only sections before or after it,
+ * such as conditional includes or implementation includes. There must be no
+ * actual C declarations outside the guard. */
+static bool
+csane_types_guard_encloses_header(CPreprocessorAnalysis *pp, int32 group) {
+    Tokenization *tokens = pp->tokenization;
+    CPreprocessorGroup *g = &pp->groups[group];
+    int32 opening = pp->branches[g->first_branch].directive_index;
+    CPreprocessorDirective *begin = &pp->directives[opening];
+    CPreprocessorDirective *end = &pp->directives[g->endif_directive];
+    for (int32 i = 0; i < begin->tokens.first; i += 1) {
+        if (pp->token_directives[i] < 0
+            && !token_is_trivia(&tokens->tokens[i])) {
+            return false;
+        }
+    }
+    for (int32 i = end->tokens.end; i < tokens->token_count; i += 1) {
+        if (pp->token_directives[i] < 0
+            && !token_is_trivia(&tokens->tokens[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static int32
 csane_types_guard(CPreprocessorAnalysis *pp) {
-    if (pp->group_count <= 0 || pp->directive_count <= 0) {
-        return -1;
-    }
-    CPreprocessorGroup *group = &pp->groups[0];
-    int32 first = group->first_branch;
-    if (group->parent_branch >= 0 || first < 0
-        || group->endif_directive < 0) {
-        return -1;
-    }
-    int32 guard_end = pp->directives[group->endif_directive].source.end;
-    if ((int64)guard_end*4 < (int64)pp->tokenization->text_len*3) {
-        return -1;
-    }
-    CPreprocessorDirective *opening =
-        &pp->directives[pp->branches[first].directive_index];
-    if (opening->source.start > 512) {
-        return -1;
-    }
-    if (opening->kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF) {
-        return first;
-    }
-    if (opening->kind != C_PREPROCESSOR_DIRECTIVE_IF) {
-        return -1;
-    }
-    Tokenization *tokens = pp->tokenization;
-    int32 bang = token_range_next_text(tokens, opening->tokens,
-                                       opening->hash_token, "!", 1);
-    int32 defined = token_range_next_text(tokens, opening->tokens,
-                                          opening->hash_token, "defined", 7);
-    if (bang < opening->tokens.end && defined < opening->tokens.end) {
-        return first;
+    for (int32 i = 0; i < pp->group_count; i += 1) {
+        CPreprocessorGroup *group = &pp->groups[i];
+        int32 branch = group->first_branch;
+        if (group->parent_branch >= 0 || branch < 0
+            || group->endif_directive < 0 || group->has_else
+            || group->last_branch != branch) {
+            continue;
+        }
+        int32 name = csane_types_guard_name(pp, branch);
+        if (name < 0 || !csane_types_guard_encloses_header(pp, i)
+            || !csane_types_guard_define(pp, branch, name)) {
+            continue;
+        }
+        return branch;
     }
     return -1;
 }
