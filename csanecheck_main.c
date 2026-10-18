@@ -21,6 +21,7 @@
 #include "csanecheck_calls.c"
 #include "csanecheck_wrap.c"
 #include "csanecheck_rules.c"
+#include "csanecheck_types.c"
 #include "csanecheck.c"
 
 #if CC_CLANG

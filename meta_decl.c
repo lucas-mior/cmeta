@@ -24,6 +24,7 @@ typedef struct DeclCursor {
     int32 pos;
     int32 issue;
     int32 depth;
+    int32 inferred_type;
     enum CDeclParseStatus status;
 } DeclCursor;
 
@@ -80,6 +81,7 @@ decl_make_declaration(DeclCursor *c, enum CDeclarationKind kind) {
     ast->declarations[index] = (CDeclaration){
         .kind = kind, .first_declarator = -1, .record = -1,
         .next = -1, .body = {c->pos, c->pos},
+        .inferred_type_token = -1,
     };
     ast->declaration_count += 1;
     return index;
@@ -309,6 +311,7 @@ decl_parse_record(DeclCursor *c) {
 static bool
 decl_parse_specifiers(DeclCursor *c, int32 d) {
     bool type_seen = false;
+    bool prefix_seen = false;
     int32 first = decl_next(c);
     int32 i = first;
     CAst *ast = c->ast;
@@ -318,11 +321,11 @@ decl_parse_specifiers(DeclCursor *c, int32 d) {
         if (k == C_KEYWORD_TYPEDEF) {
             ast->declarations[d].is_typedef = true;
         } else if (decl_is_storage(k)) {
-            /* Storage-class specifiers may precede the type. */
+            prefix_seen = true;
         } else if (decl_is_builtin(k)) {
             type_seen = true;
         } else if (decl_is_qualifier(k)) {
-            /* Qualifiers may precede a type or follow one. */
+            prefix_seen = true;
         } else if (k == C_KEYWORD_ATOMIC) {
             int32 next = decl_sig(c, i + 1);
             if (decl_at(c, next, "(")) {
@@ -357,11 +360,22 @@ decl_parse_specifiers(DeclCursor *c, int32 d) {
             i = c->pos;
             continue;
         } else if ((token->kind == TOKEN_IDENT) && !type_seen
-                   && (c_ast_lookup(ast, i) == C_NAME_TYPEDEF)) {
+                   && (c_ast_lookup(ast, i) == C_NAME_TYPEDEF
+                       || c_ast_lookup(ast, i) == C_NAME_INFERRED_TYPEDEF)) {
             type_seen = true;
         } else if (decl_is_extension(c, i)) {
             decl_fail(c, C_DECL_PARSE_UNSUPPORTED, i);
             return false;
+        } else if (ast->infer_type_names && !type_seen
+                   && token->kind == TOKEN_IDENT
+                   && (c_ast_lookup(ast, i) == C_NAME_UNKNOWN)
+                   && (prefix_seen || c->depth > 0
+                       || ast->infer_external)) {
+            /* A provisional type in a structural type position. This is
+             * confirmed only if the complete declaration parses. In block
+             * expressions without a prefix, a*b remains ambiguous. */
+            type_seen = true;
+            c->inferred_type = i;
         } else {
             break;
         }
@@ -480,7 +494,8 @@ decl_parse_declarator(DeclCursor *c, bool abstract_allowed) {
         bool grouped = (decl_at(c, next, "*") || decl_at(c, next, "("));
         if ((next < c->range.end)
             && (ast->tokenization->tokens[next].kind == TOKEN_IDENT)
-            && (c_ast_lookup(ast, next) != C_NAME_TYPEDEF)) {
+            && (c_ast_lookup(ast, next) != C_NAME_TYPEDEF)
+            && (c_ast_lookup(ast, next) != C_NAME_INFERRED_TYPEDEF)) {
             grouped = true;
         }
         if (grouped) {
@@ -583,6 +598,7 @@ decl_parse_one(DeclCursor *c, enum CDeclarationKind kind,
         decl_fail(c, C_DECL_PARSE_UNSUPPORTED, first);
         return -1;
     }
+    c->inferred_type = -1;
     d = decl_make_declaration(c, kind);
     if (!decl_parse_specifiers(c, d)) {
         return -1;
@@ -661,7 +677,12 @@ decl_parse_one(DeclCursor *c, enum CDeclarationKind kind,
             return -1;
         }
         ast->declarations[d].tokens = (TokenRange){first, i};
+        ast->declarations[d].inferred_type_token = c->inferred_type;
         c->pos = decl_sig(c, i);
+        if (c->inferred_type >= 0
+            && c_ast_lookup(ast, c->inferred_type) == C_NAME_UNKNOWN) {
+            c_ast_bind(ast, c->inferred_type, C_NAME_INFERRED_TYPEDEF);
+        }
         for (int32 root = ast->declarations[d].first_declarator;
              root >= 0; root = ast->declarators[root].next) {
             int32 name = decl_name(ast, root);
@@ -698,7 +719,8 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
         return result;
     }
     c = (DeclCursor){.ast = ast, .range = range, .pos = range.first,
-                     .issue = -1, .status = C_DECL_PARSE_OK};
+                     .issue = -1, .inferred_type = -1,
+                     .status = C_DECL_PARSE_OK};
     declaration_count = ast->declaration_count;
     declarator_count = ast->declarator_count;
     record_count = ast->record_count;
@@ -739,6 +761,8 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
     int32 current_scope;
     int32 d;
     int32 i;
+    bool infer_types;
+    bool infer_external;
     bool valid = false;
 
     if ((ast == NULL) || (ast->tokenization == NULL)
@@ -746,7 +770,8 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
         return false;
     }
     c = (DeclCursor){.ast = ast, .range = range, .pos = range.first,
-                     .issue = -1, .status = C_DECL_PARSE_OK};
+                     .issue = -1, .inferred_type = -1,
+                     .status = C_DECL_PARSE_OK};
     declaration_count = ast->declaration_count;
     declarator_count = ast->declarator_count;
     record_count = ast->record_count;
@@ -754,6 +779,10 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
     binding_count = ast->binding_count;
     scope_count = ast->scope_count;
     current_scope = ast->current_scope;
+    infer_types = ast->infer_type_names;
+    infer_external = ast->infer_external;
+    ast->infer_type_names = false;
+    ast->infer_external = false;
     d = decl_make_declaration(&c, C_DECLARATION_PARAMETER);
     if (!decl_parse_specifiers(&c, d)) {
         goto cleanup;
@@ -782,6 +811,8 @@ cleanup:
     ast->binding_count = binding_count;
     ast->scope_count = scope_count;
     ast->current_scope = current_scope;
+    ast->infer_type_names = infer_types;
+    ast->infer_external = infer_external;
     return valid;
 }
 
@@ -1024,8 +1055,39 @@ ast_test_malformed(void) {
     return;
 }
 
+static void
+ast_test_inferred_types(void) {
+    char *source = "static MissingType *value; "
+                   "MissingResult f(MissingArg *argument) { return 0; } "
+                   "int ordinary; a*b;";
+    Tokenization tokens = tokenize(source, strlen32(source));
+    CAst ast;
+    CDeclParseResult parsed;
+    int32 missing = ast_test_find(&tokens, "MissingType", 0);
+    int32 unknown = ast_test_find(&tokens, "a", 0);
+    ASSERT(c_ast_init(&ast, &tokens));
+    ast.infer_type_names = true;
+    ast.infer_external = true;
+    parsed = ast_test_parse(&ast, 0);
+    ASSERT_EQ(parsed.status, C_DECL_PARSE_OK);
+    ASSERT_EQ(ast.declarations[parsed.declaration].inferred_type_token,
+              missing);
+    ASSERT_EQ(c_ast_lookup(&ast, missing), C_NAME_INFERRED_TYPEDEF);
+    parsed = ast_test_parse(&ast, parsed.next_token);
+    ASSERT_EQ(parsed.status, C_DECL_PARSE_OK);
+    ASSERT(ast.declarations[parsed.declaration].is_function_definition);
+    ast.infer_external = false;
+    parsed = ast_test_parse(&ast, ast_test_find(&tokens, "a", 0));
+    ASSERT_EQ(parsed.status, C_DECL_PARSE_NOT_DECLARATION);
+    ASSERT_EQ(c_ast_lookup(&ast, unknown), C_NAME_UNKNOWN);
+    c_ast_free(&ast);
+    free_tokenization(&tokens);
+    return;
+}
+
 int
 main(void) {
+    ast_test_inferred_types();
     ast_test_declarators();
     ast_test_records();
     ast_test_scopes_and_rollback();

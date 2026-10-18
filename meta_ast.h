@@ -20,6 +20,7 @@ enum CNameClass {
     C_NAME_TAG_STRUCT,
     C_NAME_TAG_UNION,
     C_NAME_TAG_ENUM,
+    C_NAME_INFERRED_TYPEDEF, /* Inferred from syntax, not a known typedef. */
 };
 
 enum CDeclaratorKind {
@@ -73,6 +74,7 @@ typedef struct CDeclaration {
     int32 next;
     bool is_typedef;
     bool is_function_definition;
+    int32 inferred_type_token; /* -1 unless a type was inferred. */
 } CDeclaration;
 
 typedef struct CEnumerator {
@@ -284,6 +286,8 @@ typedef struct CAst {
     int32 external_capacity;
     int32 issue_count;
     int32 issue_capacity;
+    bool infer_type_names; /* Opt-in to unknown type-name inference. */
+    bool infer_external; /* Only while parsing an external declaration. */
 } CAst;
 
 typedef struct CDeclParseResult {

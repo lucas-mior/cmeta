@@ -110,7 +110,7 @@ c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
         || (name >= ast->tokenization->token_count)
         || (ast->tokenization->tokens[name].kind != TOKEN_IDENT)
         || (name_class <= C_NAME_UNKNOWN)
-        || (name_class > C_NAME_TAG_ENUM)) {
+        || (name_class > C_NAME_INFERRED_TYPEDEF)) {
         return false;
     }
     count = ast->binding_count;
@@ -135,7 +135,8 @@ c_ast_lookup_internal(CAst *ast, int32 name, bool tag) {
          scope = ast->scopes[scope].parent) {
         for (int32 i = ast->binding_count - 1; i >= 0; i -= 1) {
             CBinding *binding = &ast->bindings[i];
-            bool is_tag = binding->name_class >= C_NAME_TAG_STRUCT;
+            bool is_tag = binding->name_class >= C_NAME_TAG_STRUCT
+                          && binding->name_class <= C_NAME_TAG_ENUM;
             if ((binding->scope == scope) && (is_tag == tag)
                 && ast_names_equal(ast, name, binding->name_token)) {
                 return binding->name_class;
