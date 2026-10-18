@@ -344,37 +344,82 @@ csane_rule_calls(CsaneFile *file) {
     return;
 }
 
-/* Keeping the dispatcher separate from file discovery allows rules to use
- * the source, preprocessor model, or AST without depending on other rules.
- */
-int32
-csane_rules_check(CsaneFile *file) {
-    static CsaneRule rules[] = {
-        {"SRC", csane_rule_source, false},
-        {"PP", csane_rule_preprocessor, false},
-        {"PP-SIZEOF", csane_rule_sizeof, false},
-        {"AST-DECL-ONE", csane_structure_check, false},
-        {"API", csane_rule_calls, true},
-        {"STYLE", csane_context_check, false},
-        {"LAYOUT", csane_layout_check, false},
-        {"CALL-LAYOUT", csane_calls_check, false},
-        {"WRAP-LAYOUT", csane_wrap_check, false},
-    };
+/* Analysis passes are independent. A source rule never requires a parser;
+ * a token rule never requires an AST. The ordering within each pass retains
+ * the legacy dispatch order and its rule-specific exemptions. */
+static CsaneRule csane_rules[] = {
+    {"SRC", csane_rule_source, CSANE_PASS_SOURCE, false},
+    {"PP", csane_rule_preprocessor, CSANE_PASS_TOKEN, false},
+    {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN, false},
+    {"AST-DECL-ONE", csane_structure_check, CSANE_PASS_SYNTAX, false},
+    {"API", csane_rule_calls, CSANE_PASS_SYNTAX, true},
+    {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX, false},
+    {"CALL-LAYOUT", csane_calls_check, CSANE_PASS_SYNTAX, false},
+    {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
+    {"WRAP-LAYOUT", csane_wrap_check, CSANE_PASS_CONTEXT, false},
+};
+
+void
+csane_rules_prepare(CsaneFile *file) {
     ASSERT(file != NULL);
     ASSERT(file->tokens != NULL);
-    ASSERT(file->preprocessor != NULL);
-    ASSERT(file->ast != NULL);
     file->violations = 0;
-    bool is_fixture = csane_fixture_path(file->path);
     file->in_cbase = csane_policy_in_cbase(file->policy, file->path);
     file->is_ryu = csane_policy_in_ryu(file->policy, file->path);
     file->column_limit = csane_policy_columns(file->policy, file->path);
-    for (int32 i = 0; i < (int32)(SIZEOF(rules)/SIZEOF(rules[0])); i += 1) {
-        if (!is_fixture || rules[i].include_fixtures) {
-            rules[i].check(file);
+}
+
+void
+csane_rules_run(CsaneFile *file, enum CsanePass pass) {
+    ASSERT(file != NULL);
+    bool fixture = csane_fixture_path(file->path);
+    for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
+         i += 1) {
+        CsaneRule *rule = &csane_rules[i];
+        if (rule->pass == pass
+            && (!fixture || rule->include_fixtures)) {
+            rule->check(file);
         }
     }
-    return file->violations;
+}
+
+/* "checked" describes whether the pass had its required representation,
+ * not a proof that every syntactic pattern was recognized. For rule-local
+ * coverage, this coarse result is a lower-confidence estimate. */
+void
+csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
+    bool fixture = csane_fixture_path(file->path);
+    for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
+         i += 1) {
+        CsaneRule *rule = &csane_rules[i];
+        char *status = "checked";
+        if (fixture && !rule->include_fixtures) {
+            status = "excluded";
+        } else if (rule->pass == CSANE_PASS_TOKEN) {
+            if (!coverage->preprocessor_ready
+                || coverage->preprocessor_issues > 0) {
+                status = "partial";
+            }
+        } else if (rule->pass >= CSANE_PASS_SYNTAX) {
+            if (!coverage->ast_ready
+                || (coverage->eligible_tokens > 0
+                    && coverage->parsed_tokens == 0)) {
+                status = "not_checked";
+            } else if (coverage->unresolved_tokens > 0
+                       || coverage->macro_tokens > 0
+                       || coverage->parse_issues > 0
+                       || coverage->preprocessor_issues > 0) {
+                status = "partial";
+            }
+        }
+        printf("rule_coverage file=%s group=%s status=%s pass=%d "
+               "eligible_tokens=%d parsed_tokens=%d unresolved_tokens=%d "
+               "macro_tokens=%d\n",
+               file->path, rule->id, status, (int32)rule->pass,
+               coverage->eligible_tokens,
+               coverage->parsed_tokens, coverage->unresolved_tokens,
+               coverage->macro_tokens);
+    }
 }
 
 #endif /* CSANECHECK_RULES_C */

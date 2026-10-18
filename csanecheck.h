@@ -51,6 +51,7 @@ typedef struct CsaneOptions {
     bool strict_parse;
     bool statistics;
     bool coverage;
+    bool rule_coverage;
 } CsaneOptions;
 
 typedef struct CsaneCoverage {
@@ -64,6 +65,28 @@ typedef struct CsaneCoverage {
     int32 malformed_issues;
     int32 unsupported_issues;
 } CsaneCoverage;
+
+/* Conservative, file-level coverage estimate for AST-dependent rules.
+ * Unresolved syntax and macro replacement tokens are never counted as
+ * structurally checked merely because another pass inspected the file.
+ */
+typedef struct CsaneAnalysisCoverage {
+    int32 eligible_tokens;
+    int32 parsed_tokens;
+    int32 unresolved_tokens;
+    int32 macro_tokens;
+    int32 parse_issues;
+    int32 preprocessor_issues;
+    bool preprocessor_ready;
+    bool ast_ready;
+} CsaneAnalysisCoverage;
+
+enum CsanePass {
+    CSANE_PASS_SOURCE = 0,
+    CSANE_PASS_TOKEN,
+    CSANE_PASS_SYNTAX,
+    CSANE_PASS_CONTEXT,
+};
 
 typedef struct CsaneStats {
     int32 files;
@@ -101,6 +124,7 @@ typedef struct CsaneFile {
 typedef struct CsaneRule {
     char *id;
     void (*check)(CsaneFile *);
+    enum CsanePass pass;
     bool include_fixtures;
 } CsaneRule;
 
@@ -124,7 +148,10 @@ void csane_context_check(CsaneFile *);
 void csane_layout_check(CsaneFile *);
 void csane_calls_check(CsaneFile *);
 void csane_wrap_check(CsaneFile *);
-int32 csane_rules_check(CsaneFile *);
+void csane_rules_prepare(CsaneFile *);
+void csane_rules_run(CsaneFile *, enum CsanePass);
+void csane_rules_report(CsaneFile *, CsaneAnalysisCoverage *);
+CsaneAnalysisCoverage csane_analysis_coverage(CsaneFile *, bool, bool);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
 bool csane_paths_add(CsanePaths *, char *);

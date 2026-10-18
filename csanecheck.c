@@ -13,6 +13,7 @@ csane_usage(FILE *output) {
             "usage: csanecheck [--root DIR] [--file PATH] [--file-list PATH]\n"
             "                  [--max-depth N] [--report-parse-issues]\n"
             "                  [--strict-parse] [--stats] [--coverage]\n"
+            "                  [--rule-coverage]\n"
             "                  [--config FILE]\n"
             "                  [--exclude REGEX] [--filter MODULE]\n"
             "                  [--cbase-root DIR] [--no-column-limit REGEX]\n"
@@ -90,7 +91,18 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     Tokenization tokens = tokenize(source, len);
     CPreprocessorAnalysis pp = {0};
     CAst ast = {0};
+    CsaneFile file = {
+        .path = path,
+        .tokens = &tokens,
+        .preprocessor = &pp,
+        .ast = &ast,
+        .policy = &options->policy,
+    };
+    csane_rules_prepare(&file);
+    /* Source checks are independent of preprocessing and syntax parsing. */
+    csane_rules_run(&file, CSANE_PASS_SOURCE);
     bool pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
+    csane_rules_run(&file, CSANE_PASS_TOKEN);
     bool ast_ok = c_ast_init(&ast, &tokens);
     if (!ast_ok) {
         fprintf(stderr, "%s: unable to initialize AST\n", path);
@@ -106,17 +118,15 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, tokens.token_count}, &pp);
     }
-    CsaneFile file = {
-        .path = path,
-        .tokens = &tokens,
-        .preprocessor = &pp,
-        .ast = &ast,
-        .policy = &options->policy,
-    };
-    /* Snapshot parser coverage before rules add speculative expression nodes
-     * for declaration initializers and macro replacement lists. */
+    /* Snapshot parser coverage before rule-local expression probes mutate
+     * expression arrays. No parsing result is trusted to cover macro bodies.
+     */
     CsaneCoverage coverage = csane_coverage_collect(&ast);
-    int32 violations = csane_rules_check(&file);
+    CsaneAnalysisCoverage analysis =
+        csane_analysis_coverage(&file, pp_ok, ast_ok && pp_ok);
+    csane_rules_run(&file, CSANE_PASS_SYNTAX);
+    csane_rules_run(&file, CSANE_PASS_CONTEXT);
+    int32 violations = file.violations;
     int32 issues = ast.issue_count + pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         issues += 1;
@@ -142,6 +152,26 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                coverage.expressions, coverage.unsupported_statements,
                coverage.unsupported_externals, coverage.malformed_issues,
                coverage.unsupported_issues, ast.issue_count, pp.issue_count);
+        char *syntax_status = "checked";
+        if (!analysis.ast_ready || (analysis.eligible_tokens > 0
+                                    && analysis.parsed_tokens == 0)) {
+            syntax_status = "not_checked";
+        } else if (analysis.unresolved_tokens > 0
+                   || analysis.macro_tokens > 0
+                   || analysis.parse_issues > 0
+                   || analysis.preprocessor_issues > 0) {
+            syntax_status = "partial";
+        }
+        printf("coverage_layers file=%s source=checked tokens=%s "
+               "syntax=%s context=%s eligible_tokens=%d "
+               "parsed_tokens=%d unresolved_tokens=%d macro_tokens=%d\n",
+               path, pp_ok && pp.issue_count == 0 ? "checked" : "partial",
+               syntax_status, syntax_status, analysis.eligible_tokens,
+               analysis.parsed_tokens, analysis.unresolved_tokens,
+               analysis.macro_tokens);
+    }
+    if (options->rule_coverage) {
+        csane_rules_report(&file, &analysis);
     }
     stats->files += 1;
     stats->tokens += tokens.token_count;
@@ -286,6 +316,10 @@ csane_run(int32 argc, char **argv) {
         }
         if (!strcmp(arg, "--coverage")) {
             options.coverage = true;
+            continue;
+        }
+        if (!strcmp(arg, "--rule-coverage")) {
+            options.rule_coverage = true;
             continue;
         }
         if (!strcmp(arg, "--report-parse-issues")) {
