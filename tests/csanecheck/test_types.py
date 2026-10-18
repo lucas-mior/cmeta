@@ -123,6 +123,121 @@ class CsaneTypeTests(unittest.TestCase):
         self.assertIn("unsupported_externals=0", result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout)
 
+    def test_guard_after_preliminary_conditional_include(self):
+        self.write("types.h", "#if !defined(TYPES_H) && !defined(NO_INCLUDE)\n"
+                   '#include "missing.h"\n'
+                   "#endif\n"
+                   "#if !defined(TYPES_H)\n"
+                   "#define TYPES_H\n"
+                   "typedef struct Issue { int kind; } Issue;\n"
+                   "typedef struct Statement { int kind; } Statement;\n"
+                   "#endif /* TYPES_H */\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "int check(void) {\n"
+                   "    Issue issue = (Issue){0};\n"
+                   "    Statement statement = (Statement){0};\n"
+                   "    return issue.kind + statement.kind;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("function_definitions=1", result.stdout)
+        self.assertIn("parse_issues=0", result.stdout)
+
+    def test_guard_with_implementation_directives_after_endif(self):
+        self.write("types.h", "#if !defined(TYPES_H)\n"
+                   "#define TYPES_H\n"
+                   "typedef struct Result { int value; } Result;\n"
+                   "#endif\n"
+                   "#if defined(TYPES_IMPLEMENT)\n"
+                   "#define TYPES_IMPLEMENTED 1\n"
+                   '#include "missing_impl.h"\n'
+                   "#endif\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "int check(void) {\n"
+                   "    Result result = (Result){42};\n"
+                   "    return result.value;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("function_definitions=1", result.stdout)
+        self.assertIn("parse_issues=0", result.stdout)
+
+    def test_partial_guard_does_not_expose_conditional_typedef(self):
+        self.write("types.h", "#ifndef FEATURE_H\n"
+                   "#define FEATURE_H\n"
+                   "typedef int FeatureOnly;\n"
+                   "#endif\n"
+                   "typedef int AlwaysAvailable;\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "void check(void) {\n"
+                   "    FeatureOnly *unknown;\n"
+                   "    AlwaysAvailable value = 1;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("unsupported_statements=1", result.stdout)
+
+    def test_combined_feature_condition_is_not_a_guard(self):
+        self.write("types.h", "#if !defined(FEATURE_H) && defined(ENABLE)\n"
+                   "#define FEATURE_H\n"
+                   "typedef int FeatureOnly;\n"
+                   "#endif\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "void check(void) {\n"
+                   "    FeatureOnly *unknown;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("unsupported_statements=1", result.stdout)
+
+    def test_guard_without_matching_define_is_not_accepted(self):
+        self.write("types.h", "#ifndef FEATURE_H\n"
+                   "#define OTHER_H\n"
+                   "typedef int FeatureOnly;\n"
+                   "#endif\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "void check(void) {\n"
+                   "    FeatureOnly *unknown;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("unsupported_statements=1", result.stdout)
+
+    def test_function_like_guard_macro_is_not_accepted(self):
+        self.write("types.h", "#ifndef FEATURE_H\n"
+                   "#define FEATURE_H(x) (x)\n"
+                   "typedef int FeatureOnly;\n"
+                   "#endif\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "void check(void) {\n"
+                   "    FeatureOnly *unknown;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("unsupported_statements=1", result.stdout)
+
+    def test_guard_with_else_is_not_accepted(self):
+        self.write("types.h", "#ifndef FEATURE_H\n"
+                   "#define FEATURE_H\n"
+                   "typedef int FeatureOnly;\n"
+                   "#else\n"
+                   "typedef int Alternative;\n"
+                   "#endif\n")
+        self.write("src.c", '#include "types.h"\n'
+                   "void check(void) {\n"
+                   "    FeatureOnly *unknown;\n"
+                   "}\n")
+        result = self.scan("src.c")
+        self.assertIn("unsupported_statements=1", result.stdout)
+
+    def test_meta_stmt_compound_literals(self):
+        project = pathlib.Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            [str(EXECUTABLE), "--file", str(project / "meta_stmt.c"),
+             "--coverage", "--report-parse-issues"],
+            cwd=project, text=True, capture_output=True,
+            check=False, timeout=30,
+        )
+        self.assertEqual(result.stderr, "", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("function_definitions=0", result.stdout)
+        self.assertIn("parse_issues=0", result.stdout)
+        self.assertNotIn("PARSE-MALFORMED", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
