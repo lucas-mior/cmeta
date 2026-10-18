@@ -262,6 +262,35 @@ unit_parse_one(UnitCursor *c) {
         return unit_preprocessor(c, first, directive);
     }
     end = unit_boundary(c, first);
+    if (TOKEN_IS(&c->ast->tokenization->tokens[first], "_Static_assert")) {
+        int32 open = unit_sig(c, first + 1);
+        int32 close = -1;
+        int32 semi = -1;
+        if (open < end
+            && TOKEN_IS(&c->ast->tokenization->tokens[open], "(")) {
+            Tokenization *tokens = c->ast->tokenization;
+            TokenRange limit = {open, end};
+            close = token_range_matching_delimiter_forward(tokens, limit, open);
+        }
+        if (close >= 0) {
+            semi = unit_sig(c, close + 1);
+        }
+        TokenRange args = {open + 1, close};
+        TokenDelimiterDepth depth = {0};
+        int32 comma = -1;
+        if (close > open + 1) {
+            comma = token_range_next_text_at_depth(c->ast->tokenization,
+                                                   args, open, depth, ",", 1);
+        }
+        if (comma > open + 1 && comma < close - 1 && semi < end
+            && TOKEN_IS(&c->ast->tokenization->tokens[semi], ";")) {
+            node = unit_new(c, C_EXTERNAL_STATIC_ASSERT,
+                            (TokenRange){first, semi + 1});
+            c->pos = unit_sig(c, semi + 1);
+            return node;
+        }
+        return unit_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, first);
+    }
     bool previous = c->ast->infer_external;
     c->ast->infer_external = true;
     result = c_ast_parse_declaration(c->ast, (TokenRange){first, end});
@@ -476,7 +505,7 @@ unit_test_conditional_function_body(void) {
 
 static void
 unit_test_malformed_and_recovery(void) {
-    char *source = "__attribute__((unused)) int bad; "
+    char *source = "__typeof__(expr) bad; "
                    "int good(void) { return 1; } "
                    "int fine;";
     Tokenization t = tokenize(source, strlen32(source));

@@ -143,6 +143,59 @@ decl_is_extension(DeclCursor *c, int32 i) {
            || decl_at(c, i, "__typeof__");
 }
 
+/* Macro annotations are common in the supported codebases. They must
+ * not be confused with a typedef or with a declarator's actual name. */
+static bool
+decl_upper_macro(DeclCursor *c, int32 i) {
+    if (i >= c->range.end) {
+        return false;
+    }
+    Token *token = &c->ast->tokenization->tokens[i];
+    bool has_letter = false;
+    if (token->kind != TOKEN_IDENT || c_ast_lookup(c->ast, i)
+                                      != C_NAME_UNKNOWN) {
+        return false;
+    }
+    for (int32 j = 0; j < token->len; j += 1) {
+        char ch = token->text[j];
+        if (ch >= 'A' && ch <= 'Z') {
+            has_letter = true;
+        } else if ((ch < '0' || ch > '9') && ch != '_') {
+            return false;
+        }
+    }
+    return has_letter;
+}
+
+/* Ignore a macro attribute while retaining every original source token.
+ * Ordinary declarators, expressions and macro calls are never expanded.
+ * Attribute arguments are opaque balanced ranges. */
+static int32
+decl_annotation_end(DeclCursor *c, int32 i) {
+    int32 next;
+    if (i >= c->range.end) {
+        return -1;
+    }
+    if (decl_at(c, i, "__attribute__")
+        || decl_at(c, i, "__declspec")) {
+        next = decl_sig(c, i + 1);
+        if (!decl_at(c, next, "(")) {
+            return -1;
+        }
+        int32 close = decl_match(c, next);
+        return close >= 0 ? decl_sig(c, close + 1) : -1;
+    }
+    if (!decl_upper_macro(c, i) && !decl_at(c, i, "noreturn")) {
+        return -1;
+    }
+    next = decl_sig(c, i + 1);
+    if (decl_at(c, next, "(")) {
+        int32 close = decl_match(c, next);
+        return close >= 0 ? decl_sig(c, close + 1) : -1;
+    }
+    return next;
+}
+
 static bool
 decl_is_storage(enum CKeyword k) {
     return (k == C_KEYWORD_TYPEDEF) || (k == C_KEYWORD_STATIC)
@@ -363,6 +416,50 @@ decl_parse_specifiers(DeclCursor *c, int32 d) {
                    && (c_ast_lookup(ast, i) == C_NAME_TYPEDEF
                        || c_ast_lookup(ast, i) == C_NAME_INFERRED_TYPEDEF)) {
             type_seen = true;
+        } else if (decl_at(c, i, "noreturn")
+                   || decl_at(c, i, "__attribute__")
+                   || decl_at(c, i, "__declspec")) {
+            int32 end = decl_annotation_end(c, i);
+            if (end < 0) {
+                decl_fail(c, C_DECL_PARSE_MALFORMED, i);
+                return false;
+            }
+            i = end;
+            continue;
+        } else if (decl_upper_macro(c, i)
+                   && decl_sig(c, i + 1) < c->range.end) {
+            int32 lookahead = decl_sig(c, i + 1);
+            Token *next = &ast->tokenization->tokens[lookahead];
+            enum CKeyword next_keyword = c_token_keyword(next);
+            bool known_type = c_ast_lookup(ast, lookahead) == C_NAME_TYPEDEF
+                              || c_ast_lookup(ast, lookahead)
+                                 == C_NAME_INFERRED_TYPEDEF;
+            bool type_prefix = decl_is_builtin(next_keyword)
+                               || decl_is_storage(next_keyword)
+                               || decl_is_qualifier(next_keyword)
+                               || next_keyword == C_KEYWORD_STRUCT
+                               || next_keyword == C_KEYWORD_UNION
+                               || next_keyword == C_KEYWORD_ENUM
+                               || known_type || TOKEN_IS(next, "bool")
+                               || TOKEN_IS(next, "noreturn");
+            bool another_name = next->kind == TOKEN_IDENT
+                                && !decl_at(c, lookahead, "(");
+            /* An uppercase macro may itself expand to a type. In
+             * particular, HASH_VALUE_TYPE value is a declaration, not
+             * an annotation followed by an unknown type `value`. */
+            if (!decl_at(c, lookahead, "(")
+                && (type_seen ? another_name : type_prefix)) {
+                i = lookahead;
+                continue;
+            }
+            if (ast->infer_type_names && !type_seen
+                && (prefix_seen || c->depth > 0
+                    || ast->infer_external)) {
+                type_seen = true;
+                c->inferred_type = i;
+            } else {
+                break;
+            }
         } else if (decl_is_extension(c, i)) {
             decl_fail(c, C_DECL_PARSE_UNSUPPORTED, i);
             return false;
@@ -371,9 +468,6 @@ decl_parse_specifiers(DeclCursor *c, int32 d) {
                    && (c_ast_lookup(ast, i) == C_NAME_UNKNOWN)
                    && (prefix_seen || c->depth > 0
                        || ast->infer_external)) {
-            /* A provisional type in a structural type position. This is
-             * confirmed only if the complete declaration parses. In block
-             * expressions without a prefix, a*b remains ambiguous. */
             type_seen = true;
             c->inferred_type = i;
         } else {
@@ -641,6 +735,27 @@ decl_parse_one(DeclCursor *c, enum CDeclarationKind kind,
             c->pos = i;
         }
         i = decl_next(c);
+        /* Function annotations may follow a declarator, e.g.
+         * `void log(...) ATTR_PRINTF(1, 2);`. Require the annotation to
+         * lead to a declaration separator or body, never consume calls
+         * within an initializer or ordinary expression. */
+        while ((decl_upper_macro(c, i) || decl_at(c, i, "noreturn")
+                || decl_at(c, i, "__attribute__")
+                || decl_at(c, i, "__declspec"))) {
+            int32 end = decl_annotation_end(c, i);
+            if (end < 0) {
+                return -1;
+            }
+            if (!decl_at(c, end, ";") && !decl_at(c, end, "{")
+                && !decl_at(c, end, ",")
+                && !decl_upper_macro(c, end)
+                && !decl_at(c, end, "__attribute__")
+                && !decl_at(c, end, "__declspec")) {
+                break;
+            }
+            c->pos = end;
+            i = end;
+        }
         if (decl_is_extension(c, i)) {
             decl_fail(c, C_DECL_PARSE_UNSUPPORTED, i);
             return -1;
@@ -1025,9 +1140,9 @@ ast_test_other_constructs(void) {
     ASSERT_EQ(ast.declarators[root].kind, C_DECL_FUNCTION);
     ASSERT_EQ(ast.declarators[root].parameter_count, 1);
     result = ast_test_parse(&ast, result.next_token);
-    ASSERT_EQ(result.status, C_DECL_PARSE_UNSUPPORTED);
+    ASSERT_EQ(result.status, C_DECL_PARSE_OK);
     ASSERT_EQ(c_ast_lookup(&ast, ast_test_find(&tokens, "bad", 0)),
-              C_NAME_UNKNOWN);
+              C_NAME_ORDINARY);
     result = ast_test_parse(&ast, ast_test_find(&tokens, "z", 0));
     ASSERT_EQ(result.status, C_DECL_PARSE_NOT_DECLARATION);
     c_ast_free(&ast);

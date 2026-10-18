@@ -624,6 +624,33 @@ stmt_parse_one(StmtCursor *c) {
     if (stmt_at(c, first, "{")) {
         return stmt_parse_compound(c, first);
     }
+    if (stmt_at(c, first, "_Static_assert")) {
+        int32 open = next;
+        int32 close = -1;
+        int32 end = stmt_boundary(c, first);
+        int32 after = end;
+        if (stmt_at(c, open, "(")) {
+            close = stmt_match(c, open);
+        }
+        if (close >= 0) {
+            after = stmt_sig(c, close + 1);
+        }
+        TokenRange args = {open + 1, close};
+        TokenDelimiterDepth depth = {0};
+        int32 comma = -1;
+        if (close > open + 1) {
+            comma = token_range_next_text_at_depth(c->ast->tokenization,
+                                                   args, open, depth, ",", 1);
+        }
+        if (comma <= open + 1 || comma >= close - 1 || after >= end
+            || !stmt_at(c, after, ";")) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, first);
+        }
+        node = stmt_new(c, C_STMT_STATIC_ASSERT, first);
+        c->ast->statements[node].tokens.end = after + 1;
+        c->pos = stmt_sig(c, after + 1);
+        return node;
+    }
     if (stmt_at(c, first, ";")) {
         node = stmt_new(c, C_STMT_EMPTY, first);
         c->ast->statements[node].tokens.end = first + 1;
