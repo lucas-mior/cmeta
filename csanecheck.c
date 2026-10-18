@@ -63,7 +63,9 @@ csane_cbase_types(CAst *ast) {
         "uchar", "ushort", "uint", "ulong", "ullong", "schar",
         "llong", "ldouble", "int8", "int16", "int32", "int64",
         "uint8", "uint16", "uint32", "uint64", "bool32",
-        "uintptr", "intptr", "CbaseMaxAlign",
+        "uintptr", "intptr", "CbaseMaxAlign", "size_t", "ptrdiff_t",
+        "ssize_t", "max_align_t", "FILE", "va_list", "jmp_buf",
+        "sigjmp_buf",
     };
     Tokenization *tokens = ast->tokenization;
     for (int32 n = 0; n < (int32)(SIZEOF(names)/SIZEOF(names[0]));
@@ -99,6 +101,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     }
     if (pp_ok) {
         csane_cbase_types(&ast);
+        csane_types_prepare(&ast, path, &options->policy);
+        ast.infer_type_names = true;
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, tokens.token_count}, &pp);
     }

@@ -83,6 +83,7 @@ if [ "$mode" = test ]; then
         python3 tests/csanecheck/test_control.py bin/csanecheck
         python3 tests/csanecheck/test_context.py bin/csanecheck
         python3 tests/csanecheck/test_layout.py bin/csanecheck
+        python3 tests/csanecheck/test_types.py bin/csanecheck
         python3 tests/csanecheck/test_calls.py bin/csanecheck
         python3 tests/csanecheck/test_wrap.py bin/csanecheck
         python3 tests/csanecheck/audit_rules.py

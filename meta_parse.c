@@ -262,6 +262,8 @@ unit_parse_one(UnitCursor *c) {
         return unit_preprocessor(c, first, directive);
     }
     end = unit_boundary(c, first);
+    bool previous = c->ast->infer_external;
+    c->ast->infer_external = true;
     result = c_ast_parse_declaration(c->ast, (TokenRange){first, end});
     if (result.status != C_DECL_PARSE_OK && end < c->range.end
         && unit_maybe_function_body(c, first, end)) {
@@ -269,6 +271,7 @@ unit_parse_one(UnitCursor *c) {
         result = c_ast_parse_declaration(c->ast,
                                          (TokenRange){first, c->range.end});
     }
+    c->ast->infer_external = previous;
     if (result.status != C_DECL_PARSE_OK) {
         enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
         if (result.status == C_DECL_PARSE_UNSUPPORTED
