@@ -67,7 +67,8 @@ csane_coverage_collect(CAst *ast) {
     }
     result.expressions = ast->expression_count;
     for (int32 i = 0; i < ast->external_count; i += 1) {
-        if (ast->externals[i].kind == C_EXTERNAL_UNSUPPORTED) {
+        if (ast->externals[i].kind == C_EXTERNAL_UNSUPPORTED
+            || ast->externals[i].kind == C_EXTERNAL_PARTIAL_FUNCTION) {
             result.unsupported_externals += 1;
         }
     }
