@@ -188,6 +188,7 @@ enum CStatementKind {
     C_STMT_PP_GROUP,
     C_STMT_PP_BRANCH,
     C_STMT_UNSUPPORTED,
+    C_STMT_STATIC_ASSERT,
 };
 
 enum CExternalKind {
@@ -196,6 +197,7 @@ enum CExternalKind {
     C_EXTERNAL_PP_GROUP,
     C_EXTERNAL_PP_BRANCH,
     C_EXTERNAL_UNSUPPORTED,
+    C_EXTERNAL_STATIC_ASSERT,
 };
 
 enum CParseIssueKind {
