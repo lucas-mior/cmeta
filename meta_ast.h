@@ -198,6 +198,7 @@ enum CExternalKind {
     C_EXTERNAL_PP_BRANCH,
     C_EXTERNAL_UNSUPPORTED,
     C_EXTERNAL_STATIC_ASSERT,
+    C_EXTERNAL_PARTIAL_FUNCTION, /* Unresolved header, parsed body. */
 };
 
 enum CParseIssueKind {

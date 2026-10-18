@@ -316,6 +316,50 @@ stmt_parse_sequence(StmtCursor *c, int32 parent) {
     }
 }
 
+static int32 stmt_parse_compound(StmtCursor *, int32);
+
+/* A conditional group can select an `if (condition)` header, with one
+ * shared braced body after #endif. The body is not an artificial block.
+ * Keep it attached to the preprocessor group rather than treating it as an
+ * independent statement or joining the conditions across alternatives.
+ */
+static int32
+stmt_pp_shared_if_start(StmtCursor *c, TokenRange range) {
+    Tokenization *tokens = c->ast->tokenization;
+    int32 last = token_range_last_significant(tokens, range);
+    if (last < range.first || !TOKEN_IS(&tokens->tokens[last], ")")) {
+        return -1;
+    }
+    for (int32 i = token_range_first_significant(tokens, range);
+         i < range.end;
+         i = token_range_next_significant(tokens, range, i)) {
+        if (TOKEN_IS(&tokens->tokens[i], "if")) {
+            int32 open = token_range_next_significant(tokens, range, i);
+            if (open < range.end
+                && TOKEN_IS(&tokens->tokens[open], "(")) {
+                StmtCursor inner = *c;
+                inner.range = range;
+                if (stmt_match(&inner, open) == last) {
+                    return i;
+                }
+            }
+        }
+    }
+    return -1;
+}
+
+static bool
+stmt_pp_shared_if_body(StmtCursor *c, CPreprocessorGroup *group) {
+    for (int32 b = group->first_branch; b >= 0;
+         b = c->pp->branches[b].next_branch) {
+        if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens)
+            < 0) {
+            return false;
+        }
+    }
+    return group->first_branch >= 0;
+}
+
 static int32
 stmt_pp(StmtCursor *c, int32 first, int32 directive) {
     CPreprocessorDirective *d = &c->pp->directives[directive];
@@ -346,6 +390,9 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
     c->ast->statements[node].tokens.end =
         c->pp->directives[g->endif_directive].tokens.end;
     int32 tail = -1;
+    int32 following = stmt_sig(c, c->ast->statements[node].tokens.end);
+    bool shared = stmt_at(c, following, "{")
+                  && stmt_pp_shared_if_body(c, g);
     for (int32 b = g->first_branch; b >= 0;
          b = c->pp->branches[b].next_branch) {
         CPreprocessorBranch *branch = &c->pp->branches[b];
@@ -359,10 +406,41 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
         stmt_append(c, node, &tail, part);
         /* No conditional alternative can export a typedef to its siblings. */
         c_ast_scope_push(c->ast);
+        int32 incomplete_if = shared
+            ? stmt_pp_shared_if_start(c, branch->body_tokens) : -1;
+        if (incomplete_if >= 0) {
+            inner.range.end = incomplete_if;
+        }
         stmt_parse_sequence(&inner, part);
+        if (incomplete_if >= 0) {
+            StmtCursor pending = inner;
+            int32 last_child = c->ast->statements[part].first_child;
+            int32 opaque = stmt_new(&pending, C_STMT_UNSUPPORTED,
+                                    incomplete_if);
+            c->ast->statements[opaque].tokens =
+                (TokenRange){incomplete_if, branch->body_tokens.end};
+            if (last_child < 0) {
+                c->ast->statements[part].first_child = opaque;
+            } else {
+                while (c->ast->statements[last_child].next >= 0) {
+                    last_child = c->ast->statements[last_child].next;
+                }
+                c->ast->statements[last_child].next = opaque;
+            }
+            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, incomplete_if,
+                       c->ast->statements[opaque].tokens);
+        }
         c_ast_scope_pop(c->ast);
     }
     c->pos = stmt_sig(c, c->ast->statements[node].tokens.end);
+    if (shared) {
+        int32 body = stmt_parse_compound(c, c->pos);
+        if (body >= 0) {
+            c->ast->statements[node].else_child = body;
+            c->ast->statements[node].tokens.end =
+                c->ast->statements[body].tokens.end;
+        }
+    }
     return node;
 }
 
@@ -401,12 +479,16 @@ stmt_parse_control(StmtCursor *c, int32 first,
     if (close < 0) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
     }
-    if (stmt_boundary(c, open + 1) < close) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, open);
-    }
+    bool opaque_condition = stmt_boundary(c, open + 1) < close;
     node = stmt_new(c, kind, first);
     c->ast->statements[node].condition = (TokenRange){open + 1, close};
-    if (stmt_sig(c, open + 1) == close) {
+    if (opaque_condition) {
+        /* Keep the controlled statement even when the condition contains
+         * conditional macro alternatives. The condition itself is not
+         * classified as a C expression without preprocessing it. */
+        stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
+                   (TokenRange){open + 1, close});
+    } else if (stmt_sig(c, open + 1) == close) {
         stmt_issue(c, C_PARSE_ISSUE_MALFORMED, open,
                    (TokenRange){open, close + 1});
     } else {
@@ -456,7 +538,27 @@ stmt_parse_for(StmtCursor *c, int32 first) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
     }
     if (stmt_boundary(c, open + 1) < close) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, open);
+        /* A conditional header may contain different init/step clauses.
+         * Do not join branches or guess their expressions. Still parse its
+         * controlled statement as a genuine for-loop body. */
+        node = stmt_new(c, C_STMT_FOR, first);
+        c->ast->statements[node].condition = (TokenRange){open + 1, close};
+        stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
+                   (TokenRange){open + 1, close});
+        c_ast_scope_push(c->ast);
+        c->pos = stmt_sig(c, close + 1);
+        body = stmt_parse_body(c);
+        if (body >= 0) {
+            c->ast->statements[node].first_child = body;
+            c->ast->statements[node].tokens.end =
+                c->ast->statements[body].tokens.end;
+        } else {
+            stmt_issue(c, C_PARSE_ISSUE_MALFORMED, close,
+                       (TokenRange){first, close + 1});
+            c->ast->statements[node].tokens.end = close + 1;
+        }
+        c_ast_scope_pop(c->ast);
+        return node;
     }
     header = (TokenRange){open + 1, close};
     a = token_range_next_text_at_depth(c->ast->tokenization, header,

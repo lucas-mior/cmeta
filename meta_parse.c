@@ -128,23 +128,44 @@ unit_function_body(UnitCursor *c, int32 declaration) {
     return node;
 }
 
+/* Recovery must never start a new translation-unit item inside a body.
+ * Only a top-level semicolon or a complete balanced braced region is a
+ * safe synchronization point. Do not search for arbitrary later semicolons.
+ */
 static int32
 unit_recover(UnitCursor *c, int32 first) {
-    TokenRange limited = {first, unit_boundary(c, first)};
-    TokenDelimiterDepth depth = {0};
-    int32 semi = token_range_next_text_at_depth(c->ast->tokenization,
-                                                limited, first - 1,
-                                                depth, ";", 1);
-    if (semi < limited.end) {
-        return unit_sig(c, semi + 1);
-    }
-    for (int32 i = unit_sig(c, first); i < limited.end;
+    Tokenization *tokens = c->ast->tokenization;
+    int32 boundary = unit_boundary(c, first);
+    int32 parens = 0;
+    int32 brackets = 0;
+    StmtCursor view = {.ast = c->ast, .pp = c->pp,
+                       .range = c->range};
+    for (int32 i = unit_sig(c, first); i < boundary;
          i = unit_sig(c, i + 1)) {
-        if (TOKEN_IS(&c->ast->tokenization->tokens[i], ";")) {
+        Token *token = &tokens->tokens[i];
+        if (TOKEN_IS(token, "(")) {
+            parens += 1;
+        } else if (TOKEN_IS(token, ")")) {
+            parens = MAX(0, parens - 1);
+        } else if (TOKEN_IS(token, "[")) {
+            brackets += 1;
+        } else if (TOKEN_IS(token, "]")) {
+            brackets = MAX(0, brackets - 1);
+        } else if (TOKEN_IS(token, "{") && brackets == 0) {
+            int32 close = stmt_match(&view, i);
+            if (close >= 0) {
+                return unit_sig(c, close + 1);
+            }
+            return boundary;
+        } else if (TOKEN_IS(token, ";") && parens == 0
+                   && brackets == 0) {
+            return unit_sig(c, i + 1);
+        } else if (TOKEN_IS(token, "}") && parens == 0
+                   && brackets == 0) {
             return unit_sig(c, i + 1);
         }
     }
-    return limited.end;
+    return boundary;
 }
 
 static int32
@@ -243,6 +264,95 @@ unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
     return false;
 }
 
+/* A macro-expanded function name need not be a C identifier in the
+ * original token stream. Recognize a complete header/body boundary without
+ * interpreting the name or its types. Conditional parameter alternatives
+ * remain opaque; the body is parsed from the original tokens.
+ */
+static int32
+unit_partial_function_open(UnitCursor *c, int32 first) {
+    Tokenization *tokens = c->ast->tokenization;
+    StmtCursor view = {.ast = c->ast, .pp = c->pp,
+                       .range = c->range};
+    int32 parens = 0;
+    int32 brackets = 0;
+    int32 previous = -1;
+    bool saw_call = false;
+    for (int32 i = unit_sig(c, first); i < c->range.end;
+         i = unit_sig(c, i + 1)) {
+        Token *token = &tokens->tokens[i];
+        int32 directive = c->pp->token_directives[i];
+        if ((directive >= 0)
+            && (c->pp->directives[directive].hash_token == i)) {
+            bool skipped = false;
+            for (int32 j = 0; j < c->pp->group_count; j += 1) {
+                CPreprocessorGroup *g = &c->pp->groups[j];
+                int32 b = g->first_branch;
+                if ((b >= 0)
+                    && c->pp->branches[b].directive_index == directive
+                    && g->endif_directive >= 0) {
+                    i = c->pp->directives[g->endif_directive].tokens.end - 1;
+                    skipped = true;
+                    break;
+                }
+            }
+            if (!skipped) {
+                i = c->pp->directives[directive].tokens.end - 1;
+            }
+            continue;
+        }
+        if (TOKEN_IS(token, "(")) {
+            parens += 1;
+        } else if (TOKEN_IS(token, ")")) {
+            if (parens == 0) {
+                return -1;
+            }
+            parens -= 1;
+            saw_call = true;
+        } else if (TOKEN_IS(token, "[")) {
+            brackets += 1;
+        } else if (TOKEN_IS(token, "]")) {
+            brackets = MAX(0, brackets - 1);
+        } else if (parens == 0 && brackets == 0) {
+            if (TOKEN_IS(token, ";") || TOKEN_IS(token, "=")) {
+                return -1;
+            }
+            if (TOKEN_IS(token, "{")) {
+                if (saw_call && previous >= 0
+                    && TOKEN_IS(&tokens->tokens[previous], ")")
+                    && stmt_match(&view, i) >= 0) {
+                    return i;
+                }
+                return -1;
+            }
+        }
+        previous = i;
+    }
+    return -1;
+}
+
+static int32
+unit_partial_function(UnitCursor *c, int32 first, int32 open,
+                      int32 issue_token) {
+    StmtCursor view = {.ast = c->ast, .pp = c->pp,
+                       .range = c->range};
+    int32 close = stmt_match(&view, open);
+    int32 node = unit_new(c, C_EXTERNAL_PARTIAL_FUNCTION,
+                          (TokenRange){first, close + 1});
+    StmtCursor body = {.ast = c->ast, .pp = c->pp,
+                       .range = {open + 1, close}, .pos = open + 1};
+    int32 block = stmt_new(&body, C_STMT_COMPOUND, open);
+    c->ast->statements[block].tokens = (TokenRange){open, close + 1};
+    c->ast->externals[node].function_body = block;
+    stmt_issue(&body, C_PARSE_ISSUE_UNSUPPORTED, issue_token,
+               (TokenRange){first, open});
+    c_ast_scope_push(c->ast);
+    stmt_parse_sequence(&body, block);
+    c_ast_scope_pop(c->ast);
+    c->pos = unit_sig(c, close + 1);
+    return node;
+}
+
 static int32
 unit_parse_one(UnitCursor *c) {
     int32 first = unit_sig(c, c->pos);
@@ -302,6 +412,10 @@ unit_parse_one(UnitCursor *c) {
     }
     c->ast->infer_external = previous;
     if (result.status != C_DECL_PARSE_OK) {
+        int32 open = unit_partial_function_open(c, first);
+        if (open >= 0) {
+            return unit_partial_function(c, first, open, result.issue_token);
+        }
         enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
         if (result.status == C_DECL_PARSE_UNSUPPORTED
             || result.status == C_DECL_PARSE_NOT_DECLARATION) {

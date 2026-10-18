@@ -45,14 +45,14 @@ class CsanePassTests(unittest.TestCase):
         self.assertRegex(result.stdout,
                          r"group=API status=(partial|not_checked)")
 
-    def test_malformed_does_not_become_style_violation(self):
+    def test_malformed_header_recovers_next_valid_function(self):
         result = self.scan("int broken( {\n}\n"
                            "int valid(void) { STRLIT_LEN(\"a\"); }\n",
                            "--coverage", "--rule-coverage")
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertNotIn("error[STYLE-STRLIT-LEN]", result.stdout)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(result.stdout.count("error[STYLE-STRLIT-LEN]"), 1)
         self.assertIn("unresolved_tokens=", result.stdout)
-        self.assertIn("group=STYLE status=not_checked", result.stdout)
+        self.assertIn("group=STYLE status=partial", result.stdout)
 
     def test_clean_source_has_complete_syntax_coverage(self):
         result = self.scan("int f(void) { return 1; }\n",
