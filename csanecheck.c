@@ -91,6 +91,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     Tokenization tokens = tokenize(source, len);
     CPreprocessorAnalysis pp = {0};
     CAst ast = {0};
+    CsaneMacroView expanded = {0};
+    CPreprocessorAnalysis projected_pp = {0};
     CsaneFile file = {
         .path = path,
         .tokens = &tokens,
@@ -103,9 +105,15 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     csane_rules_run(&file, CSANE_PASS_SOURCE);
     bool pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
     csane_rules_run(&file, CSANE_PASS_TOKEN);
-    bool ast_ok = c_ast_init(&ast, &tokens);
+    if (pp_ok) {
+        csane_macro_view_init(&expanded, &tokens, &pp);
+        projected_pp = pp;
+        projected_pp.tokenization = &expanded.tokens;
+    }
+    bool ast_ok = c_ast_init(&ast, pp_ok ? &expanded.tokens : &tokens);
     if (!ast_ok) {
         fprintf(stderr, "%s: unable to initialize AST\n", path);
+        csane_macro_view_free(&expanded);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
         free2(source, (int64)len + 1);
@@ -116,7 +124,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         csane_types_prepare(&ast, path, &options->policy);
         ast.infer_type_names = true;
         c_ast_parse_translation_unit(&ast,
-                                     (TokenRange){0, tokens.token_count}, &pp);
+                                     (TokenRange){0, tokens.token_count},
+                                     &projected_pp);
     }
     /* Snapshot parser coverage before rule-local expression probes mutate
      * expression arrays. No parsing result is trusted to cover macro bodies.
@@ -164,11 +173,13 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         }
         printf("coverage_layers file=%s source=checked tokens=%s "
                "syntax=%s context=%s eligible_tokens=%d "
-               "parsed_tokens=%d unresolved_tokens=%d macro_tokens=%d\n",
+               "parsed_tokens=%d unresolved_tokens=%d macro_tokens=%d "
+               "projected_macros=%d projected_tokens=%d\n",
                path, pp_ok && pp.issue_count == 0 ? "checked" : "partial",
                syntax_status, syntax_status, analysis.eligible_tokens,
                analysis.parsed_tokens, analysis.unresolved_tokens,
-               analysis.macro_tokens);
+               analysis.macro_tokens, expanded.owned_count,
+               expanded.projected_tokens);
     }
     if (options->rule_coverage) {
         csane_rules_report(&file, &analysis);
@@ -210,6 +221,9 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         }
     }
     c_ast_free(&ast);
+    if (pp_ok) {
+        csane_macro_view_free(&expanded);
+    }
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
     free2(source, (int64)len + 1);

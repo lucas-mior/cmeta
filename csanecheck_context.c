@@ -7,7 +7,7 @@
 #include "cbase.h"
 #include "csanecheck.h"
 
-/* Every expression refers to the original tokenization. Parentheses do not
+/* Every expression retains original token indices. Parentheses do not
  * affect the identity of an operand for these syntactic guideline rules. */
 static int32
 csane_expr_unwrap(CAst *ast, int32 index) {
@@ -19,6 +19,7 @@ csane_expr_unwrap(CAst *ast, int32 index) {
 
 static bool
 csane_expr_token(CsaneFile *file, int32 index, char *name) {
+    Tokenization *tokens = file->ast->tokenization;
     int32 token;
     if (index < 0) {
         return false;
@@ -28,9 +29,9 @@ csane_expr_token(CsaneFile *file, int32 index, char *name) {
         return false;
     }
     TokenRange range = file->ast->expressions[index].tokens;
-    token = token_range_first_significant(file->tokens, range);
-    return token < file->tokens->token_count
-           && TOKEN_IS(&file->tokens->tokens[token], name);
+    token = token_range_first_significant(tokens, range);
+    return token < tokens->token_count
+           && TOKEN_IS(&tokens->tokens[token], name);
 }
 
 static bool
@@ -59,6 +60,7 @@ static bool
 csane_literal(CsaneFile *file, int32 index, bool string) {
     CExpression *expr;
     Token *token;
+    Tokenization *tokens = file->ast->tokenization;
     int32 first;
     index = csane_expr_unwrap(file->ast, index);
     if (index < 0) {
@@ -68,11 +70,11 @@ csane_literal(CsaneFile *file, int32 index, bool string) {
     if (expr->kind != C_EXPR_LITERAL) {
         return false;
     }
-    first = token_range_first_significant(file->tokens, expr->tokens);
+    first = token_range_first_significant(tokens, expr->tokens);
     if (first >= expr->tokens.end) {
         return false;
     }
-    token = &file->tokens->tokens[first];
+    token = &tokens->tokens[first];
     if (string) {
         for (int32 i = 0; i < token->len; i += 1) {
             if (token->text[i] == '"') {
