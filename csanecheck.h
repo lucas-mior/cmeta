@@ -54,6 +54,17 @@ typedef struct CsaneOptions {
     bool rule_coverage;
 } CsaneOptions;
 
+/* Syntax-only macro projection. Source text and token indices stay borrowed
+ * from the original tokenization; only selected token spellings differ.
+ */
+typedef struct CsaneMacroView {
+    Tokenization tokens;
+    Token *copy;
+    char **owned;
+    int32 owned_count;
+    int32 projected_tokens;
+} CsaneMacroView;
+
 typedef struct CsaneCoverage {
     int32 declarations;
     int32 function_declarations;

@@ -23,6 +23,7 @@
 #include "csanecheck_coverage.c"
 #include "csanecheck_rules.c"
 #include "csanecheck_types.c"
+#include "csanecheck_macros.c"
 #include "csanecheck.c"
 
 #if CC_CLANG
