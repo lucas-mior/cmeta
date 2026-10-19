@@ -1,5 +1,0 @@
-void f(void) {
-    if (x) {
-        y();
-    }
-}

@@ -1,7 +1,0 @@
-int32 f(void) {
-    int32 status;
-    status = call();
-
-    if (status) return status;
-    return 0;
-}
