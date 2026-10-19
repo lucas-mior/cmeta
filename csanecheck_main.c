@@ -13,6 +13,7 @@
 #define CMETA_IMPLEMENT
 #include "meta.h"
 #include "csanecheck.h"
+#include "csanecheck_tokens.c"
 #include "csanecheck_files.c"
 #include "csanecheck_config.c"
 #include "csanecheck_structure.c"
