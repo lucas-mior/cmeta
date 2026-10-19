@@ -176,6 +176,10 @@ void f(void) {
         self.check("void f(int a, int b) { int x = a * b; a+=b; }\n",
                    ["FMT-ASSIGN-SPACING"], flags=("--config", str(policy)))
 
+    def test_comparison_at_start_of_line_is_not_assignment(self):
+        self.check("void f(void) {\n    bool yes = left\n"
+                   "        == right;\n}\n")
+
     def test_unsupported_source_still_checks_leading_equals(self):
         self.check("unknown_type blah;\n"
                    "blah\n"

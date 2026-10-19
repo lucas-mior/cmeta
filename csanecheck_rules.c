@@ -393,11 +393,12 @@ static CsaneRule csane_rules[] = {
     {"API", csane_rule_calls, CSANE_PASS_TOKEN, true},
     {"CONTROL", csane_control_check, CSANE_PASS_TOKEN, false},
     {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX, false},
+    {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN, false},
     {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN, false},
     {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN, false},
     {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
     {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN, false},
-    {"WRAP-LAYOUT", csane_wrap_check, CSANE_PASS_CONTEXT, false},
+    {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN, false},
 };
 
 void

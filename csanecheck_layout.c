@@ -232,8 +232,14 @@ csane_layout_check(CsaneFile *file) {
     }
     csane_layout_expressions(file);
     csane_layout_initializers(file);
-    csane_layout_leading_assignment(file);
     return;
+}
+
+void
+csane_layout_assignment_check(CsaneFile *file) {
+    if (!file->is_ryu && !csane_layout_generated(file->path)) {
+        csane_layout_leading_assignment(file);
+    }
 }
 
 #endif /* CSANECHECK_LAYOUT_C */
