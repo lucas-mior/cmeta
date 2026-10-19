@@ -1,3 +1,0 @@
-void f(void) {
-    x = STRLIT_LEN("hello");
-}

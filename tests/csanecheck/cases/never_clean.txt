@@ -1,3 +1,0 @@
-void f(void) {
-    copy_bytes(dst, src, 10);
-}

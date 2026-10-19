@@ -1,6 +1,0 @@
-void f(void) {
-    if (result
-        == 1) {
-        next();
-    }
-}

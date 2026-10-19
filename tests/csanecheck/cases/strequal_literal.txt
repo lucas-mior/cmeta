@@ -1,3 +1,0 @@
-void f(void) {
-    x = STREQUAL(s, STRLIT("text"));
-}

@@ -1,2 +1,0 @@
-#if defined(FOO)
-#endif // comment

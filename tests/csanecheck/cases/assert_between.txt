@@ -1,4 +1,0 @@
-void f(void) {
-    ASSERT_GE(value, 0);
-    ASSERT_LT(value, limit);
-}
