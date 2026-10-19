@@ -198,24 +198,37 @@ csane_expression_style_check(CsaneFile *file) {
                != C_PP_TOKEN_MACRO_REPLACEMENT) {
             continue;
         }
-        /* Macro replacements are separate source regions. Never allow an
-         * unrelated declaration, conditional branch or macro to influence
-         * their delimiter matching. Ordinary code retains the legacy view
-         * until the remaining callers migrate to region-local navigation. */
+        /* A replacement list or conditional branch must not inherit
+         * unmatched delimiters from unrelated preprocessing alternatives.
+         * For ordinary code use the full view when its enclosing region
+         * cannot contain the entire invocation. */
         CsaneTokenView local = view;
-        int32 region = csane_regions_at_token(file->regions, i);
-        if (region >= 0 && file->regions->items[region].kind
-                           == CSANE_REGION_MACRO_REPLACEMENT) {
+        CsaneRegions *r = file->regions;
+        int32 region = csane_regions_at_token(r, i);
+        enum CsaneRegionKind region_kind = CSANE_REGION_MACRO_REPLACEMENT;
+        int32 replacement = csane_regions_enclosing(r, region, region_kind);
+        region_kind = CSANE_REGION_CONDITIONAL_BRANCH;
+        int32 branch = csane_regions_enclosing(r, region, region_kind);
+        if (replacement >= 0) {
             if (!csane_tokens_view(&local, tokens,
-                                   file->regions->items[region].tokens)) {
+                                   file->regions->items[replacement].tokens)) {
                 continue;
             }
         } else {
-            /* Preserve conservative behavior for incomplete code. */
+            if (branch >= 0) {
+                CsaneTokenView candidate;
+                if (csane_tokens_view(&candidate, tokens,
+                                      file->regions->items[branch].tokens)
+                    && csane_tokens_match(&candidate, next) >= 0) {
+                    local = candidate;
+                }
+            }
+            /* A dangling opening brace only blocks an invocation when it
+             * belongs to this same local analysis stream. */
             bool unclosed = false;
-            for (int32 j = i - 1; j >= 0; j -= 1) {
+            for (int32 j = i - 1; j >= local.range.first; j -= 1) {
                 if (TOKEN_IS(&tokens->tokens[j], "{")
-                    && csane_tokens_match(&view, j) < 0) {
+                    && csane_tokens_match(&local, j) < 0) {
                     unclosed = true;
                     break;
                 }

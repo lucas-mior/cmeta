@@ -67,6 +67,13 @@ class CsaneContextTests(unittest.TestCase):
                     '#define CHECK() STRLIT_LEN("bad")\n'
                     '#endif\n', ["STYLE-STRLIT-LEN"])
 
+    def test_independent_conditional_branch_invocation(self):
+        self.expect('#if FIRST\n'
+                    'void incomplete(void) {\n'
+                    '#else\n'
+                    'STRLIT_LEN("bad");\n'
+                    '#endif\n', ["STYLE-STRLIT-LEN"])
+
     def test_independent_macro_replacements(self):
         self.expect('#define ONE() STRLIT_LEN("a")\n'
                     '#define TWO() STREQUAL(x, STRLIT("b"))\n',

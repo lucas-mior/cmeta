@@ -35,6 +35,11 @@ class CsaneCallLayoutTests(unittest.TestCase):
                          int("error[" in result.stdout), result.stdout)
         return result
 
+    def test_macro_calls_do_not_trigger_contextual_false_positives(self):
+        self.check('#define LOG(x, y) fmt_printf("%d %d", x, \
+'
+                   '                              y)\n')
+
     def test_contextual_rules_after_unrecognized_declaration(self):
         self.check("unrecognized_attribute int opaque(void);\n"
                    "void f(void) {\n"
