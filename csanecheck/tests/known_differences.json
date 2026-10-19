@@ -5,12 +5,5 @@
       "FMT-MULTIPLY": 1
     },
     "reason": "Intentional additional csanecheck-only FMT-MULTIPLY rule."
-  },
-  "perl/test_only_assignment_lines_ending_with_bare_equals_are_checked/65": {
-    "missing": {
-      "FMT-CALL-WRAP": 1
-    },
-    "extra": {},
-    "reason": "Multiline-call wrapping missed in a file-scope fragment."
   }
 }

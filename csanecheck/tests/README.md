@@ -27,7 +27,7 @@ line/message are retained. The reference messages are mapped to the matching
 not compared because their formats differ. Rule counts **are** compared, so an
 unrelated diagnostic cannot satisfy an expected rule.
 
-`known_differences.json` lists the **2** remaining fixture-level divergences,
+`known_differences.json` lists the **1** remaining fixture-level divergence,
 each with the *exact* missing and extra rule counts and a reason.
 The compatibility test fails if a new divergence appears, if an existing one
 changes, or if a waiver becomes obsolete following a fix. Update or delete the
@@ -60,9 +60,8 @@ In addition to legacy snippets, the Python test covers API policy lists,
 `cbase`-only APIs, `--root`/`--file`/`--file-list`, paths containing spaces,
 duplicate file-list entries, source-selection options, and CLI error codes.
 The reference corpus consists of snippets (including intentionally incomplete
-C fragments), not solely valid translation units. The remaining discrepancies
-are a deliberate extra multiplication-spacing rule and one file-scope
-call-wrap case. Step 3 now skips generated `.meta.h` files consistently for
+C fragments), not solely valid translation units. The remaining discrepancy is the deliberate extra multiplication-spacing
+rule. File-scope call wrapping now follows the legacy behavior. Step 3 now skips generated `.meta.h` files consistently for
 all input modes. `test_step3.py` checks project-relative exclusions, `stc`
 subtrees, regular C extensions, depth limits including zero, unconditional Ryu
 discovery, module filters, environment overrides, and source symlink behavior.
@@ -117,3 +116,16 @@ and normal development workflows unchanged while parser coverage improves.
 The status is pass-level, not yet exact per-rule source-region proof. It must
 not be interpreted as certification that every individual rule is exhaustive.
 Do not retire the legacy checkers based on this option alone.
+
+## Step 6: policy audit
+
+The captured 95-fixture corpus now differs only on `FMT-MULTIPLY`, an
+intentional extension beyond the Perl checker. This extra policy remains
+enabled and is recorded in `known_differences.json`, rather than weakening
+the rule for literal legacy compatibility. `test_step6.py` exercises
+file-scope call wrapping with independent positive and negative cases.
+
+A fixture-level match is not a proof of full policy equivalence: the corpus
+does not exhaust all C constructs, preprocessor configurations, or discovery
+behavior. In particular, conservative `--require-coverage` is not yet exact
+per-rule/per-region proof. The legacy checkers must remain enabled.
