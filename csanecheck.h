@@ -7,6 +7,8 @@
 #include "cbase.h"
 #include "meta.h"
 #include "csanecheck_regions.h"
+#include "csanecheck_toplevel.h"
+#include "csanecheck_statements.h"
 #if OS_UNIX
 #include <regex.h>
 #endif
@@ -127,6 +129,8 @@ typedef struct CsaneFile {
     Tokenization *tokens;
     CPreprocessorAnalysis *preprocessor;
     CsaneRegions *regions;
+    CsaneTopLevels *toplevel;
+    CsaneStatements *statements;
     CAst *ast;
     int32 violations;
     int32 column_limit;

@@ -91,6 +91,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     Tokenization tokens = tokenize(source, len);
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
+    CsaneTopLevels toplevel = {0};
+    CsaneStatements statements = {0};
     CAst ast = {0};
     CsaneMacroView expanded = {0};
     CPreprocessorAnalysis projected_pp = {0};
@@ -112,7 +114,26 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         free2(source, (int64)len + 1);
         return 2;
     }
+    if (!csane_toplevel_init(&toplevel, &regions)) {
+        fprintf(stderr, "%s: unable to initialize top-level regions\n", path);
+        csane_regions_free(&regions);
+        c_preprocessor_analysis_free(&pp);
+        free_tokenization(&tokens);
+        free2(source, (int64)len + 1);
+        return 2;
+    }
+    if (!csane_statements_init(&statements, &toplevel)) {
+        fprintf(stderr, "%s: unable to initialize function statements\n", path);
+        csane_toplevel_free(&toplevel);
+        csane_regions_free(&regions);
+        c_preprocessor_analysis_free(&pp);
+        free_tokenization(&tokens);
+        free2(source, (int64)len + 1);
+        return 2;
+    }
+    file.statements = &statements;
     file.regions = &regions;
+    file.toplevel = &toplevel;
     csane_rules_run(&file, CSANE_PASS_TOKEN);
     if (pp_ok) {
         csane_macro_view_init(&expanded, &tokens, &pp, path, &options->policy);
@@ -123,6 +144,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     if (!ast_ok) {
         fprintf(stderr, "%s: unable to initialize AST\n", path);
         csane_macro_view_free(&expanded);
+        csane_statements_free(&statements);
+        csane_toplevel_free(&toplevel);
         csane_regions_free(&regions);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
@@ -234,6 +257,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     if (pp_ok) {
         csane_macro_view_free(&expanded);
     }
+    csane_statements_free(&statements);
+    csane_toplevel_free(&toplevel);
     csane_regions_free(&regions);
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
