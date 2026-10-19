@@ -116,6 +116,48 @@ csane_call_macro_fragments(CsaneFile *file, TokenRange range) {
     return false;
 }
 
+/* Macro parameters need not be uppercase. Read the corresponding
+ * definition rather than guessing their spelling from identifier case. */
+static bool
+csane_call_macro_parameters(CsaneFile *file, int32 open,
+                            TokenRange content) {
+    CsaneRegions *regions = file->regions;
+    int32 region = csane_regions_at_token(regions, open);
+    int32 definition = csane_regions_enclosing(regions, region,
+                                               CSANE_REGION_MACRO_DEFINE);
+    if (definition < 0) {
+        return false;
+    }
+    int32 parameters = -1;
+    for (int32 child = regions->items[definition].first_child;
+         child >= 0; child = regions->items[child].next_sibling) {
+        if (regions->items[child].kind == CSANE_REGION_MACRO_PARAMETERS) {
+            parameters = child;
+            break;
+        }
+    }
+    if (parameters < 0) {
+        return false;
+    }
+    Tokenization *tokens = file->tokens;
+    TokenRange names = regions->items[parameters].tokens;
+    for (int32 i = content.first; i < content.end; i += 1) {
+        Token *candidate = &tokens->tokens[i];
+        if (candidate->kind != TOKEN_IDENT) {
+            continue;
+        }
+        for (int32 j = names.first; j < names.end; j += 1) {
+            Token *name = &tokens->tokens[j];
+            if (name->kind == TOKEN_IDENT
+                && candidate->len == name->len
+                && !memcmp64(candidate->text, name->text, name->len)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static void
 csane_call_literals(CsaneFile *file, TokenRange range) {
     if (csane_call_macro_fragments(file, range)) {
@@ -299,7 +341,9 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
     }
     /* Contextual comparisons are sound for self-contained replacements.
      * Names of macros or parameters can change their argument structure. */
-    if (!macro || !csane_call_macro_fragments(file, content)) {
+    if (!macro
+        || (!csane_call_macro_fragments(file, content)
+            && !csane_call_macro_parameters(file, open, content))) {
         csane_call_context(file, &view);
     }
     int32 format = -1;
