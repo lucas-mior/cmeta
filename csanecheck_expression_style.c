@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "csanecheck.h"
 #include "csanecheck_tokens.h"
+#include "csanecheck_regions.h"
 
 static int32
 csane_style_first(CsaneFile *file, TokenRange range) {
@@ -197,20 +198,33 @@ csane_expression_style_check(CsaneFile *file) {
                != C_PP_TOKEN_MACRO_REPLACEMENT) {
             continue;
         }
-        /* An unclosed containing brace cannot establish call context.
-         * Later balanced functions remain independently inspectable. */
-        bool unclosed = false;
-        for (int32 j = i - 1; j >= 0; j -= 1) {
-            if (TOKEN_IS(&tokens->tokens[j], "{")
-                && csane_tokens_match(&view, j) < 0) {
-                unclosed = true;
-                break;
+        /* Macro replacements are separate source regions. Never allow an
+         * unrelated declaration, conditional branch or macro to influence
+         * their delimiter matching. Ordinary code retains the legacy view
+         * until the remaining callers migrate to region-local navigation. */
+        CsaneTokenView local = view;
+        int32 region = csane_regions_at_token(file->regions, i);
+        if (region >= 0 && file->regions->items[region].kind
+                           == CSANE_REGION_MACRO_REPLACEMENT) {
+            if (!csane_tokens_view(&local, tokens,
+                                   file->regions->items[region].tokens)) {
+                continue;
+            }
+        } else {
+            /* Preserve conservative behavior for incomplete code. */
+            bool unclosed = false;
+            for (int32 j = i - 1; j >= 0; j -= 1) {
+                if (TOKEN_IS(&tokens->tokens[j], "{")
+                    && csane_tokens_match(&view, j) < 0) {
+                    unclosed = true;
+                    break;
+                }
+            }
+            if (unclosed) {
+                continue;
             }
         }
-        if (unclosed) {
-            continue;
-        }
-        int32 close = csane_tokens_match(&view, next);
+        int32 close = csane_tokens_match(&local, next);
         if (close < 0) {
             continue;
         }
