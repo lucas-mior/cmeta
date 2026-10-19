@@ -69,8 +69,8 @@ csane_calls_related(Token *a, Token *b) {
     return false;
 }
 
-/* The three basic call-layout rules use original tokens, not the AST.
- * Remaining contextual call rules continue using the legacy AST pass. */
+/* Call-layout and contextual rules use original token ranges rather than
+ * requiring an AST for the containing translation unit. */
 static int32
 csane_call_next(CsaneFile *file, TokenRange range, int32 after) {
     return token_range_next_significant(file->tokens, range, after);
@@ -297,7 +297,9 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
     if (!csane_calls_line_break(file, open, close)) {
         return;
     }
-    if (!macro) {
+    /* Contextual comparisons are sound for self-contained replacements.
+     * Names of macros or parameters can change their argument structure. */
+    if (!macro || !csane_call_macro_fragments(file, content)) {
         csane_call_context(file, &view);
     }
     int32 format = -1;
