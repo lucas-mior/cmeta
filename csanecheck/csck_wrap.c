@@ -250,15 +250,15 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_wrap_local_span(CsaneFile *file, CsaneStatement *stmt,
-                      CsaneWrapSpan *span) {
+csane_wrap_local_span(CsaneFile *file, TokenRange range,
+                      CsaneWrapSpan *span, bool require_statement) {
     Tokenization *tokens = file->tokens;
-    int32 first = token_range_first_significant(tokens, stmt->tokens);
-    int32 last = token_range_last_significant(tokens, stmt->tokens);
-    if (stmt->kind != CSANE_STMT_SIMPLE || first < 0 || last < first) {
+    int32 first = token_range_first_significant(tokens, range);
+    int32 last = token_range_last_significant(tokens, range);
+    if (first < 0 || last < first) {
         return false;
     }
-    int32 name = csane_wrap_local_call(file, stmt->tokens);
+    int32 name = csane_wrap_local_call(file, range);
     if (name < 0 || csane_wrap_location(tokens, name).line
         != csane_wrap_location(tokens, first).line) {
         return false;
@@ -266,7 +266,7 @@ csane_wrap_local_span(CsaneFile *file, CsaneStatement *stmt,
     char *text = tokens->text;
     int32 first_offset = tokens->tokens[first].offset;
     int32 line_start = csane_wrap_line_start(text, first_offset);
-    if (line_start == first_offset) {
+    if (require_statement && line_start == first_offset) {
         return false;
     }
     for (int32 i = line_start; i < first_offset; i += 1) {
@@ -297,6 +297,31 @@ csane_wrap_local_span(CsaneFile *file, CsaneStatement *stmt,
     return true;
 }
 
+/* File-scope declarations and incomplete legacy fragments have no
+ * statement-tree entries. Reuse the local call recognizer on their ranges.
+ */
+static void
+csane_wrap_toplevel_calls(CsaneFile *file) {
+    if (file->toplevel == NULL) {
+        return;
+    }
+    CsaneTopLevels *top = file->toplevel;
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        if (item->kind != CSANE_TOP_DECLARATION
+            && item->kind != CSANE_TOP_OPAQUE) {
+            continue;
+        }
+        CsaneWrapSpan span;
+        if (csane_wrap_local_span(file, item->tokens, &span, false)
+            && span.wrapped && span.fits) {
+            csane_rule_issue(file, span.start, "FMT-CALL-WRAP",
+                             "call fits on one line but is "
+                             "split across multiple lines");
+        }
+    }
+}
+
 void
 csane_wrap_call_check(CsaneFile *file) {
     if (csane_wrap_generated(file->path) || file->statements == NULL) {
@@ -321,8 +346,10 @@ csane_wrap_call_check(CsaneFile *file) {
                 continue;
             }
             CsaneWrapSpan span;
-            bool candidate = csane_wrap_local_span(file, &tree->items[child],
-                                                   &span);
+            bool candidate = tree->items[child].kind == CSANE_STMT_SIMPLE
+                             && csane_wrap_local_span(file,
+                                                      tree->items[child].tokens,
+                                                      &span, true);
             if (used > 0 && (!candidate
                 || !csane_wrap_adjacent(file, &items[used - 1], &span,
                                         CSANE_WRAP_CALL))) {
@@ -369,6 +396,7 @@ csane_wrap_call_check(CsaneFile *file) {
         }
     }
     free2(items, (int64)count*SIZEOF(*items));
+    csane_wrap_toplevel_calls(file);
 }
 
 /* Assignment wrapping uses only direct, top-level '=' tokens in a simple
