@@ -61,7 +61,7 @@ class CsanePassTests(unittest.TestCase):
         self.assertIn("syntax=checked context=checked", result.stdout)
         self.assertIn("unresolved_tokens=0 macro_tokens=0", result.stdout)
         self.assertIn("group=STYLE status=checked", result.stdout)
-        self.assertEqual(result.stdout.count("rule_coverage file="), 13)
+        self.assertEqual(result.stdout.count("rule_coverage file="), 16)
 
     def test_macro_replacement_is_not_claimed_as_parsed(self):
         result = self.scan("#define UNKNOWN(x) ((x)+1)\n"
