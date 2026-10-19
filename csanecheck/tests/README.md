@@ -27,14 +27,14 @@ line/message are retained. The reference messages are mapped to the matching
 not compared because their formats differ. Rule counts **are** compared, so an
 unrelated diagnostic cannot satisfy an expected rule.
 
-`known_differences.json` lists **20** previously observed fixture-level
-divergences, each with the *exact* missing and extra rule counts and a reason.
+`known_differences.json` lists the **4** remaining fixture-level divergences,
+each with the *exact* missing and extra rule counts and a reason.
 The compatibility test fails if a new divergence appears, if an existing one
 changes, or if a waiver becomes obsolete following a fix. Update or delete the
 corresponding entry as the implementation improves. A green baseline therefore
-**does not mean full parity**. Two additional expected-failure tests cover
-status temporaries in an `if` condition and a nested scope, which are not part
-of the original unit fixture corpus.
+**does not mean full parity**. Tests for status temporaries in `if` conditions
+and nested scopes are now passing. `test_step2.py` adds focused positive and
+negative regressions for bounds assertions, status uses, and file-scope wraps.
 
 For an independently reproduced snapshot, run:
 
@@ -60,9 +60,10 @@ In addition to legacy snippets, the Python test covers API policy lists,
 `cbase`-only APIs, `--root`/`--file`/`--file-list`, paths containing spaces,
 duplicate file-list entries, source-selection options, and CLI error codes.
 The reference corpus consists of snippets (including intentionally incomplete
-C fragments), not solely valid translation units. Some known discrepancies
-are caused by lack of file-scope structural coverage; Steps 2–4 will resolve
-these as appropriate.
+C fragments), not solely valid translation units. The remaining discrepancies concern explicitly
+selected generated headers, a deliberate extra multiplication-spacing rule,
+and one file-scope call-wrap case. Later steps must still address structural
+coverage, file selection, and parser reporting.
 
 The original shell tests (discovery, environment variables, symlinks, caching
 and profiling) and direct status-checker cache tests are not represented by
@@ -70,5 +71,5 @@ all their operations in the 95 captured snippets. They remain active in their
 original test suites and must be covered with further dedicated compatibility
 tests before claiming that the shell script can be replaced.
 
-**This suite is a regression baseline for Step 1, not certification that
-`csanecheck` is a drop-in replacement.**
+**This suite is a compatibility baseline with the Step 2 fixes, not
+certification that `csanecheck` is a drop-in replacement.**

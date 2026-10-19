@@ -405,22 +405,19 @@ csane_wrap_local_assignment(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_wrap_local_assignment_span(CsaneFile *file, CsaneStatement *stmt,
-                                 CsaneWrapSpan *span) {
+csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
+                                 CsaneWrapSpan *span, bool require_indent) {
     Tokenization *tokens = file->tokens;
-    if (stmt->kind != CSANE_STMT_SIMPLE) {
-        return false;
-    }
-    int32 first = token_range_first_significant(tokens, stmt->tokens);
-    int32 last = token_range_last_significant(tokens, stmt->tokens);
-    int32 op = csane_wrap_local_assignment(file, stmt->tokens);
+    int32 first = token_range_first_significant(tokens, range);
+    int32 last = token_range_last_significant(tokens, range);
+    int32 op = csane_wrap_local_assignment(file, range);
     if (op < 0 || first < 0 || last < first) {
         return false;
     }
     char *text = tokens->text;
     int32 offset = tokens->tokens[first].offset;
     int32 start = csane_wrap_line_start(text, offset);
-    if (start == offset) {
+    if (require_indent && start == offset) {
         return false;
     }
     for (int32 i = start; i < offset; i += 1) {
@@ -473,10 +470,53 @@ csane_wrap_assignment_group(CsaneFile *file, CsaneWrapSpan *items,
     }
 }
 
+/* Top-level declarations do not have CsaneStatement records. Use their
+ * source-preserving token ranges with the same conservative grouping rules. */
+static void
+csane_wrap_toplevel_assignments(CsaneFile *file) {
+    if (file->toplevel == NULL) {
+        return;
+    }
+    CsaneTopLevels *top = file->toplevel;
+    CsaneWrapSpan *items = malloc2((int64)top->count*SIZEOF(*items));
+    if (items == NULL) {
+        return;
+    }
+    int32 used = 0;
+    int32 owner = -1;
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        CsaneWrapSpan span;
+        bool candidate = item->kind == CSANE_TOP_DECLARATION
+                         || item->kind == CSANE_TOP_OPAQUE;
+        if (candidate) {
+            candidate = csane_wrap_local_assignment_span(file, item->tokens,
+                                                         &span, false);
+        }
+        if (used > 0 && (owner != item->owner_region || !candidate
+            || !csane_wrap_adjacent(file, &items[used - 1], &span,
+                                    CSANE_WRAP_ASSIGN))) {
+            csane_wrap_assignment_group(file, items, used);
+            used = 0;
+        }
+        if (candidate) {
+            items[used++] = span;
+            owner = item->owner_region;
+        }
+    }
+    if (used > 0) {
+        csane_wrap_assignment_group(file, items, used);
+    }
+    free2(items, (int64)top->count*SIZEOF(*items));
+}
+
 void
 csane_wrap_check(CsaneFile *file) {
-    if (file->is_ryu || csane_wrap_generated(file->path)
-        || file->statements == NULL) {
+    if (file->is_ryu || csane_wrap_generated(file->path)) {
+        return;
+    }
+    csane_wrap_toplevel_assignments(file);
+    if (file->statements == NULL || file->statements->count == 0) {
         return;
     }
     CsaneStatements *tree = file->statements;
@@ -499,8 +539,12 @@ csane_wrap_check(CsaneFile *file) {
             }
             CsaneWrapSpan span;
             CsaneStatement *stmt = &tree->items[child];
-            bool candidate = csane_wrap_local_assignment_span(file, stmt,
-                                                              &span);
+            bool candidate = stmt->kind == CSANE_STMT_SIMPLE;
+            if (candidate) {
+                TokenRange range = stmt->tokens;
+                candidate = csane_wrap_local_assignment_span(file, range,
+                                                             &span, true);
+            }
             if (used > 0 && (!candidate
                 || !csane_wrap_adjacent(file, &items[used - 1], &span,
                                         CSANE_WRAP_ASSIGN))) {
