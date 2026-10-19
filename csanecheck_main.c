@@ -17,6 +17,7 @@
 #include "csanecheck_regions.c"
 #include "csanecheck_toplevel.c"
 #include "csanecheck_statements.c"
+#include "csanecheck_classify.c"
 #include "csanecheck_files.c"
 #include "csanecheck_config.c"
 #include "csanecheck_structure.c"

@@ -96,6 +96,7 @@ if [ "$mode" = test ]; then
         python3 tests/csanecheck/test_regions.py
         python3 tests/csanecheck/test_toplevel.py
         python3 tests/csanecheck/test_statements.py
+        python3 tests/csanecheck/test_classify.py
         python3 tests/csanecheck/compare.py bin/csanecheck
         python3 tests/csanecheck/test_install.py
     fi
