@@ -86,6 +86,18 @@ class CsaneStructureTests(unittest.TestCase):
         self.expect("void f(void) { int a; { int b; } }\n", 0)
         self.expect("#if defined(A)\nint x;\n#else\nint y;\n#endif\n", 0)
 
+    def test_declarations_follow_unrecognized_expressions(self):
+        self.expect("void f(void) {\n"
+                    "    bool accepted = true;\n"
+                    "    int x, y;\n"
+                    "}\n", 1)
+
+    def test_unrelated_nested_commas_are_not_declarators(self):
+        self.expect("void f(void) {\n"
+                    "    int values[] = {1, 2};\n"
+                    "    int x = run(1, 2);\n"
+                    "}\n", 0)
+
     def test_fixture_exclusion(self):
         self.expect("void f(void) { int a, b; }\n", 0,
                     filename="tests/fixtures/example.c")
