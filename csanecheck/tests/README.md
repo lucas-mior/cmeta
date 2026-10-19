@@ -76,3 +76,27 @@ tests before claiming that the shell script can be replaced.
 
 **This suite is a compatibility baseline with the Step 2 fixes, not
 certification that `csanecheck` is a drop-in replacement.**
+
+## Step 4: type imports and preprocessor boundaries
+
+`test_step4.py` exercises syntax coverage through root-level project headers,
+transitive quoted includes, include-directory precedence, and imported macro
+aliases. It also verifies C11 `bool` declarations, conditional-include
+conservatism, independent conditional alternatives, and parse diagnostics
+for malformed input.
+
+The import resolver now searches the including file's directory first, then
+project roots, then `cbase` roots. This matches the repository's include
+search order and allows syntax analysis to recognize typedefs defined in
+project-level headers. A conditional include does not make its typedefs
+unconditionally available: only ordinary unguarded imports and imports inside
+a recognized conventional include guard are collected as definite types.
+The macro resolver uses the same quoted-header path resolution, which makes
+project-header aliases visible to contextual checks.
+
+This work improves the syntax frontend but does not make it a complete C
+parser. Platform-specific types, configurations that depend on system headers,
+macro replacements that cannot be projected, and genuinely malformed source
+can still produce unresolved syntax. The `--coverage`, `--rule-coverage`, and
+`--strict-parse` options remain useful during development. Making incomplete
+required coverage cause a reliable overall failure is the separate Step 5.

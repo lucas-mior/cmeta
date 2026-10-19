@@ -154,12 +154,16 @@ csane_types_resolve(char *including, char *name, CsanePolicy *policy,
         < PATH_MAX && realpath(candidate, resolved) != NULL) {
         return true;
     }
-    for (int32 i = 0; i < policy->cbase_roots.count; i += 1) {
-        char *root = policy->cbase_roots.items[i];
-        int32 printed = snprintf(candidate, PATH_MAX, "%s/%s", root, name);
-        if (printed >= 0 && printed < PATH_MAX
-            && realpath(candidate, resolved) != NULL) {
-            return true;
+    for (int32 list = 0; list < 2; list += 1) {
+        CsanePaths *roots = list == 0 ? &policy->project_roots
+                                       : &policy->cbase_roots;
+        for (int32 i = 0; i < roots->count; i += 1) {
+            char *root = roots->items[i];
+            int32 printed = snprintf(candidate, PATH_MAX, "%s/%s", root, name);
+            if (printed >= 0 && printed < PATH_MAX
+                && realpath(candidate, resolved) != NULL) {
+                return true;
+            }
         }
     }
     return false;
@@ -315,6 +319,13 @@ csane_types_visit(CsanePaths *names, CsanePaths *visited,
         for (int32 i = 0; i < pp.directive_count; i += 1) {
             CPreprocessorDirective *directive = &pp.directives[i];
             if (directive->kind != C_PREPROCESSOR_DIRECTIVE_INCLUDE) {
+                continue;
+            }
+            /* A conditional include must not make its typedefs globally
+             * visible in every alternative. A conventional include guard
+             * is the only conditional context known to be unconditional. */
+            int32 branch = pp.token_branches[directive->hash_token];
+            if (branch >= 0 && branch != guard) {
                 continue;
             }
             int32 start = directive->source.start;
