@@ -60,6 +60,18 @@ class CsaneContextTests(unittest.TestCase):
         self.expect("#define CHECK(x) ASSERT(x >= 1)\n",
                     ["STYLE-ASSERT-REL"])
 
+    def test_macro_replacement_isolated_from_incomplete_branch(self):
+        self.expect('#if ENABLED\n'
+                    'void unfinished(void) {\n'
+                    '#else\n'
+                    '#define CHECK() STRLIT_LEN("bad")\n'
+                    '#endif\n', ["STYLE-STRLIT-LEN"])
+
+    def test_independent_macro_replacements(self):
+        self.expect('#define ONE() STRLIT_LEN("a")\n'
+                    '#define TWO() STREQUAL(x, STRLIT("b"))\n',
+                    ["STYLE-STRLIT-LEN", "STYLE-STREQUAL"])
+
     def test_relational_assertions_safe_cases(self):
         self.expect("void f(int x) {\n"
                     "    ASSERT(x == 3);\n"
