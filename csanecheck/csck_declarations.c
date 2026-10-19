@@ -5,8 +5,8 @@
 #define CSANECHECK_DECLARATIONS_C
 
 #include "cbase.h"
-#include "csanecheck.h"
-#include "csanecheck_tokens.h"
+#include "csck.h"
+#include "csck_tokens.h"
 
 /* A deliberately local declaration view: no typedef table or AST is needed. */
 static int32

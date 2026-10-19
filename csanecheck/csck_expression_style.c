@@ -5,9 +5,9 @@
 #define CSANECHECK_EXPRESSION_STYLE_C
 
 #include "cbase.h"
-#include "csanecheck.h"
-#include "csanecheck_tokens.h"
-#include "csanecheck_regions.h"
+#include "csck.h"
+#include "csck_tokens.h"
+#include "csck_regions.h"
 
 static int32
 csane_style_first(CsaneFile *file, TokenRange range) {

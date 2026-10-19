@@ -5,9 +5,9 @@
 #define CSANECHECK_CALLS_C
 
 #include "cbase.h"
-#include "csanecheck.h"
-#include "csanecheck_tokens.h"
-#include "csanecheck_regions.h"
+#include "csck.h"
+#include "csck_tokens.h"
+#include "csck_regions.h"
 
 /* All offsets refer to the original tokenization. Neither argument text nor
  * whitespace is reconstructed, and unparsed regions produce no AST claims. */

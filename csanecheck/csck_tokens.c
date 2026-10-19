@@ -5,7 +5,7 @@
 #define CSANECHECK_TOKENS_C
 
 #include "cbase.h"
-#include "csanecheck_tokens.h"
+#include "csck_tokens.h"
 
 bool
 csane_tokens_view(CsaneTokenView *view, Tokenization *tokens,

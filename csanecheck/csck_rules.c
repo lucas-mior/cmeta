@@ -5,7 +5,7 @@
 #define CSANECHECK_RULES_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static bool
 csane_name_in(Token *token, CsanePaths *names) {

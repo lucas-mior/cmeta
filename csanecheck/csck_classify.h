@@ -4,7 +4,7 @@
 #if !defined(CSANECHECK_CLASSIFY_H)
 #define CSANECHECK_CLASSIFY_H
 
-#include "csanecheck_statements.h"
+#include "csck_statements.h"
 
 enum CsaneNameKind {
     CSANE_NAME_OTHER = 0,

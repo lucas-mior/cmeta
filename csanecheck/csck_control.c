@@ -5,7 +5,7 @@
 #define CSANECHECK_CONTROL_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static bool
 csane_control_generated(char *path) {

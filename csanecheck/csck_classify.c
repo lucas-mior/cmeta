@@ -5,7 +5,7 @@
 #define CSANECHECK_CLASSIFY_C
 
 #include "cbase.h"
-#include "csanecheck_classify.h"
+#include "csck_classify.h"
 
 static bool
 csane_class_word(Token *token, char *word) {

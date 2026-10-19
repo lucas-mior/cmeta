@@ -6,9 +6,9 @@
 
 #include "cbase.h"
 #include "meta.h"
-#include "csanecheck_regions.h"
-#include "csanecheck_toplevel.h"
-#include "csanecheck_classify.h"
+#include "csck_regions.h"
+#include "csck_toplevel.h"
+#include "csck_classify.h"
 #if OS_UNIX
 #include <regex.h>
 #endif

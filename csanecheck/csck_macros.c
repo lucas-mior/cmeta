@@ -6,7 +6,7 @@
 
 #include "cbase.h"
 #include "meta.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* The syntax token view has exactly the original token indices. Expanded
  * tokens borrow source positions from the invocation; source and lexical

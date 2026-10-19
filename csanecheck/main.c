@@ -5,7 +5,7 @@
 #define CSANECHECK_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static void
 csane_usage(FILE *output) {
