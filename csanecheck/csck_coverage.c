@@ -5,7 +5,7 @@
 #define CSANECHECK_COVERAGE_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* Mark source tokens, not AST node counts. Multiple overlapping nodes must
  * never increase the reported amount of source examined. */

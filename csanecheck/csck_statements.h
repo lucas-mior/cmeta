@@ -4,7 +4,7 @@
 #if !defined(CSANECHECK_STATEMENTS_H)
 #define CSANECHECK_STATEMENTS_H
 
-#include "csanecheck_toplevel.h"
+#include "csck_toplevel.h"
 
 enum CsaneStatementKind {
     CSANE_STMT_BLOCK = 1,

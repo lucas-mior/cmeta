@@ -5,7 +5,7 @@
 #define CSANECHECK_FILES_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static char *
 csane_strdup(char *string) {

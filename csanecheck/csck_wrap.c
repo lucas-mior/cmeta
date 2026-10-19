@@ -5,8 +5,8 @@
 #define CSANECHECK_WRAP_C
 
 #include "cbase.h"
-#include "csanecheck.h"
-#include "csanecheck_tokens.h"
+#include "csck.h"
+#include "csck_tokens.h"
 
 /* Source-preserving spans for locally recognized calls and assignments.
  * Nested expressions are not standalone statement candidates.

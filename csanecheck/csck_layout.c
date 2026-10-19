@@ -5,7 +5,7 @@
 #define CSANECHECK_LAYOUT_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* Layout is checked against the original source spans. In particular, a
  * binary '*' is supplied by the expression AST, never guessed from the

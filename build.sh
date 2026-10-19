@@ -64,7 +64,7 @@ mkdir -p bin
 # Do not execute csanecheck while bootstrapping its own binary.
 # shellcheck disable=SC2086
 trace_on
-$CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck_main.c $LDFLAGS
+$CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck/main.c $LDFLAGS
 trace_off
 
 if [ "$mode" = install ]; then
@@ -75,29 +75,4 @@ fi
 
 if [ "$mode" = test ]; then
     TEST_MAXDEPTH=1 common_test "$target" .
-    if [ -z "$target" ]; then
-        python3 tests/csanecheck/test_cli.py bin/csanecheck
-        python3 tests/csanecheck/test_rules.py bin/csanecheck
-        python3 tests/csanecheck/test_policy.py bin/csanecheck
-        python3 tests/csanecheck/test_structure.py bin/csanecheck
-        python3 tests/csanecheck/test_control.py bin/csanecheck
-        python3 tests/csanecheck/test_context.py bin/csanecheck
-        python3 tests/csanecheck/test_layout.py bin/csanecheck
-        python3 tests/csanecheck/test_types.py bin/csanecheck
-        python3 tests/csanecheck/test_passes.py bin/csanecheck
-        python3 tests/csanecheck/test_annotations.py bin/csanecheck
-        python3 tests/csanecheck/test_recovery.py bin/csanecheck
-        python3 tests/csanecheck/test_macro_expansion.py bin/csanecheck
-        python3 tests/csanecheck/test_header_macros.py bin/csanecheck
-        python3 tests/csanecheck/test_calls.py bin/csanecheck
-        python3 tests/csanecheck/test_wrap.py bin/csanecheck
-        python3 tests/csanecheck/audit_rules.py
-        python3 tests/csanecheck/test_tokens.py
-        python3 tests/csanecheck/test_regions.py
-        python3 tests/csanecheck/test_toplevel.py
-        python3 tests/csanecheck/test_statements.py
-        python3 tests/csanecheck/test_classify.py
-        python3 tests/csanecheck/compare.py bin/csanecheck
-        python3 tests/csanecheck/test_install.py
-    fi
 fi

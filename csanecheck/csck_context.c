@@ -5,7 +5,7 @@
 #define CSANECHECK_CONTEXT_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* Every expression retains original token indices. Parentheses do not
  * affect the identity of an operand for these syntactic guideline rules. */

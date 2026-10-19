@@ -5,7 +5,7 @@
 #define CSANECHECK_REGIONS_C
 
 #include "cbase.h"
-#include "csanecheck_regions.h"
+#include "csck_regions.h"
 
 static TokenRange
 csane_regions_token_range(CsaneRegions *regions, SourceRange source) {

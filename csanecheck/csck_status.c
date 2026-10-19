@@ -5,7 +5,7 @@
 #define CSANECHECK_STATUS_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static int32
 csane_status_scan(CsaneFile *file, TokenRange range, int32 *first) {

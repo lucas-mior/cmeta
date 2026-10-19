@@ -5,7 +5,7 @@
 #define CSANECHECK_STRUCTURE_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* Declarator nodes are nested from outside inward. The operation closest to
  * the identifier determines whether it declares a function, rather than a

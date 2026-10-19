@@ -5,7 +5,7 @@
 #define CSANECHECK_CONFIG_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 static char *csane_default_never[] = {
     "stpcpy", "stpncpy", "strcat", "strchr", "strcpy", "strcspn",

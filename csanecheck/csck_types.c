@@ -5,7 +5,7 @@
 #define CSANECHECK_TYPES_C
 
 #include "cbase.h"
-#include "csanecheck.h"
+#include "csck.h"
 
 /* The collector reads only quoted, locally resolvable headers. It does not
  * pretend to evaluate conditional compilation or include system headers.

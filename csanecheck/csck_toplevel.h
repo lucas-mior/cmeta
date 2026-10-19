@@ -4,7 +4,7 @@
 #if !defined(CSANECHECK_TOPLEVEL_H)
 #define CSANECHECK_TOPLEVEL_H
 
-#include "csanecheck_regions.h"
+#include "csck_regions.h"
 
 enum CsaneTopKind {
     CSANE_TOP_FUNCTION_DEFINITION = 1,

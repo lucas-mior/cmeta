@@ -5,7 +5,7 @@
 #define CSANECHECK_STATEMENTS_C
 
 #include "cbase.h"
-#include "csanecheck_statements.h"
+#include "csck_statements.h"
 
 typedef struct CsaneStatementStream {
     CsaneStatements *statements;
