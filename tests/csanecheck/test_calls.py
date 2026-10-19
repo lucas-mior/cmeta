@@ -55,6 +55,12 @@ class CsaneCallLayoutTests(unittest.TestCase):
                    '}\n'
                    '#endif\n', ["FMT-FORMAT-LINE"])
 
+    def test_macro_lowercase_parameter_suppresses_context(self):
+        source = ('#define REPORT(value) fmt_printf("%d %d", value, 2, '
+                  + chr(92) + '\n'
+                  + '                                    3)\n')
+        self.check(source)
+
     def test_macro_literal_only_context_is_safe(self):
         self.check('#define REPORT() fmt_printf("%d %d", 1, 2)\n')
 
