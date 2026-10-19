@@ -167,6 +167,7 @@ void csane_control_check(CsaneFile *);
 void csane_context_check(CsaneFile *);
 void csane_layout_check(CsaneFile *);
 void csane_calls_check(CsaneFile *);
+void csane_calls_token_check(CsaneFile *);
 void csane_wrap_check(CsaneFile *);
 void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);

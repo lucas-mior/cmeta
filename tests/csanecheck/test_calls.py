@@ -35,6 +35,20 @@ class CsaneCallLayoutTests(unittest.TestCase):
                          int("error[" in result.stdout), result.stdout)
         return result
 
+    def test_basic_call_after_unrecognized_declaration(self):
+        self.check("unrecognized_attribute int opaque(void);\n"
+                   "void f(void) {\n"
+                   "    run(\n"
+                   "        value);\n"
+                   "}\n", ["FMT-CALL-FIRST"])
+
+    def test_macro_fragments_do_not_create_literal_alignment(self):
+        self.check("#define RED(x) x\n"
+                   "void f(void) {\n"
+                   "    run(\"left\" RED(\"mid\")\n"
+                   "        \"right\");\n"
+                   "}\n")
+
     def test_call_first(self):
         self.check("void f(void) {\n"
                    "    run(\n"
