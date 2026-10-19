@@ -43,7 +43,7 @@ class CsanePassTests(unittest.TestCase):
         self.assertIn("group=PP status=checked", result.stdout)
         self.assertIn("group=API status=", result.stdout)
         self.assertRegex(result.stdout,
-                         r"group=API status=(partial|not_checked)")
+                         r"group=API status=checked")
 
     def test_malformed_header_recovers_next_valid_function(self):
         result = self.scan("int broken( {\n}\n"
@@ -70,7 +70,7 @@ class CsanePassTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("syntax=partial", result.stdout)
         self.assertRegex(result.stdout, r"macro_tokens=[1-9]")
-        self.assertIn("group=API status=partial", result.stdout)
+        self.assertIn("group=API status=checked", result.stdout)
 
     def test_preprocessor_errors_do_not_disable_raw_checks(self):
         result = self.scan("#endif\nint value; \n", "--coverage",

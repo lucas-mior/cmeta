@@ -88,6 +88,19 @@ class CsaneRuleTests(unittest.TestCase):
                     "#define BAD() strcpy(0, 0)\n",
                     ["API-NEVER", "API-CBASE-ONLY"])
 
+    def test_api_scanning_is_independent_of_translation_unit_ast(self):
+        self.expect("int broken( {\n"
+                    "void f(void) { strcpy(0, 0); }\n"
+                    "#define COPY(x) memcpy(x, x, 1)\n",
+                    ["API-NEVER", "API-CBASE-ONLY"])
+
+    def test_api_nested_macro_calls_and_no_declaration_false_positives(self):
+        self.expect("#define BODY() do { strcpy(0, 0); } while (0)\n"
+                    "void memcpy(void *, void *, int);\n"
+                    "void (*strcpy)(void);\n"
+                    "void f(void) { memcpy(0, strlen(0), 1); }\n",
+                    ["API-NEVER", "API-CBASE-ONLY", "API-CBASE-ONLY"])
+
     def test_never_use_names_complete(self):
         names = (BASE / "cbase/functions_never_use.txt").read_text().split()
         source = "void f(void) {\n" + "\n".join(
