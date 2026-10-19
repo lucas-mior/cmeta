@@ -1,0 +1,1109 @@
+[
+  {
+    "id": "perl/test_assignment_equals_cannot_begin_continuation_line/0",
+    "path": "src/sample.c",
+    "source": "static void\nwork(void) {\n    my_variable\n        = this_function_is_long_and_had_to_break_the_line(\n            100, 200, arg, other_arg);\n    options->state\n        = calculate(1);\n    int32 value\n= 42;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 4,
+        "message": "this_function_is_long_and_had_to_break_the_line call breaks before the first argument"
+      },
+      {
+        "line": 4,
+        "message": "assignment = must end the preceding line instead of beginning a line"
+      },
+      {
+        "line": 7,
+        "message": "assignment = must end the preceding line instead of beginning a line"
+      },
+      {
+        "line": 9,
+        "message": "assignment = must end the preceding line instead of beginning a line"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_equals_may_end_line_even_when_expression_long/1",
+    "path": "src/sample.c",
+    "source": "    my_variable =\n        this_function_is_long_and_had_to_break_the_line(\n            100, 200, arg, other_arg);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "this_function_is_long_and_had_to_break_the_line call breaks before the first argument"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wrap_check_accepts_literal_and_cache_changes/2",
+    "path": "src/sample.c",
+    "source": "    char *message =\n        \"hello\";\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wrap_check_accepts_literal_and_cache_changes/3",
+    "path": "src/sample.c",
+    "source": "    char *message =\n        \"hello\";\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wrap_check_accepts_literal_and_cache_changes/4",
+    "path": "src/sample.c",
+    "source": "    char *message = \"hello\";\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_assignment_wrap_obeys_cecup_column_limit_and_ryu_exclusion/5",
+    "path": "src/sample.c",
+    "source": "    int32 variable =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_assignment_wrap_obeys_cecup_column_limit_and_ryu_exclusion/6",
+    "path": "cecup/src/sample.c",
+    "source": "    int32 variable =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wrap_obeys_cecup_column_limit_and_ryu_exclusion/7",
+    "path": "cbase/ryu/sample.c",
+    "source": "    int32 variable =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_assignment_wraps_allow_braces_inside_string_literals/8",
+    "path": "src/sample.c",
+    "source": "    pattern =\n        \"{value}\";\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_are_grouped_across_comments_not_blank_lines/9",
+    "path": "src/sample.c",
+    "source": "    first_value =\n        quick();\n    // These values are related.\n    second_value =\n        long_named_function_with_many_arguments(\n            first_really_long_argument, second_long_argument);\n    third_value =\n        quick();\n    \n    fourth_value =\n        quick();\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 9,
+        "message": "trailing whitespace"
+      },
+      {
+        "line": 5,
+        "message": "long_named_function_with_many_arguments call breaks before the first argument"
+      },
+      {
+        "line": 10,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_check_complete_expression_length/10",
+    "path": "src/sample.c",
+    "source": "    result =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n\n    result =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n\n    result =\n        calculate(first,\n                  second);\n\n    result =\n        some_function_with_an_extremely_long_name(\n            first_really_long_argument, second_argument);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 12,
+        "message": "some_function_with_an_extremely_long_name call breaks before the first argument"
+      },
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      },
+      {
+        "line": 7,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_do_not_cross_unrelated_statements/11",
+    "path": "src/sample.c",
+    "source": "    first_value =\n        quick();\n    unrelated_call();\n    second_value =\n        some_function_with_an_extremely_long_name(\n            first_really_long_argument, second_long_argument);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 5,
+        "message": "some_function_with_an_extremely_long_name call breaks before the first argument"
+      },
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_group_long_assignments_broken_elsewhere/12",
+    "path": "src/sample.c",
+    "source": "    first_value =\n        quick();\n    second_value = some_function_with_an_extremely_long_name(\n        first_really_long_argument, second_long_argument);\n    third_value =\n        quick();\n\n    fourth_value =\n        quick();\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "some_function_with_an_extremely_long_name call breaks before the first argument"
+      },
+      {
+        "line": 8,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_group_obeys_column_limit/13",
+    "path": "src/sample.c",
+    "source": "    short_value =\n        small();\n    longer_value =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_assignment_wraps_group_obeys_column_limit/14",
+    "path": "cecup/src/sample.c",
+    "source": "    short_value =\n        small();\n    longer_value =\n        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "assignment fits on one line but is split after ="
+      },
+      {
+        "line": 3,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_group_with_unwrapped_long_assignment/15",
+    "path": "src/sample.c",
+    "source": "    first =\n        small();\n    long_value = some_very_long_identifier_some_very_long_identifier_some_very_long_identifier_;\n    third =\n        small();\n\n    fourth =\n        small();\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "line exceeds 80 columns"
+      },
+      {
+        "line": 7,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_assignment_wraps_ignore_comments_directives_and_braces/16",
+    "path": "src/sample.c",
+    "source": "    // fake =\n        call();\n    /* example =\n        value; */\n    value =\n        /* explanation */ call();\n    struct Item item =\n        { 1, 2 };\n#define COMPLEX_ASSIGNMENT() do { \\\n    value = \\\n        calculate(); \\\n} while (0)\n    value =\n#if defined(FEATURE)\n        foo;\n#else\n        bar;\n#endif\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_assignment_wraps_preserve_longer_related_assignments/17",
+    "path": "src/sample.c",
+    "source": "    first_value =\n        quick();\n    second_value =\n        some_function_with_a_long_name(first_long_argument,\n                                       second_long_argument);\n    third_value =\n        quick();\n\n    fourth_value =\n        quick();\n    fifth_value = quick();\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 9,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_builtin_sizeof_checker_cache_invalidates/18",
+    "path": "src/sample.c",
+    "source": "int64 n = SIZEOF(n);\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_builtin_sizeof_checker_cache_invalidates/19",
+    "path": "src/sample.c",
+    "source": "int64 n = sizeof(n);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use SIZEOF instead of sizeof"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_builtin_sizeof_checker_cache_invalidates/20",
+    "path": "src/sample.c",
+    "source": "int64 n = SIZEOF(n);\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_builtin_sizeof_ignores_literals_comments_and_names/21",
+    "path": "src/sample.c",
+    "source": "// sizeof(value)\n/* sizeof(int32) */\nchar *message = \"sizeof(value)\";\nchar letter = 's';\nint64 my_sizeof = 3;\nint64 sizeof_value = SIZEOF(int32);\nXX(C_KEYWORD_SIZEOF, sizeof)\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_builtin_sizeof_ignores_wrapper_definition/22",
+    "path": "cbase/base_macros.h",
+    "source": "#define SIZEOF(X) ((int64)sizeof(X))\n#  define SIZEOF(X) \\\n    ((int64)sizeof(X))\n#define LENGTH(X) (sizeof(X) / sizeof(*(X)))\nint64 a = SIZEOF(value);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 4,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 4,
+        "message": "use SIZEOF instead of sizeof"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_builtin_sizeof_is_exempt_in_ryu/23",
+    "path": "cbase/ryu/sample.c",
+    "source": "int64 value = sizeof(value);\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_builtin_sizeof_is_rejected_in_headers_and_macros/24",
+    "path": "src/sample.h",
+    "source": "#define RAW_SIZE(X) sizeof(X)\n#define RAW_SIZE_MULTILINE(X) \\\n    sizeof(X)\nenum { VALUE_SIZE = sizeof(int32) };\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 3,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 4,
+        "message": "use SIZEOF instead of sizeof"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_builtin_sizeof_is_rejected_in_project_code/25",
+    "path": "src/sample.c",
+    "source": "static int32\nexample(int32 *pointer) {\n    int64 size = sizeof(*pointer);\n    size += sizeof pointer;\n    size += sizeof\n            (int32);\n    size += sizeof *pointer;\n    return (int32)size;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 4,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 5,
+        "message": "use SIZEOF instead of sizeof"
+      },
+      {
+        "line": 7,
+        "message": "use SIZEOF instead of sizeof"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_call_alignment_with_comments_and_nested_calls/26",
+    "path": "src/sample.c",
+    "source": "static void\nrun(void) {\n    function /* separator */ (inner(a, b),\n       other);\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 4,
+        "message": "function call argument is not aligned with its alignment anchor"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_case_alignment_accepts_nested_switch_and_case_scopes/27",
+    "path": "src/sample.c",
+    "source": "void f(int32 x) {\n    switch (x) {\n    case 0: {\n        switch (x) {\n        case 1:\n            break;\n        default:\n            break;\n        }\n        break;\n    }\n    default:\n        break;\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_case_and_default_must_align_with_nearest_switch/28",
+    "path": "src/sample.c",
+    "source": "void f(int32 x) {\n    switch (x) {\n        case 0:\n            switch (x) {\n                case 1:\n                    break;\n                default:\n                break;\n            }\n            break;\n        default:\n            break;\n    }\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "case must align with switch"
+      },
+      {
+        "line": 5,
+        "message": "case must align with switch"
+      },
+      {
+        "line": 7,
+        "message": "default must align with switch"
+      },
+      {
+        "line": 11,
+        "message": "default must align with switch"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_cecup_source_accepts_up_to_100_columns/29",
+    "path": "cecup/src/sample.c",
+    "source": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "line exceeds 100 columns"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_checker_cache_invalidates_changed_sources/30",
+    "path": "cbase/ryu/sample.c",
+    "source": "int x;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_checker_cache_invalidates_changed_sources/31",
+    "path": "cbase/ryu/sample.c",
+    "source": "\tint x;\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "tab character is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_checker_cache_invalidates_changed_sources/32",
+    "path": "cbase/ryu/sample.c",
+    "source": "int x;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_comparison_equals_may_begin_line/33",
+    "path": "src/sample.c",
+    "source": "    same = first\n        == second;\n    same = (first\n            == second);\n    equals = (first ==\n              second);\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_consecutive_bounds_ignore_comments_and_strings/34",
+    "path": "sample.c",
+    "source": "// ASSERT_GE(i, 0);\n// ASSERT_LT(i, size);\n/* ASSERT_GE(i, 0);\n   ASSERT_LT(i, size); */\nconst char *text = \"ASSERT_GE(i, 0);\\nASSERT_LT(i, size);\";\nASSERT_GE(i, 0); // first comparison\nASSERT_LT(i, size);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 6,
+        "message": "use ASSERT_BETWEEN(i, 0, size - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_consecutive_bounds_ignores_unrelated_assertions/35",
+    "path": "sample.c",
+    "source": "static void\ncheck(void) {\n    ASSERT_GE(i, 1);\n    ASSERT_LT(i, size);\n    ASSERT_GE(i, 0);\n    ASSERT_LT(j, size);\n    ASSERT_GE(i, 0);\n\n    ASSERT_LT(i, size);\n    ASSERT_GE(i, 0); other_call();\n    ASSERT_LT(i, size);\n    ASSERT_GE(i, 0); ASSERT_LT(i, size);\n    ASSERT_BETWEEN(i, 0, size - 1);\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_consecutive_bounds_in_macro_continuations/36",
+    "path": "sample.c",
+    "source": "#define CHECK_INDEX(i) do { \\\n    ASSERT_GE(i, 0);         \\\n    ASSERT_LT(i, LENGTH(data)); \\\n} while (0)\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "use ASSERT_BETWEEN(i, 0, LENGTH(data) - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_consecutive_bounds_use_assert_between/37",
+    "path": "sample.c",
+    "source": "static void\ncheck(void) {\n    ASSERT_GE(index, 0);\n    ASSERT_LT(index, size);\n    ASSERT_GE(ctx->items[pos], 0);\n    ASSERT_LT(ctx->items[pos], LENGTH(items));\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "use ASSERT_BETWEEN(index, 0, size - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      },
+      {
+        "line": 5,
+        "message": "use ASSERT_BETWEEN(ctx->items[pos], 0, LENGTH(items) - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_consecutive_bounds_uses_file_list_and_cache/38",
+    "path": "sample.c",
+    "source": "ASSERT_GE(i, 0);\nASSERT_LT(i, limit);\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use ASSERT_BETWEEN(i, 0, limit - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_consecutive_bounds_uses_file_list_and_cache/39",
+    "path": "sample.c",
+    "source": "ASSERT_GE(i, 0);\nASSERT_LT(i, limit);\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use ASSERT_BETWEEN(i, 0, limit - 1) instead of consecutive ASSERT_GE/ASSERT_LT"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_consecutive_bounds_uses_file_list_and_cache/40",
+    "path": "sample.c",
+    "source": "ASSERT_GE(i, 0);\n",
+    "file_list": true,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_control_flow_accepts_braces_else_if_and_do_while/41",
+    "path": "src/sample.c",
+    "source": "void f(int32 x) {\n    if (x) {\n        perform();\n    } else if (x > 1) {\n        perform();\n    } else {\n        perform();\n    }\n    for (;;) {\n        do {\n            perform();\n        } while (x);\n        break;\n    }\n    while (x) {\n        break;\n    }\n    switch (x) {\n    case 0:\n        break;\n    default:\n        break;\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_control_flow_accepts_empty_for_body/42",
+    "path": "src/sample.c",
+    "source": "void f(Node *node, Node *last) {\n    for (node = first; node->next != last; node = node->next);\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_control_flow_ignores_macros_and_conditional_branches/43",
+    "path": "src/sample.c",
+    "source": "#define UNBRACED(x) if (x) call()\n#define TWO_LINES(x) \\\n    if (x) call()\nvoid f(int32 x) {\n#if FEATURE\n    if (x)\n#else\n    if (other(x))\n#endif\n    { call(); }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_control_flow_requires_braces_for_each_body/44",
+    "path": "src/sample.c",
+    "source": "void f(int32 x) {\n    if (x) perform();\n    else perform();\n    for (int32 i = 0; i < x; i += 1) perform();\n    while (x) perform();\n    switch (x) perform();\n    do perform(); while (x);\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "if body must use curly braces"
+      },
+      {
+        "line": 3,
+        "message": "else body must use curly braces"
+      },
+      {
+        "line": 4,
+        "message": "for body must use curly braces"
+      },
+      {
+        "line": 5,
+        "message": "while body must use curly braces"
+      },
+      {
+        "line": 6,
+        "message": "switch body must use curly braces"
+      },
+      {
+        "line": 7,
+        "message": "do body must use curly braces"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_declarations_ignore_comma_expressions_and_parameters/45",
+    "path": "src/sample.c",
+    "source": "typedef struct Example {\n    int32 x;\n    int32 y;\n} Example;\nvoid f(int32 x, int32 y) {\n    int32 z = foo(x, y);\n    int32 array[] = {1, 2,};\n    z = (x, y);\n    call(x, y);\n    if (x > 0) {\n        return;\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_deep_aggregate_initializers_are_allowed/46",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        int items[][2] = {\n            { 1, 2 },\n            { 3, 4 },\n        };\n        int flags[] =\n            { 0, 1 };\n        struct Point point =\n            {\n                .x = 1,\n                .y = 2,\n            };\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_deep_artificial_blocks_are_reported/47",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        for (int i = 0; i < 2; i += 1) {\n            {\n                int x = i;\n                use(x);\n            }\n            { use(i); }\n        }\n    }\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 5,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      },
+      {
+        "line": 9,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_deep_artificial_blocks_ignore_comments_and_strings/48",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        while (running) {\n            // {\n            /* { */\n            const char *text = \"{\";\n            { // actual block\n                use(text);\n            }\n        }\n    }\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 8,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_deep_artificial_blocks_with_directive_file_list/49",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        while (running) {\n#define BLOCK_MACRO() do { \\\n            { \\\n            } \\\n        } while (0)\n            {\n                use(1);\n            }\n        }\n    }\n}\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 9,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_deep_braces_with_control_headers_are_allowed/50",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        while (running) {\n            if (valid)\n            {\n                use(1);\n            }\n            else\n            {\n                use(2);\n            }\n            do\n            {\n                use(3);\n            } while (again);\n            switch (value) {\n            case 1:\n            {\n                use(4);\n                break;\n            }\n            default:\n            {\n                use(5);\n                break;\n            }\n            }\n        }\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_deep_inline_artificial_blocks_are_reported/51",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        for (int i = 0; i < 2; i += 1) {\n            if (valid) { { use(i); } }\n            use(i); { use(i); }\n        }\n    }\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 5,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      },
+      {
+        "line": 6,
+        "message": "artificial block at nesting level 3 or more is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_deep_preprocessor_control_braces_are_allowed/52",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    if (ready) {\n        while (running) {\n#if defined(USE_FAST)\n            if (fast)\n#else\n            if (slow)\n#endif\n            {\n                use(1);\n            }\n        }\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_generated_meta_headers_are_ignored/53",
+    "path": "src/sample.meta.h",
+    "source": "#ifdef FEATURE\n\tint value = sizeof(int);  \n#endif\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_generated_meta_headers_are_ignored/54",
+    "path": "src/sample.meta.h",
+    "source": "#ifdef FEATURE\n\tint value = sizeof(int);  \n#endif\n",
+    "file_list": true,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_ifdef_ifndef_are_rejected_in_headers_and_file_lists/55",
+    "path": "src/sample.h",
+    "source": "# ifdef FIRST\n# endif\n#\tifndef SECOND\n# endif\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use #if defined or #if !defined"
+      },
+      {
+        "line": 3,
+        "message": "use #if defined or #if !defined"
+      },
+      {
+        "line": 3,
+        "message": "tab character is forbidden"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_ifdef_ifndef_are_rejected_in_project_sources/56",
+    "path": "src/sample.c",
+    "source": "#ifdef FEATURE\n#  ifndef OTHER_FEATURE\n#    ifdef NESTED_FEATURE\n#    endif\n#  endif\n#endif\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use #if defined or #if !defined"
+      },
+      {
+        "line": 2,
+        "message": "use #if defined or #if !defined"
+      },
+      {
+        "line": 3,
+        "message": "use #if defined or #if !defined"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_leading_equals_ignores_comments_literals_and_macros/57",
+    "path": "src/sample.c",
+    "source": "    // = not an assignment\n    /* comment\n    = not an assignment\n    */\n    char *text = \"= still a literal\";\n#define TEST(value) value \\\n    = value\n#define OTHER(value) \\\n    = value\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_leading_equals_still_checked_in_cecup_but_not_ryu_or_meta/58",
+    "path": "cecup/src/sample.c",
+    "source": "    value\n        = compute();\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "assignment = must end the preceding line instead of beginning a line"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_leading_equals_still_checked_in_cecup_but_not_ryu_or_meta/59",
+    "path": "cbase/ryu/sample.c",
+    "source": "    value\n        = compute();\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_leading_equals_still_checked_in_cecup_but_not_ryu_or_meta/60",
+    "path": "src/example.meta.h",
+    "source": "    value\n        = compute();\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_missing_trailing_commas_are_not_enforced/61",
+    "path": "src/sample.c",
+    "source": "int32 values[] = {1, 2};\nint32 matrix[][2] = {{1, 2}, {3, 4}};\nS compact = { .x = 1, .y = 2 };\nS vertical = {\n    .x = 1\n};\nS literal = (S){.x = 1};\nint32 zero[] = {0};\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_multiline_string_literals_must_align/62",
+    "path": "sample.c",
+    "source": "static void\nfunction(void) {\n    fmt_printf(\"A long aligned format string with value %s \"\n               \"and enough text to require wrapping; \"\n               \"another value is %d\\n\",\n               value, count);\n    fmt_printf(\"A long misaligned format string with value %s \"\n              \"and enough text to require wrapping; \"\n              \"another value is %d\\n\",\n               value, count);\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 8,
+        "message": "fmt_printf call string literal is not aligned with first literal"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_multiple_variables_in_declaration_are_rejected/63",
+    "path": "src/sample.c",
+    "source": "int32 a, b;\ndouble x = foo(1, 2), y = 3;\nchar *one, *two;\nint32 i[2], j[2];\nint32 (*first)(void), (*second)(void);\nunsigned long long big, bigger;\nint32 one[] = {1, 2,}, two[] = {3, 4,};\nvoid f(void) {\n    for (int32 m = 0, n = 1; m < n; m += 1) {\n    }\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 2,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 3,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 4,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 5,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 6,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 7,
+        "message": "only one variable declaration per line"
+      },
+      {
+        "line": 9,
+        "message": "only one variable declaration per line"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_multiplication_spacing_is_not_checked/64",
+    "path": "src/sample.c",
+    "source": "int32 product = first * second;\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_only_assignment_lines_ending_with_bare_equals_are_checked/65",
+    "path": "src/sample.c",
+    "source": "    value = function(\n        arg);\n    value = first +\n        second;\n    if (value ==\n        other) {}\n    value +=\n        amount;\n    value *=\n        factor;\n    value <=\n        maximum;\n    value = function(arg);\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "function call breaks before the first argument"
+      },
+      {
+        "line": 1,
+        "message": "function call fits on one line but is split across multiple lines"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_preprocessor_conditional_cache_invalidates_changes/66",
+    "path": "src/sample.c",
+    "source": "#if defined(FOO)\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_preprocessor_conditional_cache_invalidates_changes/67",
+    "path": "src/sample.c",
+    "source": "#ifdef FOO\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use #if defined or #if !defined"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_preprocessor_conditional_cache_invalidates_changes/68",
+    "path": "src/sample.c",
+    "source": "#if defined(FOO)\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_preprocessor_conditional_comments_strings_are_ignored/69",
+    "path": "src/sample.c",
+    "source": "// #ifdef COMMENT\n/* #ifndef OTHER_COMMENT */\nchar *text = \"#ifdef STRING\";\n/*\n#ifdef MULTILINE_COMMENT\n*/\n# /* ignored comment */ ifdef REAL_DIRECTIVE\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 7,
+        "message": "use #if defined or #if !defined"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_preprocessor_conditional_valid_forms_are_ignored/70",
+    "path": "src/sample.h",
+    "source": "#if defined(FEATURE)\n#elif defined(SECOND_FEATURE)\n#endif\n#if !defined(THIRD_FEATURE)\n#endif\n#if FLAG_VALUE\n#endif\n#define text_ifdef #ifdef\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_preprocessor_conditionals_ryu_not_reported_twice/71",
+    "path": "cbase/ryu/sample.h",
+    "source": "#ifndef GUARD\n#define GUARD\n#endif\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use #if defined or #if !defined"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_project_source_unicode_column_limit/72",
+    "path": "src/sample.c",
+    "source": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя\nяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "line exceeds 80 columns"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_project_source_whitespace_violations/73",
+    "path": "src/sample.c",
+    "source": "\tint32 value;  \nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "tab character is forbidden"
+      },
+      {
+        "line": 1,
+        "message": "trailing whitespace"
+      },
+      {
+        "line": 3,
+        "message": "line exceeds 80 columns"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_ryu_missing_final_newline/74",
+    "path": "cbase/ryu/sample.c",
+    "source": "int x;",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "missing final newline"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_ryu_ternary_and_fast_math_are_permitted/75",
+    "path": "cbase/ryu/sample.c",
+    "source": "#include <stdint.h>\nstatic uint64_t\nvalue(uint64_t n) {\n    return n ? ((__uint128_t)n >> 1) : sizeof(n);\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_ryu_whitespace_and_preprocessor_violations/76",
+    "path": "cbase/ryu/sample.h",
+    "source": "#ifndef RYU_SAMPLE_H\n#define RYU_SAMPLE_H\n\tint32 value;  \n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n#endif // RYU_SAMPLE_H\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 1,
+        "message": "use #if defined or #if !defined"
+      },
+      {
+        "line": 3,
+        "message": "tab character is forbidden"
+      },
+      {
+        "line": 3,
+        "message": "trailing whitespace"
+      },
+      {
+        "line": 4,
+        "message": "line exceeds 80 columns"
+      },
+      {
+        "line": 5,
+        "message": "use a block comment after #endif"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_separate_declarations_on_same_line_are_rejected/77",
+    "path": "src/sample.c",
+    "source": "void f(void) {\n    int32 a; int32 b;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 2,
+        "message": "only one variable declaration per line"
+      }
+    ]
+  },
+  {
+    "id": "perl/test_shallow_artificial_blocks_are_allowed/78",
+    "path": "sample.c",
+    "source": "static void\nprocess(void) {\n    {\n        int x = 0;\n        { x += 1; }\n    }\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "perl/test_short_assignments_split_after_equals_are_rejected/79",
+    "path": "src/sample.c",
+    "source": "static void\nwork(void) {\n    my_variable =\n        this_is_a_function_call(args, other_arg);\n    int32 value =\n        calculate(1);\n    options->state =\n        flags;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "assignment fits on one line but is split after ="
+      },
+      {
+        "line": 5,
+        "message": "assignment fits on one line but is split after ="
+      },
+      {
+        "line": 7,
+        "message": "assignment fits on one line but is split after ="
+      }
+    ]
+  },
+  {
+    "id": "perl/test_structural_checks_ignore_vendored_ryu/80",
+    "path": "cbase/ryu/sample.c",
+    "source": "if (flag) do_it();\nint32 a, b;\nint32 array[] = {1, 2};\nswitch (flag) {\n    case 1: break;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_accepts_inlined_form/0",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    ASSERT_LE(operation(), 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_comments_and_literals_do_not_count/1",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status; /* status */\n    char *text = \"status\";\n\n    status = operation();\n    ASSERT_LE(status, 0);\n    (void)text;\n    return;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "inline the int32 status assignment/use pairs into their immediately following uses in example"
+      }
+    ]
+  },
+  {
+    "id": "status/test_file_list_input/2",
+    "path": "src/sample.c",
+    "source": "static int32\nexample(void) {\n    int32 status;\n\n    status = operation();\n    return status;\n}\n",
+    "file_list": true,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "inline the int32 status assignment/use pairs into their immediately following uses in example"
+      }
+    ]
+  },
+  {
+    "id": "status/test_initialized_status_declaration_is_not_targeted/3",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status = operation();\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_member_name_does_not_count_as_status_variable/4",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = operation();\n    ASSERT_TRUE(result.status);\n    return_if_needed(status);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_out_parameter_is_not_assignment_pattern/5",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    operation(&status);\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_rejects_extra_unpaired_reference/6",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = operation();\n    log_status(status);\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_reports_immediate_one_use_status/7",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = operation();\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "inline the int32 status assignment/use pairs into their immediately following uses in example"
+      }
+    ]
+  },
+  {
+    "id": "status/test_reports_multiple_assignment_use_pairs/8",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = first_operation();\n    ASSERT_LE(status, 0);\n    status = second_operation();\n    ASSERT_EQ(status, 0);\n    status = third_operation();\n    ASSERT_GE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": [
+      {
+        "line": 3,
+        "message": "inline the int32 status assignment/use pairs into their immediately following uses in example"
+      }
+    ]
+  },
+  {
+    "id": "status/test_requires_every_pair_to_be_immediate/9",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = first_operation();\n    ASSERT_LE(status, 0);\n    status = second_operation();\n\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_requires_every_pair_to_start_with_assignment/10",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = first_operation();\n    ASSERT_LE(status, 0);\n    second_operation(&status);\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_requires_immediately_following_source_line/11",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = operation();\n\n    ASSERT_LE(status, 0);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_requires_odd_reference_count/12",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = first_operation();\n    ASSERT_LE(status, 0);\n    consume(status);\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  },
+  {
+    "id": "status/test_shadowed_status_is_conservative/13",
+    "path": "src/sample.c",
+    "source": "static void\nexample(void) {\n    int32 status;\n\n    status = operation();\n    {\n        int32 status;\n    }\n    return;\n}\n",
+    "file_list": false,
+    "legacy": []
+  }
+]
