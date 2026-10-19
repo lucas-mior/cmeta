@@ -68,6 +68,22 @@ class CsaneContextTests(unittest.TestCase):
                     "    ASSERT(call() < 5);\n"
                     "}\n", [])
 
+    def test_style_calls_after_unrecognized_local_syntax(self):
+        self.expect('void f(void) {\n'
+                    '    bool active = true;\n'
+                    '    ASSERT(active >= 1);\n'
+                    '    STRLIT_LEN("a");\n'
+                    '    STREQUAL(active, STRLIT("b"));\n'
+                    '    str_printf(out, "%d", active);\n'
+                    '}\n', ["STYLE-ASSERT-REL", "STYLE-STRLIT-LEN",
+                              "STYLE-STREQUAL", "STYLE-PRINTF"])
+
+    def test_style_calls_nested_and_parenthesized(self):
+        self.expect('void f(void) {\n'
+                    '    call(STRLIT_LEN(("abc")));\n'
+                    '    STREQUAL(x, (STRLIT("abc")));\n'
+                    '}\n', ["STYLE-STRLIT-LEN", "STYLE-STREQUAL"])
+
     def test_consecutive_bounds(self):
         self.expect("void f(int x, int n) {\n"
                     "    ASSERT_GE(x, 0);\n"
@@ -111,6 +127,23 @@ class CsaneContextTests(unittest.TestCase):
                     "    }\n"
                     "}\n", ["STYLE-ASSERT-BOUNDS"])
 
+    def test_bounds_after_unrecognized_syntax(self):
+        self.expect("void f(int x, int n) {\n"
+                    "    int (*handler)(int) = 0;\n"
+                    "    ASSERT_GE(x, 0);\n"
+                    "    ASSERT_LT(x, n);\n"
+                    "}\n", ["STYLE-ASSERT-BOUNDS"])
+
+    def test_bounds_intervening_statement(self):
+        self.expect("void f(int x, int n) {\n"
+                    "    ASSERT_GE(x, 0); call(); ASSERT_LT(x, n);\n"
+                    "}\n", [])
+
+    def test_bounds_same_line_not_combined(self):
+        self.expect("void f(int x, int n) {\n"
+                    "    ASSERT_GE(x, 0); ASSERT_LT(x, n);\n"
+                    "}\n", [])
+
     def test_strlit_len(self):
         self.expect('void f(void) { STRLIT_LEN("abc"); }\n',
                     ["STYLE-STRLIT-LEN"])
@@ -129,6 +162,25 @@ class CsaneContextTests(unittest.TestCase):
         self.expect('void f(void) { str_printf(out, "%d%%", n); }\n', [])
         self.expect('void f(void) { str_printf(out, "value=%d", n); }\n', [])
         self.expect('void f(void) { str_printf(out, "%d"); }\n', [])
+
+    def test_status_after_unrecognized_local_declaration(self):
+        self.expect("void f(void) {\n"
+                    "    ExternalType unknown = (ExternalType){0};\n"
+                    "    int32 status;\n"
+                    "    status = operation();\n"
+                    "    ASSERT_LE(status, 0);\n"
+                    "    (void)unknown;\n"
+                    "}\n", ["STYLE-STATUS-TEMP"])
+
+    def test_status_nested_reference_prevents_recommendation(self):
+        self.expect("void f(void) {\n"
+                    "    int32 status;\n"
+                    "    status = operation();\n"
+                    "    ASSERT_LE(status, 0);\n"
+                    "    if (flag()) {\n"
+                    "        log_status(status);\n"
+                    "    }\n"
+                    "}\n", [])
 
     def test_status_one_pair(self):
         self.expect("static void f(void) {\n"
