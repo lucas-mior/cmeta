@@ -223,18 +223,21 @@ csane_expression_style_check(CsaneFile *file) {
                     local = candidate;
                 }
             }
-            /* A dangling opening brace only blocks an invocation when it
-             * belongs to this same local analysis stream. */
-            bool unclosed = false;
-            for (int32 j = i - 1; j >= local.range.first; j -= 1) {
-                if (TOKEN_IS(&tokens->tokens[j], "{")
-                    && csane_tokens_match(&local, j) < 0) {
-                    unclosed = true;
-                    break;
+            /* Keep the legacy safeguard for malformed ordinary code.
+             * Inside a conditional alternative, an incomplete surrounding
+             * block does not invalidate an independently matched call. */
+            if (branch < 0) {
+                bool unclosed = false;
+                for (int32 j = i - 1; j >= local.range.first; j -= 1) {
+                    if (TOKEN_IS(&tokens->tokens[j], "{")
+                        && csane_tokens_match(&local, j) < 0) {
+                        unclosed = true;
+                        break;
+                    }
                 }
-            }
-            if (unclosed) {
-                continue;
+                if (unclosed) {
+                    continue;
+                }
             }
         }
         int32 close = csane_tokens_match(&local, next);

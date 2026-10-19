@@ -74,6 +74,17 @@ class CsaneContextTests(unittest.TestCase):
                     'STRLIT_LEN("bad");\n'
                     '#endif\n', ["STYLE-STRLIT-LEN"])
 
+    def test_independent_call_after_unclosed_branch_block(self):
+        self.expect('#if FIRST\n'
+                    'void unfinished(void) {\n'
+                    '    STRLIT_LEN("bad");\n'
+                    '#else\n'
+                    'void good(void) {\n'
+                    '    STRLIT_LEN("also_bad");\n'
+                    '}\n'
+                    '#endif\n',
+                    ["STYLE-STRLIT-LEN", "STYLE-STRLIT-LEN"])
+
     def test_independent_macro_replacements(self):
         self.expect('#define ONE() STRLIT_LEN("a")\n'
                     '#define TWO() STREQUAL(x, STRLIT("b"))\n',
