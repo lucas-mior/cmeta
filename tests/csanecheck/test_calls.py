@@ -55,6 +55,9 @@ class CsaneCallLayoutTests(unittest.TestCase):
                    '}\n'
                    '#endif\n', ["FMT-FORMAT-LINE"])
 
+    def test_macro_literal_only_context_is_safe(self):
+        self.check('#define REPORT() fmt_printf("%d %d", 1, 2)\n')
+
     def test_macro_calls_do_not_trigger_contextual_false_positives(self):
         self.check('#define LOG(x, y) fmt_printf("%d %d", x, \
 '
