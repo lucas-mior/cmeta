@@ -6,6 +6,7 @@
 
 #include "cbase.h"
 #include "csanecheck.h"
+#include "csanecheck_tokens.h"
 
 /* All offsets refer to the original tokenization. Neither argument text nor
  * whitespace is reconstructed, and unparsed regions produce no AST claims. */
@@ -148,41 +149,6 @@ csane_calls_line_count(CsaneFile *file, CExpression *call, int32 line) {
 }
 
 static void
-csane_calls_literals(CsaneFile *file, int32 argument) {
-    CAst *ast = file->ast;
-    Tokenization *tokens = file->tokens;
-    int32 expr = ast->arguments[argument].expression;
-    TokenRange range = ast->expressions[expr].tokens;
-    int32 first = -1;
-    int32 last = -1;
-    for (int32 i = range.first; i < range.end; i += 1) {
-        Token *token = &tokens->tokens[i];
-        int32 quote = token->kind == TOKEN_LITERAL
-                      ? literal_quote_index(token->text, token->len, 0) : -1;
-        if (quote >= 0 && token->text[quote] == '"') {
-            if (first >= 0 && last >= 0
-                && csane_calls_line_break(file, last, i)
-                && csane_calls_location(file, first).column
-                   != csane_calls_location(file, i).column) {
-                csane_rule_issue(file, token->offset, "FMT-LITERAL-ALIGN",
-                                 "call string literal is not aligned "
-                                 "with first literal");
-                return;
-            }
-            if (first < 0) {
-                first = i;
-            }
-            last = i;
-        } else if (token->kind == TOKEN_COMMENT
-                   || !token_is_trivia(token)) {
-            first = -1;
-            last = -1;
-        }
-    }
-    return;
-}
-
-static void
 csane_calls_one(CsaneFile *file, CExpression *call) {
     CAst *ast = file->ast;
     Tokenization *tokens = file->tokens;
@@ -203,26 +169,6 @@ csane_calls_one(CsaneFile *file, CExpression *call) {
     if (first < 0) {
         return;
     }
-    /* Only whitespace before a newline qualifies as a break directly
-     * after '('. Comments between '(' and its argument are exempt. */
-    int32 from = tokens->tokens[open].offset + tokens->tokens[open].len;
-    int32 to = tokens->tokens[first].offset;
-    bool newline = false;
-    bool plain = true;
-    for (int32 j = from; j < to; j += 1) {
-        char c = tokens->text[j];
-        if (c == '\n') {
-            newline = true;
-        } else if (c != '\r' && c != ' ' && c != '\t') {
-            plain = false;
-            break;
-        }
-    }
-    if (newline && plain) {
-        csane_rule_issue(file, tokens->tokens[open].offset,
-                         "FMT-CALL-FIRST",
-                         "call breaks before the first argument");
-    }
     if (!csane_calls_line_break(file, open,
                                 token_range_last_significant(tokens,
                                                              call->tokens))) {
@@ -233,7 +179,7 @@ csane_calls_one(CsaneFile *file, CExpression *call) {
         if (format < 0 && csane_calls_percent(file, argument)) {
             format = argument;
         }
-        csane_calls_literals(file, argument);
+        /* Literal alignment is checked from the original token stream. */
         argument = ast->arguments[argument].next;
     }
     anchor = format >= 0 ? format : first_arg;
@@ -254,10 +200,7 @@ csane_calls_one(CsaneFile *file, CExpression *call) {
             && csane_calls_line_break(file, previous, current)
             && csane_calls_location(file, current).column
                != csane_calls_location(file, anchor_token).column) {
-            csane_rule_issue(file, tokens->tokens[current].offset,
-                             "FMT-ARG-ALIGN",
-                             "call argument is not aligned "
-                             "with its alignment anchor");
+            /* Argument alignment uses the token-local pass. */
             /* One alignment diagnostic per call, as in the legacy checker. */
             break;
         }
@@ -310,6 +253,235 @@ csane_calls_one(CsaneFile *file, CExpression *call) {
         argument = next;
     }
     return;
+}
+
+/* The three basic call-layout rules use original tokens, not the AST.
+ * Remaining contextual call rules continue using the legacy AST pass. */
+static int32
+csane_call_next(CsaneFile *file, TokenRange range, int32 after) {
+    return token_range_next_significant(file->tokens, range, after);
+}
+
+static bool
+csane_call_string(Token *token) {
+    if (token->kind != TOKEN_LITERAL) {
+        return false;
+    }
+    int32 quote = literal_quote_index(token->text, token->len, 0);
+    return quote >= 0 && token->text[quote] == '"';
+}
+
+static bool
+csane_call_format(CsaneFile *file, TokenRange range) {
+    for (int32 i = range.first; i < range.end; i += 1) {
+        Token *token = &file->tokens->tokens[i];
+        if (!csane_call_string(token)) {
+            continue;
+        }
+        int32 quote = literal_quote_index(token->text, token->len, 0);
+        for (int32 j = quote + 1; j < token->len; j += 1) {
+            if (token->text[j] == '\\') {
+                j += 1;
+            } else if (token->text[j] == '%') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static bool
+csane_call_macro_fragments(CsaneFile *file, TokenRange range) {
+    for (int32 i = range.first; i < range.end; i += 1) {
+        Token *token = &file->tokens->tokens[i];
+        if (token->kind == TOKEN_IDENT
+            && csane_name_kind(token) == CSANE_NAME_MACRO) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+csane_call_literals(CsaneFile *file, TokenRange range) {
+    if (csane_call_macro_fragments(file, range)) {
+        return;
+    }
+    int32 first = -1;
+    int32 last = -1;
+    for (int32 i = range.first; i < range.end; i += 1) {
+        Token *token = &file->tokens->tokens[i];
+        if (csane_call_string(token)) {
+            if (first >= 0 && last >= 0
+                && csane_calls_line_break(file, last, i)
+                && csane_calls_location(file, first).column
+                   != csane_calls_location(file, i).column) {
+                csane_rule_issue(file, token->offset, "FMT-LITERAL-ALIGN",
+                                 "call string literal is not aligned "
+                                 "with first literal");
+                return;
+            }
+            if (first < 0) {
+                first = i;
+            }
+            last = i;
+        } else if (token->kind == TOKEN_COMMENT
+                   || !token_is_trivia(token)) {
+            first = -1;
+            last = -1;
+        }
+    }
+}
+
+static void
+csane_call_token_one(CsaneFile *file, int32 open, int32 close) {
+    Tokenization *tokens = file->tokens;
+    TokenRange content = {open + 1, close};
+    CsaneTokenView view;
+    if (!csane_tokens_view(&view, tokens, content)
+        || !csane_tokens_balanced(&view)) {
+        return;
+    }
+    int32 first = csane_call_next(file, content, open);
+    if (first >= close) {
+        return;
+    }
+    int32 from = tokens->tokens[open].offset + tokens->tokens[open].len;
+    int32 to = tokens->tokens[first].offset;
+    bool newline = false;
+    bool plain = true;
+    for (int32 j = from; j < to; j += 1) {
+        char c = tokens->text[j];
+        if (c == '\n') {
+            newline = true;
+        } else if (c != '\r' && c != ' ' && c != '\t') {
+            plain = false;
+            break;
+        }
+    }
+    if (newline && plain) {
+        csane_rule_issue(file, tokens->tokens[open].offset,
+                         "FMT-CALL-FIRST",
+                         "call breaks before the first argument");
+    }
+    if (!csane_calls_line_break(file, open, close)) {
+        return;
+    }
+    int32 format = -1;
+    int32 anchor = first;
+    int32 cursor = content.first;
+    int32 previous = -1;
+    bool misaligned = false;
+    while (cursor < close) {
+        int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
+        if (comma < 0) {
+            return;
+        }
+        int32 end = comma < close ? comma : close;
+        TokenRange argument = {cursor, end};
+        int32 current = csane_call_next(file, argument, cursor - 1);
+        if (current < end) {
+            if (format < 0 && csane_call_format(file, argument)) {
+                format = current;
+                anchor = current;
+            }
+            csane_call_literals(file, argument);
+            if (previous >= 0
+                && csane_calls_line_break(file, previous, current)
+                && csane_calls_location(file, current).column
+                   != csane_calls_location(file, anchor).column) {
+                misaligned = true;
+            }
+            previous = token_range_last_significant(tokens, argument);
+        }
+        if (comma >= close) {
+            break;
+        }
+        cursor = comma + 1;
+    }
+    if (misaligned) {
+        /* The legacy rule emits one issue per call. */
+        cursor = content.first;
+        previous = -1;
+        anchor = format >= 0 ? format : first;
+        while (cursor < close) {
+            int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
+            int32 end = comma < close ? comma : close;
+            TokenRange argument = {cursor, end};
+            int32 current = csane_call_next(file, argument, cursor - 1);
+            if (current < end) {
+                if (previous >= 0
+                    && csane_calls_line_break(file, previous, current)
+                    && csane_calls_location(file, current).column
+                       != csane_calls_location(file, anchor).column) {
+                    csane_rule_issue(file, tokens->tokens[current].offset,
+                                     "FMT-ARG-ALIGN",
+                                     "call argument is not aligned "
+                                     "with its alignment anchor");
+                    break;
+                }
+                previous = token_range_last_significant(tokens, argument);
+            }
+            if (comma >= close) {
+                break;
+            }
+            cursor = comma + 1;
+        }
+    }
+}
+
+static bool
+csane_call_prototype(CsaneFile *file, int32 name) {
+    CsaneTopLevels *top = file->toplevel;
+    if (top == NULL) {
+        return false;
+    }
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        if (item->name_token == name
+            && (item->kind == CSANE_TOP_FUNCTION_DECLARATION
+                || item->kind == CSANE_TOP_FUNCTION_DEFINITION)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+csane_calls_token_check(CsaneFile *file) {
+    if (csane_calls_generated(file->path)) {
+        return;
+    }
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view = csane_tokens_full(tokens);
+    for (int32 i = 0; i < tokens->token_count; i += 1) {
+        Token *token = &tokens->tokens[i];
+        if (!TOKEN_IS(token, "(") || !csane_calls_code(file, i)) {
+            continue;
+        }
+        int32 name = csane_tokens_previous(&view, i);
+        if (name < 0 || tokens->tokens[name].kind != TOKEN_IDENT
+            || csane_call_prototype(file, name)) {
+            continue;
+        }
+        TokenRange range = {0, tokens->token_count};
+        int32 before = csane_tokens_previous(&view, name);
+        if (before >= 0
+            && (csane_type_name(&tokens->tokens[before])
+                || TOKEN_IS(&tokens->tokens[before], "*"))) {
+            continue;
+        }
+        enum CsaneLocalKind kind =
+            csane_classify_invocation(tokens, range, name);
+        if (kind != CSANE_LOCAL_CALL && kind != CSANE_LOCAL_MACRO_INVOCATION) {
+            continue;
+        }
+        int32 close = csane_tokens_match(&view, i);
+        if (close < 0) {
+            continue;
+        }
+        csane_call_token_one(file, i, close);
+    }
 }
 
 void
