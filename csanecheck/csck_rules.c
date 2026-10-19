@@ -342,7 +342,8 @@ csane_api_direct_call(CsaneFile *file, int32 index) {
         return false;
     }
     if (file->preprocessor->token_roles != NULL) {
-        int32 role = file->preprocessor->token_roles[index];
+        enum CPreprocessorTokenRole role =
+            file->preprocessor->token_roles[index];
         if (role == C_PP_TOKEN_DIRECTIVE
             || role == C_PP_TOKEN_MACRO_PARAMETERS) {
             return false;
