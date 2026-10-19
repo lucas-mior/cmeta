@@ -100,3 +100,20 @@ macro replacements that cannot be projected, and genuinely malformed source
 can still produce unresolved syntax. The `--coverage`, `--rule-coverage`, and
 `--strict-parse` options remain useful during development. Making incomplete
 required coverage cause a reliable overall failure is the separate Step 5.
+
+## Step 5: conservative coverage enforcement
+
+`--require-coverage` makes the checker return status 1 if any non-excluded
+syntax-dependent rule group lacks the structural information required to
+claim complete analysis, even when no style violations are reported.
+`--rule-coverage` reports the same status computation without changing exit
+status. A source-level rule is independent of parsing; a token rule requires
+a usable preprocessor analysis; syntax/context rules require fully mapped
+code tokens and no parser issues or unparsed macro replacement tokens.
+This is intentionally conservative and may reject otherwise valid C.
+
+Enforcement is currently **opt-in**, to keep the legacy comparison fixtures
+and normal development workflows unchanged while parser coverage improves.
+The status is pass-level, not yet exact per-rule source-region proof. It must
+not be interpreted as certification that every individual rule is exhaustive.
+Do not retire the legacy checkers based on this option alone.

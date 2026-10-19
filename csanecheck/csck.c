@@ -12,7 +12,8 @@ csane_usage(FILE *output) {
     fprintf(output,
             "usage: csanecheck [--root DIR] [--file PATH] [--file-list PATH]\n"
             "                  [--max-depth N] [--report-parse-issues]\n"
-            "                  [--strict-parse] [--stats] [--coverage]\n"
+            "                  [--strict-parse] [--require-coverage]\n"
+            "                  [--stats] [--coverage]\n"
             "                  [--rule-coverage]\n"
             "                  [--config FILE]\n"
             "                  [--exclude REGEX] [--filter MODULE]\n"
@@ -22,7 +23,8 @@ csane_usage(FILE *output) {
             "\n"
             "Phase 5.3: structural and contextual checks.\n"
             "Without paths, search the current project directory.\n"
-            "Exit: 0 clean, 1 rule/parse issues, 2 usage/I/O error.\n");
+            "Exit: 0 clean, 1 violations/required-coverage failure,\n"
+            "      2 usage/I/O error.\n");
     return;
 }
 
@@ -214,8 +216,12 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                analysis.macro_tokens, expanded.projected_macros,
                expanded.projected_tokens);
     }
-    if (options->rule_coverage) {
-        csane_rules_report(&file, &analysis);
+    int32 incomplete = csane_rules_incomplete(&file, &analysis,
+                                              options->rule_coverage);
+    if (options->require_coverage && incomplete > 0) {
+        printf("%s:1:1: error[COVERAGE-INCOMPLETE]: "
+               "%d required rule groups have incomplete analysis\n",
+               path, incomplete);
     }
     stats->files += 1;
     stats->tokens += tokens.token_count;
@@ -263,7 +269,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
     free2(source, (int64)len + 1);
-    if (violations > 0 || (options->strict_parse && issues > 0)) {
+    if (violations > 0 || (options->strict_parse && issues > 0)
+        || (options->require_coverage && incomplete > 0)) {
         return 1;
     }
     return 0;
@@ -393,6 +400,10 @@ csane_run(int32 argc, char **argv) {
         }
         if (!strcmp(arg, "--report-parse-issues")) {
             options.report_parse = true;
+            continue;
+        }
+        if (!strcmp(arg, "--require-coverage")) {
+            options.require_coverage = true;
             continue;
         }
         if (!strcmp(arg, "--strict-parse")) {

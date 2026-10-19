@@ -433,43 +433,65 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     }
 }
 
-/* "checked" describes whether the pass had its required representation,
- * not a proof that every syntactic pattern was recognized. For rule-local
- * coverage, this coarse result is a lower-confidence estimate. */
-void
-csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
+/* Rule coverage is conservative: a syntax-dependent check cannot claim
+ * completeness when the shared structural representation is incomplete.
+ * Excluded fixture rules do not contribute to the failure count. */
+static char *
+csane_rule_coverage_status(CsaneRule *rule, bool fixture,
+                           CsaneAnalysisCoverage *coverage) {
+    if (fixture && !rule->include_fixtures) {
+        return "excluded";
+    }
+    if (rule->pass == CSANE_PASS_SOURCE) {
+        return "checked";
+    }
+    if (!coverage->preprocessor_ready
+        || coverage->preprocessor_issues > 0) {
+        return "partial";
+    }
+    if (rule->pass == CSANE_PASS_TOKEN) {
+        return "checked";
+    }
+    if (!coverage->ast_ready
+        || (coverage->eligible_tokens > 0
+            && coverage->parsed_tokens == 0)) {
+        return "not_checked";
+    }
+    if (coverage->unresolved_tokens > 0 || coverage->macro_tokens > 0
+        || coverage->parse_issues > 0) {
+        return "partial";
+    }
+    return "checked";
+}
+
+/* Reporting and enforcement use exactly the same status calculation. */
+int32
+csane_rules_incomplete(CsaneFile *file, CsaneAnalysisCoverage *coverage,
+                       bool report) {
+    int32 incomplete = 0;
     bool fixture = csane_fixture_path(file->path);
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
-        char *status = "checked";
-        if (fixture && !rule->include_fixtures) {
-            status = "excluded";
-        } else if (rule->pass == CSANE_PASS_TOKEN) {
-            if (!coverage->preprocessor_ready
-                || coverage->preprocessor_issues > 0) {
-                status = "partial";
-            }
-        } else if (rule->pass >= CSANE_PASS_SYNTAX) {
-            if (!coverage->ast_ready
-                || (coverage->eligible_tokens > 0
-                    && coverage->parsed_tokens == 0)) {
-                status = "not_checked";
-            } else if (coverage->unresolved_tokens > 0
-                       || coverage->macro_tokens > 0
-                       || coverage->parse_issues > 0
-                       || coverage->preprocessor_issues > 0) {
-                status = "partial";
-            }
+        char *status = csane_rule_coverage_status(rule, fixture, coverage);
+        if (strcmp(status, "checked") && strcmp(status, "excluded")) {
+            incomplete += 1;
         }
-        printf("rule_coverage file=%s group=%s status=%s pass=%d "
-               "eligible_tokens=%d parsed_tokens=%d unresolved_tokens=%d "
-               "macro_tokens=%d\n",
-               file->path, rule->id, status, (int32)rule->pass,
-               coverage->eligible_tokens,
-               coverage->parsed_tokens, coverage->unresolved_tokens,
-               coverage->macro_tokens);
+        if (report) {
+            printf("rule_coverage file=%s group=%s status=%s pass=%d "
+                   "eligible_tokens=%d parsed_tokens=%d "
+                   "unresolved_tokens=%d macro_tokens=%d\n",
+                   file->path, rule->id, status, (int32)rule->pass,
+                   coverage->eligible_tokens, coverage->parsed_tokens,
+                   coverage->unresolved_tokens, coverage->macro_tokens);
+        }
     }
+    return incomplete;
+}
+
+void
+csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
+    (void)csane_rules_incomplete(file, coverage, true);
 }
 
 #endif /* CSANECHECK_RULES_C */
