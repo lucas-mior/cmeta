@@ -138,6 +138,16 @@ class CsaneWrapTests(unittest.TestCase):
                    "    run(first,\n        second);\n}\n",
                    ["FMT-CALL-WRAP"])
 
+    def test_assignment_after_unknown_declaration(self):
+        self.check("void f(void) {\n    AlienType value;\n"
+                   "    result =\n        value;\n}\n",
+                   ["FMT-ASSIGN-WRAP"])
+
+    def test_assignment_with_nested_equal_comparison(self):
+        self.check("void f(void) {\n    result =\n"
+                   "        select(a == b, c);\n}\n",
+                   ["FMT-ASSIGN-WRAP"])
+
     def test_short_assignment(self):
         self.check("void f(void) {\n    result =\n        value;\n}\n",
                    ["FMT-ASSIGN-WRAP"])
