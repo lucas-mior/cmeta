@@ -162,6 +162,7 @@ bool csane_policy_filter(char *, char *);
 bool csane_policy_selected(CsanePolicy *, char *, char *);
 CsaneCoverage csane_coverage_collect(CAst *);
 void csane_structure_check(CsaneFile *);
+void csane_control_check(CsaneFile *);
 void csane_context_check(CsaneFile *);
 void csane_layout_check(CsaneFile *);
 void csane_calls_check(CsaneFile *);

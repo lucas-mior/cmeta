@@ -122,87 +122,25 @@ csane_structure_declaration(CsaneFile *file, int32 index,
     *previous_line = line;
 }
 
-/* CStatement children are direct syntactic children. The parent kind and
- * nearest enclosing switch are passed down explicitly so a case label in a
- * nested block still belongs to the correct switch.
- */
-static void csane_structure_statement(CsaneFile *, int32,
-                                     enum CStatementKind, int32);
-
-static bool
-csane_structure_pp(enum CStatementKind kind) {
-    return kind == C_STMT_PP_DIRECTIVE || kind == C_STMT_PP_GROUP
-           || kind == C_STMT_PP_BRANCH || kind == C_STMT_UNSUPPORTED;
-}
-
-static int32
-csane_structure_token(CsaneFile *file, TokenRange range) {
-    int32 token = token_range_first_significant(file->tokens, range);
-    return token < range.end ? token : -1;
-}
-
+/* Declaration checking remains AST-based until Step 9. */
 static void
-csane_structure_braces(CsaneFile *file, CStatement *stmt) {
+csane_structure_declaration_tree(CsaneFile *file, int32 first) {
     CAst *ast = file->ast;
-    int32 token;
-    CStatement *body;
-    if (stmt->kind != C_STMT_IF && stmt->kind != C_STMT_FOR
-        && stmt->kind != C_STMT_WHILE && stmt->kind != C_STMT_DO
-        && stmt->kind != C_STMT_SWITCH) {
-        return;
-    }
-    if (stmt->first_child < 0) {
-        return;
-    }
-    body = &ast->statements[stmt->first_child];
-    if (body->kind != C_STMT_COMPOUND
-        && !csane_structure_pp(body->kind)
-        && !(stmt->kind == C_STMT_FOR && body->kind == C_STMT_EMPTY)) {
-        token = csane_structure_token(file, stmt->tokens);
-        if (token >= 0) {
-            csane_rule_issue(file, file->tokens->tokens[token].offset,
-                             "AST-BRACES",
-                             "control body must use curly braces");
+    int32 last_line = -1;
+    for (int32 i = first; i >= 0; i = ast->statements[i].next) {
+        CStatement *stmt = &ast->statements[i];
+        if (stmt->kind == C_STMT_DECLARATION) {
+            csane_structure_declaration(file, stmt->declaration, &last_line);
+        } else if (stmt->kind == C_STMT_FOR) {
+            int32 isolated = -1;
+            csane_structure_declaration(file, stmt->declaration, &isolated);
         }
-    }
-    if (stmt->kind != C_STMT_IF || stmt->else_child < 0) {
-        return;
-    }
-    body = &ast->statements[stmt->else_child];
-    if (body->kind == C_STMT_COMPOUND || body->kind == C_STMT_IF
-        || csane_structure_pp(body->kind)) {
-        return;
-    }
-    /* The else keyword is between the end of the then-body and the start
-     * of its branch. Never report the branch token as an else keyword. */
-    int32 begin = ast->statements[stmt->first_child].tokens.end;
-    for (int32 i = begin; i < body->tokens.first; i += 1) {
-        if (TOKEN_IS(&file->tokens->tokens[i], "else")) {
-            csane_rule_issue(file, file->tokens->tokens[i].offset,
-                             "AST-BRACES", "else body must use curly braces");
-            break;
+        if (stmt->first_child >= 0) {
+            csane_structure_declaration_tree(file, stmt->first_child);
         }
-    }
-}
-
-static void
-csane_structure_alignment(CsaneFile *file, CStatement *stmt,
-                          int32 switch_column) {
-    int32 token;
-    SourceLocation location;
-    if ((stmt->kind != C_STMT_CASE && stmt->kind != C_STMT_DEFAULT)
-        || switch_column < 0) {
-        return;
-    }
-    token = csane_structure_token(file, stmt->tokens);
-    if (token < 0) {
-        return;
-    }
-    location = tokenization_token_location(file->tokens, token);
-    if (location.column != switch_column) {
-        csane_rule_issue(file, file->tokens->tokens[token].offset,
-                         "AST-SWITCH-ALIGN",
-                         "case/default must align with switch");
+        if (stmt->else_child >= 0) {
+            csane_structure_declaration_tree(file, stmt->else_child);
+        }
     }
 }
 
@@ -212,100 +150,13 @@ csane_structure_generated(char *path) {
     return len >= 7 && !memcmp64(path + len - 7, ".meta.h", 7);
 }
 
-static void
-csane_structure_artificial(CsaneFile *file, CStatement *stmt,
-                           enum CStatementKind parent_kind) {
-    int32 token;
-    int32 offset;
-    int32 start;
-    SourceLocation loc;
-    char *text;
-    if (stmt->kind != C_STMT_COMPOUND
-        || (parent_kind != C_STMT_COMPOUND
-            && parent_kind != C_STMT_PP_BRANCH)) {
-        return;
-    }
-    token = csane_structure_token(file, stmt->tokens);
-    if (token < 0) {
-        return;
-    }
-    loc = tokenization_token_location(file->tokens, token);
-    if (loc.column < 12) {
-        return;
-    }
-    offset = file->tokens->tokens[token].offset;
-    text = file->tokens->text;
-    start = offset;
-    while ((start > 0) && (text[start - 1] != '\n')) {
-        start -= 1;
-    }
-    /* The legacy rule limits this prohibition to blocks on lines indented
-     * at least three four-space levels, not merely three AST scopes. */
-    if (offset - start < 12) {
-        return;
-    }
-    for (int32 i = 0; i < 12; i += 1) {
-        if (text[start + i] != ' ') {
-            return;
-        }
-    }
-    csane_rule_issue(file, offset, "AST-ARTIFICIAL-BLOCK",
-                     "artificial block at nesting level 3 or more");
-}
-
-static void
-csane_structure_statements(CsaneFile *file, int32 first,
-                           enum CStatementKind parent_kind,
-                           int32 switch_column) {
-    int32 last_line = -1;
-    CAst *ast = file->ast;
-    for (int32 i = first; i >= 0; i = ast->statements[i].next) {
-        CStatement *stmt = &ast->statements[i];
-        if (stmt->kind == C_STMT_DECLARATION) {
-            csane_structure_declaration(file, stmt->declaration, &last_line);
-        } else if (stmt->kind == C_STMT_FOR) {
-            /* For initializers are independent from the enclosing scope. */
-            int32 isolated = -1;
-            csane_structure_declaration(file, stmt->declaration, &isolated);
-        }
-        csane_structure_statement(file, i, parent_kind, switch_column);
-    }
-}
-
-static void
-csane_structure_statement(CsaneFile *file, int32 index,
-                          enum CStatementKind parent_kind,
-                          int32 switch_column) {
-    CStatement *stmt = &file->ast->statements[index];
-    int32 own_switch = switch_column;
-    int32 token;
-    csane_structure_braces(file, stmt);
-    csane_structure_alignment(file, stmt, switch_column);
-    csane_structure_artificial(file, stmt, parent_kind);
-    if (stmt->kind == C_STMT_SWITCH) {
-        token = csane_structure_token(file, stmt->tokens);
-        if (token >= 0) {
-            own_switch = tokenization_token_location(file->tokens,
-                                                     token).column;
-        }
-    }
-    if (stmt->first_child >= 0) {
-        csane_structure_statements(file, stmt->first_child,
-                                   stmt->kind, own_switch);
-    }
-    if (stmt->else_child >= 0) {
-        csane_structure_statements(file, stmt->else_child,
-                                   stmt->kind, own_switch);
-    }
-}
-
 static void csane_structure_externals(CsaneFile *, int32);
 
 static void
 csane_structure_external(CsaneFile *file, int32 index) {
     CExternal *e = &file->ast->externals[index];
     if (e->function_body >= 0) {
-        csane_structure_statement(file, e->function_body, 0, -1);
+        csane_structure_declaration_tree(file, e->function_body);
     }
     if (e->first_child >= 0) {
         csane_structure_externals(file, e->first_child);

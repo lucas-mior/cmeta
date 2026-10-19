@@ -391,6 +391,7 @@ static CsaneRule csane_rules[] = {
     {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN, false},
     {"AST-DECL-ONE", csane_structure_check, CSANE_PASS_SYNTAX, false},
     {"API", csane_rule_calls, CSANE_PASS_TOKEN, true},
+    {"CONTROL", csane_control_check, CSANE_PASS_TOKEN, false},
     {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX, false},
     {"CALL-LAYOUT", csane_calls_check, CSANE_PASS_SYNTAX, false},
     {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
@@ -430,9 +431,6 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
 void
 csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
     bool fixture = csane_fixture_path(file->path);
-    if (pass == CSANE_PASS_SYNTAX) {
-        csane_rule_legacy_ast_preparation(file);
-    }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
