@@ -27,7 +27,7 @@ line/message are retained. The reference messages are mapped to the matching
 not compared because their formats differ. Rule counts **are** compared, so an
 unrelated diagnostic cannot satisfy an expected rule.
 
-`known_differences.json` lists the **4** remaining fixture-level divergences,
+`known_differences.json` lists the **2** remaining fixture-level divergences,
 each with the *exact* missing and extra rule counts and a reason.
 The compatibility test fails if a new divergence appears, if an existing one
 changes, or if a waiver becomes obsolete following a fix. Update or delete the
@@ -60,10 +60,13 @@ In addition to legacy snippets, the Python test covers API policy lists,
 `cbase`-only APIs, `--root`/`--file`/`--file-list`, paths containing spaces,
 duplicate file-list entries, source-selection options, and CLI error codes.
 The reference corpus consists of snippets (including intentionally incomplete
-C fragments), not solely valid translation units. The remaining discrepancies concern explicitly
-selected generated headers, a deliberate extra multiplication-spacing rule,
-and one file-scope call-wrap case. Later steps must still address structural
-coverage, file selection, and parser reporting.
+C fragments), not solely valid translation units. The remaining discrepancies
+are a deliberate extra multiplication-spacing rule and one file-scope
+call-wrap case. Step 3 now skips generated `.meta.h` files consistently for
+all input modes. `test_step3.py` checks project-relative exclusions, `stc`
+subtrees, regular C extensions, depth limits including zero, unconditional Ryu
+discovery, module filters, environment overrides, and source symlink behavior.
+Structural coverage and parser reporting still need further work.
 
 The original shell tests (discovery, environment variables, symlinks, caching
 and profiling) and direct status-checker cache tests are not represented by

@@ -269,6 +269,20 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     return 0;
 }
 
+/* Policy discovery only needs the filename eligibility check. A parent
+ * directory named stc outside the project must not hide its policy lists.
+ */
+static bool
+csane_policy_candidate(char *path) {
+    char *name = path;
+    for (char *p = path; *p; p += 1) {
+        if (*p == '/') {
+            name = p + 1;
+        }
+    }
+    return csane_source_allowed(name);
+}
+
 static bool
 csane_value_option(char *arg) {
     return !strcmp(arg, "--root") || !strcmp(arg, "--file")
@@ -320,13 +334,18 @@ csane_run(int32 argc, char **argv) {
                 if (!strcmp(arg, "--root")) {
                     good = csane_policy_project(&options.policy, argv[i + 1]);
                 } else if (!strcmp(arg, "--file")) {
-                    good = csane_policy_source(&options.policy, argv[i + 1]);
+                    if (csane_policy_candidate(argv[i + 1])) {
+                        good = csane_policy_source(&options.policy,
+                                                   argv[i + 1]);
+                    }
                 } else if (!strcmp(arg, "--file-list")) {
                     CsanePaths sources = {0};
                     good = csane_collect_file_list(&sources, argv[i + 1]);
                     for (int32 j = 0; good && j < sources.count; j += 1) {
-                        good = csane_policy_source(&options.policy,
-                                                   sources.items[j]);
+                        if (csane_policy_candidate(sources.items[j])) {
+                            good = csane_policy_source(&options.policy,
+                                                       sources.items[j]);
+                        }
                     }
                     csane_paths_free(&sources);
                 }
@@ -454,6 +473,7 @@ csane_run(int32 argc, char **argv) {
     }
     csane_paths_sort_unique(&options.files);
     csane_paths_sort_unique(&options.policy.cbase_roots);
+    csane_paths_sort_unique(&options.policy.project_roots);
     for (int32 i = 0; i < options.files.count; i += 1) {
         char *path = options.files.items[i];
         int32 status;

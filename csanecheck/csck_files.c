@@ -99,24 +99,55 @@ csane_paths_free(CsanePaths *paths) {
     return;
 }
 
-static bool
-csane_extension(char *path) {
-    int32 len = strlen32(path);
-    if (len >= 7 && !strcmp(path + len - 7, ".meta.h")) {
+/* The same source eligibility rule applies to discovered and explicitly
+ * selected files. The legacy wrapper excludes stc subtrees and generated
+ * .meta.h files regardless of how a source reaches a checker.
+ */
+bool
+csane_source_allowed(char *path) {
+    char *name = path;
+    for (char *p = path; *p; p += 1) {
+        if (*p == '/') {
+            name = p + 1;
+        }
+    }
+    int32 len = strlen32(name);
+    if ((len >= 7) && !strcmp(name + len - 7, ".meta.h")) {
         return false;
     }
-    if (len < 3) {
+    if ((len < 3) || (name[len - 2] != '.')
+        || (name[len - 1] != 'c' && name[len - 1] != 'C'
+            && name[len - 1] != 'h' && name[len - 1] != 'H')) {
         return false;
     }
-    return (path[len - 2] == '.')
-           && (path[len - 1] == 'c' || path[len - 1] == 'C'
-               || path[len - 1] == 'h' || path[len - 1] == 'H');
+    for (char *p = path; p < name; p += 1) {
+        if ((p == path || p[-1] == '/') && p[0] == 's'
+            && p[1] == 't' && p[2] == 'c' && p[3] == '/') {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool
 csane_skip_directory(char *name) {
-    return !strcmp(name, "stc") || !strcmp(name, ".git")
-           || !strcmp(name, "bin") || !strcmp(name, ".test-tmp");
+    return !strcmp(name, "stc");
+}
+
+/* Explicit directory roots are handled by csane_collect_root. Its
+ * discovered subdirectories must not follow symlinks (like find without -L).
+ */
+static bool
+csane_discovered_directory(char *path) {
+    struct stat st;
+#if OS_WINDOWS
+    if (stat(path, &st) != 0) {
+#else
+    if (lstat(path, &st) != 0) {
+#endif
+        return false;
+    }
+    return S_ISDIR(st.st_mode);
 }
 
 /* Depth zero means only the directory's direct files. Directory symlinks
@@ -154,7 +185,8 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
                 ok = false;
             }
         } else if ((S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))
-                   && csane_extension(name) && !csane_paths_add(paths, path)) {
+                   && csane_source_allowed(name)
+                   && !csane_paths_add(paths, path)) {
             ok = false;
         }
         csane_path_free(path);
@@ -194,7 +226,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
     for (int32 i = 0; i < (int32)(SIZEOF(subdirs)/SIZEOF(subdirs[0]));
          i += 1) {
         char *path = csane_join(root, subdirs[i]);
-        if ((stat(path, &st) == 0) && S_ISDIR(st.st_mode)) {
+        if ((max_depth != 0) && csane_discovered_directory(path)) {
             if (!csane_walk(paths, path, 0, max_depth - (max_depth > 0))) {
                 ok = false;
             }
@@ -203,7 +235,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
     char *ryu = csane_join(root, "cbase/ryu");
-    if ((stat(ryu, &st) == 0) && S_ISDIR(st.st_mode)) {
+    if (csane_discovered_directory(ryu)) {
         if (!csane_walk(paths, ryu, 0, -1)) {
             ok = false;
         }
@@ -215,7 +247,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
     char *standalone = csane_join(root, "functions_never_use.txt");
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
         ryu = csane_join(root, "ryu");
-        if (stat(ryu, &st) == 0 && S_ISDIR(st.st_mode)
+        if (csane_discovered_directory(ryu)
             && !csane_walk(paths, ryu, 0, -1)) {
             ok = false;
         }

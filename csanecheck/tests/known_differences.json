@@ -1,24 +1,4 @@
 {
-  "perl/test_generated_meta_headers_are_ignored/53": {
-    "missing": {},
-    "extra": {
-      "SRC-TABS": 1,
-      "SRC-TRAILING": 1,
-      "PP-DEFINED": 1,
-      "PP-SIZEOF": 1
-    },
-    "reason": "Explicit .meta.h file not excluded; legacy checker skips it."
-  },
-  "perl/test_generated_meta_headers_are_ignored/54": {
-    "missing": {},
-    "extra": {
-      "SRC-TABS": 1,
-      "SRC-TRAILING": 1,
-      "PP-DEFINED": 1,
-      "PP-SIZEOF": 1
-    },
-    "reason": "Explicit .meta.h file not excluded; legacy checker skips it."
-  },
   "perl/test_multiplication_spacing_is_not_checked/64": {
     "missing": {},
     "extra": {
