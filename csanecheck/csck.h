@@ -38,6 +38,7 @@ typedef struct CsanePolicy {
     CsanePaths never_names;
     CsanePaths cbase_names;
     CsanePaths cbase_roots;
+    CsanePaths project_roots;
     CsanePatterns excludes;
     CsanePatterns no_columns;
     CsanePatterns column_overrides;
@@ -182,6 +183,7 @@ void csane_rule_issue(CsaneFile *, int32, char *, char *);
 bool csane_paths_add(CsanePaths *, char *);
 void csane_paths_sort_unique(CsanePaths *);
 void csane_paths_free(CsanePaths *);
+bool csane_source_allowed(char *);
 bool csane_collect_root(CsanePaths *, char *, int32);
 bool csane_collect_explicit(CsanePaths *, char *);
 bool csane_collect_file_list(CsanePaths *, char *);
