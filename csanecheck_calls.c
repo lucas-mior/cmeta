@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "csanecheck.h"
 #include "csanecheck_tokens.h"
+#include "csanecheck_regions.h"
 
 /* All offsets refer to the original tokenization. Neither argument text nor
  * whitespace is reconstructed, and unparsed regions produce no AST claims. */
@@ -16,7 +17,9 @@ csane_calls_code(CsaneFile *file, int32 index) {
         return false;
     }
     return !file->preprocessor->token_roles
-           || file->preprocessor->token_roles[index] == C_PP_TOKEN_CODE;
+           || file->preprocessor->token_roles[index] == C_PP_TOKEN_CODE
+           || file->preprocessor->token_roles[index]
+              == C_PP_TOKEN_MACRO_REPLACEMENT;
 }
 
 static bool
@@ -260,7 +263,8 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
 }
 
 static void
-csane_call_token_one(CsaneFile *file, int32 open, int32 close) {
+csane_call_token_one(CsaneFile *file, int32 open, int32 close,
+                     bool macro) {
     Tokenization *tokens = file->tokens;
     TokenRange content = {open + 1, close};
     CsaneTokenView view;
@@ -293,7 +297,9 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close) {
     if (!csane_calls_line_break(file, open, close)) {
         return;
     }
-    csane_call_context(file, &view);
+    if (!macro) {
+        csane_call_context(file, &view);
+    }
     int32 format = -1;
     int32 anchor = first;
     int32 cursor = content.first;
@@ -386,13 +392,22 @@ csane_calls_token_check(CsaneFile *file) {
         if (!TOKEN_IS(token, "(") || !csane_calls_code(file, i)) {
             continue;
         }
-        int32 name = csane_tokens_previous(&view, i);
+        CsaneTokenView local = view;
+        int32 region = csane_regions_at_token(file->regions, i);
+        if (region >= 0 && file->regions->items[region].kind
+                           == CSANE_REGION_MACRO_REPLACEMENT) {
+            if (!csane_tokens_view(&local, tokens,
+                                   file->regions->items[region].tokens)) {
+                continue;
+            }
+        }
+        int32 name = csane_tokens_previous(&local, i);
         if (name < 0 || tokens->tokens[name].kind != TOKEN_IDENT
             || csane_call_prototype(file, name)) {
             continue;
         }
         TokenRange range = {0, tokens->token_count};
-        int32 before = csane_tokens_previous(&view, name);
+        int32 before = csane_tokens_previous(&local, name);
         if (before >= 0
             && (csane_type_name(&tokens->tokens[before])
                 || TOKEN_IS(&tokens->tokens[before], "*"))) {
@@ -403,11 +418,13 @@ csane_calls_token_check(CsaneFile *file) {
         if (kind != CSANE_LOCAL_CALL && kind != CSANE_LOCAL_MACRO_INVOCATION) {
             continue;
         }
-        int32 close = csane_tokens_match(&view, i);
+        int32 close = csane_tokens_match(&local, i);
         if (close < 0) {
             continue;
         }
-        csane_call_token_one(file, i, close);
+        bool macro = local.range.end != view.range.end
+                     || local.range.first != view.range.first;
+        csane_call_token_one(file, i, close, macro);
     }
 }
 
