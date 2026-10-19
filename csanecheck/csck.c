@@ -63,7 +63,7 @@ csane_cbase_types(CAst *ast) {
     static char *names[] = {
         "uchar", "ushort", "uint", "ulong", "ullong", "schar",
         "llong", "ldouble", "int8", "int16", "int32", "int64",
-        "uint8", "uint16", "uint32", "uint64", "bool32",
+        "uint8", "uint16", "uint32", "uint64", "bool32", "bool",
         "uintptr", "intptr", "CbaseMaxAlign", "size_t", "ptrdiff_t",
         "ssize_t", "max_align_t", "FILE", "va_list", "jmp_buf",
         "sigjmp_buf",
