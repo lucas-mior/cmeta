@@ -53,6 +53,7 @@ typedef struct CsaneOptions {
     int32 max_depth;
     bool report_parse;
     bool strict_parse;
+    bool require_coverage;
     bool statistics;
     bool coverage;
     bool rule_coverage;
@@ -177,6 +178,7 @@ void csane_wrap_call_check(CsaneFile *);
 void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
 void csane_rules_report(CsaneFile *, CsaneAnalysisCoverage *);
+int32 csane_rules_incomplete(CsaneFile *, CsaneAnalysisCoverage *, bool);
 CsaneAnalysisCoverage csane_analysis_coverage(CsaneFile *, bool, bool);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
