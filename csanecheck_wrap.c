@@ -6,9 +6,11 @@
 
 #include "cbase.h"
 #include "csanecheck.h"
+#include "csanecheck_tokens.h"
 
-/* All ranges below refer to the original source. A layout candidate must
- * be a complete AST statement; a nested call is never a separate candidate.
+/* Original-source spans are shared by the AST-backed assignment rule and
+ * the parser-independent call-wrapping rule. Nested calls are not standalone
+ * statement candidates.
  */
 typedef struct CsaneWrapSpan {
     int32 start;
@@ -60,25 +62,6 @@ csane_wrap_unparen(CAst *ast, int32 index) {
 }
 
 static int32
-csane_wrap_call_expression(CAst *ast, int32 index) {
-    index = csane_wrap_unparen(ast, index);
-    if (index < 0 || index >= ast->expression_count) {
-        return -1;
-    }
-    CExpression *expr = &ast->expressions[index];
-    if (expr->kind != C_EXPR_CALL) {
-        return -1;
-    }
-    int32 function = csane_wrap_unparen(ast, expr->left);
-    if (function < 0 || function >= ast->expression_count
-        || ast->expressions[function].kind != C_EXPR_IDENTIFIER) {
-        return -1;
-    }
-    return token_range_first_significant(ast->tokenization,
-                                         ast->expressions[function].tokens);
-}
-
-static int32
 csane_wrap_assignment(CsaneFile *file, CStatement *stmt) {
     CAst *ast = file->ast;
     Tokenization *tokens = file->tokens;
@@ -110,46 +93,6 @@ csane_wrap_assignment(CsaneFile *file, CStatement *stmt) {
         return op;
     }
     return -1;
-}
-
-static int32
-csane_wrap_is_call(CsaneFile *file, CStatement *stmt) {
-    CAst *ast = file->ast;
-    int32 expression = stmt->expression;
-    if (stmt->kind == C_STMT_DECLARATION && stmt->declaration >= 0) {
-        CDeclaration *decl = &ast->declarations[stmt->declaration];
-        if (decl->declarator_count != 1 || decl->first_declarator < 0) {
-            return -1;
-        }
-        TokenRange range = ast->declarators[decl->first_declarator].extra;
-        if (token_range_is_empty(file->tokens, range)) {
-            return -1;
-        }
-        /* Initializers are parsed by the API rule, which runs first. The
-         * root is the expression spanning the entire initializer range.
-         */
-        for (int32 i = ast->expression_count - 1; i >= 0; i -= 1) {
-            TokenRange value = ast->expressions[i].tokens;
-            if (value.first == range.first && value.end == range.end) {
-                return csane_wrap_call_expression(ast, i);
-            }
-        }
-        return -1;
-    }
-    if (stmt->kind != C_STMT_EXPRESSION && stmt->kind != C_STMT_RETURN) {
-        return -1;
-    }
-    expression = csane_wrap_unparen(ast, expression);
-    if (expression >= 0 && expression < ast->expression_count
-        && ast->expressions[expression].kind == C_EXPR_ASSIGN) {
-        CExpression *assign = &ast->expressions[expression];
-        int32 op = assign->operator_token;
-        if (op < 0 || !csane_wrap_token_is(&file->tokens->tokens[op], "=")) {
-            return -1;
-        }
-        expression = assign->right;
-    }
-    return csane_wrap_call_expression(ast, expression);
 }
 
 /* Scan token kinds rather than treating comment markers inside string
@@ -249,15 +192,6 @@ csane_wrap_span(CsaneFile *file, int32 statement,
     if (first < 0 || last < first || last >= tokens->token_count
         || !csane_wrap_token_is(&tokens->tokens[last], ";")) {
         return false;
-    }
-    if (kind == CSANE_WRAP_CALL) {
-        int32 name = csane_wrap_is_call(file, stmt);
-        if (name < 0 || csane_wrap_location(tokens, name).line
-            != csane_wrap_location(tokens, first).line
-            || csane_wrap_token_is(&tokens->tokens[name], "error_impl")
-            || csane_wrap_token_is(&tokens->tokens[name], "assert_error")) {
-            return false;
-        }
     }
     if (kind == CSANE_WRAP_ASSIGN) {
         op = csane_wrap_assignment(file, stmt);
@@ -470,6 +404,184 @@ csane_wrap_children(CsaneFile *file, int32 first,
     return;
 }
 
+
+/* A call-wrap candidate is one complete source statement whose value is a
+ * direct, named invocation. No translation-unit AST is required. */
+static int32
+csane_wrap_local_call(CsaneFile *file, TokenRange range) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view = csane_tokens_full(tokens);
+    int32 first = csane_tokens_next(&view, range.first - 1);
+    int32 last = token_range_last_significant(tokens, range);
+    if (first < 0 || last < first
+        || !csane_wrap_token_is(&tokens->tokens[last], ";")) {
+        return -1;
+    }
+    int32 name = first;
+    if (csane_wrap_token_is(&tokens->tokens[name], "return")) {
+        name = csane_tokens_next(&view, name);
+    } else {
+        /* A declaration initializer or plain assignment may precede the
+         * invocation. Ignore operators nested within delimiters. */
+        int32 equals = -1;
+        for (int32 i = first; i < last; i += 1) {
+            if (csane_wrap_token_is(&tokens->tokens[i], "=")) {
+                equals = i;
+            } else if (csane_wrap_token_is(&tokens->tokens[i], "(")
+                       || csane_wrap_token_is(&tokens->tokens[i], "[")) {
+                int32 close = csane_tokens_match(&view, i);
+                if (close > i && close < last) {
+                    i = close;
+                }
+            }
+        }
+        if (equals >= 0) {
+            name = csane_tokens_next(&view, equals);
+        }
+    }
+    if (name < 0 || name >= last
+        || tokens->tokens[name].kind != TOKEN_IDENT
+        || csane_wrap_token_is(&tokens->tokens[name], "error_impl")
+        || csane_wrap_token_is(&tokens->tokens[name], "assert_error")) {
+        return -1;
+    }
+    int32 open = csane_tokens_next(&view, name);
+    if (open < 0 || open >= last
+        || !csane_wrap_token_is(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    int32 close = csane_tokens_match(&view, open);
+    if (close < 0 || close >= last
+        || csane_tokens_next(&view, close) != last) {
+        return -1;
+    }
+    enum CsaneLocalKind kind = csane_classify_invocation(tokens, range, name);
+    return kind == CSANE_LOCAL_CALL
+           || kind == CSANE_LOCAL_MACRO_INVOCATION ? name : -1;
+}
+
+static bool
+csane_wrap_local_span(CsaneFile *file, CsaneStatement *stmt,
+                      CsaneWrapSpan *span) {
+    Tokenization *tokens = file->tokens;
+    int32 first = token_range_first_significant(tokens, stmt->tokens);
+    int32 last = token_range_last_significant(tokens, stmt->tokens);
+    if (stmt->kind != CSANE_STMT_SIMPLE || first < 0 || last < first) {
+        return false;
+    }
+    int32 name = csane_wrap_local_call(file, stmt->tokens);
+    if (name < 0 || csane_wrap_location(tokens, name).line
+        != csane_wrap_location(tokens, first).line) {
+        return false;
+    }
+    char *text = tokens->text;
+    int32 first_offset = tokens->tokens[first].offset;
+    int32 line_start = csane_wrap_line_start(text, first_offset);
+    if (line_start == first_offset) {
+        return false;
+    }
+    for (int32 i = line_start; i < first_offset; i += 1) {
+        if (text[i] != ' ') {
+            return false;
+        }
+    }
+    span->start = line_start;
+    span->end = tokens->tokens[last].offset + tokens->tokens[last].len;
+    span->indent = first_offset - line_start;
+    span->start_line = csane_wrap_location(tokens, first).line;
+    span->end_line = csane_wrap_location(tokens, last).line;
+    span->wrapped = span->end_line > span->start_line;
+    if (csane_name_kind(&tokens->tokens[name]) == CSANE_NAME_MACRO) {
+        CsaneTokenView view = csane_tokens_full(tokens);
+        int32 open = csane_tokens_next(&view, name);
+        int32 first_arg = csane_tokens_next(&view, open);
+        span->wrapped = first_arg >= 0
+                        && csane_wrap_location(tokens, first_arg).line
+                           > csane_wrap_location(tokens, open).line;
+    }
+    span->fits = false;
+    if (csane_wrap_safe(file, first, last)) {
+        int32 width = csane_wrap_flat_length(text, span->start, span->end);
+        span->fits = width >= 0 && (file->column_limit <= 0
+                                    || width <= file->column_limit);
+    }
+    return true;
+}
+
+void
+csane_wrap_call_check(CsaneFile *file) {
+    if (csane_wrap_generated(file->path) || file->statements == NULL) {
+        return;
+    }
+    CsaneStatements *tree = file->statements;
+    int32 count = tree->count;
+    CsaneWrapSpan *items = malloc2((int64)count*SIZEOF(*items));
+    if (items == NULL) {
+        return;
+    }
+    for (int32 parent = -1; parent < count; parent += 1) {
+        if (parent >= 0
+            && tree->items[parent].kind != CSANE_STMT_BLOCK) {
+            continue;
+        }
+        int32 used = 0;
+        int32 child = parent < 0 ? 0 : tree->items[parent].first_child;
+        for (; child >= 0 && child < count;) {
+            if (parent < 0 && tree->items[child].parent != -1) {
+                child += 1;
+                continue;
+            }
+            CsaneWrapSpan span;
+            bool candidate = csane_wrap_local_span(file, &tree->items[child],
+                                                   &span);
+            if (used > 0 && (!candidate
+                || !csane_wrap_adjacent(file, &items[used - 1], &span,
+                                        CSANE_WRAP_CALL))) {
+                /* No AST parse-issue suppression: local statement boundaries
+                 * determine the complete neighboring group. */
+                bool all_fit = true;
+                for (int32 i = 0; i < used; i += 1) {
+                    all_fit = all_fit && items[i].fits;
+                }
+                if (all_fit) {
+                    for (int32 i = 0; i < used; i += 1) {
+                        if (items[i].wrapped) {
+                            csane_rule_issue(file, items[i].start,
+                                             "FMT-CALL-WRAP",
+                                             "call fits on one line but is "
+                                             "split across multiple lines");
+                        }
+                    }
+                }
+                used = 0;
+            }
+            if (candidate) {
+                items[used] = span;
+                used += 1;
+            }
+            child = parent < 0 ? child + 1
+                    : tree->items[child].next_sibling;
+        }
+        if (used > 0) {
+            bool all_fit = true;
+            for (int32 i = 0; i < used; i += 1) {
+                all_fit = all_fit && items[i].fits;
+            }
+            if (all_fit) {
+                for (int32 i = 0; i < used; i += 1) {
+                    if (items[i].wrapped) {
+                        csane_rule_issue(file, items[i].start,
+                                         "FMT-CALL-WRAP",
+                                         "call fits on one line but is "
+                                         "split across multiple lines");
+                    }
+                }
+            }
+        }
+    }
+    free2(items, (int64)count*SIZEOF(*items));
+}
+
 void
 csane_wrap_check(CsaneFile *file) {
     CAst *ast = file->ast;
@@ -509,7 +621,7 @@ csane_wrap_check(CsaneFile *file) {
             && stmt->kind != C_STMT_PP_BRANCH) {
             continue;
         }
-        for (int32 mode = CSANE_WRAP_CALL; mode <= CSANE_WRAP_ASSIGN;
+        for (int32 mode = CSANE_WRAP_ASSIGN; mode <= CSANE_WRAP_ASSIGN;
              mode += 1) {
             if (file->is_ryu && mode == CSANE_WRAP_ASSIGN) {
                 continue;
