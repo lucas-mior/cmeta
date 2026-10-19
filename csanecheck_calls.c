@@ -394,11 +394,23 @@ csane_calls_token_check(CsaneFile *file) {
         }
         CsaneTokenView local = view;
         int32 region = csane_regions_at_token(file->regions, i);
-        if (region >= 0 && file->regions->items[region].kind
-                           == CSANE_REGION_MACRO_REPLACEMENT) {
+        enum CsaneRegionKind region_kind = CSANE_REGION_MACRO_REPLACEMENT;
+        int32 replacement = csane_regions_enclosing(file->regions, region,
+                                                    region_kind);
+        region_kind = CSANE_REGION_CONDITIONAL_BRANCH;
+        int32 branch = csane_regions_enclosing(file->regions, region,
+                                               region_kind);
+        if (replacement >= 0) {
             if (!csane_tokens_view(&local, tokens,
-                                   file->regions->items[region].tokens)) {
+                                   file->regions->items[replacement].tokens)) {
                 continue;
+            }
+        } else if (branch >= 0) {
+            CsaneTokenView candidate;
+            if (csane_tokens_view(&candidate, tokens,
+                                  file->regions->items[branch].tokens)
+                && csane_tokens_match(&candidate, i) >= 0) {
+                local = candidate;
             }
         }
         int32 name = csane_tokens_previous(&local, i);
@@ -422,8 +434,9 @@ csane_calls_token_check(CsaneFile *file) {
         if (close < 0) {
             continue;
         }
-        bool macro = local.range.end != view.range.end
-                     || local.range.first != view.range.first;
+        bool macro = file->preprocessor->token_roles != NULL
+                     && file->preprocessor->token_roles[i]
+                        == C_PP_TOKEN_MACRO_REPLACEMENT;
         csane_call_token_one(file, i, close, macro);
     }
 }
