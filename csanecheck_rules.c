@@ -29,19 +29,6 @@ csane_token_text(Token *token, char *text) {
 }
 
 static bool
-csane_path_segment(char *path, char *segment) {
-    int32 len = strlen32(segment);
-    for (char *p = path; *p; p += 1) {
-        if (((p == path) || (p[-1] == '/'))
-            && (strlen32(p) > len)
-            && !memcmp64(p, segment, len) && p[len] == '/') {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
 csane_fixture_path(char *path) {
     int32 len = strlen32(path);
     for (int32 i = 0; i + 15 <= len; i += 1) {
@@ -239,27 +226,6 @@ csane_rule_sizeof(CsaneFile *file) {
     return;
 }
 
-static int32
-csane_call_name_token(CsaneFile *file, int32 index) {
-    CAst *ast = file->ast;
-    for (int32 depth = 0; depth < 32; depth += 1) {
-        CExpression *expression;
-        if ((index < 0) || (index >= ast->expression_count)) {
-            return -1;
-        }
-        expression = &ast->expressions[index];
-        if (expression->kind == C_EXPR_PAREN) {
-            index = expression->left;
-            continue;
-        }
-        if (expression->kind != C_EXPR_IDENTIFIER) {
-            return -1;
-        }
-        return token_range_first_significant(file->tokens, expression->tokens);
-    }
-    return -1;
-}
-
 /* Inspect an ordinary compound body embedded in a statement-shaped
  * macro. The replacement is never expanded or evaluated.
  */
@@ -281,7 +247,7 @@ csane_parse_macro_block(CsaneFile *file, TokenRange replacement) {
 }
 
 static void
-csane_rule_calls(CsaneFile *file) {
+csane_rule_legacy_ast_preparation(CsaneFile *file) {
     CAst *ast = file->ast;
     CPreprocessorAnalysis *pp = file->preprocessor;
     int32 saved_issues = ast->issue_count;
@@ -316,32 +282,104 @@ csane_rule_calls(CsaneFile *file) {
             }
         }
     }
-    /* Speculative rule-local parsing must not turn unsupported macros into
-     * translation-unit parse errors or change strict-parse behavior.
+    /* Preserve the old macro/initializer AST side effects for rules that
+     * have not migrated yet. API diagnostics never use this representation.
      */
     ast->issue_count = saved_issues;
-    for (int32 i = 0; i < ast->expression_count; i += 1) {
-        CExpression *expression = &ast->expressions[i];
-        int32 token_index;
-        Token *token;
-        if (expression->kind != C_EXPR_CALL) {
+}
+
+/* API checks use original tokens, even when unrelated syntax is opaque.
+ * A function-like name is only a call when it is not a member, declarator,
+ * macro parameter, or named top-level function declaration/definition.
+ */
+static bool
+csane_api_declarator(CsaneFile *file, int32 name) {
+    Tokenization *tokens = file->tokens;
+    int32 before = tokenization_previous_significant(tokens, name);
+    if (before < 0) {
+        return false;
+    }
+    Token *previous = &tokens->tokens[before];
+    if (csane_type_name(previous)) {
+        return true;
+    }
+    if (TOKEN_IS(previous, "*")) {
+        int32 earlier = tokenization_previous_significant(tokens, before);
+        if (earlier >= 0
+            && (csane_type_name(&tokens->tokens[earlier])
+                || TOKEN_IS(&tokens->tokens[earlier], "("))) {
+            return true;
+        }
+    }
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if (item->name_token == name
+            && (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                || item->kind == CSANE_TOP_FUNCTION_DECLARATION)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+csane_api_direct_call(CsaneFile *file, int32 index) {
+    Tokenization *tokens = file->tokens;
+    Token *name = &tokens->tokens[index];
+    int32 next = tokenization_next_significant(tokens, index);
+    if (name->kind != TOKEN_IDENT || next >= tokens->token_count) {
+        return false;
+    }
+    if (TOKEN_IS(&tokens->tokens[next], ")")) {
+        int32 opening = tokenization_previous_significant(tokens, index);
+        if (opening < 0 || !TOKEN_IS(&tokens->tokens[opening], "(")) {
+            return false;
+        }
+        next = tokenization_next_significant(tokens, next);
+    }
+    if (next >= tokens->token_count
+        || !TOKEN_IS(&tokens->tokens[next], "(")) {
+        return false;
+    }
+    if (file->preprocessor->token_roles != NULL) {
+        int32 role = file->preprocessor->token_roles[index];
+        if (role == C_PP_TOKEN_DIRECTIVE
+            || role == C_PP_TOKEN_MACRO_PARAMETERS) {
+            return false;
+        }
+        if (role == C_PP_TOKEN_MACRO_REPLACEMENT
+            && file->preprocessor->token_directives[index]
+               != file->preprocessor->token_directives[next]) {
+            return false;
+        }
+    }
+    int32 before = tokenization_previous_significant(tokens, index);
+    if (before >= 0
+        && (TOKEN_IS(&tokens->tokens[before], ".")
+            || TOKEN_IS(&tokens->tokens[before], "->"))) {
+        return false;
+    }
+    return !csane_api_declarator(file, index);
+}
+
+static void
+csane_rule_calls(CsaneFile *file) {
+    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+        Token *token = &file->tokens->tokens[i];
+        bool never = csane_name_in(token, &file->policy->never_names);
+        bool restricted = !file->in_cbase
+                          && csane_name_in(token, &file->policy->cbase_names);
+        if ((!never && !restricted) || !csane_api_direct_call(file, i)) {
             continue;
         }
-        token_index = csane_call_name_token(file, expression->left);
-        if (token_index < 0) {
-            continue;
-        }
-        token = &file->tokens->tokens[token_index];
-        if (csane_name_in(token, &file->policy->never_names)) {
+        if (never) {
             csane_rule_issue(file, token->offset, "API-NEVER",
                              "function must never be used");
-        } else if (!file->in_cbase
-                   && csane_name_in(token, &file->policy->cbase_names)) {
+        } else {
             csane_rule_issue(file, token->offset, "API-CBASE-ONLY",
                              "function is allowed only inside cbase");
         }
     }
-    return;
 }
 
 /* Analysis passes are independent. A source rule never requires a parser;
@@ -352,7 +390,7 @@ static CsaneRule csane_rules[] = {
     {"PP", csane_rule_preprocessor, CSANE_PASS_TOKEN, false},
     {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN, false},
     {"AST-DECL-ONE", csane_structure_check, CSANE_PASS_SYNTAX, false},
-    {"API", csane_rule_calls, CSANE_PASS_SYNTAX, true},
+    {"API", csane_rule_calls, CSANE_PASS_TOKEN, true},
     {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX, false},
     {"CALL-LAYOUT", csane_calls_check, CSANE_PASS_SYNTAX, false},
     {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
@@ -373,6 +411,9 @@ void
 csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     ASSERT(file != NULL);
     bool fixture = csane_fixture_path(file->path);
+    if (pass == CSANE_PASS_SYNTAX) {
+        csane_rule_legacy_ast_preparation(file);
+    }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
@@ -389,6 +430,9 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
 void
 csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
     bool fixture = csane_fixture_path(file->path);
+    if (pass == CSANE_PASS_SYNTAX) {
+        csane_rule_legacy_ast_preparation(file);
+    }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
