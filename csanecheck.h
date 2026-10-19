@@ -62,6 +62,7 @@ typedef struct CsaneMacroView {
     Token *copy;
     char **owned;
     int32 owned_count;
+    int32 projected_macros;
     int32 projected_tokens;
 } CsaneMacroView;
 
