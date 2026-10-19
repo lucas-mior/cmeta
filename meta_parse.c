@@ -353,6 +353,72 @@ unit_partial_function(UnitCursor *c, int32 first, int32 open,
     return node;
 }
 
+/* Keep an unexpanded declaration-generating macro invocation isolated.
+ * It cannot be certified as parsed C until its replacement is available,
+ * but it must not consume subsequent independent declarations. */
+static int32
+unit_macro_invocation(UnitCursor *c, int32 first) {
+    Tokenization *tokens = c->ast->tokenization;
+    Token *name = &tokens->tokens[first];
+    if (name->kind != TOKEN_IDENT) {
+        return -1;
+    }
+    int32 open = unit_sig(c, first + 1);
+    if (open >= c->range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    StmtCursor view = {.ast = c->ast, .pp = c->pp, .range = c->range};
+    int32 close = stmt_match(&view, open);
+    if (close < 0) {
+        return -1;
+    }
+    int32 next = unit_sig(c, close + 1);
+    if (next < c->range.end) {
+        Token *following = &tokens->tokens[next];
+        int32 after = tokens->tokens[close].offset
+                      + tokens->tokens[close].len;
+        bool newline = false;
+        for (int32 i = after; i < following->offset; i += 1) {
+            if (tokens->text[i] == '\n') {
+                newline = true;
+                break;
+            }
+        }
+        if (!newline) {
+            return -1;
+        }
+    }
+    bool defined = false;
+    for (int32 i = 0; i < c->pp->directive_count; i += 1) {
+        CPreprocessorDirective *directive = &c->pp->directives[i];
+        if (directive->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
+            || directive->hash_token >= first) {
+            continue;
+        }
+        CPreprocessorDefine define;
+        if (!c_preprocessor_define_info(tokens, directive, &define)
+            || define.name_token < 0) {
+            continue;
+        }
+        Token *candidate = &tokens->tokens[define.name_token];
+        if (candidate->len == name->len
+            && !memcmp64(candidate->text, name->text, name->len)) {
+            defined = true;
+        }
+    }
+    if (!defined) {
+        return -1;
+    }
+    int32 end = unit_sig(c, close + 1);
+    int32 node = unit_new(c, C_EXTERNAL_UNSUPPORTED,
+                          (TokenRange){first, end});
+    StmtCursor issue = {.ast = c->ast};
+    stmt_issue(&issue, C_PARSE_ISSUE_UNSUPPORTED, first,
+               (TokenRange){first, end});
+    c->pos = end;
+    return node;
+}
+
 static int32
 unit_parse_one(UnitCursor *c) {
     int32 first = unit_sig(c, c->pos);
@@ -370,6 +436,10 @@ unit_parse_one(UnitCursor *c) {
     if ((directive >= 0)
         && (c->pp->directives[directive].hash_token == first)) {
         return unit_preprocessor(c, first, directive);
+    }
+    node = unit_macro_invocation(c, first);
+    if (node >= 0) {
+        return node;
     }
     end = unit_boundary(c, first);
     if (TOKEN_IS(&c->ast->tokenization->tokens[first], "_Static_assert")) {

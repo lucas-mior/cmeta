@@ -129,3 +129,17 @@ A fixture-level match is not a proof of full policy equivalence: the corpus
 does not exhaust all C constructs, preprocessor configurations, or discovery
 behavior. In particular, conservative `--require-coverage` is not yet exact
 per-rule/per-region proof. The legacy checkers must remain enabled.
+
+## Step 7: translation-unit macro recovery (partial)
+
+The translation-unit parser isolates known declaration-generating macro
+invocations that cannot be projected into C syntax. Each is reported as an
+unsupported region rather than merging subsequent invocations into a single
+malformed declaration. `--require-coverage` still rejects these unresolved
+regions. The Step 7 regressions cover isolated macros, coverage enforcement,
+malformed declarations, and macros within functions.
+
+This is **not** complete parser coverage. In particular, token-pasting macros
+and many external-header dependent constructs still require more capable
+preprocessor projection; unsupported source must not be treated as fully
+checked. The legacy checkers remain authoritative.
