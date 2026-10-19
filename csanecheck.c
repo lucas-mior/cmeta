@@ -106,7 +106,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     bool pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
     csane_rules_run(&file, CSANE_PASS_TOKEN);
     if (pp_ok) {
-        csane_macro_view_init(&expanded, &tokens, &pp);
+        csane_macro_view_init(&expanded, &tokens, &pp, path, &options->policy);
         projected_pp = pp;
         projected_pp.tokenization = &expanded.tokens;
     }
@@ -178,7 +178,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                path, pp_ok && pp.issue_count == 0 ? "checked" : "partial",
                syntax_status, syntax_status, analysis.eligible_tokens,
                analysis.parsed_tokens, analysis.unresolved_tokens,
-               analysis.macro_tokens, expanded.owned_count,
+               analysis.macro_tokens, expanded.projected_macros,
                expanded.projected_tokens);
     }
     if (options->rule_coverage) {
