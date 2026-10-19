@@ -125,6 +125,19 @@ class CsaneWrapTests(unittest.TestCase):
                    "        value;\n}\n", ["FMT-CALL-WRAP"],
                    name="cbase/ryu/f2s.c")
 
+    def test_macro_first_argument_line_break(self):
+        self.check("void f(void) {\n    ASSERT_LE(\n"
+                   "        value, 0);\n}\n", ["FMT-CALL-WRAP"])
+
+    def test_macro_subsequent_argument_break(self):
+        self.check("void f(void) {\n    ASSERT_EQ(value,\n"
+                   "              expected);\n}\n")
+
+    def test_call_after_unknown_declaration(self):
+        self.check("void f(void) {\n    UnknownType value;\n"
+                   "    run(first,\n        second);\n}\n",
+                   ["FMT-CALL-WRAP"])
+
     def test_short_assignment(self):
         self.check("void f(void) {\n    result =\n        value;\n}\n",
                    ["FMT-ASSIGN-WRAP"])

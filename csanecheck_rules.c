@@ -396,6 +396,7 @@ static CsaneRule csane_rules[] = {
     {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN, false},
     {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN, false},
     {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
+    {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN, false},
     {"WRAP-LAYOUT", csane_wrap_check, CSANE_PASS_CONTEXT, false},
 };
 
