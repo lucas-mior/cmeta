@@ -21,6 +21,7 @@
 #include "csanecheck_files.c"
 #include "csanecheck_config.c"
 #include "csanecheck_structure.c"
+#include "csanecheck_control.c"
 #include "csanecheck_context.c"
 #include "csanecheck_layout.c"
 #include "csanecheck_calls.c"

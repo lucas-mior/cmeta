@@ -194,6 +194,27 @@ class CsaneControlTests(unittest.TestCase):
                     "    }\n"
                     "}\n", 0, 0, 0, "--config", str(config))
 
+    def test_conditional_header_is_not_an_artificial_block(self):
+        self.expect("void f(int x) {\n"
+                    "    if (x) {\n"
+                    "        if (x) {\n"
+                    "#if MODE\n"
+                    "            if (x)\n"
+                    "#else\n"
+                    "            if (!x)\n"
+                    "#endif\n"
+                    "            { foo(); }\n"
+                    "        }\n"
+                    "    }\n"
+                    "}\n")
+
+    def test_control_checks_survive_unrecognized_expression(self):
+        self.expect("void f(int x) {\n"
+                    "    int n = SOMETHING(x);\n"
+                    "    if (x) foo();\n"
+                    "    while (x) bar();\n"
+                    "}\n", braces=2)
+
     def test_unsupported_syntax_does_not_suppress_source_rules(self):
         result = self.check("void f( {\n#ifdef X\n")
         self.assertIn("error[PP-DEFINED]", result.stdout)
