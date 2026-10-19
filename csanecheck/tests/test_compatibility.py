@@ -36,7 +36,7 @@ LEGACY_MESSAGES = (
     ("body must use curly braces", "AST-BRACES"),
     ("must align with switch", "AST-SWITCH-ALIGN"),
     ("artificial block at nesting", "AST-ARTIFICIAL-BLOCK"),
-    ("use ASSERT_BETWEEN", "STYLE-BOUNDS"),
+    ("use ASSERT_BETWEEN", "STYLE-ASSERT-BOUNDS"),
     ("inline the int32 status", "STYLE-STATUS-TEMP"),
     ("use SIZEOF", "PP-SIZEOF"),
     ("use #if defined", "PP-DEFINED"),
@@ -266,9 +266,7 @@ class CsanecheckCompatibilityTests(unittest.TestCase):
             self.assertEqual(rule_counts(result)["PP-DEFINED"], 1,
                              result.stdout)
 
-    @unittest.expectedFailure
-    def test_known_gap_status_use_in_if(self):
-        # The legacy Python checker flags this; csanecheck currently misses it.
+    def test_status_use_in_if(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = write_file(root, "src/sample.c", (
@@ -285,8 +283,7 @@ class CsanecheckCompatibilityTests(unittest.TestCase):
             result = run_checker(["--file", source], root)
             self.assertIn("STYLE-STATUS-TEMP", rule_counts(result))
 
-    @unittest.expectedFailure
-    def test_known_gap_status_in_nested_scope(self):
+    def test_status_in_nested_scope(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = write_file(root, "src/sample.c", (

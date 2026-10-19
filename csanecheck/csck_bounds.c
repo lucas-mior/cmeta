@@ -127,73 +127,117 @@ csane_bounds_call(CsaneFile *file, TokenRange range, char *name,
     return csane_tokens_split(&view, ",", 1, args, 2) == 2;
 }
 
+/* Check the source gap rather than the statement tree. A macro replacement
+ * may contain legitimate assertion statements without CsaneStatement nodes.
+ * Comments are trivia, and a macro continuation is permitted before the one
+ * required physical newline. Other intervening code breaks adjacency. */
+static bool
+csane_bounds_adjacent(CsaneFile *file, int32 semicolon, int32 next,
+                      bool macro) {
+    Tokenization *tokens = file->tokens;
+    Token *last = &tokens->tokens[semicolon];
+    Token *first = &tokens->tokens[next];
+    SourceLocation a = tokenization_token_location(tokens, semicolon);
+    SourceLocation b = tokenization_token_location(tokens, next);
+    if (b.line != a.line + 1) {
+        return false;
+    }
+    int32 cursor = last->offset + last->len;
+    int32 end = first->offset;
+    for (int32 i = semicolon + 1; i < next; i += 1) {
+        Token *token = &tokens->tokens[i];
+        if (token->offset < cursor || token->offset >= end) {
+            continue;
+        }
+        if (token->kind != TOKEN_COMMENT && !token_is_trivia(token)
+            && !(macro && TOKEN_IS(token, "\\"))) {
+            return false;
+        }
+        if (token->kind == TOKEN_COMMENT) {
+            cursor = token->offset + token->len;
+        }
+    }
+    int32 newlines = 0;
+    for (int32 i = last->offset + last->len; i < end; i += 1) {
+        if (tokens->text[i] == '\n') {
+            newlines += 1;
+        }
+    }
+    return newlines == 1;
+}
+
 static void
-csane_bounds_pair(CsaneFile *file, CsaneStatement *a, CsaneStatement *b) {
-    if (a->kind != CSANE_STMT_SIMPLE || b->kind != CSANE_STMT_SIMPLE) {
+csane_bounds_at(CsaneFile *file, int32 first) {
+    Tokenization *tokens = file->tokens;
+    if (!csane_bounds_token(file, first, "ASSERT_GE")) {
         return;
     }
-    int32 aend = token_range_last_significant(file->tokens, a->tokens);
-    int32 bend = token_range_last_significant(file->tokens, b->tokens);
-    if (!csane_bounds_token(file, aend, ";")
-        || !csane_bounds_token(file, bend, ";")) {
+    CsaneTokenView view = csane_tokens_full(tokens);
+    int32 open = csane_tokens_next(&view, first);
+    if (!csane_bounds_token(file, open, "(")) {
         return;
     }
-    int32 bfirst = token_range_first_significant(file->tokens, b->tokens);
-    SourceLocation end = tokenization_token_location(file->tokens, aend);
-    SourceLocation next = tokenization_token_location(file->tokens, bfirst);
-    if (next.line != end.line + 1) {
+    int32 close = csane_tokens_match(&view, open);
+    if (close < 0) {
         return;
     }
-    TokenRange arange = {a->tokens.first, aend};
-    TokenRange brange = {b->tokens.first, bend};
     TokenRange lower[2];
-    TokenRange upper[2];
-    if (!csane_bounds_call(file, arange, "ASSERT_GE", lower)
-        || !csane_bounds_call(file, brange, "ASSERT_LT", upper)
+    if (!csane_bounds_call(file, (TokenRange){first, close + 1},
+                           "ASSERT_GE", lower)
         || !csane_bounds_zero(file, lower[1])
-        || !csane_bounds_reference(file, lower[0])
-        || !csane_bounds_equal(file, lower[0], upper[0])) {
+        || !csane_bounds_reference(file, lower[0])) {
         return;
     }
-    int32 first = token_range_first_significant(file->tokens, a->tokens);
-    csane_rule_issue(file, file->tokens->tokens[first].offset,
+    int32 semicolon = csane_tokens_next(&view, close);
+    if (!csane_bounds_token(file, semicolon, ";")) {
+        return;
+    }
+    int32 region = csane_regions_at_token(file->regions, first);
+    if (region < 0) {
+        return;
+    }
+    bool macro = csane_regions_enclosing(file->regions, region,
+                                         CSANE_REGION_MACRO_REPLACEMENT) >= 0;
+    int32 upper = csane_tokens_next(&view, semicolon);
+    if (macro && csane_bounds_token(file, upper, "\\")) {
+        upper = csane_tokens_next(&view, upper);
+    }
+    if (!csane_bounds_token(file, upper, "ASSERT_LT")
+        || region != csane_regions_at_token(file->regions, upper)) {
+        return;
+    }
+    if (!csane_bounds_adjacent(file, semicolon, upper, macro)) {
+        return;
+    }
+    open = csane_tokens_next(&view, upper);
+    if (!csane_bounds_token(file, open, "(")) {
+        return;
+    }
+    close = csane_tokens_match(&view, open);
+    if (close < 0) {
+        return;
+    }
+    TokenRange upper_args[2];
+    if (!csane_bounds_call(file, (TokenRange){upper, close + 1},
+                           "ASSERT_LT", upper_args)
+        || !csane_bounds_equal(file, lower[0], upper_args[0])
+        || token_range_first_significant(tokens, upper_args[1])
+           >= upper_args[1].end
+        || !csane_bounds_token(file, csane_tokens_next(&view, close), ";")) {
+        return;
+    }
+    csane_rule_issue(file, tokens->tokens[first].offset,
                      "STYLE-ASSERT-BOUNDS",
                      "use ASSERT_BETWEEN for adjacent bounds");
 }
 
 void
 csane_bounds_check(CsaneFile *file) {
-    if (file->is_ryu || file->statements == NULL) {
+    if (file->is_ryu || file->regions == NULL) {
         return;
     }
-    CsaneStatements *statements = file->statements;
-    for (int32 i = 0; i < statements->count; i += 1) {
-        CsaneStatement *a = &statements->items[i];
-        for (int32 j = i + 1; j < statements->count; j += 1) {
-            CsaneStatement *b = &statements->items[j];
-
-            if (a->function != b->function
-                || a->owner_region != b->owner_region
-                || a->parent != b->parent) {
-                continue;
-            }
-            if (a->tokens.end > b->tokens.first) {
-                continue;
-            }
-            bool separated = false;
-            for (int32 k = a->source.end; k < b->source.start; k += 1) {
-                char c = file->tokens->text[k];
-                if (c != ' ' && c != '\t' && c != '\r'
-                    && c != '\n') {
-                    separated = true;
-                    break;
-                }
-            }
-            if (!separated) {
-                csane_bounds_pair(file, a, b);
-            }
-            break;
-        }
+    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+        csane_bounds_at(file, i);
     }
 }
 
