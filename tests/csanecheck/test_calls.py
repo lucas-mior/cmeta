@@ -35,6 +35,26 @@ class CsaneCallLayoutTests(unittest.TestCase):
                          int("error[" in result.stdout), result.stdout)
         return result
 
+    def test_call_in_alternative_preprocessor_branch(self):
+        self.check('#if FIRST\n'
+                   'void unfinished(void) {\n'
+                   '#else\n'
+                   'void good(void) {\n'
+                   '    run(\n'
+                   '        value);\n'
+                   '}\n'
+                   '#endif\n', ["FMT-CALL-FIRST"])
+
+    def test_contextual_call_in_conditional_branch(self):
+        self.check('#if FIRST\n'
+                   'void unfinished(void) {\n'
+                   '#else\n'
+                   'void good(void) {\n'
+                   '    fmt_printf("%d %d", one,\n'
+                   '               two);\n'
+                   '}\n'
+                   '#endif\n', ["FMT-FORMAT-LINE"])
+
     def test_macro_calls_do_not_trigger_contextual_false_positives(self):
         self.check('#define LOG(x, y) fmt_printf("%d %d", x, \
 '
