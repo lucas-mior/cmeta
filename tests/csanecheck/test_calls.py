@@ -77,6 +77,12 @@ class CsaneCallLayoutTests(unittest.TestCase):
                    "function(int first, int second,\n"
                    "         int third, int fourth);\n")
 
+    def test_header_after_unrecognized_declaration(self):
+        self.check("bool accepted = true;\n"
+                   "int\n"
+                   "function(int first,\n"
+                   "          int second);\n", ["FMT-FUNC-ALIGN"])
+
     def test_function_pointer_is_not_header(self):
         self.check("int (*callback)(int one,\n"
                    "      int two);\n")

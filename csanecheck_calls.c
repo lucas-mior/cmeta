@@ -312,73 +312,12 @@ csane_calls_one(CsaneFile *file, CExpression *call) {
     return;
 }
 
-static int32
-csane_calls_name(CsaneFile *file, int32 root) {
-    CAst *ast = file->ast;
-    for (int32 i = 0; i < 64 && root >= 0; i += 1) {
-        CDeclaratorNode *node = &ast->declarators[root];
-        if (node->name_token >= 0) {
-            return node->name_token;
-        }
-        root = node->inner;
-    }
-    return -1;
-}
-
-static void
-csane_calls_headers(CsaneFile *file) {
-    CAst *ast = file->ast;
-    Tokenization *tokens = file->tokens;
-    for (int32 d = 0; d < ast->declaration_count; d += 1) {
-        CDeclaration *decl = &ast->declarations[d];
-        int32 root = decl->first_declarator;
-        int32 name;
-        int32 parameter;
-        int32 first = -1;
-        int32 previous_end = -1;
-        if (decl->kind != C_DECLARATION_NORMAL || root < 0
-            || ast->declarators[root].kind != C_DECL_FUNCTION) {
-            continue;
-        }
-        name = csane_calls_name(file, root);
-        if (name < 0 || !csane_calls_code(file, name)
-            || csane_calls_location(file, name).column != 0) {
-            continue;
-        }
-        parameter = ast->declarators[root].first_parameter;
-        for (int32 i = 0; i < ast->declarators[root].parameter_count
-             && parameter >= 0; i += 1) {
-            TokenRange param_range = ast->declarations[parameter].tokens;
-            int32 current = csane_calls_begin(file, param_range);
-            if (current < 0) {
-                break;
-            }
-            if (first < 0) {
-                first = current;
-            } else if (previous_end >= 0
-                       && csane_calls_line_break(file, previous_end, current)
-                       && csane_calls_location(file, first).column
-                          != csane_calls_location(file, current).column) {
-                csane_rule_issue(file, tokens->tokens[current].offset,
-                                 "FMT-FUNC-ALIGN",
-                                 "function header parameter is not aligned "
-                                 "with first parameter");
-                break;
-            }
-            previous_end = token_range_last_significant(tokens, param_range);
-            parameter = ast->declarations[parameter].next;
-        }
-    }
-    return;
-}
-
 void
 csane_calls_check(CsaneFile *file) {
     CAst *ast = file->ast;
     if (csane_calls_generated(file->path)) {
         return;
     }
-    csane_calls_headers(file);
     for (int32 i = 0; i < ast->expression_count; i += 1) {
         if (ast->expressions[i].kind == C_EXPR_CALL) {
             csane_calls_one(file, &ast->expressions[i]);

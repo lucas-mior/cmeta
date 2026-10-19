@@ -25,6 +25,7 @@
 #include "csanecheck_context.c"
 #include "csanecheck_layout.c"
 #include "csanecheck_calls.c"
+#include "csanecheck_declarations.c"
 #include "csanecheck_wrap.c"
 #include "csanecheck_coverage.c"
 #include "csanecheck_rules.c"
