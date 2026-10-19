@@ -75,4 +75,7 @@ fi
 
 if [ "$mode" = test ]; then
     TEST_MAXDEPTH=1 common_test "$target" .
+    if [ -z "$target" ] || [ "$target" = csanecheck ]; then
+        python3 -m unittest discover -s csanecheck/tests -p 'test_*.py' -v
+    fi
 fi
