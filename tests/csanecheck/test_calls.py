@@ -35,6 +35,22 @@ class CsaneCallLayoutTests(unittest.TestCase):
                          int("error[" in result.stdout), result.stdout)
         return result
 
+    def test_contextual_rules_after_unrecognized_declaration(self):
+        self.check("unrecognized_attribute int opaque(void);\n"
+                   "void f(void) {\n"
+                   "    fmt_printf(\"%d %d\", one,\n"
+                   "               two);\n"
+                   "    emit(first, x,\n"
+                   "         y, other);\n"
+                   "}\n",
+                   ["FMT-FORMAT-LINE", "FMT-RELATED-ARGS"])
+
+    def test_contextual_nested_argument_commas(self):
+        self.check("void f(void) {\n"
+                   "    fmt_printf(\"%d %d\", nested(a, b),\n"
+                   "               last);\n"
+                   "}\n", ["FMT-FORMAT-LINE"])
+
     def test_basic_call_after_unrecognized_declaration(self):
         self.check("unrecognized_attribute int opaque(void);\n"
                    "void f(void) {\n"
@@ -146,7 +162,7 @@ class CsaneCallLayoutTests(unittest.TestCase):
     def test_format_grouping(self):
         self.check("void f(void) {\n"
                    "    fmt_printf(\"x=%d y=%d\", x,\n"
-                   "               y);\n"
+                   "               y, other);\n"
                    "}\n", ["FMT-FORMAT-LINE", "FMT-RELATED-ARGS"])
 
     def test_format_grouping_entirely_on_next_line(self):
