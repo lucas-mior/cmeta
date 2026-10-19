@@ -8,7 +8,7 @@
 #include "meta.h"
 #include "csanecheck_regions.h"
 #include "csanecheck_toplevel.h"
-#include "csanecheck_statements.h"
+#include "csanecheck_classify.h"
 #if OS_UNIX
 #include <regex.h>
 #endif

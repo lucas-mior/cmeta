@@ -3,3 +3,4 @@
 bin/
 compile_commands.json
 tags
+*.tar.gz
