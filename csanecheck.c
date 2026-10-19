@@ -90,6 +90,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     }
     Tokenization tokens = tokenize(source, len);
     CPreprocessorAnalysis pp = {0};
+    CsaneRegions regions = {0};
     CAst ast = {0};
     CsaneMacroView expanded = {0};
     CPreprocessorAnalysis projected_pp = {0};
@@ -104,6 +105,14 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     /* Source checks are independent of preprocessing and syntax parsing. */
     csane_rules_run(&file, CSANE_PASS_SOURCE);
     bool pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
+    if (!csane_regions_init(&regions, &tokens, &pp)) {
+        fprintf(stderr, "%s: unable to initialize source regions\n", path);
+        c_preprocessor_analysis_free(&pp);
+        free_tokenization(&tokens);
+        free2(source, (int64)len + 1);
+        return 2;
+    }
+    file.regions = &regions;
     csane_rules_run(&file, CSANE_PASS_TOKEN);
     if (pp_ok) {
         csane_macro_view_init(&expanded, &tokens, &pp, path, &options->policy);
@@ -114,6 +123,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     if (!ast_ok) {
         fprintf(stderr, "%s: unable to initialize AST\n", path);
         csane_macro_view_free(&expanded);
+        csane_regions_free(&regions);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
         free2(source, (int64)len + 1);
@@ -224,6 +234,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     if (pp_ok) {
         csane_macro_view_free(&expanded);
     }
+    csane_regions_free(&regions);
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
     free2(source, (int64)len + 1);
