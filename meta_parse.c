@@ -373,10 +373,14 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
         return -1;
     }
     int32 next = unit_sig(c, close + 1);
-    if (next < c->range.end) {
-        Token *following = &tokens->tokens[next];
-        int32 after = tokens->tokens[close].offset
-                      + tokens->tokens[close].len;
+    bool semicolon = (next < c->range.end)
+                     && TOKEN_IS(&tokens->tokens[next], ";");
+    int32 following_token = semicolon ? unit_sig(c, next + 1) : next;
+    if (following_token < c->range.end) {
+        Token *following = &tokens->tokens[following_token];
+        int32 last = semicolon ? next : close;
+        int32 after = tokens->tokens[last].offset
+                      + tokens->tokens[last].len;
         bool newline = false;
         for (int32 i = after; i < following->offset; i += 1) {
             if (tokens->text[i] == '\n') {
@@ -384,32 +388,42 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
                 break;
             }
         }
-        if (!newline) {
+        if (!newline && !semicolon) {
             return -1;
         }
     }
     bool defined = false;
     for (int32 i = 0; i < c->pp->directive_count; i += 1) {
         CPreprocessorDirective *directive = &c->pp->directives[i];
-        if (directive->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
-            || directive->hash_token >= first) {
+        if (directive->hash_token >= first) {
+            break;
+        }
+        int32 candidate_index = -1;
+        if (directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE) {
+            CPreprocessorDefine define;
+            if (c_preprocessor_define_info(tokens, directive, &define)) {
+                candidate_index = define.name_token;
+            }
+        } else if (directive->kind == C_PREPROCESSOR_DIRECTIVE_UNDEF) {
+            TokenRange scope = directive->tokens;
+            int32 keyword = directive->keyword_token;
+            candidate_index = token_range_next_significant(tokens, scope,
+                                                           keyword);
+        }
+        if (candidate_index < 0
+            || candidate_index >= directive->tokens.end) {
             continue;
         }
-        CPreprocessorDefine define;
-        if (!c_preprocessor_define_info(tokens, directive, &define)
-            || define.name_token < 0) {
-            continue;
-        }
-        Token *candidate = &tokens->tokens[define.name_token];
+        Token *candidate = &tokens->tokens[candidate_index];
         if (candidate->len == name->len
             && !memcmp64(candidate->text, name->text, name->len)) {
-            defined = true;
+            defined = directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE;
         }
     }
     if (!defined) {
         return -1;
     }
-    int32 end = unit_sig(c, close + 1);
+    int32 end = unit_sig(c, semicolon ? next + 1 : close + 1);
     int32 node = unit_new(c, C_EXTERNAL_UNSUPPORTED,
                           (TokenRange){first, end});
     StmtCursor issue = {.ast = c->ast};

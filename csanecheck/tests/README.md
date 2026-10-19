@@ -143,3 +143,11 @@ This is **not** complete parser coverage. In particular, token-pasting macros
 and many external-header dependent constructs still require more capable
 preprocessor projection; unsupported source must not be treated as fully
 checked. The legacy checkers remain authoritative.
+
+### Step 7 continuation: translation-unit macro boundaries
+
+`test_step7_continued.py` covers semicolon-terminated declaration macros,
+subsequent declarations on the same line, `#undef`/redefinition tracking, and
+required coverage failure for unresolved expansions. This is conservative
+recovery, not general macro expansion; unresolved token-pasting macros and
+conditional definition histories still need full parser/preprocessor support.
