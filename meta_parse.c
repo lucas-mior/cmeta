@@ -393,6 +393,7 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
         }
     }
     bool defined = false;
+    bool possible = false;
     for (int32 i = 0; i < c->pp->directive_count; i += 1) {
         CPreprocessorDirective *directive = &c->pp->directives[i];
         if (directive->hash_token >= first) {
@@ -417,10 +418,18 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
         Token *candidate = &tokens->tokens[candidate_index];
         if (candidate->len == name->len
             && !memcmp64(candidate->text, name->text, name->len)) {
-            defined = directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE;
+            /* A conditional mutation cannot establish an unconditional
+             * definition or undefinition. Keep its possible state until
+             * a later unconditional directive settles the name. */
+            if (c->pp->token_branches[directive->hash_token] >= 0) {
+                possible = true;
+            } else {
+                defined = directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE;
+                possible = false;
+            }
         }
     }
-    if (!defined) {
+    if (!defined && !possible) {
         return -1;
     }
     int32 end = unit_sig(c, semicolon ? next + 1 : close + 1);
