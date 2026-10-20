@@ -1,9 +1,0 @@
-{
-  "perl/test_multiplication_spacing_is_not_checked/64": {
-    "missing": {},
-    "extra": {
-      "FMT-MULTIPLY": 1
-    },
-    "reason": "Intentional additional csanecheck-only FMT-MULTIPLY rule."
-  }
-}
