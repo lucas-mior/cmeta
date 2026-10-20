@@ -353,7 +353,11 @@ csane_macro_append(CsaneMacroTokens *dst, CsaneMacroTokens *src,
 static bool
 csane_macro_concat(CsaneMacroResolver *r, CsaneMacroToken a,
                    CsaneMacroToken b, CsaneMacroToken *result) {
-    if (a.kind != TOKEN_IDENT || b.kind != TOKEN_IDENT
+    if (a.kind != TOKEN_IDENT
+        || (b.kind != TOKEN_IDENT
+            && !(b.kind == TOKEN_LITERAL
+                 && b.len > 0 && b.text[0] >= '0'
+                 && b.text[0] <= '9'))
         || a.len + b.len >= 256) {
         return false;
     }
@@ -385,11 +389,13 @@ csane_macro_cat(CsaneMacroResolver *r, CsaneMacroTokens *input,
         CsaneMacroTokens expanded = {0};
         if (!csane_macro_append(&part, input, args[p])
             || !csane_macro_expand(r, &part, &expanded, depth + 1)
-            || expanded.count != 1
-            || expanded.items[0].kind != TOKEN_IDENT) {
+            || expanded.count != 1) {
             return false;
         }
         if (p == 0) {
+            if (expanded.items[0].kind != TOKEN_IDENT) {
+                return false;
+            }
             combined = expanded.items[0];
         } else if (!csane_macro_concat(r, combined, expanded.items[0],
                                        &combined)) {

@@ -151,3 +151,21 @@ subsequent declarations on the same line, `#undef`/redefinition tracking, and
 required coverage failure for unresolved expansions. This is conservative
 recovery, not general macro expansion; unresolved token-pasting macros and
 conditional definition histories still need full parser/preprocessor support.
+
+### Step 7: conditional macro definitions
+
+`test_step7_conditionals.py` checks that a `#define` or `#undef` inside a
+conditional preprocessor branch does not establish a certain global macro
+state at later file-scope invocations. A subsequent unconditional directive
+resolves that uncertainty. Invocations that might be macros remain marked
+unsupported; this change does **not** implement token-pasting expansion or
+make their coverage complete.
+
+### Step 7: numeric token concatenation
+
+`test_step7_token_paste.py` checks syntax projection for `identifier ## 12`
+(and the equivalent `CAT(identifier, 12)` form). The result must be a valid
+identifier; string literals and invalid pasted tokens are not projected.
+This only improves expansions fitting the invocation's available token slots.
+Larger declaration-generating expansions remain unresolved and must not be
+mistaken for complete analysis.
