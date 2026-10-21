@@ -275,6 +275,59 @@ class StructureTests(unittest.TestCase):
                                  result.stdout)
                 self.assertIn("opaque_externals=0", result.stdout)
 
+    def test_structural_coverage_reports_locations_and_stable_order(self):
+        source = ("static void okay(void) {\n"
+                  "    int32 value = (2;\n"
+                  "    return;\n"
+                  "}\n"
+                  "int broken = (1;\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ordered.c"
+            path.write_text(source, encoding="utf-8")
+            command = [str(ROOT / "bin/csanecheck"), "--file", str(path),
+                       "--coverage", "--require-coverage"]
+            first = subprocess.run(command, cwd=ROOT, capture_output=True,
+                                   text=True, check=False)
+            second = subprocess.run(command, cwd=ROOT, capture_output=True,
+                                    text=True, check=False)
+        first_lines = [line for line in first.stdout.splitlines()
+                       if line.startswith("coverage_unresolved ")]
+        second_lines = [line for line in second.stdout.splitlines()
+                        if line.startswith("coverage_unresolved ")]
+        self.assertEqual(first.returncode, 1, first.stdout)
+        self.assertEqual(first_lines, second_lines)
+        self.assertEqual(len(first_lines), 2, first.stdout)
+        self.assertIn("structural_issues=2", first.stdout)
+        self.assertIn(
+            "line=2 column=5 target=statement "
+            "reason=\"unknown statement fragment\"", first_lines[0])
+        self.assertIn(
+            "line=5 column=1 target=top-level "
+            "reason=\"ambiguous top-level construct\"", first_lines[1])
+
+    def test_require_coverage_reports_conditional_structure_reason(self):
+        source = ("#if defined(__cplusplus)\n"
+                  "extern \"C\" {\n"
+                  "#endif\n"
+                  "int32 foo(void);\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "conditional.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run(
+                [str(ROOT / "bin/csanecheck"), "--file", str(path),
+                 "--require-coverage"], cwd=ROOT, capture_output=True,
+                text=True, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        lines = [line for line in result.stdout.splitlines()
+                 if line.startswith("coverage_unresolved ")]
+        self.assertEqual(len(lines), 1, result.stdout)
+        self.assertIn(
+            "line=2 column=1 target=top-level "
+            "reason=\"conditional construct could not be merged\"",
+            lines[0])
+        self.assertNotIn("coverage file=", result.stdout)
+        self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+
     def test_unmatched_cpp_wrapper_reports_incomplete_coverage(self):
         source = ("#if defined(__cplusplus)\n"
                   "extern \"C\" {\n"
