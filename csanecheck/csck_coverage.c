@@ -72,6 +72,9 @@ csane_coverage_top(CsaneFile *file, CsaneRuleCounts *counts,
         bool selected = false;
         if (kind == CSANE_TARGET_DECLARATIONS) {
             selected = item->kind == CSANE_TOP_DECLARATION
+                       || item->kind == CSANE_TOP_MEMBER_DECLARATION
+                       || item->kind == CSANE_TOP_ENUMERATOR
+                       || item->kind == CSANE_TOP_PARAMETER_FRAGMENT
                        || item->kind == CSANE_TOP_TYPE_DECLARATION
                        || item->kind == CSANE_TOP_FUNCTION_DEFINITION;
         } else if (kind == CSANE_TARGET_FUNCTIONS) {

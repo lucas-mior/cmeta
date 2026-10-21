@@ -12,6 +12,10 @@ enum CsaneTopKind {
     CSANE_TOP_TYPE_DECLARATION,
     CSANE_TOP_DECLARATION,
     CSANE_TOP_MACRO_INVOCATION,
+    /* Locally complete fragments inside conditional declarations. */
+    CSANE_TOP_MEMBER_DECLARATION,
+    CSANE_TOP_ENUMERATOR,
+    CSANE_TOP_PARAMETER_FRAGMENT,
     CSANE_TOP_OPAQUE,
 };
 
