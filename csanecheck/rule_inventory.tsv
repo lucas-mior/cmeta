@@ -56,10 +56,10 @@ CG005	cbase/c-guidelines.md	53	55	Naming style	Choose descriptive names proporti
 CG006	cbase/c-guidelines.md	56	57	Naming style	Use i/j/k for ordinary for-loop counters, except enum iteration.	csanecheck_candidate	-	-
 CG007	cbase/c-guidelines.md	58	59	Naming style	Do not name variables error.	csanecheck_candidate	-	-
 CG008	cbase/c-guidelines.md	62	65	for loops	Use canonical int32/int64 loop-counter forms, with uint32 enum iteration exception.	csanecheck_candidate	-	-
-CG009	cbase/c-guidelines.md	69	73	Types	Do not use const qualifiers in function signatures; allow documented data/cast exceptions.	csanecheck_candidate	-	-
-CG010	cbase/c-guidelines.md	74	77	Types	Avoid size_t, ptrdiff_t, and ssize_t except interface casts.	csanecheck_candidate	-	-
-CG011	cbase/c-guidelines.md	78	80	Types	Do not use standard fixed-width _t integer types; use project aliases.	csanecheck_candidate	-	-
-CG012	cbase/c-guidelines.md	81	83	Types	Avoid legacy short/int/long/long long in favor of int16/int32/int64.	csanecheck_candidate	-	-
+CG009	cbase/c-guidelines.md	69	73	Types	Do not use const qualifiers in function signatures; allow documented data/cast exceptions.	implemented	TYPE-CONST-SIGNATURE	Checks recognized function declarations/definitions; file-level allow-rule exemptions cover exact external ABI signatures.
+CG010	cbase/c-guidelines.md	74	77	Types	Avoid size_t, ptrdiff_t, and ssize_t except interface casts.	implemented	TYPE-SIZE-T	Checks declaration/signature type positions; casts remain permitted for external interfaces.
+CG011	cbase/c-guidelines.md	78	80	Types	Do not use standard fixed-width _t integer types; use project aliases.	implemented	TYPE-STDINT-T	Checks standard int8_t/uint8_t through int64_t/uint64_t spellings in recognized declarations/signatures.
+CG012	cbase/c-guidelines.md	81	83	Types	Avoid legacy short/int/long/long long in favor of int16/int32/int64.	implemented	TYPE-LEGACY-INT	Checks legacy integer type specifiers in recognized declarations/signatures; long double is excluded.
 CG013	cbase/c-guidelines.md	84	88	Types	Use bool for ordinary boolean flags; int32 may be used in hot loops; bit flags are not booleans.	manual	-	-
 CG014	cbase/c-guidelines.md	89	113	Types	Range-check potentially narrowing numeric casts with MAXOF/MINOF when fit is uncertain.	manual	-	-
 CG015	cbase/c-guidelines.md	114	127	Types	Avoid unsigned integers except documented bit/enum/wrapping/interface cases.	manual	-	-
@@ -69,11 +69,11 @@ CG018	cbase/c-guidelines.md	138	139	Expressions and control flow	Avoid helper fu
 CG019	cbase/c-guidelines.md	141	145	sizeof	Never use builtin sizeof; use SIZEOF.	implemented	PP-SIZEOF	-
 CG020	cbase/c-guidelines.md	157	168	Memory allocation	Avoid raw malloc/calloc/realloc/free; use cbase wrappers and do not NULL-guard free2 solely for NULL.	csanecheck_candidate	-	Raw malloc/calloc/realloc/free are not currently in the configured legacy API lists; free2 NULL-guard is also not implemented.
 CG021	cbase/c-guidelines.md	169	188	Memory allocation	Choose arena, heap wrappers, stack, and generic arrays according to lifetime/flexibility needs.	manual	-	-
-CG022	cbase/c-guidelines.md	174	174	Memory allocation	Never use VLAs.	csanecheck_candidate	-	-
+CG022	cbase/c-guidelines.md	174	174	Memory allocation	Never use VLAs.	implemented	TYPE-VLA	Conservative: diagnoses syntactically definite dynamic bounds; ambiguous identifier-only bounds are left undecided.
 CG023	cbase/c-guidelines.md	191	193	Exiting the program	In main use exit rather than return; fatal errors use fatal(EXIT_FAILURE), clean exit uses exit(EXIT_SUCCESS).	csanecheck_candidate	-	-
 CG024	cbase/c-guidelines.md	196	208	Enums structs unions	Use manual enums starting at 1 unless xenums is needed for flags/string conversion.	manual	-	-
-CG025	cbase/c-guidelines.md	209	220	Enums structs unions	Typedef structs except anonymous inner structs.	csanecheck_candidate	-	-
-CG026	cbase/c-guidelines.md	221	224	Enums structs unions	Do not typedef enums/unions except xenums output; do not typedef pointers except function pointers.	csanecheck_candidate	-	-
+CG025	cbase/c-guidelines.md	209	220	Enums structs unions	Typedef structs except anonymous inner structs.	implemented	TYPE-STRUCT-TYPEDEF	Checks top-level struct definitions and forward declarations; anonymous inner structs are not targeted.
+CG026	cbase/c-guidelines.md	221	224	Enums structs unions	Do not typedef enums/unions except xenums output; do not typedef pointers except function pointers.	implemented	TYPE-ENUM-TYPEDEF;TYPE-UNION-TYPEDEF;TYPE-POINTER-TYPEDEF	Function-pointer/function-type typedefs and the xenums enum typedef template are exempt.
 CG027	cbase/c-guidelines.md	225	249	Enums structs unions	Keep unions local/anonymous when only used inside one struct.	manual	-	-
 CG028	cbase/c-guidelines.md	251	267	Function declarations	Avoid unnecessary forward declarations; keep unavoidable static forward declarations local and public declarations in headers.	manual	-	-
 CG029	cbase/c-guidelines.md	268	271	Function declarations	Do not put TESTING_module blocks in headers; limit TESTING_module and TESTING blocks to one per C file.	csanecheck_candidate	-	-
@@ -111,7 +111,7 @@ CG060	cbase/c-guidelines.md	1076	1078	Modules	Define internal functions static.	
 CG061	cbase/c-guidelines.md	1079	1098	Magic numbers and literals	Avoid unexplained magic values; derive/name values when meaning is not obvious.	manual	-	-
 CG062	cbase/c-guidelines.md	1099	1111	Declaration and initialization	Initialize variables/structs/arrays only when the initial value is semantically correct and use documented zero-init forms.	manual	-	-
 CG063	cbase/c-guidelines.md	1112	1121	Declaration and initialization	Keep variable scope small; artificial blocks are acceptable only under documented nesting/readability constraints.	implemented	AST-ARTIFICIAL-BLOCK	Deep artificial-block prohibition implemented; broader scope choice remains manual.
-CG064	cbase/c-guidelines.md	1122	1153	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	compiler	-	Compiler -Wdeclaration-after-statement is the primary enforcement mechanism.
+CG064	cbase/c-guidelines.md	1122	1153	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	implemented	DECL-AFTER-STMT	Scope-local token/statement check mirrors -Wdeclaration-after-statement while preserving for-loop counters and fresh nested scopes.
 CG065	cbase/c-guidelines.md	1154	1205	Declaration and initialization	Initialize default/stub return values at declaration, but keep accumulator initialization near its loop where clearer.	manual	-	-
 CG066	cbase/c-guidelines.md	1206	1249	Declaration and initialization	Declare and initialize aliases/copies together when dependencies permit.	manual	-	-
 CG067	cbase/c-guidelines.md	1250	1279	Declaration and initialization	When initialization is appropriate and the variable is the only one in scope, prefer declaration-time initialization.	manual	-	-
