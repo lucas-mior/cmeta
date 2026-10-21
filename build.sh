@@ -13,7 +13,7 @@ script=$(basename "$0")
 common_build_parse_args "$@"
 
 case "$mode" in
-build|debug|debug-fast|fast_feedback|install|test)
+build|check|debug|debug-fast|fast_feedback|install|test)
     ;;
 *)
     common_build_unknown_mode
@@ -41,6 +41,13 @@ CFLAGS="$CFLAGS -std=c11"
 LDFLAGS="$LDFLAGS -lm"
 
 case "$mode" in
+check)
+    (
+        common_build_run_analyzers build
+    )
+    echo "static analysis finished."
+    exit
+    ;;
 debug|test)
     CFLAGS="$CFLAGS -g3"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
