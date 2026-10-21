@@ -59,28 +59,14 @@ typedef struct CsaneOptions {
     bool rule_coverage;
 } CsaneOptions;
 
-/* Syntax-only macro projection. Source text and token indices stay borrowed
- * from the original tokenization; only selected token spellings differ.
- */
-typedef struct CsaneMacroView {
-    Tokenization tokens;
-    Token *copy;
-    char **owned;
-    int32 owned_count;
-    int32 projected_macros;
-    int32 projected_tokens;
-} CsaneMacroView;
-
+/* Counts describe local source structures, never translation-unit AST nodes. */
 typedef struct CsaneCoverage {
     int32 declarations;
     int32 function_declarations;
     int32 function_definitions;
     int32 statements;
-    int32 expressions;
-    int32 unsupported_statements;
-    int32 unsupported_externals;
-    int32 malformed_issues;
-    int32 unsupported_issues;
+    int32 opaque_statements;
+    int32 opaque_externals;
 } CsaneCoverage;
 
 /* Coverage targets are scoped to the construct a rule actually inspects.
@@ -105,32 +91,26 @@ enum CsaneTargetKind {
     CSANE_TARGET_FUNCTIONS,
     CSANE_TARGET_CALLS,
     CSANE_TARGET_OPERATORS,
-    CSANE_TARGET_PROJECTED_CALLS,
 };
 
 enum CsanePass {
     CSANE_PASS_SOURCE = 0,
     CSANE_PASS_TOKEN,
-    CSANE_PASS_SYNTAX,
-    CSANE_PASS_CONTEXT,
 };
 
 typedef struct CsaneStats {
     int32 files;
     int64 tokens;
     int64 externals;
-    int64 parse_issues;
+    int64 structural_issues;
     int64 preprocessor_issues;
     int64 violations;
     int64 declarations;
     int64 function_declarations;
     int64 function_definitions;
     int64 statements;
-    int64 expressions;
-    int64 unsupported_statements;
-    int64 unsupported_externals;
-    int64 malformed_issues;
-    int64 unsupported_issues;
+    int64 opaque_statements;
+    int64 opaque_externals;
 } CsaneStats;
 
 /* A rule can examine any layer independently of successful AST parsing.
@@ -143,13 +123,11 @@ typedef struct CsaneFile {
     CsaneRegions *regions;
     CsaneTopLevels *toplevel;
     CsaneStatements *statements;
-    CAst *ast;
     int32 violations;
     int32 column_limit;
     bool in_cbase;
     bool is_ryu;
     bool preprocessor_ok;
-    bool ast_ok;
     CsanePolicy *policy;
 } CsaneFile;
 
@@ -175,14 +153,24 @@ bool csane_policy_rule_allowed(CsanePolicy *, char *, char *);
 int32 csane_policy_columns(CsanePolicy *, char *);
 bool csane_policy_filter(char *, char *);
 bool csane_policy_selected(CsanePolicy *, char *, char *);
-CsaneCoverage csane_coverage_collect(CAst *);
+CsaneCoverage csane_coverage_collect(CsaneTopLevels *,
+                                     CsaneStatements *);
 void csane_declarations_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
 void csane_control_check(CsaneFile *);
-void csane_context_check(CsaneFile *);
 void csane_bounds_check(CsaneFile *);
 void csane_status_check(CsaneFile *);
 void csane_expression_style_check(CsaneFile *);
+/* Shared, local operator classification for diagnostics and coverage.
+ * SKIP covers recognized unary and declarator uses, not unknown syntax. */
+enum CsaneLayoutOperator {
+    CSANE_LAYOUT_SKIP = 0,
+    CSANE_LAYOUT_MULTIPLY,
+    CSANE_LAYOUT_BINARY,
+    CSANE_LAYOUT_ASSIGN,
+    CSANE_LAYOUT_UNRESOLVED,
+};
+enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
 void csane_layout_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
 void csane_calls_token_check(CsaneFile *);

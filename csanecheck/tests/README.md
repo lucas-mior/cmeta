@@ -127,3 +127,72 @@ Steps 7–15 migrate it. In particular, `LAYOUT` still uses the AST, so operator
 candidates not known to its expression/declarator recognizer remain unresolved
 until Step 14. The original full-file AST is still constructed and its
 statistics are still available; its removal is Step 15.
+
+## Step 10 — Call and function-header differential tests
+
+`test_calls.py` tests Perl compatibility of P12–P17 on 18 cases, including
+positive and negative examples for nested calls, line alignment, formatting
+strings, related argument pairs, macro replacements and conditional branches.
+It additionally checks the independent `API-NEVER` and `API-CBASE-ONLY` rules
+against token-local direct calls without misclassifying member accesses or
+function prototypes.
+
+## Step 11 — complete-call wrapping parity
+
+`test_call_wrap.py` compares the legacy P18 rule with `FMT-CALL-WRAP` on 46
+independent positive and negative source fixtures. It checks neighboring-call
+groups, short and overlong calls, preprocessor branches, nested calls, calls
+in assignments/returns, macro invocations, comment and string-literal
+exceptions, and generated-header exemptions. Both source locations and
+duplicate counts must agree. No translation-unit AST information is used to
+classify these call-wrap candidates.
+
+## Step 12 — Assignment placement and wrapping parity
+
+`test_assignment_wrap.py` uses the Perl oracle to verify P19/P20 on 37 named
+source fixtures, plus two column-limit cases. The checks cover leading
+`=` versus comparisons, masking of comments and macro replacements, nested
+calls and declarations, grouping across comment-only lines, blank-line
+separation, long related assignments, aggregate initializers, conditional
+branches, duplicate suppression, and special file exemptions. Both source
+line and diagnostic multiplicity are compared. The two corrected Perl
+multi-statement-line behaviors have separate legacy regression tests.
+
+## Step 14 — Token-local operator layout
+
+`test_layout.py` exercises `FMT-MULTIPLY`, `FMT-BINARY-SPACING`, and
+`FMT-ASSIGN-SPACING` without relying on AST expression nodes or translation-
+unit typedef resolution. Cases distinguish multiplication from pointer
+and function-pointer declarations, unary dereferences, cast expressions,
+compound assignments, and operators in different `#if` branches.
+
+The shared `csane_layout_classify` function drives both diagnostics and
+`LAYOUT` rule-coverage accounting. A well-classified unary/declarator token is
+checked without a spacing diagnostic; a locally incomplete binary expression
+is unresolved. The `LAYOUT` pass runs before AST initialization. The remaining
+AST construction and context passes are deferred to Step 15.
+
+Unusual lowercase typedef names without a locally recognizable declaration
+prefix can remain ambiguous (C gives the same spelling to a typedef and an
+ordinary variable). The checker does not infer their meaning from the whole
+translation unit; such inputs will need additional bounded recognition if they
+occur in the final source-tree coverage evaluation.
+
+## Step 15 — AST-free execution
+
+The active `csanecheck` driver now requires only original-source tokens,
+preprocessor regions, top-level constructs and local statements. No full C
+translation-unit parse or syntax-only macro projection is performed. The
+`test_ast_independence.py` suite verifies this property, including incompatible
+conditional branches and malformed statements.
+
+`--report-parse-issues` and `--strict-parse` retain their option names for
+compatibility but now report only `PP-STRUCTURE` and `STRUCTURE-OPAQUE` notes.
+They **do not** validate complete C syntax. `--stats` and `--coverage` report
+local `structural_issues`, `opaque_statements`, and `opaque_externals`, rather
+than AST-derived expression and parser metrics. `--require-coverage` continues
+to enforce unresolved rule targets separately.
+
+The legacy `csck_context.c`, `csck_types.c`, and `csck_macros.c` modules are no
+longer included in the checker build. Their contents are not needed by the
+active diagnostic pipeline; the shared `meta` library remains unchanged.

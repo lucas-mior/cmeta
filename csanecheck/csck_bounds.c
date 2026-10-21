@@ -178,6 +178,12 @@ csane_bounds_at(CsaneFile *file, int32 first) {
     if (!csane_bounds_token(file, semicolon, ";")) {
         return;
     }
+    /* The Perl rule requires the semicolon on the closing-call line. */
+    SourceLocation end = tokenization_token_location(tokens, close);
+    SourceLocation semi = tokenization_token_location(tokens, semicolon);
+    if (end.line != semi.line) {
+        return;
+    }
     int32 region = csane_regions_at_token(file->regions, first);
     if (region < 0) {
         return;
@@ -210,6 +216,12 @@ csane_bounds_at(CsaneFile *file, int32 first) {
         || token_range_first_significant(tokens, upper_args[1])
            >= upper_args[1].end
         || !csane_bounds_token(file, csane_tokens_next(&view, close), ";")) {
+        return;
+    }
+    semicolon = csane_tokens_next(&view, close);
+    end = tokenization_token_location(tokens, close);
+    semi = tokenization_token_location(tokens, semicolon);
+    if (end.line != semi.line) {
         return;
     }
     csane_rule_issue(file, tokens->tokens[first].offset,

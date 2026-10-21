@@ -14,29 +14,21 @@ csane_style_first(CsaneFile *file, TokenRange range) {
     return token_range_first_significant(file->tokens, range);
 }
 
-static TokenRange
-csane_style_unwrap(CsaneFile *file, TokenRange range) {
-    CsaneTokenView view = csane_tokens_full(file->tokens);
-    return csane_tokens_unwrap(&view, range);
-}
-
+/* Perl tests whether the argument starts with an unprefixed string
+ * literal, not whether its complete expression is a string constant. */
 static bool
-csane_style_string(CsaneFile *file, TokenRange range) {
-    range = csane_style_unwrap(file, range);
+csane_style_string_start(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
     if (first >= range.end) {
         return false;
     }
     Token *token = &file->tokens->tokens[first];
-    int32 quote = literal_quote_index(token->text, token->len, 0);
-    return token->kind == TOKEN_LITERAL && quote >= 0
-           && token->text[quote] == '"'
-           && tokenization_next_significant(file->tokens, first) >= range.end;
+    return token->kind == TOKEN_LITERAL && token->len >= 2
+           && token->text[0] == '"';
 }
 
 static bool
-csane_style_integer(CsaneFile *file, TokenRange range) {
-    range = csane_style_unwrap(file, range);
+csane_style_decimal(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
     if (first >= range.end
         || tokenization_next_significant(file->tokens, first) < range.end) {
@@ -54,6 +46,86 @@ csane_style_integer(CsaneFile *file, TokenRange range) {
     return true;
 }
 
+static bool
+csane_style_lower_name(CsaneFile *file, TokenRange range) {
+    int32 first = csane_style_first(file, range);
+    if (first >= range.end
+        || tokenization_next_significant(file->tokens, first) < range.end) {
+        return false;
+    }
+    Token *token = &file->tokens->tokens[first];
+    if (token->kind != TOKEN_IDENT || token->len == 0) {
+        return false;
+    }
+    for (int32 i = 0; i < token->len; i += 1) {
+        char c = token->text[i];
+        if ((c < 'a' || c > 'z') && c != '_') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Only one conversion, with the same grammar as Perl's format_spec.
+ * The caller separately verifies that this token is the entire argument. */
+static bool
+csane_style_conversion(Token *token) {
+    if (token->kind != TOKEN_LITERAL || token->len < 4
+        || token->text[0] != '"' || token->text[1] != '%'
+        || token->text[token->len - 1] != '"') {
+        return false;
+    }
+    int32 i = 2;
+    while (i < token->len - 1) {
+        char c = token->text[i];
+        if (c != '-' && c != '+' && c != ' ' && c != '#'
+            && c != '0') {
+            break;
+        }
+        i += 1;
+    }
+    while (i < token->len - 1 && token->text[i] >= '0'
+           && token->text[i] <= '9') {
+        i += 1;
+    }
+    if (i < token->len - 1 && token->text[i] == '.') {
+        i += 1;
+        if (i < token->len - 1 && token->text[i] == '*') {
+            i += 1;
+        } else {
+            int32 before = i;
+            while (i < token->len - 1 && token->text[i] >= '0'
+                   && token->text[i] <= '9') {
+                i += 1;
+            }
+            if (before == i) {
+                return false;
+            }
+        }
+    }
+    if (i + 2 < token->len && token->text[i] == 'h') {
+        i += 1;
+        if (token->text[i] == 'h') {
+            i += 1;
+        }
+    } else if (i + 2 < token->len && token->text[i] == 'l') {
+        i += 1;
+        if (token->text[i] == 'l') {
+            i += 1;
+        }
+    } else if (i + 2 < token->len) {
+        char c = token->text[i];
+        if (c == 'j' || c == 'z' || c == 't' || c == 'L') {
+            i += 1;
+        }
+    }
+    if (i + 2 != token->len) {
+        return false;
+    }
+    char c = token->text[i];
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
 static int32
 csane_style_arguments(CsaneFile *file, int32 open, int32 close,
                       TokenRange *args, int32 capacity) {
@@ -64,26 +136,25 @@ csane_style_arguments(CsaneFile *file, int32 open, int32 close,
     return csane_tokens_arguments(&view, open, args, capacity);
 }
 
-static bool
-csane_style_named_call(CsaneFile *file, TokenRange range, char *name,
-                       TokenRange *args, int32 capacity, int32 *count) {
-    range = csane_style_unwrap(file, range);
+static int32
+csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
-    if (first >= range.end || !TOKEN_IS(&file->tokens->tokens[first], name)) {
-        return false;
+    if (first >= range.end
+        || !TOKEN_IS(&file->tokens->tokens[first], "STRLIT")) {
+        return -1;
     }
     int32 open = tokenization_next_significant(file->tokens, first);
-    CsaneTokenView view = csane_tokens_full(file->tokens);
-    if (open >= range.end || !TOKEN_IS(&file->tokens->tokens[open], "(")) {
-        return false;
+    if (open >= range.end
+        || !TOKEN_IS(&file->tokens->tokens[open], "(")) {
+        return -1;
     }
-    int32 close = csane_tokens_match(&view, open);
-    if (close < 0 || close >= range.end
-        || tokenization_next_significant(file->tokens, close) < range.end) {
-        return false;
+    int32 literal = tokenization_next_significant(file->tokens, open);
+    if (literal >= range.end
+        || !csane_style_string_start(file,
+                                     (TokenRange){literal, range.end})) {
+        return -1;
     }
-    *count = csane_style_arguments(file, open, close, args, capacity);
-    return *count >= 0;
+    return first;
 }
 
 static void
@@ -96,57 +167,57 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
         return;
     }
     if (TOKEN_IS(token, "ASSERT") && count == 1) {
-        TokenRange condition = csane_style_unwrap(file, args[0]);
-        CsaneTokenView view;
-        if (!csane_tokens_view(&view, tokens, condition)) {
-            return;
-        }
-        for (int32 i = condition.first; i < condition.end; i += 1) {
-            Token *op = &tokens->tokens[i];
-            if (!TOKEN_IS(op, ">") && !TOKEN_IS(op, ">=")
-                && !TOKEN_IS(op, "<") && !TOKEN_IS(op, "<=")) {
-                continue;
-            }
-            TokenRange lhs = {condition.first, i};
-            TokenRange rhs = {i + 1, condition.end};
-            lhs = csane_style_unwrap(file, lhs);
-            int32 first = csane_style_first(file, lhs);
-            if (first < lhs.end && tokens->tokens[first].kind == TOKEN_IDENT
-                && tokenization_next_significant(tokens, first) >= lhs.end
-                && csane_style_integer(file, rhs)) {
-                csane_rule_issue(file, token->offset,
-                                 "STYLE-ASSERT-REL",
+        /* The legacy idiom is ASSERT(lowercase_name OP decimal); with
+         * no additional expression or parenthesized operand. */
+        int32 first = csane_style_first(file, args[0]);
+        int32 op = tokenization_next_significant(tokens, first);
+        if (op < args[0].end
+            && (TOKEN_IS(&tokens->tokens[op], ">")
+                || TOKEN_IS(&tokens->tokens[op], ">=")
+                || TOKEN_IS(&tokens->tokens[op], "<")
+                || TOKEN_IS(&tokens->tokens[op], "<="))
+            && csane_style_lower_name(file, (TokenRange){first, op})
+            && csane_style_decimal(file, (TokenRange){op + 1,
+                                                     args[0].end})) {
+            CsaneTokenView view = csane_tokens_full(tokens);
+            int32 semicolon = csane_tokens_next(&view, close);
+            if (semicolon < tokens->token_count
+                && TOKEN_IS(&tokens->tokens[semicolon], ";")) {
+                csane_rule_issue(file, token->offset, "STYLE-ASSERT-REL",
                                  "use ASSERT_GE/GT/LE/LT for integer "
                                  "comparison");
-                break;
             }
         }
     }
-    if (TOKEN_IS(token, "STRLIT_LEN") && count == 1
-        && csane_style_string(file, args[0])) {
+    if (TOKEN_IS(token, "STRLIT_LEN") && count >= 1
+        && csane_style_string_start(file, args[0])) {
         csane_rule_issue(file, token->offset, "STYLE-STRLIT-LEN",
                          "STRLIT_LEN called on a literal string");
     }
     if (TOKEN_IS(token, "STREQUAL")) {
         for (int32 i = 0; i < count; i += 1) {
-            TokenRange nested[2];
-            int32 nested_count = 0;
-            if (csane_style_named_call(file, args[i], "STRLIT", nested, 2,
-                                       &nested_count)
-                && nested_count == 1 && csane_style_string(file, nested[0])) {
-                csane_rule_issue(file, token->offset, "STYLE-STREQUAL",
+            int32 strlit = csane_style_strlit_argument(file, args[i]);
+            if (strlit >= 0) {
+                csane_rule_issue(file, tokens->tokens[args[i].first].offset,
+                                 "STYLE-STREQUAL",
                                  "STREQUAL called with STRLIT literal");
                 break;
             }
         }
     }
-    if (TOKEN_IS(token, "str_printf") && count >= 3
-        && csane_style_string(file, args[1])) {
-        TokenRange format = csane_style_unwrap(file, args[1]);
+    if (TOKEN_IS(token, "str_printf") && count >= 3) {
+        TokenRange format = args[1];
         int32 first = csane_style_first(file, format);
         if (first < format.end
-            && csane_format_conversion(&tokens->tokens[first])) {
-            csane_rule_issue(file, tokens->tokens[first].offset,
+            && tokenization_next_significant(tokens, first) >= format.end
+            && csane_style_conversion(&tokens->tokens[first])
+            && tokens->tokens[first].offset > 0
+            && tokens->tokens[first].offset + tokens->tokens[first].len
+               < tokens->text_len
+            && tokens->text[tokens->tokens[first].offset - 1] == ' '
+            && tokens->text[tokens->tokens[first].offset
+                            + tokens->tokens[first].len] == ',') {
+            csane_rule_issue(file, tokens->tokens[format.first].offset,
                              "STYLE-PRINTF",
                              "format contains only one conversion");
         }

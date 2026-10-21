@@ -34,7 +34,15 @@ csane_control_block(CsaneFile *file, int32 index) {
     if (index < 0 || index >= file->statements->count) {
         return false;
     }
-    return file->statements->items[index].kind == CSANE_STMT_BLOCK;
+    CsaneStatement *stmt = &file->statements->items[index];
+    if (stmt->kind == CSANE_STMT_BLOCK) {
+        return true;
+    }
+    /* An unmatched closing brace can make a block OPAQUE, but its opening
+     * token still establishes that curly braces were present. */
+    int32 first = csane_control_first(file, stmt);
+    return stmt->kind == CSANE_STMT_OPAQUE && first >= 0
+           && TOKEN_IS(&file->tokens->tokens[first], "{");
 }
 
 static bool
@@ -55,9 +63,10 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
                    || stmt->kind == CSANE_STMT_WHILE
                    || stmt->kind == CSANE_STMT_DO
                    || stmt->kind == CSANE_STMT_SWITCH;
+    /* Even an opaque body is definitely unbraced if its first token is
+     * not '{'. An unrecognized expression must not hide this violation. */
     if (control && stmt->body >= 0
         && !csane_control_block(file, stmt->body)
-        && file->statements->items[stmt->body].kind != CSANE_STMT_OPAQUE
         && !(stmt->kind == CSANE_STMT_FOR
              && csane_control_for_empty(file, stmt->body))) {
         csane_control_issue(file, stmt, "AST-BRACES",
@@ -71,12 +80,35 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
         return;
     }
     CsaneStatement *body = &file->statements->items[alternative->body];
-    if (body->kind == CSANE_STMT_BLOCK || body->kind == CSANE_STMT_IF
-        || body->kind == CSANE_STMT_OPAQUE) {
+    if (csane_control_block(file, alternative->body)
+        || body->kind == CSANE_STMT_IF) {
         return;
     }
     csane_control_issue(file, alternative, "AST-BRACES",
                         "else body must use curly braces");
+}
+
+/* Case labels in #if branches are parsed in a separate source stream.
+ * Locate the nearest containing switch by original source span when no
+ * statement-parent relationship is available. */
+static int32
+csane_control_enclosing_switch(CsaneFile *file, CsaneStatement *label) {
+    int32 closest = -1;
+    for (int32 i = 0; i < file->statements->count; i += 1) {
+        CsaneStatement *candidate = &file->statements->items[i];
+        if (candidate->kind != CSANE_STMT_SWITCH
+            || candidate->function != label->function
+            || candidate->source.start >= label->source.start
+            || candidate->source.end <= label->source.start) {
+            continue;
+        }
+        if (closest < 0
+            || candidate->source.start
+               > file->statements->items[closest].source.start) {
+            closest = i;
+        }
+    }
+    return closest;
 }
 
 static void
@@ -85,11 +117,7 @@ csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
         && stmt->kind != CSANE_STMT_DEFAULT) {
         return;
     }
-    int32 parent = stmt->parent;
-    while (parent >= 0
-           && file->statements->items[parent].kind != CSANE_STMT_SWITCH) {
-        parent = file->statements->items[parent].parent;
-    }
+    int32 parent = csane_control_enclosing_switch(file, stmt);
     if (parent < 0) {
         return;
     }
@@ -109,28 +137,161 @@ csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
     }
 }
 
-static void
-csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
-    if (stmt->kind != CSANE_STMT_BLOCK || stmt->parent < 0) {
-        return;
-    }
-    CsaneStatement *parent = &file->statements->items[stmt->parent];
-    if (parent->kind != CSANE_STMT_BLOCK) {
-        return;
-    }
-    /* A block immediately following a case/default label is its body. */
-    for (int32 i = parent->first_child; i >= 0;
-         i = file->statements->items[i].next_sibling) {
-        if (file->statements->items[i].next_sibling !=
-            (int32)(stmt - file->statements->items)) {
+/* Skip tokens in mutually exclusive branches when recovering the source
+ * context of a standalone block. Tokens in the containing file stream are
+ * visible to every branch. */
+static int32
+csane_control_previous(CsaneFile *file, CsaneStatement *stmt, int32 before) {
+    CsaneTopItem *top = &file->toplevel->items[stmt->function];
+    int32 base = top->owner_region;
+    for (int32 i = before - 1; i >= 0; i -= 1) {
+        Token *token = &file->tokens->tokens[i];
+        if (token->offset < top->source.start) {
+            break;
+        }
+        if (token_is_trivia(token) || token->kind == TOKEN_PREPROC) {
             continue;
         }
-        enum CsaneStatementKind kind = file->statements->items[i].kind;
-        if (kind == CSANE_STMT_CASE || kind == CSANE_STMT_DEFAULT
-            || kind == CSANE_STMT_LABEL) {
+        int32 region = csane_regions_at_token(file->regions, i);
+        if (region < 0
+            || file->regions->items[region].kind != CSANE_REGION_CODE) {
+            continue;
+        }
+        while (region >= 0
+               && file->regions->items[region].kind != CSANE_REGION_FILE
+               && file->regions->items[region].kind
+                  != CSANE_REGION_CONDITIONAL_BRANCH) {
+            region = file->regions->items[region].parent;
+        }
+        if (region == stmt->owner_region || region == base) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* A control header can appear in either branch just before #endif,
+ * followed by a shared block. Consult that last branch token only for the
+ * formatting exception; do not merge branch statement streams. */
+static bool
+csane_control_after_endif(CsaneFile *file, CsaneStatement *stmt) {
+    int32 first = csane_control_first(file, stmt);
+    if (first < 0) {
+        return false;
+    }
+    char *source = file->tokens->text;
+    int32 pos = file->tokens->tokens[first].offset;
+    while (pos > 0 && (source[pos - 1] == ' '
+                       || source[pos - 1] == '\t'
+                       || source[pos - 1] == '\n')) {
+        pos -= 1;
+    }
+    int32 line = pos;
+    while (line > 0 && source[line - 1] != '\n') {
+        line -= 1;
+    }
+    while (line < pos && (source[line] == ' '
+                          || source[line] == '\t')) {
+        line += 1;
+    }
+    if (pos - line < 6 || memcmp64(source + line, "#endif", 6)) {
+        return false;
+    }
+    for (int32 i = first - 1; i >= 0; i -= 1) {
+        Token *token = &file->tokens->tokens[i];
+        int32 start = file->toplevel->items[stmt->function].source.start;
+        if (token->offset < start) {
+            break;
+        }
+        int32 region = csane_regions_at_token(file->regions, i);
+        if (region < 0
+            || file->regions->items[region].kind != CSANE_REGION_CODE
+            || token_is_trivia(token)) {
+            continue;
+        }
+        return TOKEN_IS(token, ")") || TOKEN_IS(token, "else")
+               || TOKEN_IS(token, "do");
+    }
+    return false;
+}
+
+/* For a block detached from its surrounding statements by a directive,
+ * recover only the preceding header/initializer clue. No macro expansion or
+ * translation-unit type information is required. */
+static bool
+csane_control_header_before(CsaneFile *file, CsaneStatement *stmt) {
+    int32 first = csane_control_first(file, stmt);
+    int32 prev = csane_control_previous(file, stmt, first);
+    if (prev < 0) {
+        return false;
+    }
+    Token *token = &file->tokens->tokens[prev];
+    if (TOKEN_IS(token, ")") || TOKEN_IS(token, "else")
+        || TOKEN_IS(token, "do") || TOKEN_IS(token, "=")
+        || TOKEN_IS(token, ",") || TOKEN_IS(token, "(")) {
+        return true;
+    }
+    if (TOKEN_IS(token, ":")) {
+        int32 line_start = token->offset;
+        char *source = file->tokens->text;
+        while (line_start > 0 && source[line_start - 1] != '\n') {
+            line_start -= 1;
+        }
+        while (source[line_start] == ' ') {
+            line_start += 1;
+        }
+        int32 length = token->offset + token->len - line_start;
+        if ((length >= 5 && !memcmp64(source + line_start, "case ", 5))
+            || (length >= 8
+                && !memcmp64(source + line_start, "default:", 8))) {
+            return true;
+        }
+    }
+    int32 before = csane_control_previous(file, stmt, prev);
+    if (before >= 0 && (TOKEN_IS(&file->tokens->tokens[before], "struct")
+                        || TOKEN_IS(&file->tokens->tokens[before], "union")
+                        || TOKEN_IS(&file->tokens->tokens[before], "enum"))) {
+        return true;
+    }
+    return TOKEN_IS(token, "struct") || TOKEN_IS(token, "union")
+           || TOKEN_IS(token, "enum");
+}
+
+static void
+csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
+    if (stmt->kind != CSANE_STMT_BLOCK) {
+        return;
+    }
+    if (stmt->parent >= 0) {
+        CsaneStatement *parent = &file->statements->items[stmt->parent];
+        if (parent->kind != CSANE_STMT_BLOCK) {
             return;
         }
-        break;
+        /* A block immediately after a case/default label is its body. */
+        for (int32 i = parent->first_child; i >= 0;
+             i = file->statements->items[i].next_sibling) {
+            if (file->statements->items[i].next_sibling
+                != (int32)(stmt - file->statements->items)) {
+                continue;
+            }
+            enum CsaneStatementKind kind = file->statements->items[i].kind;
+            if (kind == CSANE_STMT_CASE || kind == CSANE_STMT_DEFAULT
+                || kind == CSANE_STMT_LABEL) {
+                return;
+            }
+            break;
+        }
+    } else {
+        /* A root block may be a function-body fragment from a conditional
+         * branch. The ordinary function-body stream has no such roots. */
+        int32 base = file->toplevel->items[stmt->function].owner_region;
+        if (stmt->owner_region == base) {
+            return;
+        }
+    }
+    if (csane_control_header_before(file, stmt)
+        || csane_control_after_endif(file, stmt)) {
+        return;
     }
     int32 token = csane_control_first(file, stmt);
     if (token < 0) {
@@ -145,24 +306,6 @@ csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
     int32 start = offset;
     while (start > 0 && text[start - 1] != '\n') {
         start -= 1;
-    }
-    /* A control header may end in #endif, leaving its body as an
-     * apparently standalone block in the original branch stream. */
-    int32 prev = start;
-    while (prev > 0 && (text[prev - 1] == '\n'
-                        || text[prev - 1] == ' '
-                        || text[prev - 1] == '\t')) {
-        prev -= 1;
-    }
-    int32 line = prev;
-    while (line > 0 && text[line - 1] != '\n') {
-        line -= 1;
-    }
-    while (line < prev && (text[line] == ' ' || text[line] == '\t')) {
-        line += 1;
-    }
-    if (prev - line >= 6 && !memcmp64(text + line, "#endif", 6)) {
-        return;
     }
     if (offset - start < 12) {
         return;

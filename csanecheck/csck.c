@@ -21,7 +21,7 @@ csane_usage(FILE *output) {
             "                  [--help]\n"
             "       csanecheck PATH [PATH ...]\n"
             "\n"
-            "Phase 5.3: structural and contextual checks.\n"
+            "Token-local source, structural, and contextual checks.\n"
             "Without paths, search the current project directory.\n"
             "Exit: 0 clean, 1 violations/required-coverage failure,\n"
             "      2 usage/I/O error.\n");
@@ -57,32 +57,6 @@ csane_issue(char *path, Tokenization *tokens, int32 index,
     return;
 }
 
-/* These are actual typedefs exported by cbase/primitives.h. Seed only
- * names present in the token stream; this is not type-name guessing based on
- * capitalization or suffixes. Header-specific typedefs still need context. */
-static void
-csane_cbase_types(CAst *ast) {
-    static char *names[] = {
-        "uchar", "ushort", "uint", "ulong", "ullong", "schar",
-        "llong", "ldouble", "int8", "int16", "int32", "int64",
-        "uint8", "uint16", "uint32", "uint64", "bool32", "bool",
-        "uintptr", "intptr", "CbaseMaxAlign", "size_t", "ptrdiff_t",
-        "ssize_t", "max_align_t", "FILE", "va_list", "jmp_buf",
-        "sigjmp_buf",
-    };
-    Tokenization *tokens = ast->tokenization;
-    for (int32 n = 0; n < (int32)(SIZEOF(names)/SIZEOF(names[0]));
-         n += 1) {
-        for (int32 i = 0; i < tokens->token_count; i += 1) {
-            Token *token = &tokens->tokens[i];
-            if (token->kind == TOKEN_IDENT && TOKEN_IS(token, names[n])) {
-                c_ast_bind(ast, i, C_NAME_TYPEDEF);
-                break;
-            }
-        }
-    }
-}
-
 static int32
 csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     char *source = NULL;
@@ -95,14 +69,10 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     CsaneRegions regions = {0};
     CsaneTopLevels toplevel = {0};
     CsaneStatements statements = {0};
-    CAst ast = {0};
-    CsaneMacroView expanded = {0};
-    CPreprocessorAnalysis projected_pp = {0};
     CsaneFile file = {
         .path = path,
         .tokens = &tokens,
         .preprocessor = &pp,
-        .ast = &ast,
         .policy = &options->policy,
     };
     csane_rules_prepare(&file);
@@ -138,39 +108,11 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     file.regions = &regions;
     file.toplevel = &toplevel;
     csane_rules_run(&file, CSANE_PASS_TOKEN);
-    if (pp_ok) {
-        csane_macro_view_init(&expanded, &tokens, &pp, path, &options->policy);
-        projected_pp = pp;
-        projected_pp.tokenization = &expanded.tokens;
-    }
-    bool ast_ok = c_ast_init(&ast, pp_ok ? &expanded.tokens : &tokens);
-    if (!ast_ok) {
-        fprintf(stderr, "%s: unable to initialize AST\n", path);
-        csane_macro_view_free(&expanded);
-        csane_statements_free(&statements);
-        csane_toplevel_free(&toplevel);
-        csane_regions_free(&regions);
-        c_preprocessor_analysis_free(&pp);
-        free_tokenization(&tokens);
-        free2(source, (int64)len + 1);
-        return 2;
-    }
-    if (pp_ok) {
-        csane_cbase_types(&ast);
-        csane_types_prepare(&ast, path, &options->policy);
-        ast.infer_type_names = true;
-        c_ast_parse_translation_unit(&ast,
-                                     (TokenRange){0, tokens.token_count},
-                                     &projected_pp);
-    }
-    /* Parser statistics remain informational until AST removal in Step 15.
-     * Rule completeness is computed independently from local targets. */
-    CsaneCoverage coverage = csane_coverage_collect(&ast);
-    file.ast_ok = ast_ok && pp_ok;
-    csane_rules_run(&file, CSANE_PASS_SYNTAX);
-    csane_rules_run(&file, CSANE_PASS_CONTEXT);
+    CsaneCoverage coverage = csane_coverage_collect(&toplevel, &statements);
     int32 violations = file.violations;
-    int32 issues = ast.issue_count + pp.issue_count;
+    int32 structural_issues = coverage.opaque_externals
+                              + coverage.opaque_statements;
+    int32 issues = structural_issues + pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         issues += 1;
     }
@@ -179,33 +121,26 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     stats->function_declarations += coverage.function_declarations;
     stats->function_definitions += coverage.function_definitions;
     stats->statements += coverage.statements;
-    stats->expressions += coverage.expressions;
-    stats->unsupported_statements += coverage.unsupported_statements;
-    stats->unsupported_externals += coverage.unsupported_externals;
-    stats->malformed_issues += coverage.malformed_issues;
-    stats->unsupported_issues += coverage.unsupported_issues;
+    stats->opaque_statements += coverage.opaque_statements;
+    stats->opaque_externals += coverage.opaque_externals;
     if (options->coverage) {
         printf("coverage file=%s declarations=%d function_declarations=%d "
-               "function_definitions=%d statements=%d expressions=%d "
-               "unsupported_statements=%d unsupported_externals=%d "
-               "malformed_issues=%d unsupported_issues=%d "
-               "parse_issues=%d preprocessor_issues=%d\n",
+               "function_definitions=%d statements=%d "
+               "opaque_statements=%d opaque_externals=%d "
+               "structural_issues=%d preprocessor_issues=%d\n",
                path, coverage.declarations, coverage.function_declarations,
                coverage.function_definitions, coverage.statements,
-               coverage.expressions, coverage.unsupported_statements,
-               coverage.unsupported_externals, coverage.malformed_issues,
-               coverage.unsupported_issues, ast.issue_count, pp.issue_count);
+               coverage.opaque_statements, coverage.opaque_externals,
+               structural_issues, pp.issue_count);
     }
     CsaneRuleCounts totals = {0};
     int32 incomplete = csane_rules_incomplete(&file, options->rule_coverage,
                                               &totals);
     if (options->coverage) {
         printf("coverage_layers file=%s eligible=%d checked=%d "
-               "excluded=%d unresolved=%d projected_macros=%d "
-               "projected_tokens=%d\n",
+               "excluded=%d unresolved=%d\n",
                path, totals.eligible, totals.checked, totals.excluded,
-               totals.unresolved, expanded.projected_macros,
-               expanded.projected_tokens);
+               totals.unresolved);
     }
     if (options->require_coverage && incomplete > 0) {
         printf("%s:1:1: error[COVERAGE-INCOMPLETE]: "
@@ -214,8 +149,8 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     }
     stats->files += 1;
     stats->tokens += tokens.token_count;
-    stats->externals += ast.external_count;
-    stats->parse_issues += ast.issue_count;
+    stats->externals += toplevel.count;
+    stats->structural_issues += structural_issues;
     stats->preprocessor_issues += pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         stats->preprocessor_issues += 1;
@@ -234,23 +169,22 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
             csane_issue(path, &tokens, -1, "PP-STRUCTURE",
                         "preprocessor analysis failed");
         }
-        for (int32 i = 0; i < ast.issue_count; i += 1) {
-            CParseIssue *issue = &ast.issues[i];
-            char *code = "PARSE-UNSUPPORTED";
-            char *message = "unsupported C construct";
-            if (issue->kind == C_PARSE_ISSUE_MALFORMED) {
-                code = "PARSE-MALFORMED";
-                message = "malformed C construct";
-            } else if (issue->kind == C_PARSE_ISSUE_PREPROCESSOR) {
-                code = "PARSE-PREPROCESSOR";
-                message = "preprocessor boundary prevents parsing";
+        for (int32 i = 0; i < toplevel.count; i += 1) {
+            CsaneTopItem *item = &toplevel.items[i];
+            if (item->kind == CSANE_TOP_OPAQUE) {
+                csane_issue(path, &tokens, item->tokens.first,
+                            "STRUCTURE-OPAQUE",
+                            "unrecognized top-level construct");
             }
-            csane_issue(path, &tokens, issue->token, code, message);
         }
-    }
-    c_ast_free(&ast);
-    if (pp_ok) {
-        csane_macro_view_free(&expanded);
+        for (int32 i = 0; i < statements.count; i += 1) {
+            CsaneStatement *stmt = &statements.items[i];
+            if (stmt->kind == CSANE_STMT_OPAQUE) {
+                csane_issue(path, &tokens, stmt->tokens.first,
+                            "STRUCTURE-OPAQUE",
+                            "unrecognized statement");
+            }
+        }
     }
     csane_statements_free(&statements);
     csane_toplevel_free(&toplevel);
@@ -372,7 +306,7 @@ csane_run(int32 argc, char **argv) {
             goto cleanup;
         }
         if (!strcmp(arg, "--version")) {
-            puts("csanecheck phase 5.1");
+            puts("csanecheck token-local");
             goto cleanup;
         }
         if (!strcmp(arg, "--stats")) {
@@ -486,25 +420,23 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (options.statistics) {
-        printf("files=%d tokens=%lld externals=%lld parse_issues=%lld "
-               "preprocessor_issues=%lld violations=%lld "
-               "declarations=%lld function_declarations=%lld "
-               "function_definitions=%lld statements=%lld expressions=%lld "
-               "unsupported_statements=%lld unsupported_externals=%lld "
-               "malformed_issues=%lld unsupported_issues=%lld\n",
+        printf("files=%d tokens=%lld externals=%lld "
+               "structural_issues=%lld preprocessor_issues=%lld "
+               "violations=%lld declarations=%lld "
+               "function_declarations=%lld function_definitions=%lld "
+               "statements=%lld opaque_statements=%lld "
+               "opaque_externals=%lld\n",
                stats.files, (long long)stats.tokens,
-               (long long)stats.externals, (long long)stats.parse_issues,
+               (long long)stats.externals,
+               (long long)stats.structural_issues,
                (long long)stats.preprocessor_issues,
                (long long)stats.violations,
                (long long)stats.declarations,
                (long long)stats.function_declarations,
                (long long)stats.function_definitions,
                (long long)stats.statements,
-               (long long)stats.expressions,
-               (long long)stats.unsupported_statements,
-               (long long)stats.unsupported_externals,
-               (long long)stats.malformed_issues,
-               (long long)stats.unsupported_issues);
+               (long long)stats.opaque_statements,
+               (long long)stats.opaque_externals);
     }
 cleanup:
     csane_paths_free(&options.files);
