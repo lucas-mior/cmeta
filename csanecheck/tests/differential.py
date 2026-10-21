@@ -58,6 +58,13 @@ LEGACY_LINE = re.compile(r"^(.*):(\d+):(.*)$")
 CSANE_LINE = re.compile(
     r"^(.*):(\d+):(\d+): error\[([A-Za-z0-9-]+)\]: (.*)$"
 )
+# This final user guidance is not a diagnostic rule.
+CSANE_GUIDANCE = frozenset({
+    "In order to understand and learn how to fix the problems above, "
+    "read cbase/c-guidelines.md and cbase/c-format.md",
+    "if you think any of them are a false positive, stop what you are "
+    "doing and report.",
+})
 CSANE_ONLY = frozenset({
     "API-NEVER", "API-CBASE-ONLY", "STYLE-STATUS-TEMP", "FMT-MULTIPLY",
     "FMT-BINARY-SPACING", "FMT-ASSIGN-SPACING", "FMT-COMMA-SPACING",
@@ -186,6 +193,8 @@ def normalize_csane(output, cwd, rules):
     records, extras, unknown = [], [], []
     by_id = {rule.csane_id: rule.category for rule in rules.values()}
     for text in output.splitlines():
+        if text in CSANE_GUIDANCE:
+            continue
         match = CSANE_LINE.fullmatch(text)
         if match is None:
             unknown.append(text)
