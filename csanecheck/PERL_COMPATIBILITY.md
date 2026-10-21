@@ -110,9 +110,9 @@ findings; do not deduplicate multiple legitimate findings on the same line.
 
 ## Explicitly NOT active Perl diagnostics
 
-- **Ternary operator**: `check_ternary_operators()` exists, but its only call
-  is commented out. `test_non_ryu_ternary_is_rejected_but_macro_is_not()` is
-  commented out too. Do not treat ternary detection as required Perl parity.
+- **Ternary operator**: the guide says to avoid ternary expressions, but this
+  is a preference rather than an enforced diagnostic. Neither the Perl checker
+  nor `csanecheck` checks for ternary operators.
 - **Multiplication spacing**: `test_multiplication_spacing_is_not_checked`
   asserts the Perl checker does not reject it. `FMT-MULTIPLY` is a separate
   `csanecheck` rule, not a parity requirement.

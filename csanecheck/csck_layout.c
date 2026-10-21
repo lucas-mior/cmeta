@@ -1163,10 +1163,6 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
         csane_rule_issue(file, token->offset, "STYLE-INCDEC",
                          "prefer += 1 or -= 1 instead of ++ or --");
     }
-    if (TOKEN_IS(token, "?")) {
-        csane_rule_issue(file, token->offset, "STYLE-TERNARY",
-                         "ternary operator is forbidden");
-    }
     if (TOKEN_IS(token, "{")) {
         csane_layout_trailing_comma_check(file, index);
     }
