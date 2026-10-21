@@ -6,6 +6,7 @@
 #define CMETA_IMPLEMENT
 #include "meta.h"
 #include "csanecheck/csck_regions.c"
+#include "csanecheck/csck_tokens.c"
 #include "csanecheck/csck_toplevel.c"
 #include "csanecheck/csck_statements.c"
 
@@ -308,22 +309,95 @@ test_nested_function_guards(void) {
     return;
 }
 
-/* Fields split by a directive have no statement-scanner owner. Until they
- * have their own scanner, they must still contribute unresolved coverage. */
+/* Conditional fields and enumerators remain in their aggregate's
+ * lexical context, not in a fabricated translation unit. */
 static void
-test_struct_guard_is_not_silently_skipped(void) {
+test_guarded_aggregate_fragments(void) {
+    char *text =
+        "typedef struct Bucket {\n"
+        "    int32 key;\n"
+        "#if FIXED\n"
+        "    KEY_TYPE value;\n"
+        "#if EXTRA\n"
+        "    void (*callback)(int32);\n"
+        "#else\n"
+        "    KEY_TYPE *pointer;\n"
+        "#endif\n"
+        "#else\n"
+        "    KEY_TYPE *value;\n"
+        "    int32 len;\n"
+        "#endif\n"
+        "} Bucket;\n"
+        "enum Flags {\n"
+        "#if BITS\n"
+        "    CAT(PREFIX_, NONE) = 0,\n"
+        "#else\n"
+        "    FLAG_NONE,\n"
+        "#endif\n"
+        "    FLAG_LAST\n"
+        "};\n";
+    TestStructure test;
+    test_init(&test, text);
+    int32 members = 0;
+    int32 enumerators = 0;
+    for (int32 i = 0; i < test.top.count; i += 1) {
+        enum CsaneTopKind kind = test.top.items[i].kind;
+        members += kind == CSANE_TOP_MEMBER_DECLARATION;
+        enumerators += kind == CSANE_TOP_ENUMERATOR;
+    }
+    CHECK(test.top.opaque_count == 0);
+    CHECK(members == 5);
+    CHECK(enumerators == 2);
+    test_free(&test);
+    return;
+}
+
+static void
+test_guarded_function_parameters(void) {
+    char *text =
+        "int32 run(int32 first\n"
+        "#if WANT_EXTRA\n"
+        "          , int32 extra\n"
+        "#else\n"
+        "          , int32 other\n"
+        "#endif\n"
+        "          ) { return first; }\n"
+        "int32 ordinary(void) { return 0; }\n";
+    TestStructure test;
+    test_init(&test, text);
+    CHECK(test_function(&test, "run") >= 0);
+    CHECK(test_function(&test, "ordinary") >= 0);
+    CHECK(test.top.opaque_count == 0);
+    int32 parameters = 0;
+    for (int32 i = 0; i < test.top.count; i += 1) {
+        parameters += test.top.items[i].kind ==
+                      CSANE_TOP_PARAMETER_FRAGMENT;
+    }
+    CHECK(parameters == 2);
+    test_free(&test);
+    return;
+}
+
+static void
+test_bad_aggregate_fragment_stays_opaque(void) {
     char *text =
         "struct Fields {\n"
-        "#if OPTION\n"
-        "    int32 first;\n"
+        "#if INVALID\n"
+        "    int32 broken = (1;\n"
         "#else\n"
-        "    int32 second;\n"
+        "    int32 okay;\n"
         "#endif\n"
         "};\n";
     TestStructure test;
     test_init(&test, text);
-    CHECK(test.top.opaque_count == 2);
-    CHECK(test.statements.count == 0);
+    CHECK(test.top.opaque_count >= 1);
+    bool recognized = false;
+    for (int32 i = 0; i < test.top.count; i += 1) {
+        if (test.top.items[i].kind == CSANE_TOP_MEMBER_DECLARATION) {
+            recognized = true;
+        }
+    }
+    CHECK(recognized);
     test_free(&test);
     return;
 }
@@ -337,7 +411,9 @@ main(void) {
     test_trailing_function_attribute();
     test_conditionals();
     test_nested_function_guards();
-    test_struct_guard_is_not_silently_skipped();
+    test_guarded_aggregate_fragments();
+    test_guarded_function_parameters();
+    test_bad_aggregate_fragment_stays_opaque();
     test_local_bad_statement();
     return failures > 0;
 }

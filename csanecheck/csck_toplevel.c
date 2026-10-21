@@ -6,6 +6,7 @@
 
 #include "cbase.h"
 #include "csck_toplevel.h"
+#include "csck_tokens.h"
 
 typedef struct CsaneTopStream {
     CsaneTopLevels *top;
@@ -472,30 +473,190 @@ csane_top_scan(CsaneTopStream *stream) {
     return;
 }
 
-/* A conditional branch may be embedded inside a function, type, or
- * declaration. Its statements must not be misreported as file-scope
- * declarations merely because the enclosing directive was split out. */
-static enum CsaneTopKind
-csane_top_enclosing_kind(CsaneTopStream *stream) {
+/* Locate the narrowest previously recognized enclosing declaration.
+ * Function headers and bodies are distinguished below; neither requires
+ * parsing or selecting a preprocessor alternative. */
+static CsaneTopItem *
+csane_top_enclosing(CsaneTopStream *stream) {
     CsaneRegions *regions = stream->top->regions;
     SourceRange source = regions->items[stream->owner].source;
-    Tokenization *tokens = regions->tokens;
+    CsaneTopItem *best = NULL;
     for (int32 i = 0; i < stream->top->count; i += 1) {
         CsaneTopItem *item = &stream->top->items[i];
         if (item->kind == CSANE_TOP_OPAQUE
-            || item->kind == CSANE_TOP_MACRO_INVOCATION) {
+            || item->kind == CSANE_TOP_MACRO_INVOCATION
+            || item->kind == CSANE_TOP_MEMBER_DECLARATION
+            || item->kind == CSANE_TOP_ENUMERATOR
+            || item->kind == CSANE_TOP_PARAMETER_FRAGMENT) {
             continue;
         }
-        SourceRange enclosing = item->source;
-        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
-            Token *brace = &tokens->tokens[item->body.first];
-            enclosing.start = brace->offset;
+        if (source.start < item->source.start
+            || source.end > item->source.end) {
+            continue;
         }
-        if (source.start >= enclosing.start && source.end <= enclosing.end) {
-            return item->kind;
+        if (best == NULL || item->source.end - item->source.start
+                            < best->source.end - best->source.start) {
+            best = item;
         }
     }
-    return 0;
+    return best;
+}
+
+/* Find an aggregate's opening brace before the branch. The enclosing
+ * type declaration must itself have been recognized by the parent stream.
+ * Other compound constructs inside its body are not guessed to be fields. */
+static enum CsaneTopKind
+csane_top_aggregate(CsaneTopStream *stream, CsaneTopItem *item) {
+    Tokenization *tokens = stream->top->regions->tokens;
+    int32 offset = stream->top->regions->items[stream->owner].source.start;
+    bool struct_or_union = false;
+    bool is_enum = false;
+    for (int32 i = item->tokens.first; i < item->tokens.end; i += 1) {
+        Token *token = &tokens->tokens[i];
+        if (token->offset >= offset) {
+            break;
+        }
+        if (TOKEN_IS(token, "struct") || TOKEN_IS(token, "union")) {
+            struct_or_union = true;
+            is_enum = false;
+        } else if (TOKEN_IS(token, "enum")) {
+            struct_or_union = false;
+            is_enum = true;
+        } else if (TOKEN_IS(token, "{")) {
+            if (struct_or_union || is_enum) {
+                return is_enum ? CSANE_TOP_ENUMERATOR
+                               : CSANE_TOP_MEMBER_DECLARATION;
+            }
+            break;
+        } else if (TOKEN_IS(token, ";")) {
+            struct_or_union = false;
+            is_enum = false;
+        }
+    }
+    return CSANE_TOP_OPAQUE;
+}
+
+/* A fragment of a function header must be enclosed by a real parameter
+ * pair. In particular, a guard before the return type is not a parameter. */
+static bool
+csane_top_parameters(CsaneTopStream *stream, CsaneTopItem *item) {
+    Tokenization *tokens = stream->top->regions->tokens;
+    SourceRange source = stream->top->regions->items[stream->owner].source;
+    int32 limit = item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                  ? item->body.first : item->header.end;
+    CsaneTokenView view = csane_tokens_full(tokens);
+    for (int32 i = item->header.first; i < limit; i += 1) {
+        Token *token = &tokens->tokens[i];
+        if (token->offset >= source.start) {
+            break;
+        }
+        if (!TOKEN_IS(token, "(")) {
+            continue;
+        }
+        int32 close = csane_tokens_match(&view, i);
+        if (close >= 0 && close < limit
+            && tokens->tokens[close].offset >= source.end) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Do not interpret a damaged branch as a valid declaration. The fragment
+ * scanner checks bounded, independently balanced units, retaining any
+ * unrecognized remainder as OPAQUE for accurate rule coverage. */
+static bool
+csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
+                         enum CsaneTopKind kind, bool terminated) {
+    if (first >= end) {
+        return kind == CSANE_TOP_PARAMETER_FRAGMENT;
+    }
+    if (csane_top_token(stream, first)->kind != TOKEN_IDENT
+        || csane_top_is(stream, first, "return")
+        || csane_top_is(stream, first, "if")
+        || csane_top_is(stream, first, "for")
+        || csane_top_is(stream, first, "while")
+        || csane_top_is(stream, first, "switch")
+        || csane_top_is(stream, first, "case")) {
+        return false;
+    }
+    int32 identifiers = 0;
+    for (int32 i = first; i < end; i += 1) {
+        if (csane_top_token(stream, i)->kind == TOKEN_IDENT) {
+            identifiers += 1;
+        }
+        if (csane_top_open(stream, i)) {
+            if (stream->matches[i] <= i || stream->matches[i] >= end) {
+                return false;
+            }
+            i = stream->matches[i];
+        } else if (csane_top_close(stream, i)) {
+            return false;
+        }
+        if (csane_top_is(stream, i, ";")) {
+            return false;
+        }
+    }
+    /* Count identifiers inside balanced groups, including pointer
+     * declarators like void (*callback)(int32). */
+    identifiers = 0;
+    for (int32 i = first; i < end; i += 1) {
+        identifiers += csane_top_token(stream, i)->kind == TOKEN_IDENT;
+    }
+    if (kind == CSANE_TOP_MEMBER_DECLARATION) {
+        return identifiers >= 2;
+    }
+    if (kind == CSANE_TOP_ENUMERATOR) {
+        /* A lone macro name may expand to an unknown number of entries. */
+        return terminated || identifiers > 1 || end > first + 1;
+    }
+    return true;
+}
+
+static void
+csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
+    char *separator = kind == CSANE_TOP_MEMBER_DECLARATION ? ";" : ",";
+    int32 first = 0;
+    while (first < stream->count) {
+        int32 begin = first;
+        int32 end = stream->count;
+        bool terminated = false;
+        int32 scan = first;
+        if (kind == CSANE_TOP_PARAMETER_FRAGMENT
+            && csane_top_is(stream, scan, ",")) {
+            scan += 1;
+        }
+        for (int32 i = scan; i < stream->count; i += 1) {
+            if (csane_top_open(stream, i)) {
+                if (stream->matches[i] <= i) {
+                    end = i + 1;
+                    break;
+                }
+                i = stream->matches[i];
+            } else if (csane_top_close(stream, i)) {
+                end = i + 1;
+                break;
+            } else if (csane_top_is(stream, i, separator)) {
+                end = i + 1;
+                terminated = true;
+                break;
+            }
+        }
+        int32 content_first = begin;
+        int32 content_end = terminated ? end - 1 : end;
+        if (kind == CSANE_TOP_PARAMETER_FRAGMENT
+            && csane_top_is(stream, content_first, ",")) {
+            content_first += 1;
+        }
+        bool complete = kind != CSANE_TOP_MEMBER_DECLARATION || terminated;
+        enum CsaneTopKind result =
+            complete && csane_top_fragment_valid(stream, content_first,
+                                                 content_end, kind,
+                                                 terminated)
+            ? kind : CSANE_TOP_OPAQUE;
+        csane_top_append(stream, result, begin, end, -1, -1);
+        first = end;
+    }
 }
 
 static void
@@ -503,19 +664,33 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
     CsaneTopStream stream = {.top = top, .owner = owner};
     csane_top_collect(&stream);
     csane_top_match(&stream);
-    enum CsaneTopKind context = csane_top_enclosing_kind(&stream);
-    /* A function's conditional alternatives belong to the statement
-     * scanner. It already visits each branch and accounts for opaque
-     * statements; treating them as externals fabricated parse failures. */
-    if (context != CSANE_TOP_FUNCTION_DEFINITION) {
-        if (context != 0) {
-            /* Type/declaration fragments have no dedicated scanner yet.
-             * Keep their coverage unresolved rather than dropping them. */
-            csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count,
-                             -1, -1);
-        } else {
-            csane_top_scan(&stream);
+    CsaneTopItem *enclosing = csane_top_enclosing(&stream);
+    if (enclosing == NULL) {
+        csane_top_scan(&stream);
+    } else if (enclosing->kind == CSANE_TOP_FUNCTION_DEFINITION
+               || enclosing->kind == CSANE_TOP_FUNCTION_DECLARATION) {
+        Tokenization *tokens = top->regions->tokens;
+        bool in_body = enclosing->kind == CSANE_TOP_FUNCTION_DEFINITION
+                       && top->regions->items[owner].source.start
+                          >= tokens->tokens[enclosing->body.first].offset;
+        if (!in_body) {
+            if (csane_top_parameters(&stream, enclosing)) {
+                csane_top_fragments(&stream, CSANE_TOP_PARAMETER_FRAGMENT);
+            } else {
+                csane_top_append(&stream, CSANE_TOP_OPAQUE,
+                                 0, stream.count, -1, -1);
+            }
         }
+        /* Complete body alternatives belong to the statement scanner. */
+    } else if (enclosing->kind == CSANE_TOP_TYPE_DECLARATION) {
+        enum CsaneTopKind kind = csane_top_aggregate(&stream, enclosing);
+        if (kind == CSANE_TOP_OPAQUE) {
+            csane_top_append(&stream, kind, 0, stream.count, -1, -1);
+        } else {
+            csane_top_fragments(&stream, kind);
+        }
+    } else {
+        csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count, -1, -1);
     }
     free2(stream.stack, (int64)stream.count*SIZEOF(*stream.stack));
     free2(stream.matches, (int64)stream.count*SIZEOF(*stream.matches));

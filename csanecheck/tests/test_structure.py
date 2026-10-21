@@ -72,6 +72,77 @@ class StructureTests(unittest.TestCase):
         self.assertIn("STRUCTURE-OPAQUE", result.stdout)
         self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
 
+    def test_guarded_type_and_parameter_regions(self):
+        source = ("typedef struct Box {\n"
+                  "#if FIRST\n    int32 a;\n"
+                  "#if INNER\n    int32 b;\n"
+                  "#else\n    int32 c;\n#endif\n"
+                  "#else\n    int32 d;\n#endif\n"
+                  "} Box;\n"
+                  "enum Tags {\n#if FIRST\n    TAG_A = 1,\n"
+                  "#else\n    TAG_B = 2,\n#endif\n};\n"
+                  "int32 test(int32 a\n#if FIRST\n"
+                  "           , int32 b\n#else\n"
+                  "           , int32 c\n#endif\n"
+                  "           ) { return a; }\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "guarded.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                                     "--file", str(path), "--coverage",
+                                     "--report-parse-issues",
+                                     "--require-coverage"],
+                                    cwd=ROOT, capture_output=True,
+                                    text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("opaque_externals=0", result.stdout)
+        self.assertIn("opaque_statements=0", result.stdout)
+        self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
+        self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
+        self.assertIn("function_definitions=1", result.stdout)
+
+    def test_guarded_member_rules_remain_active(self):
+        source = ("struct Box {\n#if FIRST\n"
+                  "    int32 one, two;\n#else\n"
+                  "    int32 three;\n#endif\n};\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "members.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                                     "--file", str(path), "--coverage",
+                                     "--report-parse-issues"],
+                                    cwd=ROOT, capture_output=True,
+                                    text=True, check=False)
+        self.assertEqual(result.stdout.count("error[AST-DECL-ONE]"), 1,
+                         result.stdout)
+        self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
+
+    def test_incomplete_type_fragment_remains_unresolved(self):
+        source = ("struct Box {\n#if BAD\n"
+                  "    int32 broken = (1;\n#else\n"
+                  "    int32 okay;\n#endif\n};\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                                     "--file", str(path),
+                                     "--require-coverage",
+                                     "--report-parse-issues"],
+                                    cwd=ROOT, capture_output=True,
+                                    text=True, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("STRUCTURE-OPAQUE", result.stdout)
+        self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+
+    def test_hash_guards_no_longer_create_top_level_opaque(self):
+        result = subprocess.run([str(ROOT / "bin/csanecheck"), "--file",
+                                 "cbase/hash.c", "--coverage",
+                                 "--report-parse-issues"], cwd=ROOT,
+                                capture_output=True, text=True,
+                                check=False)
+        self.assertIn("opaque_externals=0", result.stdout)
+        self.assertIn("opaque_statements=6", result.stdout)
+
     def test_native_structure_scanning(self):
         compiler = shlex.split(os.environ.get("CC", "cc"))
         with tempfile.TemporaryDirectory() as directory:
