@@ -6,6 +6,7 @@
 
 #include "cbase.h"
 #include "csck_statements.h"
+#include "csck_tokens.h"
 
 typedef struct CsaneStatementStream {
     CsaneStatements *statements;
@@ -354,24 +355,47 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
     Tokenization *tokens = regions->tokens;
     CsaneStatementStream stream = {.statements = statements,
                                    .function = function, .owner = owner};
-    for (int32 i = top->body.first; i < top->body.end; i += 1) {
-        Token *token = &tokens->tokens[i];
-        if (token_is_trivia(token) || token->kind == TOKEN_PREPROC) {
-            continue;
-        }
-        int32 region = csane_regions_at_token(regions, i);
-        if (region < 0 || regions->items[region].kind != CSANE_REGION_CODE
-            || csane_stmt_owner(regions, region) != owner) {
-            continue;
-        }
-        csane_stmt_push(&stream, i);
+    CsaneTokenPath path;
+    CsaneTokenView view;
+    int32 part_first = -1;
+    int32 i;
+
+    if (!csane_token_path_init(&path, tokens, top->body)) {
+        return;
     }
+    for (i = top->body.first; i < top->body.end; i += 1) {
+        int32 region = csane_regions_at_token(regions, i);
+        bool selected = region >= 0
+                        && regions->items[region].kind == CSANE_REGION_CODE
+                        && csane_stmt_owner(regions, region) == owner;
+        if (selected && part_first < 0) {
+            part_first = i;
+        } else if (!selected && part_first >= 0) {
+            (void)csane_token_path_append(&path,
+                                          (TokenRange){part_first, i});
+            part_first = -1;
+        }
+    }
+    if (part_first >= 0) {
+        (void)csane_token_path_append(&path,
+                                      (TokenRange){part_first, top->body.end});
+    }
+    if (csane_tokens_path_view(&view, &path)) {
+        i = csane_tokens_next(&view, view.range.first - 1);
+        while (i >= view.range.first && i < view.range.end) {
+            if (tokens->tokens[i].kind != TOKEN_PREPROC) {
+                csane_stmt_push(&stream, i);
+            }
+            i = csane_tokens_next(&view, i);
+        }
+    }
+    csane_token_path_free(&path);
     if (stream.count > 0) {
+        int32 first = 0;
+        int32 end = stream.count;
         csane_stmt_match(&stream);
         /* A function's outermost braces belong to the base stream. Branch
          * streams may contain only fragments of the function body. */
-        int32 first = 0;
-        int32 end = stream.count;
         if (owner == top->owner_region
             && csane_stmt_is(&stream, first, "{")
             && csane_stmt_is(&stream, end - 1, "}")) {
