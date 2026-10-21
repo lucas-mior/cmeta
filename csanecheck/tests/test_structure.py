@@ -72,6 +72,88 @@ class StructureTests(unittest.TestCase):
         self.assertIn("STRUCTURE-OPAQUE", result.stdout)
         self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
 
+    def test_known_repository_structure_gaps_are_unresolved(self):
+        cases = (
+            ("conditional_call_argument",
+             "int32 example(int32 key, int32 length) {\n"
+             "    return call(key\n"
+             "#if WANT_LENGTH\n"
+             "                , length\n"
+             "#endif\n"
+             "                , 1);\n"
+             "}\n",
+             "opaque_statements=1", "opaque_externals=0"),
+            ("conditional_if_header",
+             "bool example(char *path) {\n"
+             "    struct stat st;\n"
+             "#if OS_WINDOWS\n"
+             "    if (stat(path, &st) != 0) {\n"
+             "#else\n"
+             "    if (lstat(path, &st) != 0) {\n"
+             "#endif\n"
+             "        return false;\n"
+             "    }\n"
+             "    return true;\n"
+             "}\n",
+             "opaque_statements=2", "opaque_externals=1"),
+            ("initializer_macro",
+             "static int32 values[] = {\n"
+             "    ITEM(A),\n"
+             "#if HAVE_B\n"
+             "    ITEM(B),\n"
+             "#endif\n"
+             "    ITEM(C),\n"
+             "};\n",
+             "opaque_statements=0", "opaque_externals=1"),
+            ("enum_macro",
+             "#if ENABLE\n"
+             "enum CAT(ENUM_NAME, _Indices) {\n"
+             "#define XX(e) CAT(e, _INDEX),\n"
+             "#define XX_2(e, x) CAT(e, _INDEX),\n"
+             "#define XX(...) SELECT(XX_, __VA_ARGS__)\n"
+             "\n    ENUM_FIELDS\n\n"
+             "#undef XX\n"
+             "#undef XX_2\n"
+             "};\n"
+             "#endif\n",
+             "opaque_statements=1", "opaque_externals=0"),
+            ("generated_statement_macro",
+             "int32 example(int32 value) {\n"
+             "#if ENABLE\n"
+             "#if CHAR_REPR\n"
+             "#define XX(e) static char e##_name[] = #e;\n"
+             "#define XX_2(e, a) static char e##_name[] = {a, '\\0'};\n"
+             "#define XX(...) SELECT(XX_, __VA_ARGS__)\n"
+             "\n    ENUM_FIELDS\n\n"
+             "#undef XX\n"
+             "#undef XX_2\n"
+             "#endif\n"
+             "    switch (value) {\n"
+             "    default:\n"
+             "        return 0;\n"
+             "    }\n"
+             "#endif\n"
+             "    return value;\n"
+             "}\n",
+             "opaque_statements=1", "opaque_externals=0"),
+        )
+        for name, source, statements, externals in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / f"{name}.c"
+                    path.write_text(source, encoding="utf-8")
+                    result = subprocess.run(
+                        [str(ROOT / "bin/csanecheck"), "--file",
+                         str(path), "--coverage", "--require-coverage",
+                         "--report-parse-issues"],
+                        cwd=ROOT, capture_output=True, text=True,
+                        check=False)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(statements, result.stdout)
+                self.assertIn(externals, result.stdout)
+                self.assertIn("STRUCTURE-OPAQUE", result.stdout)
+                self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+
     def test_guarded_type_and_parameter_regions(self):
         source = ("typedef struct Box {\n"
                   "#if FIRST\n    int32 a;\n"

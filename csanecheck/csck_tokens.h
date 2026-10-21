@@ -6,12 +6,33 @@
 
 #include "meta.h"
 
-/* Borrowed, bounded token navigation. No tokenizer ownership or mutation. */
+/* A path owns only an ordered list of borrowed token ranges. It never owns,
+ * copies, expands, or mutates source tokens. Gaps between parts are invisible
+ * to views of the path, which lets one conditional alternative be composed
+ * from common prefix/suffix code and selected branch bodies.
+ */
+typedef struct CsaneTokenPath {
+    Tokenization *tokens;
+    TokenRange bounds;
+    TokenRange *parts;
+    int32 count;
+    int32 capacity;
+} CsaneTokenPath;
+
+/* Borrowed, bounded token navigation. path == NULL means an ordinary
+ * contiguous TokenRange. A non-NULL path keeps original token indices while
+ * omitting ranges that do not belong to the selected logical source path.
+ */
 typedef struct CsaneTokenView {
     Tokenization *tokens;
     TokenRange range;
+    CsaneTokenPath *path;
 } CsaneTokenView;
 
+bool csane_token_path_init(CsaneTokenPath *, Tokenization *, TokenRange);
+bool csane_token_path_append(CsaneTokenPath *, TokenRange);
+void csane_token_path_free(CsaneTokenPath *);
+bool csane_tokens_path_view(CsaneTokenView *, CsaneTokenPath *);
 bool csane_tokens_view(CsaneTokenView *, Tokenization *, TokenRange);
 /* A child view cannot escape the parent (for example, a macro branch). */
 bool csane_tokens_subview(CsaneTokenView *, CsaneTokenView *, TokenRange);

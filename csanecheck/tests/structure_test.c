@@ -85,6 +85,193 @@ test_statement(TestStructure *test, int32 function, char *fragment,
     return -1;
 }
 
+static int32
+test_top_item(TestStructure *test, char *fragment, enum CsaneTopKind kind) {
+    for (int32 i = 0; i < test->top.count; i += 1) {
+        CsaneTopItem *item = &test->top.items[i];
+        SourceRange span;
+        int32 size;
+        if (item->kind != kind) {
+            continue;
+        }
+        span = item->source;
+        size = span.end - span.start;
+        if (size >= strlen32(fragment)
+            && memmem64(test->tokens.text + span.start, size, fragment,
+                        strlen32(fragment)) != NULL) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* hash.c has conditional fragments that contribute arguments to an open
+ * call. The enclosing return is recognizable, but the branch contribution
+ * is currently left opaque. Recovery target: an argument fragment attached
+ * to the surrounding call, without requiring macro expansion. */
+static void
+test_conditional_call_argument_gap(void) {
+    char *text =
+        "int32 example(int32 key, int32 length) {\n"
+        "    return call(key\n"
+        "#if WANT_LENGTH\n"
+        "                , length\n"
+        "#endif\n"
+        "                , 1);\n"
+        "}\n";
+    TestStructure test;
+    int32 function;
+    test_init(&test, text);
+    function = test_function(&test, "example");
+    CHECK(function >= 0);
+    CHECK(test.top.opaque_count == 0);
+    CHECK(test.statements.opaque_count == 1);
+    CHECK(test_statement(&test, function, "return call(key",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, function, ", length",
+                         CSANE_STMT_OPAQUE) >= 0);
+    test_free(&test);
+    return;
+}
+
+/* csck_files.c selects one half of an if header with the preprocessor while
+ * sharing the body and suffix. Both if headers are recognizable, but the
+ * branch-local opening braces and common suffix are not connected. Recovery
+ * target: one complete CSANE_STMT_IF per branch over the shared body. */
+static void
+test_conditional_if_header_gap(void) {
+    char *text =
+        "bool example(char *path) {\n"
+        "    struct stat st;\n"
+        "#if OS_WINDOWS\n"
+        "    if (stat(path, &st) != 0) {\n"
+        "#else\n"
+        "    if (lstat(path, &st) != 0) {\n"
+        "#endif\n"
+        "        return false;\n"
+        "    }\n"
+        "    return true;\n"
+        "}\n";
+    TestStructure test;
+    int32 function;
+    test_init(&test, text);
+    function = test_function(&test, "example");
+    CHECK(function >= 0);
+    CHECK(test.top.opaque_count == 1);
+    CHECK(test.statements.opaque_count == 2);
+    CHECK(test_statement(&test, function, "if (stat(path",
+                         CSANE_STMT_IF) >= 0);
+    CHECK(test_statement(&test, function, "if (lstat(path",
+                         CSANE_STMT_IF) >= 0);
+    CHECK(test_statement(&test, function, "return false;",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, function, "{",
+                         CSANE_STMT_OPAQUE) >= 0);
+    CHECK(test_top_item(&test, "}", CSANE_TOP_OPAQUE) >= 0);
+    test_free(&test);
+    return;
+}
+
+/* util.c contains a conditional macro invocation inside an initializer list.
+ * The containing declaration is recognized, while the branch element is an
+ * artificial top-level opaque item. Recovery target: an initializer-element
+ * macro fragment owned by the declaration. */
+static void
+test_initializer_macro_gap(void) {
+    char *text =
+        "static int32 values[] = {\n"
+        "    ITEM(A),\n"
+        "#if HAVE_B\n"
+        "    ITEM(B),\n"
+        "#endif\n"
+        "    ITEM(C),\n"
+        "};\n";
+    TestStructure test;
+    test_init(&test, text);
+    CHECK(test.top.opaque_count == 1);
+    CHECK(test.statements.opaque_count == 0);
+    CHECK(test_top_item(&test, "static int32 values[]",
+                        CSANE_TOP_DECLARATION) >= 0);
+    CHECK(test_top_item(&test, "ITEM(B),", CSANE_TOP_OPAQUE) >= 0);
+    test_free(&test);
+    return;
+}
+
+/* xenums.c uses a macro-generated enum tag and an ENUM_FIELDS invocation in
+ * the enum body. The tag currently looks function-like to the permissive
+ * scanner and ENUM_FIELDS is consequently parsed as a statement. Recovery
+ * target: a type declaration plus an enum-body macro fragment. */
+static void
+test_enum_macro_gap(void) {
+    char *text =
+        "#if ENABLE\n"
+        "enum CAT(ENUM_NAME, _Indices) {\n"
+        "#define XX(e) CAT(e, _INDEX),\n"
+        "#define XX_2(e, x) CAT(e, _INDEX),\n"
+        "#define XX(...) SELECT(XX_, __VA_ARGS__)\n"
+        "\n"
+        "    ENUM_FIELDS\n"
+        "\n"
+        "#undef XX\n"
+        "#undef XX_2\n"
+        "};\n"
+        "#endif\n";
+    TestStructure test;
+    int32 generated;
+    test_init(&test, text);
+    generated = test_function(&test, "CAT");
+    CHECK(generated >= 0);
+    CHECK(test.top.opaque_count == 0);
+    CHECK(test.statements.opaque_count == 1);
+    CHECK(test_statement(&test, generated, "ENUM_FIELDS",
+                         CSANE_STMT_OPAQUE) >= 0);
+    test_free(&test);
+    return;
+}
+
+/* xenums.c also invokes ENUM_FIELDS where its macro replacement would create
+ * declarations/statements inside a function. The following switch is still
+ * recognized independently. Recovery target: a macro-generated statement
+ * fragment rather than CSANE_STMT_OPAQUE. */
+static void
+test_generated_statement_macro_gap(void) {
+    char *text =
+        "int32 example(int32 value) {\n"
+        "#if ENABLE\n"
+        "#if CHAR_REPR\n"
+        "#define XX(e) static char e##_name[] = #e;\n"
+        "#define XX_2(e, a) static char e##_name[] = {a, '\\0'};\n"
+        "#define XX(...) SELECT(XX_, __VA_ARGS__)\n"
+        "\n"
+        "    ENUM_FIELDS\n"
+        "\n"
+        "#undef XX\n"
+        "#undef XX_2\n"
+        "#endif\n"
+        "    switch (value) {\n"
+        "    default:\n"
+        "        return 0;\n"
+        "    }\n"
+        "#endif\n"
+        "    return value;\n"
+        "}\n";
+    TestStructure test;
+    int32 function;
+    test_init(&test, text);
+    function = test_function(&test, "example");
+    CHECK(function >= 0);
+    CHECK(test.top.opaque_count == 0);
+    CHECK(test.statements.opaque_count == 1);
+    CHECK(test_statement(&test, function, "ENUM_FIELDS",
+                         CSANE_STMT_OPAQUE) >= 0);
+    CHECK(test_statement(&test, function, "switch (value)",
+                         CSANE_STMT_SWITCH) >= 0);
+    CHECK(test_statement(&test, function, "return value;",
+                         CSANE_STMT_SIMPLE) >= 0);
+    test_free(&test);
+    return;
+}
+
 static void
 test_bad_top_level_expression(void) {
     char *text =
@@ -510,6 +697,11 @@ test_unguarded_linkage_stays_opaque(void) {
 
 int
 main(void) {
+    test_conditional_call_argument_gap();
+    test_conditional_if_header_gap();
+    test_initializer_macro_gap();
+    test_enum_macro_gap();
+    test_generated_statement_macro_gap();
     test_bad_top_level_expression();
     test_unclosed_function();
     test_bad_inner_expression();

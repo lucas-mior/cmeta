@@ -108,22 +108,36 @@ static void
 csane_top_collect(CsaneTopStream *stream) {
     CsaneRegions *regions = stream->top->regions;
     Tokenization *tokens = regions->tokens;
-    int32 child = regions->items[stream->owner].first_child;
+    CsaneSourceRegion *owner = &regions->items[stream->owner];
+    CsaneTokenPath path;
+    CsaneTokenView view;
+    int32 child;
+    int32 i;
+
+    if (!csane_token_path_init(&path, tokens, owner->tokens)) {
+        return;
+    }
+    child = owner->first_child;
     for (; child >= 0; child = regions->items[child].next_sibling) {
         CsaneSourceRegion *region = &regions->items[child];
-        if (region->kind != CSANE_REGION_CODE) {
-            continue;
-        }
-        for (int32 i = region->tokens.first; i < region->tokens.end;
-             i += 1) {
-            Token *token = &tokens->tokens[i];
-            if (!token_is_trivia(token) && token->kind != TOKEN_PREPROC
-                && token->offset >= region->source.start
-                && token->offset < region->source.end) {
-                csane_top_push(stream, i, child);
-            }
+        if (region->kind == CSANE_REGION_CODE) {
+            (void)csane_token_path_append(&path, region->tokens);
         }
     }
+    if (!csane_tokens_path_view(&view, &path)) {
+        csane_token_path_free(&path);
+        return;
+    }
+    i = csane_tokens_next(&view, view.range.first - 1);
+    while (i >= view.range.first && i < view.range.end) {
+        Token *token = &tokens->tokens[i];
+        int32 leaf = csane_regions_at_token(regions, i);
+        if (token->kind != TOKEN_PREPROC && leaf >= 0) {
+            csane_top_push(stream, i, leaf);
+        }
+        i = csane_tokens_next(&view, i);
+    }
+    csane_token_path_free(&path);
     return;
 }
 
