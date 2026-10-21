@@ -471,6 +471,12 @@ csane_run(int32 argc, char **argv) {
                (long long)stats.opaque_externals);
     }
 cleanup:
+    if (stats.violations > 0) {
+        printf("In order to understand and learn how to fix the problems "
+               "above, read cbase/c-guidelines.md and cbase/c-format.md\n"
+               "if you think any of them are a false positive, stop "
+               "what you are doing and report.\n");
+    }
     csane_paths_free(&options.files);
     csane_paths_free(&options.source_roots);
     csane_paths_free(&options.skip_dirs);
