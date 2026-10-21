@@ -273,3 +273,14 @@ that referenced csanecheck diagnostic IDs exist, requires every major guide
 section and every top-level guide bullet to be covered by an inventory entry,
 and verifies that all P01-P25 mappings plus the legacy function-list,
 discovery, and temporary-status policies appear in the unified inventory.
+
+## Step 18 — Declaration and type style
+
+`test_declaration_style.py` covers the declaration/type rules that can be
+decided from local tokens and permissive declaration structure: function
+signature `const`, discouraged size and legacy integer spellings, standard
+fixed-width `_t` types, definitely dynamic VLAs, aggregate/pointer typedef
+policy, and declaration-after-statement. Ambiguous VLA bounds remain
+undecided rather than being guessed. The tests also verify documented typedef
+exceptions and that all step-18 diagnostics are valid `allow-rule` policy IDs
+for exact externally imposed API/ABI signatures.
