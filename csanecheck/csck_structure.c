@@ -27,6 +27,11 @@ csane_coverage_collect(CsaneTopLevels *toplevel,
         case CSANE_TOP_OPAQUE:
             result.opaque_externals += 1;
             break;
+        case CSANE_TOP_MACRO_INVOCATION:
+        case CSANE_TOP_LINKAGE_FRAGMENT:
+        case CSANE_TOP_MEMBER_DECLARATION:
+        case CSANE_TOP_ENUMERATOR:
+        case CSANE_TOP_PARAMETER_FRAGMENT:
         default:
             break;
         }
