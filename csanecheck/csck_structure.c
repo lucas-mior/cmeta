@@ -51,4 +51,96 @@ csane_coverage_collect(CsaneTopLevels *toplevel,
     return result;
 }
 
+typedef struct CsaneStructuralUnresolved {
+    int32 token;
+    char *target;
+    char *reason;
+} CsaneStructuralUnresolved;
+
+static bool
+csane_structure_conditional(CsaneRegions *regions, int32 owner) {
+    if (owner < 0 || owner >= regions->count) {
+        return false;
+    }
+    return regions->items[owner].kind == CSANE_REGION_CONDITIONAL_BRANCH;
+}
+
+static void
+csane_structure_add(CsaneStructuralUnresolved *items, int32 *count,
+                    int32 token, char *target, char *reason) {
+    items[*count] = (CsaneStructuralUnresolved){
+        .token = token,
+        .target = target,
+        .reason = reason,
+    };
+    *count += 1;
+    return;
+}
+
+static int
+csane_structure_compare(const void *a_, const void *b_) {
+    const CsaneStructuralUnresolved *a = a_;
+    const CsaneStructuralUnresolved *b = b_;
+    int result;
+    if (a->token != b->token) {
+        return a->token < b->token ? -1 : 1;
+    }
+    result = strcmp(a->target, b->target);
+    if (result != 0) {
+        return result;
+    }
+    return strcmp(a->reason, b->reason);
+}
+
+void
+csane_coverage_report_structural(char *path, Tokenization *tokens,
+                                 CsaneTopLevels *toplevel,
+                                 CsaneStatements *statements) {
+    int32 capacity = toplevel->opaque_count + statements->opaque_count;
+    CsaneStructuralUnresolved *items;
+    int32 count = 0;
+    if (capacity <= 0) {
+        return;
+    }
+    items = malloc2((int64)capacity*SIZEOF(*items));
+    for (int32 i = 0; i < toplevel->count; i += 1) {
+        CsaneTopItem *item = &toplevel->items[i];
+        char *reason;
+        if (item->kind != CSANE_TOP_OPAQUE) {
+            continue;
+        }
+        reason = csane_structure_conditional(toplevel->regions,
+                                             item->owner_region)
+                 ? "conditional construct could not be merged"
+                 : "ambiguous top-level construct";
+        csane_structure_add(items, &count, item->tokens.first,
+                            "top-level", reason);
+    }
+    for (int32 i = 0; i < statements->count; i += 1) {
+        CsaneStatement *item = &statements->items[i];
+        char *reason;
+        if (item->kind != CSANE_STMT_OPAQUE) {
+            continue;
+        }
+        reason = csane_structure_conditional(toplevel->regions,
+                                             item->owner_region)
+                 ? "conditional construct could not be merged"
+                 : "unknown statement fragment";
+        csane_structure_add(items, &count, item->tokens.first,
+                            "statement", reason);
+    }
+    qsort(items, (size_t)count, (size_t)SIZEOF(*items),
+          csane_structure_compare);
+    for (int32 i = 0; i < count; i += 1) {
+        SourceLocation location = tokenization_token_location(tokens,
+                                                              items[i].token);
+        printf("coverage_unresolved file=%s line=%d column=%d "
+               "target=%s reason=\"%s\"\n",
+               path, location.line, location.column + 1, items[i].target,
+               items[i].reason);
+    }
+    free2(items, (int64)capacity*SIZEOF(*items));
+    return;
+}
+
 #endif /* CSANECHECK_STRUCTURE_C */

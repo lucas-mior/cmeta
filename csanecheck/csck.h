@@ -155,6 +155,8 @@ bool csane_policy_filter(char *, char *);
 bool csane_policy_selected(CsanePolicy *, char *, char *);
 CsaneCoverage csane_coverage_collect(CsaneTopLevels *,
                                      CsaneStatements *);
+void csane_coverage_report_structural(char *, Tokenization *,
+                                      CsaneTopLevels *, CsaneStatements *);
 void csane_declarations_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
 void csane_control_check(CsaneFile *);

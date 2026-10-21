@@ -133,6 +133,10 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                coverage.opaque_statements, coverage.opaque_externals,
                structural_issues, pp.issue_count);
     }
+    if ((options->coverage || options->require_coverage)
+        && structural_issues > 0) {
+        csane_coverage_report_structural(path, &tokens, &toplevel, &statements);
+    }
     CsaneRuleCounts totals = {0};
     int32 incomplete = csane_rules_incomplete(&file, options->rule_coverage,
                                               &totals);
