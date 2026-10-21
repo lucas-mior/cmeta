@@ -11,17 +11,7 @@
 static TokenRange
 csane_bounds_unwrap(CsaneFile *file, TokenRange range) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
-    while (range.first < range.end) {
-        int32 first = token_range_first_significant(file->tokens, range);
-        int32 last = token_range_last_significant(file->tokens, range);
-        if (first >= range.end || !TOKEN_IS(&file->tokens->tokens[first], "(")
-            || csane_tokens_match(&view, first) != last) {
-            break;
-        }
-        range.first = first + 1;
-        range.end = last;
-    }
-    return range;
+    return csane_tokens_unwrap(&view, range);
 }
 
 static bool
@@ -120,11 +110,7 @@ csane_bounds_call(CsaneFile *file, TokenRange range, char *name,
         || tokenization_next_significant(file->tokens, close) < range.end) {
         return false;
     }
-    TokenRange content = {open + 1, close};
-    if (!csane_tokens_view(&view, file->tokens, content)) {
-        return false;
-    }
-    return csane_tokens_split(&view, ",", 1, args, 2) == 2;
+    return csane_tokens_arguments(&view, open, args, 2) == 2;
 }
 
 /* Check the source gap rather than the statement tree. A macro replacement

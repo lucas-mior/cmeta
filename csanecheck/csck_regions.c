@@ -38,6 +38,7 @@ csane_regions_append(CsaneRegions *regions, int32 parent,
         .directive_index = directive,
         .group_index = group,
         .branch_index = branch,
+        .complete = true,
     };
     regions->count += 1;
     if (parent >= 0) {
@@ -103,6 +104,18 @@ csane_regions_define(CsaneRegions *regions, int32 parent,
     return;
 }
 
+/* A syntax problem belongs to its directive, not every code region. */
+static bool
+csane_regions_directive_complete(CsaneRegions *regions, int32 directive) {
+    CPreprocessorAnalysis *pp = regions->preprocessor;
+    for (int32 i = 0; i < pp->issue_count; i += 1) {
+        if (pp->issues[i].directive_index == directive) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void
 csane_regions_directive(CsaneRegions *regions, int32 parent,
                         int32 directive_index) {
@@ -115,9 +128,18 @@ csane_regions_directive(CsaneRegions *regions, int32 parent,
                                                  : CSANE_REGION_DIRECTIVE,
                                        directive->source, directive_index,
                                        -1, -1);
-    if (is_define && c_preprocessor_define_info(regions->tokens, directive,
-                                                &define)) {
-        csane_regions_define(regions, index, &define);
+    regions->items[index].complete =
+        csane_regions_directive_complete(regions, directive_index);
+    if (is_define) {
+        if (c_preprocessor_define_info(regions->tokens, directive, &define)) {
+            csane_regions_define(regions, index, &define);
+        } else {
+            /* A malformed parameter list is opaque, but does not affect
+             * subsequent directives or neighboring conditional branches. */
+            regions->items[index].complete = false;
+            csane_regions_text(regions, index, CSANE_REGION_DIRECTIVE_TEXT,
+                               directive->source.start, directive->source.end);
+        }
     }
     return;
 }
@@ -140,6 +162,54 @@ csane_regions_first_directive(CsaneRegions *regions, int32 offset) {
     return first;
 }
 
+/* The preprocessor retains usable groups even after a syntax error.
+ * Reject an inconsistent group locally rather than disabling every group. */
+static bool
+csane_regions_group_usable(CsaneRegions *regions, int32 index) {
+    CPreprocessorAnalysis *pp = regions->preprocessor;
+    if (index < 0 || index >= pp->group_count) {
+        return false;
+    }
+    CPreprocessorGroup *group = &pp->groups[index];
+    if (group->first_branch < 0 || group->first_branch >= pp->branch_count
+        || group->source.start < 0
+        || group->source.end > regions->tokens->text_len
+        || group->source.end <= group->source.start) {
+        return false;
+    }
+    int32 cursor = group->source.start;
+    for (int32 b = group->first_branch; b >= 0;
+         b = pp->branches[b].next_branch) {
+        if (b >= pp->branch_count || pp->branches[b].group_index != index) {
+            return false;
+        }
+        CPreprocessorBranch *branch = &pp->branches[b];
+        if (branch->directive_index < 0
+            || branch->directive_index >= pp->directive_count) {
+            return false;
+        }
+        SourceRange directive = pp->directives[branch->directive_index].source;
+        if (directive.start < cursor
+            || branch->body_source.start != directive.end
+            || branch->body_source.end < branch->body_source.start
+            || branch->body_source.end > group->source.end) {
+            return false;
+        }
+        cursor = branch->body_source.end;
+    }
+    if (group->endif_directive >= 0) {
+        if (group->endif_directive >= pp->directive_count
+            || pp->directives[group->endif_directive].source.start < cursor
+            || pp->directives[group->endif_directive].source.end
+               != group->source.end) {
+            return false;
+        }
+    } else if (cursor != group->source.end) {
+        return false;
+    }
+    return true;
+}
+
 static void csane_regions_content(CsaneRegions *, int32, SourceRange,
                                   int32 *, int32);
 
@@ -151,6 +221,7 @@ csane_regions_group(CsaneRegions *regions, int32 parent,
     int32 region = csane_regions_append(regions, parent,
                                         CSANE_REGION_CONDITIONAL_GROUP,
                                         group->source, -1, group_index, -1);
+    regions->items[region].complete = group->endif_directive >= 0;
     int32 cursor = group->source.start;
     for (int32 b = group->first_branch; b >= 0;
          b = pp->branches[b].next_branch) {
@@ -164,6 +235,9 @@ csane_regions_group(CsaneRegions *regions, int32 parent,
         branch_region = csane_regions_append(regions, region,
                                              CSANE_REGION_CONDITIONAL_BRANCH,
                                              source, -1, group_index, b);
+        CsaneSourceRegion *current = &regions->items[branch_region];
+        current->complete = group->endif_directive >= 0
+                            || branch->next_branch >= 0;
         csane_regions_directive(regions, branch_region,
                                 branch->directive_index);
         csane_regions_content(regions, branch_region, branch->body_source,
@@ -197,8 +271,9 @@ csane_regions_content(CsaneRegions *regions, int32 parent,
             continue;
         }
         csane_regions_code(regions, parent, cursor, directive->source.start);
-        if ((group >= 0) && (pp->groups[group].parent_branch
-                             == parent_branch)) {
+        if (group >= 0 && pp->groups[group].parent_branch == parent_branch
+            && csane_regions_group_usable(regions, group)
+            && pp->groups[group].source.end <= source.end) {
             csane_regions_group(regions, parent, group, opening_groups);
             cursor = pp->groups[group].source.end;
             i = csane_regions_first_directive(regions, cursor);
@@ -237,12 +312,14 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
         for (int32 i = 0; i < pp->directive_count; i += 1) {
             opening_groups[i] = -1;
         }
-        if (regions->complete) {
-            for (int32 i = 0; i < pp->group_count; i += 1) {
-                int32 branch = pp->groups[i].first_branch;
-                int32 directive = pp->branches[branch].directive_index;
-                opening_groups[directive] = i;
+        /* Partial conditional groups survive unrelated syntax issues. */
+        for (int32 i = 0; i < pp->group_count; i += 1) {
+            if (!csane_regions_group_usable(regions, i)) {
+                continue;
             }
+            int32 branch = pp->groups[i].first_branch;
+            int32 directive = pp->branches[branch].directive_index;
+            opening_groups[directive] = i;
         }
     }
     csane_regions_content(regions, root, (SourceRange){0, tokens->text_len},

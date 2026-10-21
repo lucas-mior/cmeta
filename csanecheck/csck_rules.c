@@ -7,20 +7,6 @@
 #include "cbase.h"
 #include "csck.h"
 
-static bool
-csane_name_in(Token *token, CsanePaths *names) {
-    if (token->kind != TOKEN_IDENT) {
-        return false;
-    }
-    for (int32 i = 0; i < names->count; i += 1) {
-        int32 len = strlen32(names->items[i]);
-        if ((len == token->len)
-            && !memcmp64(token->text, names->items[i], len)) {
-            return true;
-        }
-    }
-    return false;
-}
 
 static bool
 csane_token_text(Token *token, char *text) {
@@ -119,32 +105,112 @@ csane_rule_source(CsaneFile *file) {
     return;
 }
 
+/* Perl masks comments and quoted literals, then looks for directives at
+ * physical line starts. Match that policy even inside a continued macro
+ * replacement, without requiring the preprocessor to accept the directive.
+ * Keep the lookup cursor monotonic so the scan is linear in source size.
+ */
+static bool
+csane_source_masked(Tokenization *tokens, int32 *cursor, int32 offset) {
+    while (*cursor < tokens->token_count
+           && tokens->tokens[*cursor].offset
+              + tokens->tokens[*cursor].len <= offset) {
+        *cursor += 1;
+    }
+    if (*cursor >= tokens->token_count) {
+        return false;
+    }
+    Token *token = &tokens->tokens[*cursor];
+    if (token->offset > offset) {
+        return false;
+    }
+    if (token->kind == TOKEN_COMMENT) {
+        return true;
+    }
+    return token->kind == TOKEN_LITERAL
+           && literal_quote_index(token->text, token->len, 0) >= 0;
+}
+
+static bool
+csane_source_horizontal(char c) {
+    return c == ' ' || c == '\t';
+}
+
+/* Return the first character of the directive keyword, or -1. */
+static int32
+csane_source_directive(CsaneFile *file, int32 start, int32 end,
+                       int32 *cursor) {
+    char *text = file->tokens->text;
+    int32 i = start;
+    while (i < end && (csane_source_horizontal(text[i])
+                       || csane_source_masked(file->tokens, cursor, i))) {
+        i += 1;
+    }
+    if (i >= end || text[i] != '#') {
+        return -1;
+    }
+    i += 1;
+    while (i < end && (csane_source_horizontal(text[i])
+                       || csane_source_masked(file->tokens, cursor, i))) {
+        i += 1;
+    }
+    if (i >= end || csane_source_masked(file->tokens, cursor, i)) {
+        return -1;
+    }
+    return i;
+}
+
+static bool
+csane_source_keyword(char *text, int32 end, int32 index, char *word) {
+    int32 length = strlen32(word);
+    return index >= 0 && index + length <= end
+           && !memcmp64(text + index, word, length)
+           && (index + length == end
+               || !char_is_identifier_body(text[index + length]));
+}
+
 static void
 csane_rule_preprocessor(CsaneFile *file) {
-    CPreprocessorAnalysis *pp = file->preprocessor;
-    for (int32 i = 0; i < pp->directive_count; i += 1) {
-        CPreprocessorDirective *directive = &pp->directives[i];
-        if ((directive->kind == C_PREPROCESSOR_DIRECTIVE_IFDEF)
-            || (directive->kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF)) {
-            csane_rule_issue(file, directive->source.start, "PP-DEFINED",
+    char *text = file->tokens->text;
+    int32 len = file->tokens->text_len;
+    int32 cursor = 0;
+    for (int32 start = 0; start < len;) {
+        int32 end = start;
+        while (end < len && text[end] != '\n') {
+            end += 1;
+        }
+        int32 keyword = csane_source_directive(file, start, end, &cursor);
+        if (csane_source_keyword(text, end, keyword, "ifdef")
+            || csane_source_keyword(text, end, keyword, "ifndef")) {
+            csane_rule_issue(file, start, "PP-DEFINED",
                              "use #if defined or #if !defined");
         }
-        if (file->is_ryu
-            && directive->kind == C_PREPROCESSOR_DIRECTIVE_ENDIF) {
-            int32 start = directive->source.start;
-            int32 end = directive->source.end;
-            for (int32 j = start; j + 1 < end; j += 1) {
-                if (file->tokens->text[j] == '\n') {
-                    break;
+        /* The Ryu rule is a raw-line check in Perl, not a parsed-directive
+         * check. Comments between # and endif therefore do not qualify.
+         */
+        if (file->is_ryu) {
+            int32 i = start;
+            while (i < end && char_is_horizontal_space(text[i])) {
+                i += 1;
+            }
+            if (i < end && text[i] == '#') {
+                i += 1;
+                while (i < end && char_is_horizontal_space(text[i])) {
+                    i += 1;
                 }
-                if (file->tokens->text[j] == '/'
-                    && file->tokens->text[j + 1] == '/') {
-                    csane_rule_issue(file, j, "RYU-ENDIF-COMMENT",
-                                     "use a block comment after #endif");
-                    break;
+                if (csane_source_keyword(text, end, i, "endif")) {
+                    for (int32 j = i + 5; j + 1 < end; j += 1) {
+                        if (text[j] == '/' && text[j + 1] == '/') {
+                            csane_rule_issue(file, j, "RYU-ENDIF-COMMENT",
+                                             "use a block comment after "
+                                             "#endif");
+                            break;
+                        }
+                    }
                 }
             }
         }
+        start = end + (end < len);
     }
     return;
 }
@@ -213,13 +279,9 @@ csane_rule_sizeof(CsaneFile *file) {
             || !csane_sizeof_has_operand(file, i)) {
             continue;
         }
-        /* A keyword in a directive's condition is not C expression syntax.
-         * Macro replacement lists are intentionally checked.
+        /* Perl checks directive conditions and macro names as raw code too.
+         * Exclude only the SIZEOF wrapper's own definition and vendored Ryu.
          */
-        if (file->preprocessor->token_roles != NULL
-            && file->preprocessor->token_roles[i] == C_PP_TOKEN_DIRECTIVE) {
-            continue;
-        }
         csane_rule_issue(file, token->offset, "PP-SIZEOF",
                          "use SIZEOF instead of sizeof");
     }
@@ -367,9 +429,10 @@ static void
 csane_rule_calls(CsaneFile *file) {
     for (int32 i = 0; i < file->tokens->token_count; i += 1) {
         Token *token = &file->tokens->tokens[i];
-        bool never = csane_name_in(token, &file->policy->never_names);
+        bool never = csane_token_name_in(token, &file->policy->never_names);
+        CsanePaths *names = &file->policy->cbase_names;
         bool restricted = !file->in_cbase
-                          && csane_name_in(token, &file->policy->cbase_names);
+                          && csane_token_name_in(token, names);
         if ((!never && !restricted) || !csane_api_direct_call(file, i)) {
             continue;
         }
@@ -387,23 +450,38 @@ csane_rule_calls(CsaneFile *file) {
  * a token rule never requires an AST. The ordering within each pass retains
  * the legacy dispatch order and its rule-specific exemptions. */
 static CsaneRule csane_rules[] = {
-    {"SRC", csane_rule_source, CSANE_PASS_SOURCE, false},
-    {"PP", csane_rule_preprocessor, CSANE_PASS_TOKEN, false},
-    {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN, false},
-    {"AST-DECL-ONE", csane_declarations_check, CSANE_PASS_TOKEN, false},
-    {"API", csane_rule_calls, CSANE_PASS_TOKEN, true},
-    {"CONTROL", csane_control_check, CSANE_PASS_TOKEN, false},
-    {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX, false},
-    {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN, false},
-    {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN, false},
-    {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN, false},
+    {"SRC", csane_rule_source, CSANE_PASS_SOURCE,
+     CSANE_TARGET_LINES, false},
+    {"PP", csane_rule_preprocessor, CSANE_PASS_TOKEN,
+     CSANE_TARGET_DIRECTIVES, false},
+    {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN,
+     CSANE_TARGET_SIZEOF, false},
+    {"AST-DECL-ONE", csane_declarations_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_DECLARATIONS, false},
+    {"API", csane_rule_calls, CSANE_PASS_TOKEN,
+     CSANE_TARGET_APIS, true},
+    {"CONTROL", csane_control_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATEMENTS, false},
+    {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX,
+     CSANE_TARGET_OPERATORS, false},
+    {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_ASSIGNMENTS, false},
+    {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN,
+     CSANE_TARGET_FUNCTIONS, false},
+    {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_CALLS, false},
     {"STYLE-EXPRESSIONS", csane_expression_style_check,
-     CSANE_PASS_TOKEN, false},
-    {"STYLE-BOUNDS", csane_bounds_check, CSANE_PASS_TOKEN, false},
-    {"STYLE-STATUS", csane_status_check, CSANE_PASS_TOKEN, false},
-    {"STYLE", csane_context_check, CSANE_PASS_CONTEXT, false},
-    {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN, false},
-    {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN, false},
+     CSANE_PASS_TOKEN, CSANE_TARGET_STYLE_CALLS, false},
+    {"STYLE-BOUNDS", csane_bounds_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATEMENTS, false},
+    {"STYLE-STATUS", csane_status_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATEMENTS, false},
+    {"STYLE", csane_context_check, CSANE_PASS_CONTEXT,
+     CSANE_TARGET_PROJECTED_CALLS, false},
+    {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATEMENTS, false},
+    {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATEMENTS, false},
 };
 
 void
@@ -433,65 +511,75 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     }
 }
 
-/* Rule coverage is conservative: a syntax-dependent check cannot claim
- * completeness when the shared structural representation is incomplete.
- * Excluded fixture rules do not contribute to the failure count. */
-static char *
-csane_rule_coverage_status(CsaneRule *rule, bool fixture,
-                           CsaneAnalysisCoverage *coverage) {
-    if (fixture && !rule->include_fixtures) {
-        return "excluded";
+/* Each group reports its own eligible and unresolved targets. A translation
+ * unit's AST parse status is never a gate for unrelated token-local rules.
+ * File exclusions are distinct from zero eligible targets. */
+static bool
+csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
+    int32 len = strlen32(file->path);
+    bool generated = len >= 7
+                     && !memcmp64(file->path + len - 7, ".meta.h", 7);
+    if (csane_fixture_path(file->path) && !rule->include_fixtures) {
+        return true;
     }
-    if (rule->pass == CSANE_PASS_SOURCE) {
-        return "checked";
+    if (generated && (!strcmp(rule->id, "LAYOUT")
+                      || !strcmp(rule->id, "AST-DECL-ONE")
+                      || !strcmp(rule->id, "FUNC-HEADERS")
+                      || !strcmp(rule->id, "CALL-BASIC")
+                      || !strcmp(rule->id, "CALL-WRAP")
+                      || !strcmp(rule->id, "ASSIGN-WRAP"))) {
+        return true;
     }
-    if (!coverage->preprocessor_ready
-        || coverage->preprocessor_issues > 0) {
-        return "partial";
+    if (file->is_ryu && (!strcmp(rule->id, "LAYOUT")
+                         || !strcmp(rule->id, "AST-DECL-ONE")
+                         || !strcmp(rule->id, "CONTROL")
+                         || !strcmp(rule->id, "PP-SIZEOF")
+                         || !strcmp(rule->id, "STYLE-BOUNDS")
+                         || !strcmp(rule->id, "ASSIGN-EQ")
+                         || !strcmp(rule->id, "ASSIGN-WRAP"))) {
+        return true;
     }
-    if (rule->pass == CSANE_PASS_TOKEN) {
-        return "checked";
-    }
-    if (!coverage->ast_ready
-        || (coverage->eligible_tokens > 0
-            && coverage->parsed_tokens == 0)) {
-        return "not_checked";
-    }
-    if (coverage->unresolved_tokens > 0 || coverage->macro_tokens > 0
-        || coverage->parse_issues > 0) {
-        return "partial";
-    }
-    return "checked";
+    return false;
 }
 
-/* Reporting and enforcement use exactly the same status calculation. */
 int32
-csane_rules_incomplete(CsaneFile *file, CsaneAnalysisCoverage *coverage,
-                       bool report) {
+csane_rules_incomplete(CsaneFile *file, bool report,
+                       CsaneRuleCounts *totals) {
     int32 incomplete = 0;
-    bool fixture = csane_fixture_path(file->path);
+    CsaneRuleCounts sum = {0};
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
-        char *status = csane_rule_coverage_status(rule, fixture, coverage);
-        if (strcmp(status, "checked") && strcmp(status, "excluded")) {
+        CsaneRuleCounts counts = csane_coverage_rule(file, rule->target);
+        bool excluded = csane_rule_excluded(file, rule);
+        if (excluded) {
+            counts.excluded = counts.eligible;
+            counts.checked = 0;
+            counts.unresolved = 0;
+        }
+        sum.eligible += counts.eligible;
+        sum.checked += counts.checked;
+        sum.excluded += counts.excluded;
+        sum.unresolved += counts.unresolved;
+        char *status = "checked";
+        if (excluded) {
+            status = "excluded";
+        } else if (counts.unresolved > 0) {
+            status = counts.checked > 0 ? "partial" : "not_checked";
             incomplete += 1;
         }
         if (report) {
             printf("rule_coverage file=%s group=%s status=%s pass=%d "
-                   "eligible_tokens=%d parsed_tokens=%d "
-                   "unresolved_tokens=%d macro_tokens=%d\n",
+                   "eligible=%d checked=%d excluded=%d unresolved=%d\n",
                    file->path, rule->id, status, (int32)rule->pass,
-                   coverage->eligible_tokens, coverage->parsed_tokens,
-                   coverage->unresolved_tokens, coverage->macro_tokens);
+                   counts.eligible, counts.checked, counts.excluded,
+                   counts.unresolved);
         }
     }
+    if (totals != NULL) {
+        *totals = sum;
+    }
     return incomplete;
-}
-
-void
-csane_rules_report(CsaneFile *file, CsaneAnalysisCoverage *coverage) {
-    (void)csane_rules_incomplete(file, coverage, true);
 }
 
 #endif /* CSANECHECK_RULES_C */

@@ -33,6 +33,8 @@ typedef struct CsaneSourceRegion {
     int32 directive_index;
     int32 group_index;
     int32 branch_index;
+    /* Local structure is sound even if another region has an issue. */
+    bool complete;
 } CsaneSourceRegion;
 
 typedef struct CsaneRegions {
@@ -41,7 +43,7 @@ typedef struct CsaneRegions {
     CsaneSourceRegion *items;
     int32 count;
     int32 capacity;
-    bool complete; /* False if the input preprocessor structure has issues. */
+    bool complete; /* False when any preprocessor issue exists. */
 } CsaneRegions;
 
 /* A valid preprocessor analysis may be incomplete; the source is still

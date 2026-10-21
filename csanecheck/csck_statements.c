@@ -111,18 +111,22 @@ csane_stmt_match(CsaneStatementStream *stream) {
             stack[depth] = i;
             depth += 1;
         } else if (csane_stmt_close(stream, i)) {
-            if (depth > 0 && csane_stmt_pair(stream, stack[depth - 1], i)) {
-                int32 open = stack[depth - 1];
-                stream->matches[open] = i;
-                stream->matches[i] = open;
-                depth -= 1;
-            } else {
-                /* Separate preprocessor fragments may be incomplete. */
-                depth = 0;
+            int32 found = depth - 1;
+            while (found >= 0 && !csane_stmt_pair(stream, stack[found], i)) {
+                found -= 1;
             }
+            if (found < 0) {
+                depth = 0;
+                continue;
+            }
+            int32 open = stack[found];
+            stream->matches[open] = i;
+            stream->matches[i] = open;
+            depth = found;
         }
     }
     free2(stack, (int64)stream->count*SIZEOF(*stack));
+    return;
 }
 
 static enum CsaneStatementKind
@@ -146,6 +150,24 @@ csane_stmt_control(CsaneStatementStream *stream, int32 i) {
         return CSANE_STMT_SWITCH;
     }
     return CSANE_STMT_SIMPLE;
+}
+
+/* Recover locally at a statement boundary without consuming unrelated
+ * siblings. Never advance past the closing brace of the containing block. */
+static int32
+csane_stmt_recover(CsaneStatementStream *stream, int32 first, int32 limit) {
+    for (int32 i = first; i < limit; i += 1) {
+        if (csane_stmt_is(stream, i, ";")) {
+            return i + 1;
+        }
+        if (csane_stmt_is(stream, i, "}")) {
+            return i > first ? i : i + 1;
+        }
+        if (stream->matches[i] > i) {
+            i = stream->matches[i];
+        }
+    }
+    return limit;
 }
 
 /* Scan one statement and return its next token. Every failure advances by
@@ -183,9 +205,10 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
     if (csane_stmt_is(stream, first, "{")) {
         int32 close = stream->matches[first];
         if (close < first || close >= limit) {
+            int32 end = csane_stmt_recover(stream, first + 1, limit);
             *result = csane_stmt_append(stream, CSANE_STMT_OPAQUE, first,
-                                        limit, parent, first);
-            return limit;
+                                        end, parent, first);
+            return end;
         }
         *result = csane_stmt_append(stream, CSANE_STMT_BLOCK, first,
                                     close + 1, parent, first + 1);
@@ -194,8 +217,13 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
     }
     if (csane_stmt_is(stream, first, "case")
         || csane_stmt_is(stream, first, "default")) {
+        int32 ternary = 0;
         for (int32 i = first + 1; i < limit; i += 1) {
-            if (csane_stmt_is(stream, i, ":")) {
+            if (csane_stmt_is(stream, i, "?")) {
+                ternary += 1;
+            } else if (csane_stmt_is(stream, i, ":") && ternary > 0) {
+                ternary -= 1;
+            } else if (csane_stmt_is(stream, i, ":")) {
                 bool is_case = csane_stmt_is(stream, first, "case");
                 enum CsaneStatementKind kind = is_case ? CSANE_STMT_CASE
                                                       : CSANE_STMT_DEFAULT;
@@ -220,9 +248,20 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         if (control != CSANE_STMT_ELSE && control != CSANE_STMT_DO) {
             if (!csane_stmt_is(stream, header_end, "(")
                 || stream->matches[header_end] < header_end) {
+                int32 end = csane_stmt_recover(stream, first + 1, limit);
+                /* An unrecognized control header can still have a complete
+                 * brace-delimited body. Retain that body as one opaque
+                 * fragment, rather than swallowing the next statement. */
+                for (int32 i = first + 1; i < end; i += 1) {
+                    if (csane_stmt_is(stream, i, "{")
+                        && stream->matches[i] > i) {
+                        end = stream->matches[i] + 1;
+                        break;
+                    }
+                }
                 *result = csane_stmt_append(stream, CSANE_STMT_OPAQUE,
-                                            first, header_end, parent, first);
-                return header_end;
+                                            first, end, parent, first);
+                return end;
             }
             header_end = stream->matches[header_end] + 1;
         }
@@ -257,16 +296,26 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         *result = id;
         return end;
     }
+    bool malformed = false;
     for (int32 i = first; i < limit; i += 1) {
         if (csane_stmt_is(stream, i, ";")) {
-            *result = csane_stmt_append(stream, CSANE_STMT_SIMPLE, first,
-                                        i + 1, parent, first);
+            enum CsaneStatementKind kind = malformed ? CSANE_STMT_OPAQUE
+                                                     : CSANE_STMT_SIMPLE;
+            *result = csane_stmt_append(stream, kind, first, i + 1,
+                                        parent, first);
             return i + 1;
         }
         if (stream->matches[i] > i) {
             i = stream->matches[i];
-        } else if (csane_stmt_is(stream, i, "}")) {
-            break;
+        } else if (csane_stmt_open(stream, i)
+                   || csane_stmt_close(stream, i)) {
+            malformed = true;
+            if (csane_stmt_is(stream, i, "}")) {
+                int32 end = i > first ? i : i + 1;
+                *result = csane_stmt_append(stream, CSANE_STMT_OPAQUE,
+                                            first, end, parent, first);
+                return end;
+            }
         }
     }
     *result = csane_stmt_append(stream, CSANE_STMT_OPAQUE, first,
