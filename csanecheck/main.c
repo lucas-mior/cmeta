@@ -24,7 +24,6 @@
 #include "csck_control.c"
 #include "csck_bounds.c"
 #include "csck_status.c"
-#include "csck_context.c"
 #include "csck_expression_style.c"
 #include "csck_layout.c"
 #include "csck_calls.c"
@@ -32,8 +31,6 @@
 #include "csck_wrap.c"
 #include "csck_coverage.c"
 #include "csck_rules.c"
-#include "csck_types.c"
-#include "csck_macros.c"
 #include "csck.c"
 
 #if CC_CLANG

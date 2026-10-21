@@ -158,34 +158,41 @@ csane_call_macro_parameters(CsaneFile *file, int32 open,
     return false;
 }
 
+/* Literal alignment applies only to adjacent literals at the start of
+ * one argument. A nested call owns its literals; the enclosing call must not
+ * report them a second time. Perl likewise ignores literals buried in an
+ * expression or separated by comments/other tokens. */
 static void
 csane_call_literals(CsaneFile *file, TokenRange range) {
     if (csane_call_macro_fragments(file, range)) {
         return;
     }
-    int32 first = -1;
-    int32 last = -1;
-    for (int32 i = range.first; i < range.end; i += 1) {
+    int32 first = token_range_first_significant(file->tokens, range);
+    if (first >= range.end
+        || !csane_call_string(&file->tokens->tokens[first])) {
+        return;
+    }
+    int32 previous = first;
+    for (int32 i = first + 1; i < range.end; i += 1) {
         Token *token = &file->tokens->tokens[i];
-        if (csane_call_string(token)) {
-            if (first >= 0 && last >= 0
-                && csane_calls_line_break(file, last, i)
-                && csane_calls_location(file, first).column
-                   != csane_calls_location(file, i).column) {
-                csane_rule_issue(file, token->offset, "FMT-LITERAL-ALIGN",
-                                 "call string literal is not aligned "
-                                 "with first literal");
-                return;
-            }
-            if (first < 0) {
-                first = i;
-            }
-            last = i;
-        } else if (token->kind == TOKEN_COMMENT
-                   || !token_is_trivia(token)) {
-            first = -1;
-            last = -1;
+        if (token->kind == TOKEN_COMMENT) {
+            return;
         }
+        if (token_is_trivia(token)) {
+            continue;
+        }
+        if (!csane_call_string(token)) {
+            return;
+        }
+        if (csane_calls_line_break(file, previous, i)
+            && csane_calls_location(file, first).column
+               != csane_calls_location(file, i).column) {
+            csane_rule_issue(file, token->offset, "FMT-LITERAL-ALIGN",
+                             "call string literal is not aligned "
+                             "with first literal");
+            return;
+        }
+        previous = i;
     }
 }
 

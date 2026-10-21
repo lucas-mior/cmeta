@@ -30,9 +30,11 @@ source inspection in this step:
   verification or migration.
 - **missing**: no counterpart currently emits that diagnostic.
 
-At this baseline: **6 implemented, 19 partial, 0 missing**. None of the
-25 categories is yet marked *parity verified*. Status must be promoted only
-after tests of both violations and legitimate exceptions agree with Perl.
+At the Step 1 baseline there were **6 implemented, 19 partial, 0 missing**.
+After Step 13 there are **25 implemented, 0 partial, 0 missing**. The
+`implemented` designation identifies the local rule implementation and its
+focused differential test coverage; it does not establish full-tree parity.
+That remains a separate acceptance requirement in Step 16.
 
 ## Rule groups and legacy test categories
 
@@ -41,11 +43,11 @@ after tests of both violations and legitimate exceptions agree with Perl.
 | P01–P05 | Original-source lines and Ryu-specific formatting | `test_project_source_*`, `test_ryu_*`, `test_cecup_*` |
 | P06–P07 | Preprocessor and `sizeof` | `test_ifdef_*`, `test_preprocessor_*`, `test_builtin_sizeof_*` |
 | P08–P11 | Braces, declarations, switch labels, extra blocks | `test_control_flow_*`, `test_multiple_*`, `test_case_*`, `test_deep_*` |
-| P12–P17 | Call and function-header formatting | `test_call_alignment_*`, `test_multiline_string_literals_*`, `test_new_oracle_categories_positive_and_negative`; further tests needed |
-| P18 | Short calls wrapped unnecessarily | `test_new_oracle_categories_positive_and_negative`; further tests needed |
-| P19–P20 | Assignment `=` position and wrapping | `test_assignment_*`, `test_leading_equals_*`, `test_comparison_equals_*` |
-| P21 | Consecutive `ASSERT_GE` / `ASSERT_LT` | `test_consecutive_bounds_*` |
-| P22–P25 | Assertions, string literal and formatting idioms | `test_new_oracle_categories_positive_and_negative`; further tests needed |
+| P12–P17 | Call and function-header formatting | `test_calls.py` (18 differential cases), `test_call_alignment_*`, `test_multiline_string_literals_*` |
+| P18 | Short calls wrapped unnecessarily | `test_new_oracle_categories_positive_and_negative`; `test_perl_call_wrap_parity` |
+| P19–P20 | Assignment `=` position and wrapping | `test_assignment_wrap.py` (39 fixtures), `test_assignment_*`, `test_leading_equals_*` |
+| P21 | Consecutive `ASSERT_GE` / `ASSERT_LT` | `test_consecutive_bounds_*`; `test_assertion_string.py` |
+| P22–P25 | Assertions, string literal and formatting idioms | `test_new_oracle_categories_positive_and_negative`; `test_assertion_string.py` |
 
 **At the Step 1 baseline, nine active categories lacked dedicated Perl
 regression tests:** P12, P13, P16, P17, P18, P22, P23, P24, and P25.
@@ -54,6 +56,12 @@ Step 2 added positive/negative Perl-oracle cases for all nine in
 examples for P01–P06. The TSV now points to these tests. This adds a
 regression baseline; it does **not** imply complete behavioral parity for
 those categories or prove the remaining edge cases.
+
+Step 9 verifies P10 against dedicated differential cases for declaration
+initializers, function pointers, nested structure members, same-line scopes,
+prototypes, and conditional branches. It also checks that comma expressions
+and function parameters are excluded. The Perl checker intentionally skips
+`typedef` declarators; this remains a compatibility exemption.
 
 The `AST-` prefix in several `csanecheck` diagnostic IDs is historical.
 For example, P08–P11 presently use the lightweight statement/declaration
@@ -113,11 +121,11 @@ Other `csanecheck`-only diagnostics are `API-NEVER`, `API-CBASE-ONLY`,
 `STYLE-STATUS-TEMP`, `FMT-MULTIPLY`, `FMT-BINARY-SPACING`, and
 `FMT-ASSIGN-SPACING`. These must remain tracked **separately** from Perl
 compatibility: their absence from Perl output is not a false positive in
-parity tests. The AST/context expression pass currently duplicates the same
-`STYLE-ASSERT-REL`, `STYLE-STRLIT-LEN`, `STYLE-STREQUAL`, and `STYLE-PRINTF`
-rule IDs also emitted by the token pass. The context pass is intended to
-handle macro-projected aliases the token pass does not recognize; verify
-that these paths neither double-report nor miss the same legacy cases.
+parity tests. Step 13 disables the redundant AST/context style pass: the Perl checker only
+checks directly spelled calls, and the existing token pass now handles all
+P21–P25 cases without projected macro aliases. This prevents duplicate
+legacy diagnostics. The unused AST context implementation can be removed
+with the rest of the AST pipeline in Step 15.
 
 Also separate from this particular Perl script are the wrapper's forbidden
 function-name checks and `cbase/status_temporary_patterns.py`. The wrapper
@@ -206,3 +214,138 @@ all applicable diagnostics independently.
 
 The P07 inventory status is now `implemented`; it does not assert final
 whole-tree parity. The Step 7 regression cases are recorded in the inventory.
+
+## Step 8 update — control-flow and block parity
+
+`csck_control.c` now treats an opaque control body as unbraced if its first
+original token is not `{`, avoiding suppressed findings after a malformed
+expression. It recovers the nearest enclosing switch for `case` and `default`
+labels in conditional branches using the original source spans. Deep
+standalone blocks in separate conditional source streams are checked without
+joining mutually exclusive branches, and preceding directives/macro
+replacement tokens do not accidentally affect control-header exceptions.
+
+`csanecheck/tests/test_control_flow.py` contains 18 strict differential cases
+covering P08 (braces and empty-for/else-if/do-while exceptions), P09 (nested
+switches and branch-scoped labels), and P11 (inline/deep blocks, control and
+initializer exceptions, multiline macros and conditional branches). Positive
+findings, legitimate exemptions, counts and source lines are compared with
+Perl. The 76 legacy Perl regression tests remain the oracle.
+
+P08, P09, and P11 are now marked `implemented`. They remain subject to the
+complete eligible-tree, coverage and fixture requirements in Step 16; no
+whole-translation-unit AST interpretation is added by Step 8.
+
+## Step 10 update — call and function-header diagnostics
+
+P12–P17 have dedicated strict differential tests in `test_calls.py`. They
+exercise call-first-argument wrapping, parameter and call alignment, adjacent
+string literals, format-string argument distribution, related argument names,
+macros, conditional branches, and member access. These rules rely on original
+source tokens and bounded delimiter matching rather than whole-file semantics.
+
+`csck_calls.c` no longer checks adjacent string literals contained in a nested
+call or embedded in a larger argument expression while checking the outer
+call. This prevents a nested call from generating duplicate findings.
+
+The Perl checker also previously mistook indented block-local function
+prototypes for calls split before their first argument. It now excludes such
+prototypes using a shallow declaration-prefix recognizer, while preserving
+checks on calls in assignments and return expressions. The corresponding
+legacy regression test and side-by-side test cover this correction.
+
+The `API-NEVER` and `API-CBASE-ONLY` rules are separate from Perl P12–P17.
+Step 10 also tests their existing token-only classification for direct calls,
+member accesses, prototypes, and macro replacements. This does not establish
+parity with the shell wrapper's complete external function-name workflow.
+
+Strict comparisons across 42 existing `meta*` and `csanecheck` source and
+header files showed no P12–P17 discrepancies in the tested checkout. Full
+repository discovery and all-rule completeness are deferred to Step 16.
+
+## Step 11 update — unnecessary call wrapping (P18)
+
+`csck_wrap.c` now identifies complete invocation statements from local token
+ranges, including uppercase macros, ordinary calls, and call initializers or
+returns, without depending on the translation-unit AST. The candidate must
+start at the beginning of the physical statement (after indentation), end
+with a semicolon on the closing-parenthesis line, and have no trailing comment
+or extra statement. Line joining respects backslash continuations, comments,
+brace and semicolon boundaries, and runs of adjacent string literals where
+*every* fragment ends with `\n`. `error_impl` and `assert_error` retain the
+legacy exemption.
+
+Candidates are gathered from existing function statements and top-level
+ranges, sorted by their original source positions, and deduplicated so the
+same source inside independent preprocessor-branch streams cannot be reported
+twice. Maximal immediately adjacent, same-indentation call groups are emitted
+only when *every* flattened statement fits the configured column limit; a
+long neighbor therefore preserves a deliberately wrapped short call.
+
+`test_call_wrap.py` supplies 46 named differential cases comparing the actual
+Perl and `csanecheck` diagnostics (including counts and source lines). P18 is
+classified as implemented based on these targeted cases, **not** as having
+complete full-tree coverage: repository-wide coverage is Step 16.
+
+## Step 12 update — assignment positioning and wrapping (P19–P20)
+
+`csck_layout.c` checks standalone continuation-line assignment `=` tokens
+against original source, now also treating completed block comments preceding
+`=` as masked source. Comparison operators and macro replacement lists remain
+excluded. No AST inference is used.
+
+`csck_wrap.c` reuses the local token recognizer to find complete assignments
+in lightweight statements and top-level items. It additionally scans
+original tokens for isolated statements not retained by an interrupted
+preprocessor source stream. All candidates are source-sorted and deduplicated
+before grouping by indentation and intervening source lines. Long or unsafe
+assignments protect short neighbors; blank lines, unrelated statements and
+preprocessor directives split groups. Trailing comments and inline aggregate
+initializers suppress inappropriate flattening, while multiline initializers
+cannot suppress independent following statements.
+
+`test_assignment_wrap.py` compares 37 named P19/P20 fixtures plus
+two column-limit cases with the Perl oracle and validates diagnostic source
+lines and multiplicity. The Perl oracle also received two fixes for
+multi-statement physical lines: a candidate containing two semicolons must
+not swallow a later standalone assignment, and the final `=` on a line with
+a preceding statement is not a standalone assignment-wrap target.
+
+The two rules are classified implemented based on focused parity tests. As
+with the other migrated rules, full-tree proof and unresolved-target
+accounting remain part of Step 16.
+
+## Step 13 update — assertions, bounds, and string idioms
+
+P21–P25 now have dedicated strict differential tests in
+`csanecheck/tests/test_assertion_string.py`. The tests include 61 isolated
+positive/negative cases plus macro continuations, both conditional
+alternatives, and multiline diagnostic locations.
+
+Token rules match Perl's deliberately narrow criteria for relational
+assertions (`[a-z_]+` identifier, decimal integer and semicolon), the
+initial unprefixed string-literal spelling in `STRLIT_LEN` and `STRLIT`,
+and its single-conversion format grammar. Unlike an AST-based check, they
+do not require a complete expression tree or projected macro expansion.
+
+Bounds rules require adjacent physical lines and both semicolons on the
+same lines as their calls. String/format findings use the beginning of
+the relevant call argument for legacy line parity, which matters when
+the first token is on a continuation line. The AST style fallback is no
+longer dispatched. The general-purpose parser and AST-dependent operator
+spacing remain for later steps. The 25 implemented statuses do not imply
+whole-source coverage: Steps 14–17 are still needed.
+
+## Step 15: AST-free diagnostic pipeline
+
+The checker dispatches only source and token-local rules. Function and statement
+counts come from the lightweight structural scanners; diagnostic coverage comes
+from per-rule targets. Macro replacement text is analyzed as original tokens,
+not expanded into projected AST expressions. The former projected-call style
+pass was already redundant with the token-local Step 13 checks and is not run.
+
+The `--strict-parse` and `--report-parse-issues` option names are retained, but
+refer to local opaque regions and preprocessor issues, not semantic or complete
+C parsing. Legacy AST-only statistics have been replaced by local structural
+counters. The Step 16 whole-tree check must still validate that all eligible
+rule targets are covered.

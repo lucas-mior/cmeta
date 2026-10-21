@@ -288,68 +288,6 @@ csane_rule_sizeof(CsaneFile *file) {
     return;
 }
 
-/* Inspect an ordinary compound body embedded in a statement-shaped
- * macro. The replacement is never expanded or evaluated.
- */
-static void
-csane_parse_macro_block(CsaneFile *file, TokenRange replacement) {
-    for (int32 i = replacement.first; i < replacement.end; i += 1) {
-        if (csane_token_text(&file->tokens->tokens[i], "{")) {
-            int32 close;
-            close = token_range_matching_delimiter_forward(file->tokens,
-                                                           replacement, i);
-            if (close >= 0) {
-                TokenRange block = {i, close + 1};
-                c_ast_parse_statement(file->ast, block, NULL);
-            }
-            break;
-        }
-    }
-    return;
-}
-
-static void
-csane_rule_legacy_ast_preparation(CsaneFile *file) {
-    CAst *ast = file->ast;
-    CPreprocessorAnalysis *pp = file->preprocessor;
-    int32 saved_issues = ast->issue_count;
-
-    /* The declaration parser retains initializers and array bounds as token
-     * ranges. Parse them here so direct calls in those constructs are checked
-     * just like direct calls in statements, without copying source text.
-     */
-    for (int32 i = 0; i < ast->declarator_count; i += 1) {
-        CDeclaratorNode *declarator = &ast->declarators[i];
-        TokenRange range = declarator->extra;
-        if (token_range_is_empty(file->tokens, range)) {
-            continue;
-        }
-        c_ast_parse_initializer(ast, range);
-    }
-
-    /* Expression-shaped macros can contain direct calls despite being outside
-     * ordinary translation-unit syntax. Parse them with the same AST parser,
-     * without expanding them or guessing their replacement semantics.
-     */
-    for (int32 i = 0; i < pp->directive_count; i += 1) {
-        CPreprocessorDirective *directive = &pp->directives[i];
-        CPreprocessorDefine define;
-        if (directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE
-            && c_preprocessor_define_info(file->tokens, directive, &define)
-            && !token_range_is_empty(file->tokens, define.replacement)) {
-            CExprParseResult result =
-                c_ast_parse_expression(ast, define.replacement);
-            if (result.status != C_EXPR_PARSE_OK) {
-                csane_parse_macro_block(file, define.replacement);
-            }
-        }
-    }
-    /* Preserve the old macro/initializer AST side effects for rules that
-     * have not migrated yet. API diagnostics never use this representation.
-     */
-    ast->issue_count = saved_issues;
-}
-
 /* API checks use original tokens, even when unrelated syntax is opaque.
  * A function-like name is only a call when it is not a member, declarator,
  * macro parameter, or named top-level function declaration/definition.
@@ -446,8 +384,8 @@ csane_rule_calls(CsaneFile *file) {
     }
 }
 
-/* Analysis passes are independent. A source rule never requires a parser;
- * a token rule never requires an AST. The ordering within each pass retains
+/* Analysis passes require only the source and its local token structures.
+ * The ordering within each pass retains
  * the legacy dispatch order and its rule-specific exemptions. */
 static CsaneRule csane_rules[] = {
     {"SRC", csane_rule_source, CSANE_PASS_SOURCE,
@@ -462,7 +400,7 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_APIS, true},
     {"CONTROL", csane_control_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
-    {"LAYOUT", csane_layout_check, CSANE_PASS_SYNTAX,
+    {"LAYOUT", csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
     {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGNMENTS, false},
@@ -476,8 +414,6 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_STATEMENTS, false},
     {"STYLE-STATUS", csane_status_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
-    {"STYLE", csane_context_check, CSANE_PASS_CONTEXT,
-     CSANE_TARGET_PROJECTED_CALLS, false},
     {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
     {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN,
@@ -498,9 +434,6 @@ void
 csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     ASSERT(file != NULL);
     bool fixture = csane_fixture_path(file->path);
-    if (pass == CSANE_PASS_SYNTAX) {
-        csane_rule_legacy_ast_preparation(file);
-    }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
@@ -511,8 +444,7 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     }
 }
 
-/* Each group reports its own eligible and unresolved targets. A translation
- * unit's AST parse status is never a gate for unrelated token-local rules.
+/* Each group reports its own eligible and unresolved local targets.
  * File exclusions are distinct from zero eligible targets. */
 static bool
 csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {

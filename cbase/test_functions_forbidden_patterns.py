@@ -746,6 +746,30 @@ class ForbiddenPatternsTests(unittest.TestCase):
         self.assertNotIn("assignment fits on one line", normal)
         self.assertEqual(cecup.count("assignment fits on one line"), 2)
 
+    def test_assignment_wrap_does_not_consume_multiple_statements(self):
+        output = self.run_perl(
+            "src/sample.c",
+            "void work(void) {\n"
+            "    a =\n"
+            "        f(); other();\n"
+            "    b =\n"
+            "        g();\n"
+            "}\n",
+        )
+        self.assertEqual(output.count("assignment fits on one line"), 1)
+        self.assertIn("sample.c:4:assignment fits on one line", output)
+        self.assertNotIn("sample.c:2:assignment fits on one line", output)
+
+    def test_assignment_wrap_requires_standalone_start_line(self):
+        output = self.run_perl(
+            "src/sample.c",
+            "void work(void) {\n"
+            "    a = x; b =\n"
+            "        y;\n"
+            "}\n",
+        )
+        self.assertNotIn("assignment fits on one line", output)
+
     def test_assignment_wraps_allow_braces_inside_string_literals(self):
         output = self.run_perl(
             "src/sample.c",
@@ -1217,6 +1241,21 @@ class ForbiddenPatternsTests(unittest.TestCase):
         self.assertIn("cbase/external_link.c:1:free(1)", result.stderr)
         self.assertNotIn("src/internal_link.c:1:free(0)", result.stderr)
         self.assertNotIn("cbase/internal.c:1:free(0)", result.stderr)
+
+    def test_local_function_prototype_is_not_a_call(self):
+        output = self.run_perl(
+            "src/local_proto.c",
+            "void f(void) {\n"
+            "    int32 work(\n"
+            "        int32 a, int32 b);\n"
+            "    return work(\n"
+            "        a, b);\n"
+            "}\n",
+        )
+        self.assertEqual(output.count("call breaks before the first "
+                                      "argument"), 1)
+        self.assertIn("local_proto.c:4:work call breaks", output)
+        self.assertNotIn("local_proto.c:2:work call breaks", output)
 
     def test_call_alignment_with_comments_and_nested_calls(self):
         output = self.run_perl(
