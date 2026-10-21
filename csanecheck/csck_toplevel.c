@@ -475,8 +475,8 @@ csane_top_scan(CsaneTopStream *stream) {
 /* A conditional branch may be embedded inside a function, type, or
  * declaration. Its statements must not be misreported as file-scope
  * declarations merely because the enclosing directive was split out. */
-static bool
-csane_top_nested(CsaneTopStream *stream) {
+static enum CsaneTopKind
+csane_top_enclosing_kind(CsaneTopStream *stream) {
     CsaneRegions *regions = stream->top->regions;
     SourceRange source = regions->items[stream->owner].source;
     Tokenization *tokens = regions->tokens;
@@ -492,10 +492,10 @@ csane_top_nested(CsaneTopStream *stream) {
             enclosing.start = brace->offset;
         }
         if (source.start >= enclosing.start && source.end <= enclosing.end) {
-            return true;
+            return item->kind;
         }
     }
-    return false;
+    return 0;
 }
 
 static void
@@ -503,10 +503,19 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
     CsaneTopStream stream = {.top = top, .owner = owner};
     csane_top_collect(&stream);
     csane_top_match(&stream);
-    if (csane_top_nested(&stream)) {
-        csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count, -1, -1);
-    } else {
-        csane_top_scan(&stream);
+    enum CsaneTopKind context = csane_top_enclosing_kind(&stream);
+    /* A function's conditional alternatives belong to the statement
+     * scanner. It already visits each branch and accounts for opaque
+     * statements; treating them as externals fabricated parse failures. */
+    if (context != CSANE_TOP_FUNCTION_DEFINITION) {
+        if (context != 0) {
+            /* Type/declaration fragments have no dedicated scanner yet.
+             * Keep their coverage unresolved rather than dropping them. */
+            csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count,
+                             -1, -1);
+        } else {
+            csane_top_scan(&stream);
+        }
     }
     free2(stream.stack, (int64)stream.count*SIZEOF(*stream.stack));
     free2(stream.matches, (int64)stream.count*SIZEOF(*stream.matches));
