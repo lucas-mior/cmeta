@@ -106,9 +106,8 @@ test_top_item(TestStructure *test, char *fragment, enum CsaneTopKind kind) {
 }
 
 /* hash.c has conditional fragments that contribute arguments to an open
- * call. The enclosing return is recognizable, but the branch contribution
- * is currently left opaque. Recovery target: an argument fragment attached
- * to the surrounding call, without requiring macro expansion. */
+ * call. A selected branch path must reconnect the argument to the common
+ * call prefix and suffix without macro expansion. */
 static void
 test_conditional_call_argument_gap(void) {
     char *text =
@@ -125,19 +124,16 @@ test_conditional_call_argument_gap(void) {
     function = test_function(&test, "example");
     CHECK(function >= 0);
     CHECK(test.top.opaque_count == 0);
-    CHECK(test.statements.opaque_count == 1);
+    CHECK(test.statements.opaque_count == 0);
     CHECK(test_statement(&test, function, "return call(key",
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, function, ", length",
-                         CSANE_STMT_OPAQUE) >= 0);
     test_free(&test);
     return;
 }
 
 /* csck_files.c selects one half of an if header with the preprocessor while
- * sharing the body and suffix. Both if headers are recognizable, but the
- * branch-local opening braces and common suffix are not connected. Recovery
- * target: one complete CSANE_STMT_IF per branch over the shared body. */
+ * sharing the body and suffix. Each selected branch path must recover one
+ * complete CSANE_STMT_IF over the shared body. */
 static void
 test_conditional_if_header_gap(void) {
     char *text =
@@ -157,17 +153,15 @@ test_conditional_if_header_gap(void) {
     test_init(&test, text);
     function = test_function(&test, "example");
     CHECK(function >= 0);
-    CHECK(test.top.opaque_count == 1);
-    CHECK(test.statements.opaque_count == 2);
+    CHECK(test.top.opaque_count == 0);
+    CHECK(test.statements.opaque_count == 0);
     CHECK(test_statement(&test, function, "if (stat(path",
                          CSANE_STMT_IF) >= 0);
     CHECK(test_statement(&test, function, "if (lstat(path",
                          CSANE_STMT_IF) >= 0);
     CHECK(test_statement(&test, function, "return false;",
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, function, "{",
-                         CSANE_STMT_OPAQUE) >= 0);
-    CHECK(test_top_item(&test, "}", CSANE_TOP_OPAQUE) >= 0);
+    CHECK(test_top_item(&test, "}", CSANE_TOP_OPAQUE) < 0);
     test_free(&test);
     return;
 }
