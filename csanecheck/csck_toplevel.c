@@ -792,6 +792,169 @@ csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
                     "__cplusplus", strlen32("__cplusplus")) != NULL;
 }
 
+static bool
+csane_top_path_has_branch(CsaneRegions *regions, int32 branch, int32 owner) {
+    for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
+        if (r == branch) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+csane_top_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
+    for (int32 r = region; r >= 0; r = regions->items[r].parent) {
+        if (regions->items[r].kind == CSANE_REGION_CONDITIONAL_BRANCH
+            && !csane_top_path_has_branch(regions, r, owner)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool
+csane_top_branch_path(CsaneTopLevels *top, int32 owner, TokenRange bounds,
+                      CsaneTokenPath *path) {
+    CsaneRegions *regions = top->regions;
+    int32 part_first = -1;
+
+    if (!csane_token_path_init(path, regions->tokens, bounds)) {
+        return false;
+    }
+    for (int32 i = bounds.first; i < bounds.end; i += 1) {
+        int32 region = csane_regions_at_token(regions, i);
+        bool selected = region >= 0
+                        && regions->items[region].kind == CSANE_REGION_CODE
+                        && csane_top_path_selects(regions, region, owner);
+        if (selected && part_first < 0) {
+            part_first = i;
+        } else if (!selected && part_first >= 0) {
+            (void)csane_token_path_append(path,
+                                          (TokenRange){part_first, i});
+            part_first = -1;
+        }
+    }
+    if (part_first >= 0) {
+        (void)csane_token_path_append(path,
+                                      (TokenRange){part_first, bounds.end});
+    }
+    return true;
+}
+
+static int32
+csane_top_branch_owning_close(CsaneTopLevels *top, CsaneTopItem *item) {
+    CsaneRegions *regions = top->regions;
+    Tokenization *tokens = regions->tokens;
+    int32 close = item->body.end - 1;
+    TokenRange bounds = {item->body.first, item->body.end};
+
+    if (close < bounds.first || close >= bounds.end
+        || !TOKEN_IS(&tokens->tokens[close], "}")) {
+        return -1;
+    }
+    for (int32 owner = 0; owner < regions->count; owner += 1) {
+        CsaneSourceRegion *branch = &regions->items[owner];
+        CsaneTokenPath path;
+        CsaneTokenView view;
+        bool owns = false;
+
+        if (branch->kind != CSANE_REGION_CONDITIONAL_BRANCH
+            || branch->tokens.end <= bounds.first
+            || branch->tokens.first >= bounds.end
+            || !csane_top_branch_path(top, owner, bounds, &path)) {
+            continue;
+        }
+        if (csane_tokens_path_view(&view, &path)) {
+            int32 i = csane_tokens_next(&view, branch->tokens.first - 1);
+            while (i >= branch->tokens.first && i < branch->tokens.end
+                   && i < bounds.end) {
+                if (TOKEN_IS(&tokens->tokens[i], "{")
+                    && csane_tokens_match(&view, i) == close) {
+                    owns = true;
+                    break;
+                }
+                i = csane_tokens_next(&view, i);
+            }
+        }
+        csane_token_path_free(&path);
+        if (owns) {
+            return owner;
+        }
+    }
+    return -1;
+}
+
+static int32
+csane_top_recovered_function_end(CsaneTopLevels *top, CsaneTopItem *item,
+                                 int32 owner) {
+    CsaneRegions *regions = top->regions;
+    CsaneTokenPath path;
+    CsaneTokenView view;
+    TokenRange bounds = {item->body.first,
+                         regions->items[item->owner_region].tokens.end};
+    int32 close = -1;
+
+    if (!csane_top_branch_path(top, owner, bounds, &path)) {
+        return -1;
+    }
+    if (csane_tokens_path_view(&view, &path)) {
+        close = csane_tokens_match(&view, item->body.first);
+    }
+    csane_token_path_free(&path);
+    return close;
+}
+
+static void
+csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
+    Tokenization *tokens = top->regions->tokens;
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        int32 branch;
+        int32 close;
+        int32 old_end;
+        int32 write;
+
+        if (item->kind != CSANE_TOP_FUNCTION_DEFINITION) {
+            continue;
+        }
+        branch = csane_top_branch_owning_close(top, item);
+        if (branch < 0) {
+            continue;
+        }
+        close = csane_top_recovered_function_end(top, item, branch);
+        if (close < item->body.end
+            || !TOKEN_IS(&tokens->tokens[close], "}")) {
+            continue;
+        }
+        old_end = item->tokens.end;
+        item->tokens.end = close + 1;
+        item->body.end = close + 1;
+        item->source.end = tokens->tokens[close].offset
+                           + tokens->tokens[close].len;
+        write = 0;
+        for (int32 read = 0; read < top->count; read += 1) {
+            CsaneTopItem *candidate = &top->items[read];
+            bool swallowed = read != i
+                             && candidate->owner_region == item->owner_region
+                             && candidate->tokens.first >= old_end
+                             && candidate->tokens.end <= close + 1;
+            if (swallowed) {
+                top->opaque_count -= candidate->kind == CSANE_TOP_OPAQUE;
+                continue;
+            }
+            if (write != read) {
+                top->items[write] = top->items[read];
+            }
+            write += 1;
+        }
+        top->count = write;
+        /* The compaction can move the function earlier in the array. */
+        i = -1;
+    }
+    return;
+}
+
 /* Opening and closing extern "C" braces can live in separate conditional
  * groups. A missing counterpart remains opaque instead of contributing
  * false coverage. This is a guarded linkage idiom, not general brace
@@ -850,6 +1013,7 @@ csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
             csane_top_owner(top, i);
         }
     }
+    csane_top_recover_conditional_function_braces(top);
     csane_top_linkage_pairs(top);
     return true;
 }

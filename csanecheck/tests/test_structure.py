@@ -52,9 +52,9 @@ class StructureTests(unittest.TestCase):
         self.assertIn("structural_issues=0", result.stdout)
         self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
 
-    def test_construct_spanning_branches_stays_unresolved(self):
+    def test_construct_spanning_branches_is_recovered(self):
         # A brace that opens in either alternative closes after #endif.
-        # This needs contextual token streams, not silent exclusion.
+        # Each alternative is analyzed with the common prefix and suffix.
         source = ("void guarded(void) {\n"
                   "#if A\n    if (a) {\n"
                   "#else\n    if (b) {\n"
@@ -68,21 +68,22 @@ class StructureTests(unittest.TestCase):
                                      "--require-coverage"], cwd=ROOT,
                                     capture_output=True, text=True,
                                     check=False)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("STRUCTURE-OPAQUE", result.stdout)
-        self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("opaque_statements=0", result.stdout)
+        self.assertIn("opaque_externals=0", result.stdout)
+        self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
+        self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
 
-    def test_known_repository_structure_gaps_are_unresolved(self):
+    def test_conditional_path_structure_gaps_are_recovered(self):
         cases = (
             ("conditional_call_argument",
              "int32 example(int32 key, int32 length) {\n"
              "    return call(key\n"
              "#if WANT_LENGTH\n"
-             "                , length\n"
+             "              , length\n"
              "#endif\n"
              "                , 1);\n"
-             "}\n",
-             "opaque_statements=1", "opaque_externals=0"),
+             "}\n"),
             ("conditional_if_header",
              "bool example(char *path) {\n"
              "    struct stat st;\n"
@@ -94,8 +95,27 @@ class StructureTests(unittest.TestCase):
              "        return false;\n"
              "    }\n"
              "    return true;\n"
-             "}\n",
-             "opaque_statements=2", "opaque_externals=1"),
+             "}\n"),
+        )
+        for name, source in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / f"{name}.c"
+                    path.write_text(source, encoding="utf-8")
+                    result = subprocess.run(
+                        [str(ROOT / "bin/csanecheck"), "--file",
+                         str(path), "--coverage", "--require-coverage",
+                         "--report-parse-issues"],
+                        cwd=ROOT, capture_output=True, text=True,
+                        check=False)
+                self.assertIn("opaque_statements=0", result.stdout)
+                self.assertIn("opaque_externals=0", result.stdout)
+                self.assertIn("unresolved=0", result.stdout)
+                self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
+                self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
+
+    def test_macro_fragment_structure_gaps_remain_unresolved(self):
+        cases = (
             ("initializer_macro",
              "static int32 values[] = {\n"
              "    ITEM(A),\n"
@@ -223,7 +243,7 @@ class StructureTests(unittest.TestCase):
                                 capture_output=True, text=True,
                                 check=False)
         self.assertIn("opaque_externals=0", result.stdout)
-        self.assertIn("opaque_statements=6", result.stdout)
+        self.assertIn("opaque_statements=0", result.stdout)
 
     def test_macro_headers_in_repository(self):
         sources = ("cbase/hash.c", "cbase/memory.c", "cbase/threads.c",
