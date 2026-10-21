@@ -318,7 +318,6 @@ assert_compare_const(char *file, int32 line, char *func,
                      char *name1, char *name2,
                      AssertCompareValue var1, AssertCompareValue var2) {
     bool result;
-    char *symbol = assert_compare_mode_symbol(mode);
 
     if ((var1.kind == ASSERT_COMPARE_VALUE_INVALID)
         || (var2.kind == ASSERT_COMPARE_VALUE_INVALID)) {
@@ -329,7 +328,9 @@ assert_compare_const(char *file, int32 line, char *func,
         if (!result && DEBUGGING) {
             assert_error(file, line, func,
                          "%s = %lld %s %lld = %s\n",
-                         name1, var1.integer, symbol, var2.integer, name2);
+                         name1, var1.integer,
+                         assert_compare_mode_symbol(mode),
+                         var2.integer, name2);
         }
     } else if (((var1.kind == ASSERT_COMPARE_VALUE_INTEGER)
                 || (var1.kind == ASSERT_COMPARE_VALUE_DOUBLE))
@@ -352,7 +353,8 @@ assert_compare_const(char *file, int32 line, char *func,
         if (!result && DEBUGGING) {
             assert_error(file, line, func,
                          "%s = %f %s %f = %s\n",
-                         name1, value1, symbol, value2, name2);
+                         name1, value1, assert_compare_mode_symbol(mode),
+                         value2, name2);
         }
     } else if ((var1.kind == ASSERT_COMPARE_VALUE_STRING)
                && (var2.kind == ASSERT_COMPARE_VALUE_STRING)) {
@@ -361,12 +363,15 @@ assert_compare_const(char *file, int32 line, char *func,
             if ((var1.string == NULL) || (var2.string == NULL)) {
                 assert_error(file, line, func,
                              "%s = %p %s %p = %s\n",
-                             name1, (void *)var1.string, symbol,
+                             name1, (void *)var1.string,
+                             assert_compare_mode_symbol(mode),
                              (void *)var2.string, name2);
             } else {
                 assert_error(file, line, func,
                              "%s = %s %s %s = %s\n",
-                             name1, var1.string, symbol, var2.string, name2);
+                             name1, var1.string,
+                             assert_compare_mode_symbol(mode),
+                             var2.string, name2);
             }
         }
     } else if (((var1.kind == ASSERT_COMPARE_VALUE_POINTER)
@@ -390,7 +395,8 @@ assert_compare_const(char *file, int32 line, char *func,
         if (!result && DEBUGGING) {
             assert_error(file, line, func,
                          "%s = %p %s %p = %s\n",
-                         name1, pointer1, symbol, pointer2, name2);
+                         name1, pointer1, assert_compare_mode_symbol(mode),
+                         pointer2, name2);
         }
     } else if ((var1.kind == ASSERT_COMPARE_VALUE_BOOL)
                && (var2.kind == ASSERT_COMPARE_VALUE_BOOL)) {
@@ -398,7 +404,9 @@ assert_compare_const(char *file, int32 line, char *func,
         if (!result && DEBUGGING) {
             assert_error(file, line, func,
                          "%s = %d %s %d = %s\n",
-                         name1, var1.boolean, symbol, var2.boolean, name2);
+                         name1, var1.boolean,
+                         assert_compare_mode_symbol(mode),
+                         var2.boolean, name2);
         }
     } else {
         return assert_compare_const_unsupported(file, line, func,

@@ -428,17 +428,23 @@ csane_policy_init(CsanePolicy *policy) {
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_never)
                                 /SIZEOF(csane_default_never[0])); i += 1) {
         if (!csane_paths_add(&policy->never_names, csane_default_never[i])) {
+            csane_policy_free(policy);
             return false;
         }
     }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_cbase)
                                 /SIZEOF(csane_default_cbase[0])); i += 1) {
         if (!csane_paths_add(&policy->cbase_names, csane_default_cbase[i])) {
+            csane_policy_free(policy);
             return false;
         }
     }
-    return csane_policy_add_regex(&policy->column_overrides,
-                                  "(^|/)cecup/src/", NULL, 100);
+    if (!csane_policy_add_regex(&policy->column_overrides,
+                                "(^|/)cecup/src/", NULL, 100)) {
+        csane_policy_free(policy);
+        return false;
+    }
+    return true;
 }
 
 void
