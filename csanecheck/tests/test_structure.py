@@ -143,6 +143,39 @@ class StructureTests(unittest.TestCase):
         self.assertIn("opaque_externals=0", result.stdout)
         self.assertIn("opaque_statements=6", result.stdout)
 
+    def test_macro_headers_in_repository(self):
+        sources = ("cbase/hash.c", "cbase/memory.c", "cbase/threads.c",
+                   "cbase/mem_literal_short.h", "cbase/xenums.c",
+                   "cbase/ryu/d2s.c", "cbase/ryu/ryu.h")
+        for source in sources:
+            with self.subTest(source=source):
+                result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                                         "--file", source, "--coverage",
+                                         "--report-parse-issues"], cwd=ROOT,
+                                        capture_output=True, text=True,
+                                        check=False)
+                self.assertNotIn("unrecognized top-level construct",
+                                 result.stdout)
+                self.assertIn("opaque_externals=0", result.stdout)
+
+    def test_unmatched_cpp_wrapper_reports_incomplete_coverage(self):
+        source = ("#if defined(__cplusplus)\n"
+                  "extern \"C\" {\n"
+                  "#endif\n"
+                  "int32 foo(void);\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                                     "--file", str(path),
+                                     "--require-coverage",
+                                     "--report-parse-issues"], cwd=ROOT,
+                                    capture_output=True, text=True,
+                                    check=False)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("STRUCTURE-OPAQUE", result.stdout)
+        self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+
     def test_native_structure_scanning(self):
         compiler = shlex.split(os.environ.get("CC", "cc"))
         with tempfile.TemporaryDirectory() as directory:

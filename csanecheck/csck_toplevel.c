@@ -203,23 +203,57 @@ csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
     return false;
 }
 
+static bool
+csane_top_attribute(CsaneTopStream *stream, int32 pos) {
+    if (pos < 0 || pos >= stream->count) {
+        return false;
+    }
+    Token *token = csane_top_token(stream, pos);
+    return csane_top_is(stream, pos, "__attribute__")
+           || csane_top_is(stream, pos, "__attribute")
+           || csane_top_is(stream, pos, "__declspec")
+           || csane_top_is(stream, pos, "__asm__")
+           || (token->kind == TOKEN_IDENT && token->len > 5
+               && !memcmp64(token->text, "ATTR_", 5));
+}
+
+/* ATTR_* can itself be a macro-generated function name. Treat it as a
+ * trailing annotation only after an earlier parameter list has closed. */
+static bool
+csane_top_trailing_attribute(CsaneTopStream *stream, int32 first,
+                             int32 pos) {
+    if (!csane_top_attribute(stream, pos)) {
+        return false;
+    }
+    for (int32 i = first; i < pos; i += 1) {
+        if (csane_top_is(stream, i, ")")
+            && stream->matches[i] >= first) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Return the function-name token, or -1. CAT(...)(...) is deliberately
  * supported: its name is the CAT macro, not an expanded identifier. */
 static int32
 csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
-    /* Skip recognized trailing compiler attributes, without expanding them.
-     * A function declaration with an attribute still has its original name. */
-    while (end > first && csane_top_is(stream, end - 1, ")")) {
-        int32 attribute_open = stream->matches[end - 1];
-        int32 before = attribute_open - 1;
-        if (before < first
-            || !(csane_top_is(stream, before, "__attribute__")
-                 || csane_top_is(stream, before, "__attribute")
-                 || csane_top_is(stream, before, "__declspec")
-                 || csane_top_is(stream, before, "__asm__"))) {
-            break;
+    /* Strip a mixture of attribute calls and object-like attributes in
+     * reverse order. They may follow each other in either order. */
+    while (end > first) {
+        if (csane_top_trailing_attribute(stream, first, end - 1)) {
+            end -= 1;
+            continue;
         }
-        end = before;
+        if (csane_top_is(stream, end - 1, ")")) {
+            int32 open = stream->matches[end - 1];
+            if (open > first
+                && csane_top_trailing_attribute(stream, first, open - 1)) {
+                end = open - 1;
+                continue;
+            }
+        }
+        break;
     }
     if (first >= end || !csane_top_is(stream, end - 1, ")")) {
         return -1;
@@ -256,10 +290,10 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
     if (*name < 0 || *name == first) {
         return false;
     }
-    /* A declaration of a function pointer is not a function prototype. */
-    if (csane_top_is(stream, *name - 1, "*")) {
-        return false;
-    }
+    /* The '*' immediately before a function name is part of its return
+     * type, as in char *name(void). Pointer variables instead place the
+     * name inside a parenthesized declarator: char (*name)(void). The
+     * latter is rejected by csane_top_function_name(). */
     return true;
 }
 
@@ -408,6 +442,27 @@ csane_top_scan(CsaneTopStream *stream) {
         int32 name = -1;
         bool emitted = false;
         for (int32 i = first; i < stream->count; i += 1) {
+            if (i == first + 2 && csane_top_is(stream, first, "extern")
+                && csane_top_is(stream, first + 1, "\"C\"")
+                && csane_top_is(stream, i, "{")
+                && stream->matches[i] < 0
+                && stream->top->regions->items[stream->owner].kind
+                   == CSANE_REGION_CONDITIONAL_BRANCH) {
+                csane_top_append(stream, CSANE_TOP_LINKAGE_FRAGMENT,
+                                 first, i + 1, -1, -1);
+                first = i + 1;
+                emitted = true;
+                break;
+            }
+            if (i == first && csane_top_is(stream, i, "}")
+                && stream->top->regions->items[stream->owner].kind
+                   == CSANE_REGION_CONDITIONAL_BRANCH) {
+                csane_top_append(stream, CSANE_TOP_LINKAGE_FRAGMENT,
+                                 first, i + 1, -1, -1);
+                first = i + 1;
+                emitted = true;
+                break;
+            }
             if (csane_top_open(stream, i)) {
                 if (stream->matches[i] < 0) {
                     /* A fragment spanning an unbalanced preprocessor
@@ -699,6 +754,69 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
     return;
 }
 
+/* Only recognize a wrapper when the fragment belongs to a complete
+ * #if __cplusplus conditional. Other unmatched braces remain unresolved. */
+static bool
+csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
+    CsaneRegions *regions = top->regions;
+    CsaneSourceRegion *region = &regions->items[item->owner_region];
+    CPreprocessorAnalysis *pp = regions->preprocessor;
+    if (region->kind != CSANE_REGION_CONDITIONAL_BRANCH
+        || region->branch_index < 0 || region->group_index < 0
+        || !region->complete) {
+        return false;
+    }
+    CPreprocessorGroup *group = &pp->groups[region->group_index];
+    if (region->branch_index != group->first_branch
+        || group->endif_directive < 0) {
+        return false;
+    }
+    int32 directive = pp->branches[group->first_branch].directive_index;
+    SourceRange source = pp->directives[directive].source;
+    char *text = regions->tokens->text + source.start;
+    return memmem64(text, source.end - source.start,
+                    "__cplusplus", strlen32("__cplusplus")) != NULL;
+}
+
+/* Opening and closing extern "C" braces can live in separate conditional
+ * groups. A missing counterpart remains opaque instead of contributing
+ * false coverage. This is a guarded linkage idiom, not general brace
+ * balancing across independently compiled preprocessor alternatives. */
+static void
+csane_top_linkage_pairs(CsaneTopLevels *top) {
+    int32 pending = -1;
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        if (item->kind != CSANE_TOP_LINKAGE_FRAGMENT) {
+            continue;
+        }
+        Token *token = &top->regions->tokens->tokens[item->tokens.first];
+        bool guarded = csane_top_cpp_guard(top, item);
+        if (TOKEN_IS(token, "extern")) {
+            if (pending >= 0) {
+                top->items[pending].kind = CSANE_TOP_OPAQUE;
+                top->opaque_count += 1;
+            }
+            pending = guarded ? i : -1;
+            if (!guarded) {
+                item->kind = CSANE_TOP_OPAQUE;
+                top->opaque_count += 1;
+            }
+        } else if (pending >= 0 && guarded
+                   && item->source.start > top->items[pending].source.end) {
+            pending = -1;
+        } else {
+            item->kind = CSANE_TOP_OPAQUE;
+            top->opaque_count += 1;
+        }
+    }
+    if (pending >= 0) {
+        top->items[pending].kind = CSANE_TOP_OPAQUE;
+        top->opaque_count += 1;
+    }
+    return;
+}
+
 bool
 csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
     if (top == NULL) {
@@ -718,6 +836,7 @@ csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
             csane_top_owner(top, i);
         }
     }
+    csane_top_linkage_pairs(top);
     return true;
 }
 
