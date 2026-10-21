@@ -723,6 +723,9 @@ expr_test_calls_and_initializers(void) {
     CAst ast;
     CExprParseResult result;
     int32 call;
+    int32 arg;
+    int32 first;
+    TokenRange designator;
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_expression(&ast, (TokenRange){0, t.token_count});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
@@ -731,7 +734,7 @@ expr_test_calls_and_initializers(void) {
     ASSERT_EQ(ast.expressions[call].kind, C_EXPR_CALL);
     ASSERT_EQ(ast.expressions[call].argument_count, 3);
     ASSERT_EQ(ast.expressions[ast.expressions[call].left].kind, C_EXPR_MEMBER);
-    int32 arg = ast.expressions[call].first_argument;
+    arg = ast.expressions[call].first_argument;
     ASSERT_EQ(ast.expressions[ast.arguments[arg].expression].kind,
               C_EXPR_IDENTIFIER);
     c_ast_free(&ast);
@@ -745,8 +748,8 @@ expr_test_calls_and_initializers(void) {
     ASSERT_EQ(ast.expressions[result.expression].kind,
               C_EXPR_INITIALIZER_LIST);
     ASSERT_EQ(ast.expressions[result.expression].argument_count, 3);
-    int32 first = ast.expressions[result.expression].first_argument;
-    TokenRange designator = ast.arguments[first].designator;
+    first = ast.expressions[result.expression].first_argument;
+    designator = ast.arguments[first].designator;
     ASSERT_LT_VAR(designator.first, designator.end);
     c_ast_free(&ast);
     free_tokenization(&t);
@@ -811,8 +814,9 @@ expr_test_more_syntax(void) {
         Tokenization tokens = tokenize(cases[i].text, strlen32(cases[i].text));
         CAst ast;
         CExprParseResult result;
+        TokenRange range;
         ASSERT(c_ast_init(&ast, &tokens));
-        TokenRange range = {0, tokens.token_count};
+        range = (TokenRange){0, tokens.token_count};
         result = c_ast_parse_expression(&ast, range);
         if (result.status != cases[i].status) {
             error("Expression test %d: %s\n", i, cases[i].text);

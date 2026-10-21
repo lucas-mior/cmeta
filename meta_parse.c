@@ -635,25 +635,33 @@ unit_test_functions(void) {
                    "int g(void) { T x = 4; return x; }";
     Tokenization t = tokenize(source, strlen32(source));
     CAst ast;
+    CUnitParseResult r;
+    int32 f;
+    int32 body;
+    int32 stmt;
+    int32 compound;
+    int32 ret;
+    int32 expr;
+    int32 g;
     ASSERT(c_ast_init(&ast, &t));
-    CUnitParseResult r =
+    r =
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, t.token_count}, NULL);
     ASSERT_EQ(r.issue_count, 0);
     ASSERT_EQ(r.external_count, 4);
-    int32 f = ast.externals[r.first_external].next;
+    f = ast.externals[r.first_external].next;
     f = ast.externals[f].next;
     ASSERT_GE(ast.externals[f].function_body, 0);
-    int32 body = ast.externals[f].function_body;
-    int32 stmt = ast.statements[body].first_child;
+    body = ast.externals[f].function_body;
+    stmt = ast.statements[body].first_child;
     ASSERT_EQ(ast.statements[stmt].kind, C_STMT_IF);
-    int32 compound = ast.statements[stmt].first_child;
-    int32 ret = ast.statements[compound].first_child;
-    int32 expr = ast.statements[ret].expression;
+    compound = ast.statements[stmt].first_child;
+    ret = ast.statements[compound].first_child;
+    expr = ast.statements[ret].expression;
     ASSERT_EQ(ast.expressions[expr].kind, C_EXPR_BINARY);
     ASSERT_EQ(ast.expressions[ast.expressions[expr].left].kind, C_EXPR_PAREN);
     ASSERT_EQ(c_ast_lookup(&ast, unit_test_find(&t, "T", 4)), C_NAME_TYPEDEF);
-    int32 g = ast.externals[f].next;
+    g = ast.externals[f].next;
     ASSERT_GE(ast.externals[g].function_body, 0);
     ASSERT_EQ(ast.current_scope, 0);
     c_ast_free(&ast);
@@ -673,18 +681,23 @@ unit_test_alternatives(void) {
     Tokenization t = tokenize(source, strlen32(source));
     CPreprocessorAnalysis pp;
     CAst ast;
+    CUnitParseResult r;
+    int32 first;
+    int32 group;
+    int32 branch;
+    int32 next;
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
-    CUnitParseResult r =
+    r =
         c_ast_parse_translation_unit(&ast, (TokenRange){0, t.token_count}, &pp);
     ASSERT_EQ(r.issue_count, 0);
-    int32 first = r.first_external;
+    first = r.first_external;
     ASSERT_EQ(ast.externals[first].kind, C_EXTERNAL_PP_DIRECTIVE);
-    int32 group = ast.externals[first].next;
+    group = ast.externals[first].next;
     ASSERT_EQ(ast.externals[group].kind, C_EXTERNAL_PP_GROUP);
-    int32 branch = ast.externals[group].first_child;
+    branch = ast.externals[group].first_child;
     ASSERT_EQ(ast.externals[branch].kind, C_EXTERNAL_PP_BRANCH);
-    int32 next = ast.externals[branch].next;
+    next = ast.externals[branch].next;
     ASSERT_EQ(ast.externals[next].kind, C_EXTERNAL_PP_BRANCH);
     ASSERT_EQ(ast.externals[ast.externals[group].next].kind,
               C_EXTERNAL_DECLARATION);
@@ -707,20 +720,25 @@ unit_test_conditional_function_body(void) {
     Tokenization t = tokenize(source, strlen32(source));
     CPreprocessorAnalysis pp;
     CAst ast;
+    CUnitParseResult result;
+    int32 root;
+    int32 group;
+    int32 a;
+    int32 b;
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
-    CUnitParseResult result =
+    result =
         c_ast_parse_translation_unit(&ast, (TokenRange){0, t.token_count},
                                      &pp);
     ASSERT_EQ(result.issue_count, 0);
     ASSERT_EQ(ast.externals[result.first_external].kind,
               C_EXTERNAL_DECLARATION);
-    int32 root = ast.externals[result.first_external].function_body;
+    root = ast.externals[result.first_external].function_body;
     ASSERT_GE(root, 0);
-    int32 group = ast.statements[root].first_child;
+    group = ast.statements[root].first_child;
     ASSERT_EQ(ast.statements[group].kind, C_STMT_PP_GROUP);
-    int32 a = ast.statements[group].first_child;
-    int32 b = ast.statements[a].next;
+    a = ast.statements[group].first_child;
+    b = ast.statements[a].next;
     ASSERT_EQ(ast.statements[ast.statements[a].first_child].kind, C_STMT_IF);
     ASSERT_EQ(ast.statements[ast.statements[b].first_child].kind, C_STMT_WHILE);
     c_ast_free(&ast);
@@ -735,13 +753,15 @@ unit_test_malformed_and_recovery(void) {
                    "int fine;";
     Tokenization t = tokenize(source, strlen32(source));
     CAst ast;
+    CUnitParseResult r;
+    int32 second;
     ASSERT(c_ast_init(&ast, &t));
-    CUnitParseResult r =
+    r =
         c_ast_parse_translation_unit(&ast,
                                      (TokenRange){0, t.token_count}, NULL);
     ASSERT_GT(r.issue_count, 0);
     ASSERT_EQ(ast.externals[r.first_external].kind, C_EXTERNAL_UNSUPPORTED);
-    int32 second = ast.externals[r.first_external].next;
+    second = ast.externals[r.first_external].next;
     ASSERT_EQ(ast.externals[second].kind, C_EXTERNAL_DECLARATION);
     ASSERT_GE(ast.externals[second].function_body, 0);
     ASSERT_EQ(ast.externals[ast.externals[second].next].kind,

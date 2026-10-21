@@ -917,12 +917,14 @@ stmt_test_control_flow(void) {
                 "done: return x; }";
     Tokenization t = tokenize(src, strlen32(src));
     CAst ast;
+    CStmtParseResult r;
+    int32 x;
     ASSERT(c_ast_init(&ast, &t));
-    CStmtParseResult r =
+    r =
         c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
     ASSERT_EQ(r.issue, 0);
     ASSERT_EQ(ast.statements[r.statement].kind, C_STMT_COMPOUND);
-    int32 x = ast.statements[r.statement].first_child;
+    x = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[x].kind, C_STMT_DECLARATION);
     x = ast.statements[x].next;
     ASSERT_EQ(ast.statements[x].kind, C_STMT_IF);
@@ -959,16 +961,21 @@ stmt_test_preprocessor(void) {
     Tokenization t = tokenize(src, strlen32(src));
     CPreprocessorAnalysis pp;
     CAst ast;
+    CStmtParseResult r;
+    int32 first;
+    int32 group;
+    int32 a;
+    int32 b;
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
-    CStmtParseResult r =
+    r =
         c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, &pp);
     ASSERT_EQ(r.issue, 0);
-    int32 first = ast.statements[r.statement].first_child;
-    int32 group = ast.statements[first].next;
+    first = ast.statements[r.statement].first_child;
+    group = ast.statements[first].next;
     ASSERT_EQ(ast.statements[group].kind, C_STMT_PP_GROUP);
-    int32 a = ast.statements[group].first_child;
-    int32 b = ast.statements[a].next;
+    a = ast.statements[group].first_child;
+    b = ast.statements[a].next;
     ASSERT_EQ(ast.statements[a].kind, C_STMT_PP_BRANCH);
     ASSERT_EQ(ast.statements[b].kind, C_STMT_PP_BRANCH);
     ASSERT_EQ(ast.statements[ast.statements[a].first_child].kind,
@@ -986,15 +993,19 @@ stmt_test_recovery(void) {
     char *src = "{ _Generic(x, int: 1); good(); return (int)2; }";
     Tokenization t = tokenize(src, strlen32(src));
     CAst ast;
+    CStmtParseResult r;
+    int32 a;
+    int32 b;
+    int32 d;
     ASSERT(c_ast_init(&ast, &t));
-    CStmtParseResult r =
+    r =
         c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
     ASSERT_GT(ast.issue_count, 0);
-    int32 a = ast.statements[r.statement].first_child;
-    int32 b = ast.statements[a].next;
+    a = ast.statements[r.statement].first_child;
+    b = ast.statements[a].next;
     ASSERT_EQ(ast.statements[b].kind, C_STMT_EXPRESSION);
     ASSERT_GE(ast.statements[b].expression, 0);
-    int32 d = ast.statements[b].next;
+    d = ast.statements[b].next;
     ASSERT_EQ(ast.statements[d].kind, C_STMT_RETURN);
     c_ast_free(&ast);
     free_tokenization(&t);
@@ -1006,11 +1017,13 @@ stmt_test_malformed_headers(void) {
                 "broken( ; valid(); }";
     Tokenization t = tokenize(src, strlen32(src));
     CAst ast;
+    CStmtParseResult r;
+    int32 child;
     ASSERT(c_ast_init(&ast, &t));
-    CStmtParseResult r =
+    r =
         c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
     ASSERT_GE(ast.issue_count, 3);
-    int32 child = ast.statements[r.statement].first_child;
+    child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_IF);
     child = ast.statements[child].next;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_IF);
@@ -1031,10 +1044,12 @@ stmt_test_unresolved_pointer_declarations(void) {
                 "for (Arena *item = arena; item; item = item->next) {} }";
     Tokenization t = tokenize(src, strlen32(src));
     CAst ast;
+    CStmtParseResult r;
+    int32 child;
     ASSERT(c_ast_init(&ast, &t));
-    CStmtParseResult r =
+    r =
         c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
-    int32 child = ast.statements[r.statement].first_child;
+    child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
     child = ast.statements[child].next;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
