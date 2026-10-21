@@ -110,6 +110,61 @@ int32 f(int32 x, int32 y) {
 }
 """, [])
 
+    def test_unknown_pointer_types_do_not_look_like_multiplication(self):
+        self.check("""void f(void) {
+    DIR *processes;
+    uchar *h = haystack;
+    uchar *n = needle;
+    uchar *end;
+}
+""", [], unresolved=2)
+
+    def test_declaration_boundaries_vs_real_multiplication(self):
+        self.check("""typedef int32 custom_t;
+custom_t *global_pointer;
+int32 f(int32 a, int32 b) {
+    custom_t *local_pointer = global_pointer;
+    int32 product = a * b;
+    return a* b;
+}
+""", ["FMT-MULTIPLY", "FMT-MULTIPLY"])
+        self.check("""int32 f(int32 a, int32 b) {
+    return a *b;
+}
+""", ["FMT-MULTIPLY"])
+
+    def test_unknown_pointer_parameters_and_casts(self):
+        self.check("""void f(DIR *processes, uchar *h) {
+    uchar *n = h;
+}
+""", [])
+        self.check("""void f(void) {
+    uchar *pointer = (uchar*)other;
+    uchar *q = (uchar*)*source;
+}
+""", [])
+
+    def test_cbase_util_pointer_regression(self):
+        util = ROOT / "cbase/util.c"
+        result = subprocess.run([str(CHECKER), "--file", str(util)],
+                                cwd=ROOT, capture_output=True, text=True,
+                                check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("FMT-MULTIPLY", result.stdout)
+
+    def test_parenthesized_multiplication_is_not_a_pointer_cast(self):
+        self.check("""int32 f(int32 a, int32 b, int32 c) {
+    return (a * b) * c;
+}
+""", ["FMT-MULTIPLY", "FMT-MULTIPLY"])
+
+    def test_ambiguous_expression_statement_is_unresolved(self):
+        self.check("""void f(void) {
+    int32 known = 1 + 2;
+    a *b;
+}
+""", [], unresolved=1)
+
     def test_local_incomplete_expression_is_unresolved(self):
         result = self.check("""int32 f(void) {
     int32 x = (1 +;
