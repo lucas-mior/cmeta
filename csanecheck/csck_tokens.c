@@ -8,6 +8,24 @@
 #include "csck_tokens.h"
 
 bool
+csane_token_macro_name(Token *token) {
+    bool has_upper = false;
+    if (token->kind != TOKEN_IDENT || token->len <= 0) {
+        return false;
+    }
+    for (int32 i = 0; i < token->len; i += 1) {
+        char c = token->text[i];
+        if (c >= 'a' && c <= 'z') {
+            return false;
+        }
+        if (c >= 'A' && c <= 'Z') {
+            has_upper = true;
+        }
+    }
+    return has_upper;
+}
+
+bool
 csane_token_path_init(CsaneTokenPath *path, Tokenization *tokens,
                       TokenRange bounds) {
     if (path == NULL) {

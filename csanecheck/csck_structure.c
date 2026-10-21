@@ -32,6 +32,10 @@ csane_coverage_collect(CsaneTopLevels *toplevel,
         case CSANE_TOP_MEMBER_DECLARATION:
         case CSANE_TOP_ENUMERATOR:
         case CSANE_TOP_PARAMETER_FRAGMENT:
+        case CSANE_TOP_MACRO_INITIALIZER_FRAGMENT:
+        case CSANE_TOP_MACRO_MEMBER_FRAGMENT:
+        case CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT:
+        case CSANE_TOP_MACRO_PARAMETER_FRAGMENT:
         default:
             break;
         }

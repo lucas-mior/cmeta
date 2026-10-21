@@ -323,6 +323,36 @@ csane_stmt_recover(CsaneStatementStream *stream, int32 first, int32 limit) {
     return limit;
 }
 
+static bool
+csane_stmt_new_line(CsaneStatementStream *stream, int32 a, int32 b) {
+    Token *first = csane_stmt_token(stream, a);
+    Token *next = csane_stmt_token(stream, b);
+    Tokenization *tokens = stream->statements->toplevel->regions->tokens;
+    for (int32 i = first->offset + first->len; i < next->offset; i += 1) {
+        if (tokens->text[i] == '\n') {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int32
+csane_stmt_macro_fragment_end(CsaneStatementStream *stream, int32 first,
+                              int32 limit) {
+    int32 close;
+    if (!csane_token_macro_name(csane_stmt_token(stream, first))) {
+        return -1;
+    }
+    if (first + 1 >= limit || !csane_stmt_is(stream, first + 1, "(")) {
+        return first + 1;
+    }
+    close = stream->matches[first + 1];
+    if (close < first + 1 || close >= limit) {
+        return -1;
+    }
+    return close + 1;
+}
+
 /* Scan one statement and return its next token. Every failure advances by
  * at least one token; failure is not propagated to unrelated statements. */
 static int32
@@ -354,6 +384,17 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         *result = csane_stmt_append(stream, CSANE_STMT_OPAQUE, first,
                                     limit, parent, first);
         return limit;
+    }
+    int32 macro_end = csane_stmt_macro_fragment_end(stream, first, limit);
+    if (macro_end > first
+        && (macro_end == limit
+            || csane_stmt_is(stream, macro_end, "}")
+            || (!csane_stmt_is(stream, macro_end, ";")
+                && !csane_stmt_is(stream, macro_end, ",")
+                && csane_stmt_new_line(stream, macro_end - 1, macro_end)))) {
+        *result = csane_stmt_append(stream, CSANE_STMT_MACRO_FRAGMENT,
+                                    first, macro_end, parent, first);
+        return macro_end;
     }
     if (csane_stmt_is(stream, first, "{")) {
         int32 close = stream->matches[first];

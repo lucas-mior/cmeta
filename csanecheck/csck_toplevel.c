@@ -34,21 +34,9 @@ csane_top_token(CsaneTopStream *stream, int32 pos) {
 }
 
 static bool
-csane_top_macro_name(Token *token) {
-    if (token->kind != TOKEN_IDENT || token->len <= 0) {
-        return false;
-    }
-    bool has_upper = false;
-    for (int32 i = 0; i < token->len; i += 1) {
-        char c = token->text[i];
-        if (c >= 'a' && c <= 'z') {
-            return false;
-        }
-        if (c >= 'A' && c <= 'Z') {
-            has_upper = true;
-        }
-    }
-    return has_upper;
+csane_top_macro_at(CsaneTopStream *stream, int32 pos) {
+    Token *token = csane_top_token(stream, pos);
+    return token->kind == TOKEN_IDENT && csane_token_macro_name(token);
 }
 
 static void
@@ -283,9 +271,7 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
     if (csane_top_is(stream, name, ")")) {
         int32 macro_open = stream->matches[name];
         if (macro_open > first
-            && csane_top_token(stream, macro_open - 1)->kind == TOKEN_IDENT
-            && csane_top_macro_name(csane_top_token(stream,
-                                                    macro_open - 1))) {
+            && csane_top_macro_at(stream, macro_open - 1)) {
             return macro_open - 1;
         }
     }
@@ -302,6 +288,12 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
     }
     *name = csane_top_function_name(stream, first, end);
     if (*name < 0 || *name == first) {
+        return false;
+    }
+    if (*name == first + 1
+        && (csane_top_is(stream, first, "struct")
+            || csane_top_is(stream, first, "union")
+            || csane_top_is(stream, first, "enum"))) {
         return false;
     }
     /* The '*' immediately before a function name is part of its return
@@ -336,7 +328,7 @@ csane_top_type(CsaneTopStream *stream, int32 first, int32 end) {
 static bool
 csane_top_macro_statement(CsaneTopStream *stream, int32 first,
                           int32 end) {
-    if (!csane_top_macro_name(csane_top_token(stream, first))
+    if (!csane_token_macro_name(csane_top_token(stream, first))
         || !csane_top_is(stream, first + 1, "(")) {
         return false;
     }
@@ -387,7 +379,7 @@ static bool
 csane_top_macro_boundary(CsaneTopStream *stream, int32 first,
                          int32 close) {
     if (stream->matches[first + 1] != close
-        || !csane_top_macro_name(csane_top_token(stream, first))) {
+        || !csane_token_macro_name(csane_top_token(stream, first))) {
         return false;
     }
     int32 next = close + 1;
@@ -522,7 +514,7 @@ csane_top_scan(CsaneTopStream *stream) {
                 emitted = true;
                 break;
             } else if (i == first
-                       && csane_top_macro_name(csane_top_token(stream, i))
+                       && csane_token_macro_name(csane_top_token(stream, i))
                        && (i + 1 == stream->count
                            || (csane_top_new_line(stream, i, i + 1)
                                && !csane_top_is(stream, i + 1, "(")))) {
@@ -631,6 +623,45 @@ csane_top_parameters(CsaneTopStream *stream, CsaneTopItem *item) {
     return false;
 }
 
+static bool
+csane_top_macro_fragment(CsaneTopStream *stream, int32 first, int32 end) {
+    if (first >= end || !csane_top_macro_at(stream, first)) {
+        return false;
+    }
+    if (first + 1 == end) {
+        return true;
+    }
+    if (!csane_top_is(stream, first + 1, "(")) {
+        return false;
+    }
+    return stream->matches[first + 1] == end - 1;
+}
+
+static enum CsaneTopKind
+csane_top_macro_fragment_kind(enum CsaneTopKind kind) {
+    switch (kind) {
+    case CSANE_TOP_MEMBER_DECLARATION:
+        return CSANE_TOP_MACRO_MEMBER_FRAGMENT;
+    case CSANE_TOP_ENUMERATOR:
+        return CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT;
+    case CSANE_TOP_PARAMETER_FRAGMENT:
+        return CSANE_TOP_MACRO_PARAMETER_FRAGMENT;
+    case CSANE_TOP_FUNCTION_DEFINITION:
+    case CSANE_TOP_FUNCTION_DECLARATION:
+    case CSANE_TOP_TYPE_DECLARATION:
+    case CSANE_TOP_DECLARATION:
+    case CSANE_TOP_MACRO_INVOCATION:
+    case CSANE_TOP_LINKAGE_FRAGMENT:
+    case CSANE_TOP_MACRO_INITIALIZER_FRAGMENT:
+    case CSANE_TOP_MACRO_MEMBER_FRAGMENT:
+    case CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT:
+    case CSANE_TOP_MACRO_PARAMETER_FRAGMENT:
+    case CSANE_TOP_OPAQUE:
+    default:
+        return CSANE_TOP_OPAQUE;
+    }
+}
+
 /* Do not interpret a damaged branch as a valid declaration. The fragment
  * scanner checks bounded, independently balanced units, retaining any
  * unrecognized remainder as OPAQUE for accurate rule coverage. */
@@ -718,11 +749,17 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
             content_first += 1;
         }
         bool complete = kind != CSANE_TOP_MEMBER_DECLARATION || terminated;
-        enum CsaneTopKind result =
-            complete && csane_top_fragment_valid(stream, content_first,
+        enum CsaneTopKind result;
+        if (!terminated
+            && csane_top_macro_fragment(stream, content_first, content_end)) {
+            result = csane_top_macro_fragment_kind(kind);
+        } else {
+            result = complete
+                     && csane_top_fragment_valid(stream, content_first,
                                                  content_end, kind,
                                                  terminated)
-            ? kind : CSANE_TOP_OPAQUE;
+                     ? kind : CSANE_TOP_OPAQUE;
+        }
         csane_top_append(stream, result, begin, end, -1, -1);
         first = end;
     }
@@ -758,6 +795,14 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
         } else {
             csane_top_fragments(&stream, kind);
         }
+    } else if (enclosing->kind == CSANE_TOP_DECLARATION
+               && csane_top_macro_fragment(&stream, 0,
+                                           stream.count
+                                           - (csane_top_is(&stream,
+                                                           stream.count - 1,
+                                                           ",") ? 1 : 0))) {
+        csane_top_append(&stream, CSANE_TOP_MACRO_INITIALIZER_FRAGMENT,
+                         0, stream.count, -1, -1);
     } else {
         csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count, -1, -1);
     }
@@ -994,6 +1039,96 @@ csane_top_linkage_pairs(CsaneTopLevels *top) {
     return;
 }
 
+static bool
+csane_top_token_alone_on_line(Tokenization *tokens, int32 index) {
+    Token *token = &tokens->tokens[index];
+    int32 start = token->offset;
+    int32 end = token->offset + token->len;
+    while (start > 0 && tokens->text[start - 1] != '\n') {
+        start -= 1;
+    }
+    while (end < tokens->text_len && tokens->text[end] != '\n') {
+        end += 1;
+    }
+    for (int32 i = start; i < token->offset; i += 1) {
+        if (tokens->text[i] != ' ' && tokens->text[i] != '\t') {
+            return false;
+        }
+    }
+    for (int32 i = token->offset + token->len; i < end; i += 1) {
+        if (tokens->text[i] != ' ' && tokens->text[i] != '\t'
+            && tokens->text[i] != '\r') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void
+csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
+    Tokenization *tokens = top->regions->tokens;
+    int32 original_count = top->count;
+    for (int32 item_index = 0; item_index < original_count; item_index += 1) {
+        CsaneTopItem *item = &top->items[item_index];
+        bool is_enum = false;
+        bool aggregate = false;
+        int32 open = -1;
+        int32 close = -1;
+        CsaneTokenView view = csane_tokens_full(tokens);
+        if (item->kind != CSANE_TOP_TYPE_DECLARATION) {
+            continue;
+        }
+        for (int32 i = item->tokens.first; i < item->tokens.end; i += 1) {
+            if (TOKEN_IS(&tokens->tokens[i], "enum")) {
+                is_enum = true;
+                aggregate = true;
+            } else if (TOKEN_IS(&tokens->tokens[i], "struct")
+                       || TOKEN_IS(&tokens->tokens[i], "union")) {
+                is_enum = false;
+                aggregate = true;
+            } else if (aggregate && TOKEN_IS(&tokens->tokens[i], "{")) {
+                open = i;
+                close = csane_tokens_match(&view, i);
+                break;
+            }
+        }
+        if (open < 0 || close <= open || close >= item->tokens.end) {
+            continue;
+        }
+        for (int32 i = open + 1; i < close; i += 1) {
+            bool already = false;
+            if (!csane_token_macro_name(&tokens->tokens[i])
+                || !csane_top_token_alone_on_line(tokens, i)) {
+                continue;
+            }
+            for (int32 j = 0; j < original_count; j += 1) {
+                CsaneTopItem *other = &top->items[j];
+                if (other->tokens.first <= i && i < other->tokens.end
+                    && j != item_index) {
+                    already = true;
+                    break;
+                }
+            }
+            if (!already) {
+                CsaneTopStream stream = {.top = top,
+                                         .owner = item->owner_region};
+                csane_top_push(&stream, i, csane_regions_at_token(top->regions,
+                                                                  i));
+                csane_top_append(&stream,
+                                 is_enum
+                                 ? CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT
+                                 : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
+                                 0, 1, -1, -1);
+                free2(stream.indices,
+                      (int64)stream.capacity*SIZEOF(*stream.indices));
+                free2(stream.leaf,
+                      (int64)stream.capacity*SIZEOF(*stream.leaf));
+            }
+        }
+    }
+    return;
+}
+
 bool
 csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
     if (top == NULL) {
@@ -1014,6 +1149,7 @@ csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
         }
     }
     csane_top_recover_conditional_function_braces(top);
+    csane_top_aggregate_macro_fragments(top);
     csane_top_linkage_pairs(top);
     return true;
 }
