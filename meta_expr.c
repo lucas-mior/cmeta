@@ -330,16 +330,18 @@ expr_parse_prefix(ExprCursor *c) {
     if (size || align) {
         int32 open = expr_sig(c, i + 1);
         int32 close = -1;
+        int32 after;
+        enum CExpressionKind kind;
         if (expr_at(c, open, "(")) {
             close = expr_match(c, open);
             if (close < 0) {
                 return -1;
             }
-            int32 after = expr_sig(c, close + 1);
+            after = expr_sig(c, close + 1);
             if (!expr_at(c, after, "{")
                 && c_ast_is_type_name(ast, (TokenRange){open + 1, close})) {
                 c->pos = expr_sig(c, close + 1);
-                enum CExpressionKind kind = C_EXPR_SIZEOF_TYPE;
+                kind = C_EXPR_SIZEOF_TYPE;
                 if (align) {
                     kind = C_EXPR_ALIGNOF_TYPE;
                 }
@@ -490,6 +492,7 @@ expr_parse_prec(ExprCursor *c, int32 min_prec) {
         if (kind == C_EXPR_CONDITIONAL) {
             int32 middle = expr_parse_prec(c, EXPR_PREC_COMMA);
             int32 colon = expr_next(c);
+            int32 next;
             if (middle < 0) {
                 break;
             }
@@ -502,11 +505,11 @@ expr_parse_prec(ExprCursor *c, int32 min_prec) {
             if (rhs < 0) {
                 break;
             }
-            int32 next = expr_make(c, kind,
-                                   (TokenRange){
-                                       ast->expressions[lhs].tokens.first,
-                                       ast->expressions[rhs].tokens.end},
-                                   op, lhs, middle);
+            next = expr_make(c, kind,
+                             (TokenRange){
+                                 ast->expressions[lhs].tokens.first,
+                                 ast->expressions[rhs].tokens.end},
+                             op, lhs, middle);
             ast->expressions[next].third = rhs;
             lhs = next;
             continue;

@@ -365,6 +365,10 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
     CPreprocessorDirective *d = &c->pp->directives[directive];
     int32 group = -1;
     int32 node;
+    CPreprocessorGroup *g;
+    int32 tail;
+    int32 following;
+    bool shared;
     for (int32 i = 0; i < c->pp->group_count; i += 1) {
         int32 branch = c->pp->groups[i].first_branch;
         if ((branch >= 0)
@@ -380,7 +384,7 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
         c->pos = stmt_sig(c, d->tokens.end);
         return node;
     }
-    CPreprocessorGroup *g = &c->pp->groups[group];
+    g = &c->pp->groups[group];
     if ((g->endif_directive < 0)
         || (c->pp->directives[g->endif_directive].tokens.end > c->range.end)) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, first);
@@ -389,15 +393,16 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
     c->ast->statements[node].directive = group;
     c->ast->statements[node].tokens.end =
         c->pp->directives[g->endif_directive].tokens.end;
-    int32 tail = -1;
-    int32 following = stmt_sig(c, c->ast->statements[node].tokens.end);
-    bool shared = stmt_at(c, following, "{")
-                  && stmt_pp_shared_if_body(c, g);
+    tail = -1;
+    following = stmt_sig(c, c->ast->statements[node].tokens.end);
+    shared = stmt_at(c, following, "{")
+             && stmt_pp_shared_if_body(c, g);
     for (int32 b = g->first_branch; b >= 0;
          b = c->pp->branches[b].next_branch) {
         CPreprocessorBranch *branch = &c->pp->branches[b];
         StmtCursor inner = *c;
         int32 part = stmt_new(c, C_STMT_PP_BRANCH, branch->body_tokens.first);
+        int32 incomplete_if;
         inner.range = branch->body_tokens;
         inner.pos = inner.range.first;
         inner.depth += 1;
@@ -406,7 +411,7 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
         stmt_append(c, node, &tail, part);
         /* No conditional alternative can export a typedef to its siblings. */
         c_ast_scope_push(c->ast);
-        int32 incomplete_if = shared
+        incomplete_if = shared
             ? stmt_pp_shared_if_start(c, branch->body_tokens) : -1;
         if (incomplete_if >= 0) {
             inner.range.end = incomplete_if;
@@ -472,6 +477,7 @@ stmt_parse_control(StmtCursor *c, int32 first,
     int32 close;
     int32 node;
     int32 body;
+    bool opaque_condition;
     if (!stmt_at(c, open, "(")) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
     }
@@ -479,7 +485,7 @@ stmt_parse_control(StmtCursor *c, int32 first,
     if (close < 0) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
     }
-    bool opaque_condition = stmt_boundary(c, open + 1) < close;
+    opaque_condition = stmt_boundary(c, open + 1) < close;
     node = stmt_new(c, kind, first);
     c->ast->statements[node].condition = (TokenRange){open + 1, close};
     if (opaque_condition) {
@@ -731,15 +737,16 @@ stmt_parse_one(StmtCursor *c) {
         int32 close = -1;
         int32 end = stmt_boundary(c, first);
         int32 after = end;
+        TokenRange args;
+        TokenDelimiterDepth depth = {0};
+        int32 comma = -1;
         if (stmt_at(c, open, "(")) {
             close = stmt_match(c, open);
         }
         if (close >= 0) {
             after = stmt_sig(c, close + 1);
         }
-        TokenRange args = {open + 1, close};
-        TokenDelimiterDepth depth = {0};
-        int32 comma = -1;
+        args = (TokenRange){open + 1, close};
         if (close > open + 1) {
             comma = token_range_next_text_at_depth(c->ast->tokenization,
                                                    args, open, depth, ",", 1);

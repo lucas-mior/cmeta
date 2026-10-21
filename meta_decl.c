@@ -147,11 +147,12 @@ decl_is_extension(DeclCursor *c, int32 i) {
  * not be confused with a typedef or with a declarator's actual name. */
 static bool
 decl_upper_macro(DeclCursor *c, int32 i) {
+    Token *token;
+    bool has_letter = false;
     if (i >= c->range.end) {
         return false;
     }
-    Token *token = &c->ast->tokenization->tokens[i];
-    bool has_letter = false;
+    token = &c->ast->tokenization->tokens[i];
     if (token->kind != TOKEN_IDENT || c_ast_lookup(c->ast, i)
                                       != C_NAME_UNKNOWN) {
         return false;
@@ -173,6 +174,7 @@ decl_upper_macro(DeclCursor *c, int32 i) {
 static int32
 decl_annotation_end(DeclCursor *c, int32 i) {
     int32 next;
+    int32 close;
     if (i >= c->range.end) {
         return -1;
     }
@@ -182,7 +184,7 @@ decl_annotation_end(DeclCursor *c, int32 i) {
         if (!decl_at(c, next, "(")) {
             return -1;
         }
-        int32 close = decl_match(c, next);
+        close = decl_match(c, next);
         return close >= 0 ? decl_sig(c, close + 1) : -1;
     }
     if (!decl_upper_macro(c, i) && !decl_at(c, i, "noreturn")) {
@@ -190,7 +192,7 @@ decl_annotation_end(DeclCursor *c, int32 i) {
     }
     next = decl_sig(c, i + 1);
     if (decl_at(c, next, "(")) {
-        int32 close = decl_match(c, next);
+        close = decl_match(c, next);
         return close >= 0 ? decl_sig(c, close + 1) : -1;
     }
     return next;
