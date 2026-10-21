@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "csck.h"
 #include "csck_tokens.h"
+#include "csck_statements.h"
 
 /* Operator layout uses only borrowed source tokens. A bounded source region
  * keeps adjacent tokens in mutually exclusive #if branches from becoming
@@ -124,55 +125,238 @@ csane_layout_cast(CsaneTokenView *view, int32 close) {
         return false;
     }
     Token *type = &tokens->tokens[first];
-    if (!csane_type_name(type) && !csane_layout_qualifier(type)) {
-        return false;
-    }
+    bool named_type = csane_type_name(type) || csane_layout_qualifier(type);
+    bool pointer_type = false;
     for (int32 i = first; i >= 0 && i < close;) {
         Token *part = &tokens->tokens[i];
         if (part->kind != TOKEN_IDENT && !TOKEN_IS(part, "*")) {
             return false;
         }
+        if (TOKEN_IS(part, "*")) {
+            pointer_type = true;
+        } else if (pointer_type && !csane_layout_qualifier(part)) {
+            return false;
+        }
         i = csane_tokens_next(view, i);
     }
-    return true;
+    return named_type || pointer_type;
 }
 
-/* A pointer declarator needs a type prefix, not a translation-unit typedef
- * table. Built-in and CamelCase types, qualifiers, and struct tags can be
- * recognized from the small neighboring token window. */
+/* Recognize the prefix of a declaration without guessing typedef names.
+ * The enclosing statement or function header supplies the boundary. */
 static bool
-csane_layout_pointer(CsaneTokenView *view, int32 before, int32 after) {
+csane_layout_type_prefix(CsaneTokenView *view, int32 first,
+                         int32 type_end) {
     Tokenization *tokens = view->tokens;
-    Token *left = &tokens->tokens[before];
-    Token *right = &tokens->tokens[after];
-    if (right->kind != TOKEN_IDENT && !TOKEN_IS(right, "*")
-        && !TOKEN_IS(right, "(") && !TOKEN_IS(right, ")")) {
-        return false;
+    for (int32 i = first; i >= 0 && i < type_end;) {
+        Token *part = &tokens->tokens[i];
+        if (!csane_layout_qualifier(part) && !TOKEN_IS(part, "signed")
+            && !TOKEN_IS(part, "unsigned") && !TOKEN_IS(part, "long")
+            && !TOKEN_IS(part, "short")) {
+            return false;
+        }
+        i = csane_tokens_next(view, i);
+        if (i != type_end && (i < 0 || i >= view->range.end)) {
+            return false;
+        }
     }
-    if (csane_type_name(left) || csane_layout_qualifier(left)) {
-        return true;
+    return type_end >= view->range.first
+           && type_end < view->range.end
+           && tokens->tokens[type_end].kind == TOKEN_IDENT;
+}
+
+static bool
+csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
+                              int32 index, int32 before) {
+    Tokenization *tokens = view->tokens;
+    CsaneStatements *statements = file->statements;
+    if (statements != NULL) {
+        for (int32 i = 0; i < statements->count; i += 1) {
+            CsaneStatement *stmt = &statements->items[i];
+            if (stmt->kind != CSANE_STMT_SIMPLE
+                || index < stmt->tokens.first
+                || index >= stmt->tokens.end) {
+                continue;
+            }
+            int32 first = csane_tokens_next(view, stmt->tokens.first - 1);
+            if (first <= before
+                && csane_layout_type_prefix(view, first, before)) {
+                return true;
+            }
+        }
     }
-    if (left->kind != TOKEN_IDENT) {
-        return false;
-    }
-    int32 preceding = csane_tokens_previous(view, before);
-    /* The conventional lowercase typedef suffix is only meaningful at a
-     * declaration boundary. In 'return value_t *p' it is multiplication. */
-    if (left->len > 2 && left->text[left->len - 2] == '_'
-        && left->text[left->len - 1] == 't'
-        && (preceding < view->range.first
-            || csane_layout_is(tokens, preceding, ";")
-            || csane_layout_is(tokens, preceding, "{")
-            || csane_layout_is(tokens, preceding, "}"))) {
-        return true;
-    }
-    if (preceding >= view->range.first) {
-        Token *prefix = &tokens->tokens[preceding];
-        if (csane_layout_qualifier(prefix) || csane_type_name(prefix)) {
-            return true;
+    if (file->toplevel != NULL) {
+        for (int32 i = 0; i < file->toplevel->count; i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            if (index < item->tokens.first || index >= item->tokens.end) {
+                continue;
+            }
+            if ((item->kind == CSANE_TOP_DECLARATION
+                 || item->kind == CSANE_TOP_TYPE_DECLARATION
+                 || item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                 || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
+                && index < item->header.end) {
+                int32 first = csane_tokens_next(view, item->header.first - 1);
+                if (first <= before
+                    && csane_layout_type_prefix(view, first, before)) {
+                    return true;
+                }
+            }
+            /* A function parameter starts after '(' or ',' in its header.
+             * Calls inside function bodies are deliberately excluded. */
+            if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                 || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
+                && index < item->header.end) {
+                int32 first = csane_tokens_previous(view, before);
+                if (first >= view->range.first
+                    && (TOKEN_IS(&tokens->tokens[first], "(")
+                        || TOKEN_IS(&tokens->tokens[first], ","))) {
+                    return true;
+                }
+            }
         }
     }
     return false;
+}
+
+/* A locally recognizable declaration can start after a statement
+ * separator. This also covers incomplete/opaque statements not emitted by
+ * the lightweight statement scanner, without resolving typedef names. */
+static bool
+csane_layout_local_prefix(CsaneTokenView *view, int32 before) {
+    Tokenization *tokens = view->tokens;
+    int32 first = before;
+    for (int32 i = 0; i < 8; i += 1) {
+        int32 previous = csane_tokens_previous(view, first);
+        if (previous < view->range.first) {
+            break;
+        }
+        Token *part = &tokens->tokens[previous];
+        if (!csane_layout_qualifier(part) && !TOKEN_IS(part, "signed")
+            && !TOKEN_IS(part, "unsigned") && !TOKEN_IS(part, "long")
+            && !TOKEN_IS(part, "short")) {
+            break;
+        }
+        first = previous;
+    }
+    if (!csane_layout_type_prefix(view, first, before)) {
+        return false;
+    }
+    int32 previous = csane_tokens_previous(view, first);
+    return previous < view->range.first
+           || TOKEN_IS(&tokens->tokens[previous], ";")
+           || TOKEN_IS(&tokens->tokens[previous], "{")
+           || TOKEN_IS(&tokens->tokens[previous], "}")
+           || TOKEN_IS(&tokens->tokens[previous], ":");
+}
+
+/* A parameter declarator belongs to a function signature only when the
+ * surrounding parentheses close before a body or a function prototype.
+ * This is local recognition, not a typedef or translation-unit parse. */
+static bool
+csane_layout_parameter(CsaneTokenView *view, int32 before) {
+    Tokenization *tokens = view->tokens;
+    for (int32 i = csane_tokens_previous(view, before);
+         i >= view->range.first; i = csane_tokens_previous(view, i)) {
+        Token *part = &tokens->tokens[i];
+        if (TOKEN_IS(part, ")") || TOKEN_IS(part, "]")) {
+            int32 open = csane_tokens_match(view, i);
+            if (open >= 0) {
+                i = open;
+                continue;
+            }
+        }
+        if (TOKEN_IS(part, "(")) {
+            int32 close = csane_tokens_match(view, i);
+            int32 next = close >= 0 ? csane_tokens_next(view, close) : -1;
+            if (next < 0 || next >= view->range.end
+                || (!csane_layout_is(tokens, next, "{")
+                    && !csane_layout_is(tokens, next, ";"))) {
+                return false;
+            }
+            int32 name = csane_tokens_previous(view, i);
+            int32 type = csane_tokens_previous(view, name);
+            if (name < 0 || type < 0
+                || tokens->tokens[name].kind != TOKEN_IDENT) {
+                return false;
+            }
+            if (TOKEN_IS(&tokens->tokens[type], "*")) {
+                type = csane_tokens_previous(view, type);
+            }
+            return type >= view->range.first
+                   && tokens->tokens[type].kind == TOKEN_IDENT
+                   && !csane_layout_keyword(&tokens->tokens[type]);
+        }
+        if (TOKEN_IS(part, ";") || TOKEN_IS(part, "{")
+            || TOKEN_IS(part, "}")) {
+            return false;
+        }
+    }
+    return false;
+}
+
+/* At a declaration boundary, "Type *name = ..." is a declarator. The
+ * otherwise identical "x *y;" may be an expression or a declaration, so
+ * it must remain unresolved rather than produce a false multiplication. */
+static enum CsaneLayoutOperator
+csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
+                     int32 before, int32 after) {
+    Tokenization *tokens = view->tokens;
+    Token *name = &tokens->tokens[after];
+    if (TOKEN_IS(name, ")")
+        && csane_layout_is(tokens, csane_tokens_previous(view, before), "(")) {
+        return CSANE_LAYOUT_SKIP;
+    }
+    if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
+        return CSANE_LAYOUT_MULTIPLY;
+    }
+    if (csane_layout_parameter(view, before)) {
+        return CSANE_LAYOUT_SKIP;
+    }
+    if (csane_layout_is(tokens, csane_tokens_previous(view, before),
+                        "return")) {
+        return CSANE_LAYOUT_MULTIPLY;
+    }
+    if (!csane_layout_statement_prefix(file, view, index, before)
+        && !csane_layout_local_prefix(view, before)) {
+        return CSANE_LAYOUT_MULTIPLY;
+    }
+    if (TOKEN_IS(name, "*")) {
+        return CSANE_LAYOUT_SKIP;
+    }
+    int32 following = csane_tokens_next(view, after);
+    if (following >= view->range.end) {
+        return CSANE_LAYOUT_UNRESOLVED;
+    }
+    Token *tail = &tokens->tokens[following];
+    if (TOKEN_IS(tail, "=") || TOKEN_IS(tail, ",")
+        || TOKEN_IS(tail, "[") || TOKEN_IS(tail, "(")) {
+        return CSANE_LAYOUT_SKIP;
+    }
+    if (TOKEN_IS(tail, ";")) {
+        /* A top-level declaration cannot instead be an expression
+         * statement. Local "T *p;" remains syntactically ambiguous. */
+        if (csane_name_kind(&tokens->tokens[before])
+            == CSANE_NAME_PRIMITIVE) {
+            return CSANE_LAYOUT_SKIP;
+        }
+        if (file->toplevel != NULL) {
+            for (int32 i = 0; i < file->toplevel->count; i += 1) {
+                CsaneTopItem *top = &file->toplevel->items[i];
+                if ((top->kind == CSANE_TOP_DECLARATION
+                     || top->kind == CSANE_TOP_TYPE_DECLARATION)
+                    && index >= top->tokens.first
+                    && index < top->tokens.end) {
+                    return CSANE_LAYOUT_SKIP;
+                }
+            }
+        }
+        return CSANE_LAYOUT_UNRESOLVED;
+    }
+    if (TOKEN_IS(tail, ")")) {
+        return CSANE_LAYOUT_UNRESOLVED;
+    }
+    return CSANE_LAYOUT_MULTIPLY;
 }
 
 static bool
@@ -231,8 +415,12 @@ csane_layout_classify(CsaneFile *file, int32 index) {
             || csane_layout_control_close(&view, before)) {
             return CSANE_LAYOUT_SKIP;
         }
-        if (multiply && csane_layout_pointer(&view, before, after)) {
-            return CSANE_LAYOUT_SKIP;
+        if (multiply) {
+            enum CsaneLayoutOperator pointer =
+                csane_layout_pointer(file, &view, index, before, after);
+            if (pointer != CSANE_LAYOUT_MULTIPLY) {
+                return pointer;
+            }
         }
     }
     if (!csane_layout_operand_end(left)
