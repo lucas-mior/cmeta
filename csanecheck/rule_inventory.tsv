@@ -64,7 +64,7 @@ CG013	cbase/c-guidelines.md	84	88	Types	Use bool for ordinary boolean flags; int
 CG014	cbase/c-guidelines.md	89	113	Types	Range-check potentially narrowing numeric casts with MAXOF/MINOF when fit is uncertain.	manual	-	-
 CG015	cbase/c-guidelines.md	114	127	Types	Avoid unsigned integers except documented bit/enum/wrapping/interface cases.	manual	-	-
 CG016	cbase/c-guidelines.md	131	132	Expressions and control flow	End void functions with explicit return unless the path is unreachable.	csanecheck_candidate	-	-
-CG017	cbase/c-guidelines.md	133	137	Expressions and control flow	Never use the ternary operator.	implemented	STYLE-TERNARY	-
+CG017	cbase/c-guidelines.md	133	137	Expressions and control flow	Avoid the ternary operator.	manual	-	Preference; intentionally not enforced by csanecheck.
 CG018	cbase/c-guidelines.md	138	139	Expressions and control flow	Avoid helper functions that exit the program; call fatal at the failure site.	manual	-	-
 CG019	cbase/c-guidelines.md	141	145	sizeof	Never use builtin sizeof; use SIZEOF.	implemented	PP-SIZEOF	-
 CG020	cbase/c-guidelines.md	157	168	Memory allocation	Avoid raw malloc/calloc/realloc/free; use cbase wrappers and do not NULL-guard free2 solely for NULL.	csanecheck_candidate	-	Raw malloc/calloc/realloc/free are not currently in the configured legacy API lists; free2 NULL-guard is also not implemented.

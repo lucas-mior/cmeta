@@ -109,16 +109,9 @@ int32 f(int32 x) {
 }
 """, [])
 
-    def test_ternary_operator_is_forbidden(self):
+    def test_ternary_operator_is_not_checked(self):
         self.check("""int32 f(bool condition, int32 a, int32 b) {
     return condition ? a : b;
-}
-""", ["STYLE-TERNARY"])
-        self.check("""int32 f(bool condition, int32 a, int32 b) {
-    if (condition) {
-        return a;
-    }
-    return b;
 }
 """, [])
 
