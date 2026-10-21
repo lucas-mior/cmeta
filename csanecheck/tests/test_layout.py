@@ -171,6 +171,28 @@ int32 f(int32 a, int32 b) {
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_parameter_context_distinguishes_pointers_from_array_math(self):
+        self.check("""void f(char *, int32 *named,
+       int32 (*compare)(void *, const char *));
+""", [])
+        self.check("""void f(int32 count, int32 values[count * 2]);
+""", ["FMT-MULTIPLY"])
+
+    def test_type_arguments_casts_and_initializers(self):
+        self.check("""void f(va_list args, int32 value) {
+    int32 *pointer = va_arg(args, int32 *);
+    const int32 *other = (const int32 *)pointer;
+    int32 product = value * 2;
+}
+""", ["FMT-MULTIPLY"])
+
+    def test_capitalized_unknown_local_type_stays_ambiguous(self):
+        self.check("""void f(void) {
+    int32 known = 1 + 2;
+    UnknownType *pointer;
+}
+""", [], unresolved=1)
+
     def test_unknown_pointer_parameters_and_casts(self):
         self.check("""void f(DIR *processes, uchar *h) {
     uchar *n = h;

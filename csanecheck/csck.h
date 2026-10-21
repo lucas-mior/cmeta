@@ -166,9 +166,11 @@ void csane_bounds_check(CsaneFile *);
 void csane_status_check(CsaneFile *);
 void csane_expression_style_check(CsaneFile *);
 /* Shared, local operator classification for diagnostics and coverage.
- * SKIP covers recognized unary and declarator uses, not unknown syntax. */
+ * DECLARATOR is shallow syntactic evidence only; unresolved syntax remains
+ * distinct from recognized non-operator uses. */
 enum CsaneLayoutOperator {
     CSANE_LAYOUT_SKIP = 0,
+    CSANE_LAYOUT_DECLARATOR,
     CSANE_LAYOUT_MULTIPLY,
     CSANE_LAYOUT_BINARY,
     CSANE_LAYOUT_ASSIGN,

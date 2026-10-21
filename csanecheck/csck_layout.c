@@ -307,6 +307,164 @@ csane_layout_tag_prefix(CsaneTokenView *view, int32 type) {
                || TOKEN_IS(&tokens->tokens[previous], "enum"));
 }
 
+static bool
+csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
+                                 int32 index, int32 *open, int32 *close) {
+    Tokenization *tokens = view->tokens;
+    if (file->toplevel == NULL) {
+        return false;
+    }
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        int32 parameter_open;
+        int32 parameter_close;
+        if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
+            && item->kind != CSANE_TOP_FUNCTION_DECLARATION) {
+            continue;
+        }
+        if (item->name_token < 0 || index < item->header.first
+            || index >= item->header.end) {
+            continue;
+        }
+        parameter_open = csane_tokens_next(view, item->name_token);
+        if (!csane_layout_is(tokens, parameter_open, "(")) {
+            continue;
+        }
+        parameter_close = csane_tokens_match(view, parameter_open);
+        if (parameter_close < 0 || index <= parameter_open
+            || index >= parameter_close) {
+            continue;
+        }
+        *open = parameter_open;
+        *close = parameter_close;
+        return true;
+    }
+    return false;
+}
+
+static bool
+csane_layout_inside_brackets(CsaneTokenView *view, int32 first,
+                             int32 index) {
+    Tokenization *tokens = view->tokens;
+    for (int32 i = csane_tokens_next(view, first);
+         i >= 0 && i < index; i = csane_tokens_next(view, i)) {
+        int32 close;
+        if (!TOKEN_IS(&tokens->tokens[i], "[")) {
+            continue;
+        }
+        close = csane_tokens_match(view, i);
+        if (close > index) {
+            return true;
+        }
+        if (close >= 0) {
+            i = close;
+        }
+    }
+    return false;
+}
+
+/* Inside the primary function-parameter list, a top-level '*' cannot be a
+ * multiplication operator: C has no parameter default expressions. Array
+ * bounds are excluded because they may contain ordinary arithmetic. */
+static bool
+csane_layout_parameter_pointer(CsaneFile *file, CsaneTokenView *view,
+                               int32 index) {
+    Tokenization *tokens = view->tokens;
+    int32 open = -1;
+    int32 close = -1;
+    int32 nested_open = -1;
+    int32 depth = 0;
+    if (!csane_layout_function_parameters(file, view, index, &open, &close)
+        || csane_layout_inside_brackets(view, open, index)) {
+        return false;
+    }
+    for (int32 i = csane_tokens_next(view, open);
+         i >= 0 && i < index; i = csane_tokens_next(view, i)) {
+        Token *part = &tokens->tokens[i];
+        if (TOKEN_IS(part, "(")) {
+            depth += 1;
+            if (depth == 1) {
+                nested_open = i;
+            }
+        } else if (TOKEN_IS(part, ")")) {
+            if (depth > 0) {
+                depth -= 1;
+            }
+            if (depth == 0) {
+                nested_open = -1;
+            }
+        }
+    }
+    if (depth == 0) {
+        return true;
+    }
+    /* Parenthesized pointer declarators, as in int (*compare)(...), and
+     * parameters of the function type that immediately follows one. */
+    if (csane_layout_is(tokens, csane_tokens_previous(view, index), "(")) {
+        return true;
+    }
+    if (depth == 1 && nested_open >= 0) {
+        int32 declarator_close = csane_tokens_previous(view, nested_open);
+        int32 declarator_open;
+        int32 first;
+        if (!csane_layout_is(tokens, declarator_close, ")")) {
+            return false;
+        }
+        declarator_open = csane_tokens_match(view, declarator_close);
+        if (declarator_open < 0) {
+            return false;
+        }
+        first = csane_tokens_next(view, declarator_open);
+        return first < declarator_close
+               && TOKEN_IS(&tokens->tokens[first], "*");
+    }
+    return false;
+}
+
+static bool
+csane_layout_known_type(CsaneFile *file, CsaneTokenView *view, int32 index) {
+    Token *token = &view->tokens->tokens[index];
+    return csane_type_name(token)
+           || csane_type_hints_typedef(file->type_hints, token)
+           || csane_layout_tag_prefix(view, index);
+}
+
+/* Type arguments such as va_arg(ap, int32 *) and cast fragments such as
+ * (const int32 *) are type syntax even when they occur inside expressions. */
+static bool
+csane_layout_type_argument_pointer(CsaneFile *file, CsaneTokenView *view,
+                                   int32 before, int32 after) {
+    Tokenization *tokens = view->tokens;
+    int32 first = before;
+    int32 previous;
+    if (!csane_layout_is(tokens, after, ")")
+        || !csane_layout_known_type(file, view, first)) {
+        return false;
+    }
+    previous = csane_tokens_previous(view, first);
+    while (previous >= view->range.first
+           && csane_layout_qualifier(&tokens->tokens[previous])) {
+        first = previous;
+        previous = csane_tokens_previous(view, first);
+    }
+    return previous >= view->range.first
+           && (TOKEN_IS(&tokens->tokens[previous], "(")
+               || TOKEN_IS(&tokens->tokens[previous], ","));
+}
+
+/* A bare operator passed as one macro/call argument has no operands in the
+ * source token stream. It is therefore not a binary operator occurrence to
+ * format, regardless of what the callee eventually does with that token. */
+static bool
+csane_layout_operator_argument(CsaneTokenView *view, int32 before,
+                               int32 after) {
+    Tokenization *tokens = view->tokens;
+    return (TOKEN_IS(&tokens->tokens[before], "(")
+            || TOKEN_IS(&tokens->tokens[before], ","))
+           && (TOKEN_IS(&tokens->tokens[after], ")")
+               || TOKEN_IS(&tokens->tokens[after], ","));
+}
+
 /* At a declaration boundary, "Type *name = ..." is a declarator. The
  * otherwise identical "x *y;" may be an expression or a declaration, so
  * it must remain unresolved rather than produce a false multiplication. */
@@ -317,13 +475,17 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     Token *name = &tokens->tokens[after];
     if (TOKEN_IS(name, ")")
         && csane_layout_is(tokens, csane_tokens_previous(view, before), "(")) {
-        return CSANE_LAYOUT_SKIP;
+        return CSANE_LAYOUT_DECLARATOR;
+    }
+    if (csane_layout_parameter_pointer(file, view, index)
+        || csane_layout_type_argument_pointer(file, view, before, after)) {
+        return CSANE_LAYOUT_DECLARATOR;
     }
     if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_MULTIPLY;
     }
     if (csane_layout_parameter(view, before)) {
-        return CSANE_LAYOUT_SKIP;
+        return CSANE_LAYOUT_DECLARATOR;
     }
     if (csane_layout_is(tokens, csane_tokens_previous(view, before),
                         "return")) {
@@ -334,7 +496,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         return CSANE_LAYOUT_MULTIPLY;
     }
     if (TOKEN_IS(name, "*")) {
-        return CSANE_LAYOUT_SKIP;
+        return CSANE_LAYOUT_DECLARATOR;
     }
     int32 following = csane_tokens_next(view, after);
     if (following >= view->range.end) {
@@ -343,7 +505,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     Token *tail = &tokens->tokens[following];
     if (TOKEN_IS(tail, "=") || TOKEN_IS(tail, ",")
         || TOKEN_IS(tail, "[") || TOKEN_IS(tail, "(")) {
-        return CSANE_LAYOUT_SKIP;
+        return CSANE_LAYOUT_DECLARATOR;
     }
     if (TOKEN_IS(tail, ";")) {
         /* A top-level declaration cannot instead be an expression
@@ -353,7 +515,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
             || csane_type_hints_typedef(file->type_hints,
                                         &tokens->tokens[before])
             || csane_layout_tag_prefix(view, before)) {
-            return CSANE_LAYOUT_SKIP;
+            return CSANE_LAYOUT_DECLARATOR;
         }
         if (file->toplevel != NULL) {
             for (int32 i = 0; i < file->toplevel->count; i += 1) {
@@ -362,7 +524,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                      || top->kind == CSANE_TOP_TYPE_DECLARATION)
                     && index >= top->tokens.first
                     && index < top->tokens.end) {
-                    return CSANE_LAYOUT_SKIP;
+                    return CSANE_LAYOUT_DECLARATOR;
                 }
             }
         }
@@ -423,6 +585,9 @@ csane_layout_classify(CsaneFile *file, int32 index) {
     }
     Token *left = &tokens->tokens[before];
     Token *right = &tokens->tokens[after];
+    if (!assign && csane_layout_operator_argument(&view, before, after)) {
+        return CSANE_LAYOUT_SKIP;
+    }
     if (!assign && (multiply || TOKEN_IS(op, "+")
                     || TOKEN_IS(op, "-") || TOKEN_IS(op, "&"))) {
         if (!csane_layout_operand_end(left)
