@@ -37,7 +37,7 @@ fi
 
 CC=$(common_get_compiler "$mode")
 CPPFLAGS="$CPPFLAGS -I. -Icbase"
-CFLAGS="$CFLAGS -std=c11 -Wfatal-errors"
+CFLAGS="$CFLAGS -std=c11"
 LDFLAGS="$LDFLAGS -lm"
 
 case "$mode" in
