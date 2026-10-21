@@ -134,6 +134,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         return 2;
     }
     file.statements = &statements;
+    file.preprocessor_ok = pp_ok;
     file.regions = &regions;
     file.toplevel = &toplevel;
     csane_rules_run(&file, CSANE_PASS_TOKEN);
@@ -162,12 +163,10 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                                      (TokenRange){0, tokens.token_count},
                                      &projected_pp);
     }
-    /* Snapshot parser coverage before rule-local expression probes mutate
-     * expression arrays. No parsing result is trusted to cover macro bodies.
-     */
+    /* Parser statistics remain informational until AST removal in Step 15.
+     * Rule completeness is computed independently from local targets. */
     CsaneCoverage coverage = csane_coverage_collect(&ast);
-    CsaneAnalysisCoverage analysis =
-        csane_analysis_coverage(&file, pp_ok, ast_ok && pp_ok);
+    file.ast_ok = ast_ok && pp_ok;
     csane_rules_run(&file, CSANE_PASS_SYNTAX);
     csane_rules_run(&file, CSANE_PASS_CONTEXT);
     int32 violations = file.violations;
@@ -196,31 +195,21 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
                coverage.expressions, coverage.unsupported_statements,
                coverage.unsupported_externals, coverage.malformed_issues,
                coverage.unsupported_issues, ast.issue_count, pp.issue_count);
-        char *syntax_status = "checked";
-        if (!analysis.ast_ready || (analysis.eligible_tokens > 0
-                                    && analysis.parsed_tokens == 0)) {
-            syntax_status = "not_checked";
-        } else if (analysis.unresolved_tokens > 0
-                   || analysis.macro_tokens > 0
-                   || analysis.parse_issues > 0
-                   || analysis.preprocessor_issues > 0) {
-            syntax_status = "partial";
-        }
-        printf("coverage_layers file=%s source=checked tokens=%s "
-               "syntax=%s context=%s eligible_tokens=%d "
-               "parsed_tokens=%d unresolved_tokens=%d macro_tokens=%d "
-               "projected_macros=%d projected_tokens=%d\n",
-               path, pp_ok && pp.issue_count == 0 ? "checked" : "partial",
-               syntax_status, syntax_status, analysis.eligible_tokens,
-               analysis.parsed_tokens, analysis.unresolved_tokens,
-               analysis.macro_tokens, expanded.projected_macros,
+    }
+    CsaneRuleCounts totals = {0};
+    int32 incomplete = csane_rules_incomplete(&file, options->rule_coverage,
+                                              &totals);
+    if (options->coverage) {
+        printf("coverage_layers file=%s eligible=%d checked=%d "
+               "excluded=%d unresolved=%d projected_macros=%d "
+               "projected_tokens=%d\n",
+               path, totals.eligible, totals.checked, totals.excluded,
+               totals.unresolved, expanded.projected_macros,
                expanded.projected_tokens);
     }
-    int32 incomplete = csane_rules_incomplete(&file, &analysis,
-                                              options->rule_coverage);
     if (options->require_coverage && incomplete > 0) {
         printf("%s:1:1: error[COVERAGE-INCOMPLETE]: "
-               "%d required rule groups have incomplete analysis\n",
+               "%d required rule groups have unresolved targets\n",
                path, incomplete);
     }
     stats->files += 1;

@@ -83,20 +83,30 @@ typedef struct CsaneCoverage {
     int32 unsupported_issues;
 } CsaneCoverage;
 
-/* Conservative, file-level coverage estimate for AST-dependent rules.
- * Unresolved syntax and macro replacement tokens are never counted as
- * structurally checked merely because another pass inspected the file.
+/* Coverage targets are scoped to the construct a rule actually inspects.
+ * A malformed construct is counted as unresolved only for affected rules.
  */
-typedef struct CsaneAnalysisCoverage {
-    int32 eligible_tokens;
-    int32 parsed_tokens;
-    int32 unresolved_tokens;
-    int32 macro_tokens;
-    int32 parse_issues;
-    int32 preprocessor_issues;
-    bool preprocessor_ready;
-    bool ast_ready;
-} CsaneAnalysisCoverage;
+typedef struct CsaneRuleCounts {
+    int32 eligible;
+    int32 checked;
+    int32 excluded;
+    int32 unresolved;
+} CsaneRuleCounts;
+
+enum CsaneTargetKind {
+    CSANE_TARGET_LINES = 1,
+    CSANE_TARGET_DIRECTIVES,
+    CSANE_TARGET_SIZEOF,
+    CSANE_TARGET_APIS,
+    CSANE_TARGET_STYLE_CALLS,
+    CSANE_TARGET_ASSIGNMENTS,
+    CSANE_TARGET_DECLARATIONS,
+    CSANE_TARGET_STATEMENTS,
+    CSANE_TARGET_FUNCTIONS,
+    CSANE_TARGET_CALLS,
+    CSANE_TARGET_OPERATORS,
+    CSANE_TARGET_PROJECTED_CALLS,
+};
 
 enum CsanePass {
     CSANE_PASS_SOURCE = 0,
@@ -138,6 +148,8 @@ typedef struct CsaneFile {
     int32 column_limit;
     bool in_cbase;
     bool is_ryu;
+    bool preprocessor_ok;
+    bool ast_ok;
     CsanePolicy *policy;
 } CsaneFile;
 
@@ -145,6 +157,7 @@ typedef struct CsaneRule {
     char *id;
     void (*check)(CsaneFile *);
     enum CsanePass pass;
+    enum CsaneTargetKind target;
     bool include_fixtures;
 } CsaneRule;
 
@@ -177,9 +190,9 @@ void csane_wrap_check(CsaneFile *);
 void csane_wrap_call_check(CsaneFile *);
 void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
-void csane_rules_report(CsaneFile *, CsaneAnalysisCoverage *);
-int32 csane_rules_incomplete(CsaneFile *, CsaneAnalysisCoverage *, bool);
-CsaneAnalysisCoverage csane_analysis_coverage(CsaneFile *, bool, bool);
+int32 csane_rules_incomplete(CsaneFile *, bool, CsaneRuleCounts *);
+CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind);
+bool csane_token_name_in(Token *, CsanePaths *);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
 bool csane_paths_add(CsanePaths *, char *);

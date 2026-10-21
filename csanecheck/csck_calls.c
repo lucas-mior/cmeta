@@ -200,33 +200,29 @@ typedef struct CsaneCallArgument {
 static int32
 csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
                      CsaneCallArgument *args, int32 capacity) {
-    int32 cursor = view->range.first;
+    TokenRange ranges[256];
+    if (capacity > 256 || capacity < 0) {
+        return -1;
+    }
+    int32 parts = csane_tokens_split(view, ",", 1, ranges, capacity);
+    if (parts < 0 || parts > capacity) {
+        return -1;
+    }
     int32 count = 0;
-    while (cursor < view->range.end) {
-        int32 comma = csane_tokens_top_level(view, cursor, ",", 1);
-        if (comma < 0) {
-            return -1;
-        }
-        int32 end = comma < view->range.end ? comma : view->range.end;
-        TokenRange range = {cursor, end};
+    for (int32 i = 0; i < parts; i += 1) {
+        TokenRange range = ranges[i];
         int32 first = token_range_first_significant(file->tokens, range);
         int32 last = token_range_last_significant(file->tokens, range);
-        if (first < end) {
-            if (count >= capacity) {
-                return -1;
-            }
-            args[count].first = first;
-            args[count].last = last;
-            args[count].format = csane_call_format(file, range);
-            args[count].identifier =
-                first == last
-                && file->tokens->tokens[first].kind == TOKEN_IDENT;
-            count += 1;
+        if (first >= range.end) {
+            continue;
         }
-        if (comma >= view->range.end) {
-            break;
-        }
-        cursor = comma + 1;
+        args[count].first = first;
+        args[count].last = last;
+        args[count].format = csane_call_format(file, range);
+        args[count].identifier =
+            first == last
+            && file->tokens->tokens[first].kind == TOKEN_IDENT;
+        count += 1;
     }
     return count;
 }

@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 use Digest::SHA;
-use Encode qw(decode FB_CROAK);
+use Encode qw(decode FB_CROAK LEAVE_SRC);
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use File::Temp qw(tempfile);
@@ -158,7 +158,7 @@ sub check_source_style {
 
         if (defined($column_limit)
                 && length($line) > $column_limit
-                && length(decode('UTF-8', $line, FB_CROAK))
+                && length(decode('UTF-8', $line, FB_CROAK | LEAVE_SRC))
                    > $column_limit) {
             report_issue("$path:$line_number:line exceeds "
                          . "$column_limit columns\n");

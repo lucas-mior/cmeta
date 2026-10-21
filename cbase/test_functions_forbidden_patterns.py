@@ -130,6 +130,31 @@ class ForbiddenPatternsTests(unittest.TestCase):
         self.assertEqual(output.count("line exceeds 80 columns"), 1)
         self.assertIn("sample.c:3:line exceeds 80 columns", output)
 
+    def test_long_lines_preserve_tab_and_trailing_diagnostics(self):
+        source = (
+            "// " + "x" * 81 + "\t  \n"
+            "// " + "é" * 81 + "\t  \n"
+            "// " + "x" * 81 + "\n"
+            "// " + "x" * 76 + "\t\n"
+            "// " + "é" * 74 + "\t \n"
+        )
+        output = self.run_perl("src/long_ws.c", source)
+        expected = {
+            1: ("line exceeds 80 columns", "tab character is forbidden",
+                "trailing whitespace"),
+            2: ("line exceeds 80 columns", "tab character is forbidden",
+                "trailing whitespace"),
+            3: ("line exceeds 80 columns",),
+            4: ("tab character is forbidden", "trailing whitespace"),
+            5: ("tab character is forbidden", "trailing whitespace"),
+        }
+        for line, issues in expected.items():
+            for issue in issues:
+                self.assertIn(f"long_ws.c:{line}:{issue}", output)
+        self.assertEqual(output.count("line exceeds 80 columns"), 3)
+        self.assertEqual(output.count("tab character is forbidden"), 4)
+        self.assertEqual(output.count("trailing whitespace"), 4)
+
     def test_multiplication_spacing_is_not_checked(self):
         output = self.run_perl(
             "src/sample.c",

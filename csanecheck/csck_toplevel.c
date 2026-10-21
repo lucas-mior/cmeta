@@ -152,6 +152,9 @@ csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
 
 /* Matches are stream-local: directives and nested conditional alternatives
  * are not injected as C tokens into their enclosing code stream. */
+/* An unmatched inner delimiter must not hide an enclosing function body.
+ * Search the stack for the nearest compatible opener and discard only the
+ * damaged nesting above it. Matches outside the damaged span survive. */
 static void
 csane_top_match(CsaneTopStream *stream) {
     if (stream->count == 0) {
@@ -166,16 +169,20 @@ csane_top_match(CsaneTopStream *stream) {
         if (csane_top_open(stream, i)) {
             stream->stack[depth] = i;
             depth += 1;
-        } else if (csane_top_close(stream, i) && depth > 0
-                   && csane_top_pair(stream, stream->stack[depth - 1], i)) {
-            int32 open = stream->stack[depth - 1];
+        } else if (csane_top_close(stream, i)) {
+            int32 found = depth - 1;
+            while (found >= 0
+                   && !csane_top_pair(stream, stream->stack[found], i)) {
+                found -= 1;
+            }
+            if (found < 0) {
+                depth = 0;
+                continue;
+            }
+            int32 open = stream->stack[found];
             stream->matches[open] = i;
             stream->matches[i] = open;
-            depth -= 1;
-        } else if (csane_top_close(stream, i)) {
-            /* Do not let a mismatched preprocessor fragment consume later
-             * independent top-level declarations. */
-            depth = 0;
+            depth = found;
         }
     }
     return;
@@ -199,6 +206,20 @@ csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
  * supported: its name is the CAT macro, not an expanded identifier. */
 static int32
 csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
+    /* Skip recognized trailing compiler attributes, without expanding them.
+     * A function declaration with an attribute still has its original name. */
+    while (end > first && csane_top_is(stream, end - 1, ")")) {
+        int32 attribute_open = stream->matches[end - 1];
+        int32 before = attribute_open - 1;
+        if (before < first
+            || !(csane_top_is(stream, before, "__attribute__")
+                 || csane_top_is(stream, before, "__attribute")
+                 || csane_top_is(stream, before, "__declspec")
+                 || csane_top_is(stream, before, "__asm__"))) {
+            break;
+        }
+        end = before;
+    }
     if (first >= end || !csane_top_is(stream, end - 1, ")")) {
         return -1;
     }
@@ -333,6 +354,52 @@ csane_top_macro_boundary(CsaneTopStream *stream, int32 first,
     return csane_top_new_line(stream, close, next);
 }
 
+/* A damaged top-level construct may have no matching delimiter. Recover
+ * first at a semicolon (for an incomplete expression), or at a new function
+ * definition beginning at column zero (for an unclosed function body).
+ * Without a credible boundary, only the current code leaf is abandoned. */
+static int32
+csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
+    int32 leaf_end = broken + 1;
+    while (leaf_end < stream->count
+           && stream->leaf[leaf_end] == stream->leaf[broken]) {
+        leaf_end += 1;
+    }
+    if (!csane_top_is(stream, broken, "{")) {
+        for (int32 i = broken + 1; i < leaf_end; i += 1) {
+            if (csane_top_is(stream, i, ";")) {
+                return i + 1;
+            }
+            if (stream->matches[i] > i) {
+                i = stream->matches[i];
+            }
+        }
+    }
+    for (int32 i = broken + 1; i < stream->count; i += 1) {
+        int32 offset = csane_top_token(stream, i)->offset;
+        Tokenization *tokens = stream->top->regions->tokens;
+        if (offset > 0 && tokens->text[offset - 1] != '\n') {
+            continue;
+        }
+        for (int32 j = i + 1; j < stream->count; j += 1) {
+            if (csane_top_is(stream, j, ";")) {
+                break;
+            }
+            if (csane_top_is(stream, j, "{") && stream->matches[j] > j) {
+                int32 name = -1;
+                if (csane_top_is_function(stream, i, j, &name)) {
+                    return i;
+                }
+                break;
+            }
+            if (stream->matches[j] > j) {
+                j = stream->matches[j];
+            }
+        }
+    }
+    return leaf_end > first ? leaf_end : first + 1;
+}
+
 static void
 csane_top_scan(CsaneTopStream *stream) {
     int32 first = 0;
@@ -344,11 +411,7 @@ csane_top_scan(CsaneTopStream *stream) {
                 if (stream->matches[i] < 0) {
                     /* A fragment spanning an unbalanced preprocessor
                      * boundary must not swallow the following code leaf. */
-                    int32 end = i + 1;
-                    while (end < stream->count
-                           && stream->leaf[end] == stream->leaf[i]) {
-                        end += 1;
-                    }
+                    int32 end = csane_top_recover(stream, first, i);
                     csane_top_append(stream, CSANE_TOP_OPAQUE, first, end,
                                      -1, -1);
                     first = end;

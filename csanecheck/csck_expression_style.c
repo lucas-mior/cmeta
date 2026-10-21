@@ -17,17 +17,7 @@ csane_style_first(CsaneFile *file, TokenRange range) {
 static TokenRange
 csane_style_unwrap(CsaneFile *file, TokenRange range) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
-    while (range.first < range.end) {
-        int32 first = csane_style_first(file, range);
-        int32 last = token_range_last_significant(file->tokens, range);
-        if (first >= range.end || !TOKEN_IS(&file->tokens->tokens[first], "(")
-            || csane_tokens_match(&view, first) != last) {
-            break;
-        }
-        range.first = first + 1;
-        range.end = last;
-    }
-    return range;
+    return csane_tokens_unwrap(&view, range);
 }
 
 static bool
@@ -67,15 +57,11 @@ csane_style_integer(CsaneFile *file, TokenRange range) {
 static int32
 csane_style_arguments(CsaneFile *file, int32 open, int32 close,
                       TokenRange *args, int32 capacity) {
-    TokenRange content = {open + 1, close};
-    if (csane_style_first(file, content) >= close) {
-        return 0;
-    }
-    CsaneTokenView view;
-    if (!csane_tokens_view(&view, file->tokens, content)) {
+    CsaneTokenView view = csane_tokens_full(file->tokens);
+    if (csane_tokens_match(&view, open) != close) {
         return -1;
     }
-    return csane_tokens_split(&view, ",", 1, args, capacity);
+    return csane_tokens_arguments(&view, open, args, capacity);
 }
 
 static bool
