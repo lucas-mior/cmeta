@@ -49,6 +49,8 @@ typedef struct CsanePolicy {
 
 typedef struct CsaneOptions {
     CsanePaths files;
+    CsanePaths source_roots;
+    CsanePaths skip_dirs;
     CsanePolicy policy;
     char *filter;
     int32 max_depth;
@@ -188,6 +190,12 @@ enum CsaneLayoutOperator {
     CSANE_LAYOUT_ASSIGN,
     CSANE_LAYOUT_UNRESOLVED,
 };
+enum CsaneApiUse {
+    CSANE_API_NOT_CALL = 0,
+    CSANE_API_DIRECT_CALL,
+    CSANE_API_UNRESOLVED,
+};
+enum CsaneApiUse csane_api_classify(CsaneFile *, int32);
 enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
 void csane_layout_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
@@ -206,7 +214,9 @@ bool csane_paths_add(CsanePaths *, char *);
 void csane_paths_sort_unique(CsanePaths *);
 void csane_paths_free(CsanePaths *);
 bool csane_source_allowed(char *);
-bool csane_collect_root(CsanePaths *, char *, int32);
+bool csane_discovery_defaults(CsanePaths *, CsanePaths *);
+bool csane_collect_root(CsanePaths *, char *, int32, CsanePaths *,
+                        CsanePaths *);
 bool csane_collect_explicit(CsanePaths *, char *);
 bool csane_collect_file_list(CsanePaths *, char *);
 int32 csane_run(int32, char **);

@@ -77,7 +77,10 @@ class AstIndependenceTests(unittest.TestCase):
                 self.assertNotRegex(text, r"\bCSANE_TARGET_PROJECTED_CALLS\b")
         main = (ROOT / "csanecheck" / "main.c").read_text(encoding="utf-8")
         for filename in ("csck_context.c", "csck_types.c", "csck_macros.c"):
-            self.assertNotIn('#include "' + filename + '"', main)
+            legacy = ROOT / "csanecheck" / filename
+            with self.subTest(legacy=filename):
+                self.assertFalse(legacy.exists())
+                self.assertNotIn('#include "' + filename + '"', main)
 
 
 if __name__ == "__main__":

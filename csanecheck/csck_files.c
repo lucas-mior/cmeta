@@ -130,8 +130,38 @@ csane_source_allowed(char *path) {
 }
 
 static bool
-csane_skip_directory(char *name) {
-    return !strcmp(name, "stc");
+csane_path_has(CsanePaths *paths, char *name) {
+    for (int32 i = 0; i < paths->count; i += 1) {
+        if (!strcmp(paths->items[i], name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+csane_discovery_defaults(CsanePaths *roots, CsanePaths *skip_dirs) {
+    char *default_roots[] = {
+        "cbase", "src", "test", "tests", "examples", "cyblocks",
+        "tools", "csanecheck",
+    };
+    char *default_skips[] = {
+        ".git", "bin", "build", "generated", "stc", "third_party",
+        "vendor",
+    };
+    for (int32 i = 0; i < (int32)(SIZEOF(default_roots)
+                                /SIZEOF(default_roots[0])); i += 1) {
+        if (!csane_paths_add(roots, default_roots[i])) {
+            return false;
+        }
+    }
+    for (int32 i = 0; i < (int32)(SIZEOF(default_skips)
+                                /SIZEOF(default_skips[0])); i += 1) {
+        if (!csane_paths_add(skip_dirs, default_skips[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /* Explicit directory roots are handled by csane_collect_root. Its
@@ -155,7 +185,7 @@ csane_discovered_directory(char *path) {
  */
 static bool
 csane_walk(CsanePaths *paths, char *directory, int32 depth,
-           int32 max_depth) {
+           int32 max_depth, CsanePaths *skip_dirs) {
     DirEntry *entries = NULL;
     int32 count = get_directory_entries(directory, &entries);
     if (count < 0) {
@@ -179,9 +209,10 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
             fprintf(stderr, "%s: cannot stat: %s\n", path, strerror(errno));
             ok = false;
         } else if (S_ISDIR(st.st_mode)) {
-            if (!csane_skip_directory(name)
+            if (!csane_path_has(skip_dirs, name)
                 && ((max_depth < 0) || (depth < max_depth))
-                && !csane_walk(paths, path, depth + 1, max_depth)) {
+                && !csane_walk(paths, path, depth + 1, max_depth,
+                               skip_dirs)) {
                 ok = false;
             }
         } else if ((S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))
@@ -210,9 +241,8 @@ csane_collect_explicit(CsanePaths *paths, char *path) {
 }
 
 bool
-csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
-    char *subdirs[] = {"cbase", "src", "test", "tests", "examples",
-                       "cyblocks", "tools"};
+csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
+                   CsanePaths *source_roots, CsanePaths *skip_dirs) {
     struct stat st;
     bool ok = true;
     if ((stat(root, &st) != 0) || !S_ISDIR(st.st_mode)) {
@@ -220,14 +250,14 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
         return false;
     }
     /* Ordinary files directly in the project root. */
-    if (!csane_walk(paths, root, 0, 0)) {
+    if (!csane_walk(paths, root, 0, 0, skip_dirs)) {
         ok = false;
     }
-    for (int32 i = 0; i < (int32)(SIZEOF(subdirs)/SIZEOF(subdirs[0]));
-         i += 1) {
-        char *path = csane_join(root, subdirs[i]);
+    for (int32 i = 0; i < source_roots->count; i += 1) {
+        char *path = csane_join(root, source_roots->items[i]);
         if ((max_depth != 0) && csane_discovered_directory(path)) {
-            if (!csane_walk(paths, path, 0, max_depth - (max_depth > 0))) {
+            if (!csane_walk(paths, path, 0, max_depth - (max_depth > 0),
+                            skip_dirs)) {
                 ok = false;
             }
         }
@@ -236,7 +266,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
     /* Ryu's vendored sources are checked at all nesting depths. */
     char *ryu = csane_join(root, "cbase/ryu");
     if (csane_discovered_directory(ryu)) {
-        if (!csane_walk(paths, ryu, 0, -1)) {
+        if (!csane_walk(paths, ryu, 0, -1, skip_dirs)) {
             ok = false;
         }
     }
@@ -248,7 +278,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth) {
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
         ryu = csane_join(root, "ryu");
         if (csane_discovered_directory(ryu)
-            && !csane_walk(paths, ryu, 0, -1)) {
+            && !csane_walk(paths, ryu, 0, -1, skip_dirs)) {
             ok = false;
         }
         csane_path_free(ryu);

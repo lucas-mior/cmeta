@@ -517,7 +517,9 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
             Token *token = &tokens->tokens[i];
             bool relevant = false;
             bool resolved = true;
-            if (!csane_coverage_code(file, i)) {
+            enum CsaneApiUse api_use = CSANE_API_NOT_CALL;
+            if (kind != CSANE_TARGET_APIS
+                && !csane_coverage_code(file, i)) {
                 continue;
             }
             if ((kind == CSANE_TARGET_OPERATORS
@@ -536,6 +538,10 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                 relevant = csane_token_name_in(token, never)
                            || (!file->in_cbase
                                && csane_token_name_in(token, restricted));
+                if (relevant) {
+                    api_use = csane_api_classify(file, i);
+                    resolved = api_use != CSANE_API_UNRESOLVED;
+                }
             } else if (kind == CSANE_TARGET_ASSIGNMENTS) {
                 relevant = TOKEN_IS(token, "=");
             } else if (kind == CSANE_TARGET_OPERATORS) {
@@ -562,6 +568,10 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                 if (!resolved && kind == CSANE_TARGET_OPERATORS) {
                     csane_coverage_unresolved(file, &counts, group, i,
                                               "ambiguous-operator-context",
+                                              report);
+                } else if (!resolved && kind == CSANE_TARGET_APIS) {
+                    csane_coverage_unresolved(file, &counts, group, i,
+                                              "api-call-context-unrecognized",
                                               report);
                 } else {
                     csane_coverage_target(&counts, resolved);

@@ -1,0 +1,83 @@
+# Reviewed unresolved coverage baseline.
+# path	target	reason	source	count
+cbase/arena.c	RULE:LAYOUT	ambiguous-operator-context	Arena *arena;	2
+cbase/arena.c	RULE:LAYOUT	ambiguous-operator-context	Arena *next;	1
+cbase/arena.c	RULE:LAYOUT	ambiguous-operator-context	Arena *small_arena;	1
+cbase/array.c	RULE:LAYOUT	ambiguous-operator-context	GenericArrayHeader *header;	3
+cbase/assertions.c	RULE:LAYOUT	ambiguous-operator-context	FILE *file;	1
+cbase/command.c	RULE:LAYOUT	ambiguous-operator-context	Arena *argument_arena;	1
+cbase/directory.c	RULE:LAYOUT	ambiguous-operator-context	DIR *dir;	1
+cbase/directory.c	RULE:LAYOUT	ambiguous-operator-context	DirEntry *entries;	2
+cbase/fmt.c	RULE:LAYOUT	ambiguous-operator-context	FmtPlanSpec *plan_spec;	1
+cbase/fs.c	RULE:LAYOUT	ambiguous-operator-context	DIR *dir;	1
+cbase/fs.c	RULE:LAYOUT	ambiguous-operator-context	FILE *f;	1
+cbase/fs.c	RULE:LAYOUT	ambiguous-operator-context	FILE *file;	2
+cbase/fs_windows.c	RULE:LAYOUT	ambiguous-operator-context	DirEntry *dirent;	1
+cbase/fs_windows.c	RULE:LAYOUT	ambiguous-operator-context	FILE *ls_pipe;	1
+cbase/generic.c	RULE:LAYOUT	ambiguous-operator-context	FILE *fp;	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	, HASH_VALUE_TYPE *value_ptr	2
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	, uint64 hash, uint32 base_index, uint32 *out_idx	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	Bucket *iterator;	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	Bucket *target;	3
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(CAT(hash_create_, HASH_TYPE), _value)(uint32 length, char *name) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_create_, HASH_TYPE)(uint32 length, char *name) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_init_, HASH_TYPE)(struct Map *map, uint32 length, char *name) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_insert_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_lookup_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_overwrite_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_overwrite_pre_calc_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_probe_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_remove_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	HASH_KEY_TYPE *key	3
+cbase/memory.c	RULE:LAYOUT	ambiguous-operator-context	uchar *p;	1
+cbase/memory.c	RULE:LAYOUT	ambiguous-operator-context	uchar *ptr;	4
+cbase/numtostr.c	RULE:LAYOUT	ambiguous-operator-context	static char *const suffixes[] = {	1
+cbase/rw_function.h	RULE:LAYOUT	ambiguous-operator-context	CAT(f, RW_FUNCTION, 64)(void *buffer, int64 size, int64 n, FILE *file) {	1
+cbase/ryu/d2s_small_table.h	RULE:LAYOUT	ambiguous-operator-context	const uint64 *const mul = ryu_double_pow5_inv_split2[base];	2
+cbase/ryu/d2s_small_table.h	RULE:LAYOUT	ambiguous-operator-context	const uint64 *const mul = ryu_double_pow5_split2[base];	2
+cbase/string.c	RULE:LAYOUT	ambiguous-operator-context	StrFlex *formatted;	1
+cbase/string.c	RULE:LAYOUT	ambiguous-operator-context	StrFlex *string;	2
+cbase/string.c	RULE:LAYOUT	ambiguous-operator-context	String *dest;	1
+cbase/string.c	RULE:LAYOUT	ambiguous-operator-context	String *item;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	DIR *processes;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	compar_consted = (int (*)(const void *, const void *)) compar;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	int (*compar_consted)(const void *, const void *);	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	uchar *buffer;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	uchar *end;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	uchar *limit;	1
+cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	uchar *p;	1
+cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	CAT(ENUM_PREFIX_, alias_free)(char *str) {	1
+cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	CAT(ENUM_PREFIX_, str_free)(char *str) {	1
+cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	XENUMS_LINKAGE enum ENUM_NAME CAT(ENUM_PREFIX_, parse)(char *, int32);	1
+csanecheck/csck_files.c	RULE:CONTROL	control-structure-unrecognized	csane_discovered_directory(char *path) {	1
+csanecheck/csck_files.c	STRUCTURE:statement	conditional construct could not be merged	csane_discovered_directory(char *path) {	1
+csanecheck/csck_files.c	STRUCTURE:top-level	conditional construct could not be merged	}	2
+csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *directive;	1
+csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	2
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *item;	1
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *owner;	1
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatements *statements;	1
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *last;	1
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *start;	1
+csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	TokenRange *last;	1
+csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	1
+meta_decl.c	RULE:LAYOUT	ambiguous-operator-context	CRecord *record;	1
+meta_decl.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+meta_expr.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+meta_parse.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *g;	1
+meta_parse.c	RULE:LAYOUT	ambiguous-operator-context	Token *candidate;	1
+meta_preproc.c	RULE:LAYOUT	ambiguous-operator-context	Token *keyword_token;	1
+meta_preproc.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
+meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *directive;	2
+meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *group;	2
+meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokenization;	1
+meta_split.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokenization;	1
+meta_stmt.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *g;	1
+meta_stmt.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *first;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *last;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *left;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *open;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *right;	1
+meta_tokenize.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	2

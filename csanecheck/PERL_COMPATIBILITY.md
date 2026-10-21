@@ -33,8 +33,10 @@ source inspection in this step:
 At the Step 1 baseline there were **6 implemented, 19 partial, 0 missing**.
 After Step 13 there are **25 implemented, 0 partial, 0 missing**. The
 `implemented` designation identifies the local rule implementation and its
-focused differential test coverage; it does not establish full-tree parity.
-That remains a separate acceptance requirement in Step 16.
+focused differential test coverage. Step 13 also makes full-tree parity a
+normal regression test: the legacy and csanecheck source-selection sets must
+match, and exact P01-P25 `(path, line, category)` findings must match with
+multiplicity preserved.
 
 ## Rule groups and legacy test categories
 
@@ -349,3 +351,85 @@ refer to local opaque regions and preprocessor issues, not semantic or complete
 C parsing. Legacy AST-only statistics have been replaced by local structural
 counters. The Step 16 whole-tree check must still validate that all eligible
 rule targets are covered.
+
+## Forbidden function-list compatibility
+
+`test_api_compat.py` is the compatibility oracle for the two legacy textual
+function scans driven by `functions_never_use.txt` and
+`functions_allowed_cbase_only.txt`.  It treats the checked-in name lists as
+the policy source and checks every listed name, direct calls, whitespace,
+conditional branches, macro replacement text, cbase path membership, and a
+symlink whose target is inside cbase.
+
+The legacy shell implementation is deliberately line-oriented grep.  The API
+rules are deliberately token-aware instead.  The following grep matches are
+therefore **not** compatibility requirements and are regression-tested as
+intentional improvements:
+
+- a function declaration or prototype whose name is in a forbidden list;
+- a member call such as `object.memcpy(...)` or `object->memcpy(...)`;
+- a forbidden-looking call inside a comment or string literal;
+- a macro parameter merely named like a forbidden function.
+
+Conversely, token-aware direct calls remain violations even when grep misses
+their spelling, including `(strcpy)(...)` and a call whose function name and
+opening parenthesis are on different source lines.  These are actual calls and
+are intentionally stricter than the legacy textual scan.
+
+Both sides of conditional source are checked independently.  cbase-only
+membership follows the legacy wrapper's canonical-path behavior: a symlink
+outside cbase whose target is inside cbase is treated as cbase code.  These
+intentional differences mean replacement parity for the two name-list scans is
+specified in terms of real direct-call behavior, not byte-for-byte grep output.
+
+## Temporary `status` checker compatibility
+
+`test_status_compat.py` covers replacement of
+`cbase/status_temporary_patterns.py`. It differentially checks the legacy
+script and `STYLE-STATUS-TEMP` for ordinary and multiple assignment/use pairs,
+blank lines, comments and literals, nested blocks, macro uses, conditional
+branches, return uses, repeated or unpaired references, initialized and
+shadowed declarations, and multiple statements on one source line.
+
+There is one intentional behavior difference. The legacy Python checker only
+requires a semicolon somewhere between the assignment and the following-line
+use. Consequently it reports this pattern:
+
+```c
+status = operation(); side_effect();
+ASSERT_EQ(status, 0);
+```
+
+`csanecheck` deliberately does not report it. Inlining would move
+`operation()` after `side_effect()` and can change program behavior. A
+statement before the assignment on the same line remains eligible because
+inlining preserves its ordering relative to `operation()`.
+
+
+## Step 13 — Permanent full-tree parity acceptance
+
+`test_full_tree_compat.py` promotes the repository-wide Perl comparison into
+the normal unittest suite. It independently models the default source
+discovery from `functions_forbidden.sh`, asks csanecheck to discover using the
+same legacy roots, and requires the two selected file sets to be identical.
+
+The same selected set is then passed to both checkers through a file list. The
+comparison requires exact P01-P25 `(path, line, category)` parity and preserves
+duplicate findings on the same line. Csanecheck-only diagnostics remain outside
+the Perl-parity result, as in the focused differential harness.
+
+The full-tree check complements rather than replaces synthetic tests. A third
+acceptance assertion requires all P01-P25 inventory entries to remain
+`implemented` and to name at least one focused regression test. This prevents a
+clean repository from making a legacy category appear verified merely because
+neither checker happens to emit it.
+
+## Unified guide inventory
+
+`rule_inventory.tsv` is the broader source of truth for migration beyond Perl
+parity.  It includes the P01-P25 mappings from `perl_compatibility.tsv`, the
+legacy function-list/discovery/status policies, and the enforceable and manual
+rules from `c-format.md` and `c-guidelines.md`.  `perl_compatibility.tsv`
+remains the exact P01-P25 differential specification; the unified inventory
+classifies where each broader guide rule belongs (`implemented`,
+`csanecheck_candidate`, `compiler`, or `manual`).

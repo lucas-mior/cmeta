@@ -293,22 +293,44 @@ csane_rule_sizeof(CsaneFile *file) {
  * macro parameter, or named top-level function declaration/definition.
  */
 static bool
-csane_api_declarator(CsaneFile *file, int32 name) {
-    Tokenization *tokens = file->tokens;
-    int32 before = tokenization_previous_significant(tokens, name);
-    if (before < 0) {
+csane_api_known_type(CsaneFile *file, int32 index) {
+    Token *token;
+    if (index < 0 || index >= file->tokens->token_count) {
         return false;
     }
-    Token *previous = &tokens->tokens[before];
-    if (csane_type_name(previous)) {
-        return true;
+    token = &file->tokens->tokens[index];
+    return csane_type_name(token)
+           || csane_type_hints_typedef(file->type_hints, token);
+}
+
+static int32
+csane_api_previous_code_token(CsaneFile *file, int32 index) {
+    Tokenization *tokens = file->tokens;
+    int32 previous = tokenization_previous_significant(tokens, index);
+    while (previous >= 0 && file->preprocessor->token_roles != NULL
+           && file->preprocessor->token_roles[previous]
+                  == C_PP_TOKEN_DIRECTIVE) {
+        previous = tokenization_previous_significant(tokens, previous);
     }
-    if (TOKEN_IS(previous, "*")) {
+    return previous;
+}
+
+static enum CsaneApiUse
+csane_api_declarator(CsaneFile *file, int32 name) {
+    Tokenization *tokens = file->tokens;
+    int32 before = csane_api_previous_code_token(file, name);
+    if (before < 0) {
+        return CSANE_API_DIRECT_CALL;
+    }
+    if (csane_api_known_type(file, before)) {
+        return CSANE_API_NOT_CALL;
+    }
+    if (TOKEN_IS(&tokens->tokens[before], "*")) {
         int32 earlier = tokenization_previous_significant(tokens, before);
         if (earlier >= 0
-            && (csane_type_name(&tokens->tokens[earlier])
+            && (csane_api_known_type(file, earlier)
                 || TOKEN_IS(&tokens->tokens[earlier], "("))) {
-            return true;
+            return CSANE_API_NOT_CALL;
         }
     }
     for (int32 i = 0; i < file->toplevel->count; i += 1) {
@@ -316,51 +338,72 @@ csane_api_declarator(CsaneFile *file, int32 name) {
         if (item->name_token == name
             && (item->kind == CSANE_TOP_FUNCTION_DEFINITION
                 || item->kind == CSANE_TOP_FUNCTION_DECLARATION)) {
-            return true;
+            return CSANE_API_NOT_CALL;
         }
     }
-    return false;
+    if (tokens->tokens[before].kind == TOKEN_IDENT
+        && !TOKEN_IS(&tokens->tokens[before], "return")
+        && !TOKEN_IS(&tokens->tokens[before], "case")
+        && !TOKEN_IS(&tokens->tokens[before], "sizeof")) {
+        return CSANE_API_UNRESOLVED;
+    }
+    return CSANE_API_DIRECT_CALL;
 }
 
-static bool
-csane_api_direct_call(CsaneFile *file, int32 index) {
+enum CsaneApiUse
+csane_api_classify(CsaneFile *file, int32 index) {
     Tokenization *tokens = file->tokens;
     Token *name = &tokens->tokens[index];
-    int32 next = tokenization_next_significant(tokens, index);
-    if (name->kind != TOKEN_IDENT || next >= tokens->token_count) {
-        return false;
-    }
-    if (TOKEN_IS(&tokens->tokens[next], ")")) {
-        int32 opening = tokenization_previous_significant(tokens, index);
-        if (opening < 0 || !TOKEN_IS(&tokens->tokens[opening], "(")) {
-            return false;
-        }
-        next = tokenization_next_significant(tokens, next);
-    }
-    if (next >= tokens->token_count
-        || !TOKEN_IS(&tokens->tokens[next], "(")) {
-        return false;
+    int32 next;
+    int32 call_open;
+    int32 before;
+    TokenRange range;
+    if (name->kind != TOKEN_IDENT) {
+        return CSANE_API_NOT_CALL;
     }
     if (file->preprocessor->token_roles != NULL) {
         enum CPreprocessorTokenRole role =
             file->preprocessor->token_roles[index];
         if (role == C_PP_TOKEN_DIRECTIVE
             || role == C_PP_TOKEN_MACRO_PARAMETERS) {
-            return false;
-        }
-        if (role == C_PP_TOKEN_MACRO_REPLACEMENT
-            && file->preprocessor->token_directives[index]
-               != file->preprocessor->token_directives[next]) {
-            return false;
+            return CSANE_API_NOT_CALL;
         }
     }
-    int32 before = tokenization_previous_significant(tokens, index);
+    next = tokenization_next_significant(tokens, index);
+    if (next >= tokens->token_count) {
+        return CSANE_API_NOT_CALL;
+    }
+    if (TOKEN_IS(&tokens->tokens[next], ")")) {
+        int32 opening = tokenization_previous_significant(tokens, index);
+        if (opening < 0 || !TOKEN_IS(&tokens->tokens[opening], "(")) {
+            return CSANE_API_NOT_CALL;
+        }
+        next = tokenization_next_significant(tokens, next);
+    }
+    if (next >= tokens->token_count || !TOKEN_IS(&tokens->tokens[next], "(")) {
+        return CSANE_API_NOT_CALL;
+    }
+    call_open = next;
+    if (file->preprocessor->token_roles != NULL) {
+        enum CPreprocessorTokenRole role =
+            file->preprocessor->token_roles[index];
+        if (role == C_PP_TOKEN_MACRO_REPLACEMENT
+            && file->preprocessor->token_directives[index]
+               != file->preprocessor->token_directives[call_open]) {
+            return CSANE_API_UNRESOLVED;
+        }
+    }
+    before = tokenization_previous_significant(tokens, index);
     if (before >= 0
         && (TOKEN_IS(&tokens->tokens[before], ".")
             || TOKEN_IS(&tokens->tokens[before], "->"))) {
-        return false;
+        return CSANE_API_NOT_CALL;
     }
-    return !csane_api_declarator(file, index);
+    range = (TokenRange){0, tokens->token_count};
+    if (token_range_matching_delimiter_forward(tokens, range, call_open) < 0) {
+        return CSANE_API_UNRESOLVED;
+    }
+    return csane_api_declarator(file, index);
 }
 
 static void
@@ -371,7 +414,8 @@ csane_rule_calls(CsaneFile *file) {
         CsanePaths *names = &file->policy->cbase_names;
         bool restricted = !file->in_cbase
                           && csane_token_name_in(token, names);
-        if ((!never && !restricted) || !csane_api_direct_call(file, i)) {
+        if ((!never && !restricted)
+            || csane_api_classify(file, i) != CSANE_API_DIRECT_CALL) {
             continue;
         }
         if (never) {

@@ -221,6 +221,34 @@ class CallLayoutTests(unittest.TestCase):
             (9, "API-CBASE-ONLY"): 1,
         }), result.stdout)
 
+    def test_forbidden_api_direct_call_edge_cases(self):
+        path = self.root / "src/api_edge_cases.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "typedef int32 local_type;\n"
+            "void f(void) {\n"
+            "    (strcpy)(dst, src);\n"
+            "    local_type strcpy(local_type value);\n"
+            "    void (*strcpy)(void);\n"
+            "    object->strcpy(dst, src);\n"
+            "    // strcpy(dst, src);\n"
+            "    char *text = \"strcpy(dst, src)\";\n"
+            "}\n"
+            "#define PASS(strcpy) strcpy\n"
+            "#define COPY(dst, src) strcpy(dst, src)\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True, capture_output=True,
+                                check=False)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        findings = Counter((int(line), rule) for line, rule in
+                           re.findall(r":(\d+):\d+: error\[(API-[A-Z-]+)\]",
+                                      result.stdout))
+        self.assertEqual(findings, Counter({
+            (3, "API-NEVER"): 1,
+            (11, "API-NEVER"): 1,
+        }), result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
