@@ -73,6 +73,12 @@ typedef struct CsaneCoverage {
 /* Coverage targets are scoped to the construct a rule actually inspects.
  * A malformed construct is counted as unresolved only for affected rules.
  */
+enum CsaneCoverageState {
+    CSANE_COVERAGE_CHECKED = 1,
+    CSANE_COVERAGE_EXCLUDED,
+    CSANE_COVERAGE_UNRESOLVED,
+};
+
 typedef struct CsaneRuleCounts {
     int32 eligible;
     int32 checked;
@@ -92,6 +98,12 @@ enum CsaneTargetKind {
     CSANE_TARGET_FUNCTIONS,
     CSANE_TARGET_CALLS,
     CSANE_TARGET_OPERATORS,
+    CSANE_TARGET_DECL_ONE,
+    CSANE_TARGET_FUNC_HEADERS,
+    CSANE_TARGET_CONTROL,
+    CSANE_TARGET_STYLE_STATUS,
+    CSANE_TARGET_CALL_WRAP,
+    CSANE_TARGET_ASSIGN_WRAP,
 };
 
 enum CsanePass {
@@ -184,8 +196,9 @@ void csane_wrap_check(CsaneFile *);
 void csane_wrap_call_check(CsaneFile *);
 void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
-int32 csane_rules_incomplete(CsaneFile *, bool, CsaneRuleCounts *);
-CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind);
+int32 csane_rules_incomplete(CsaneFile *, bool, bool, CsaneRuleCounts *);
+CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
+                                     char *, bool);
 bool csane_token_name_in(Token *, CsanePaths *);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 

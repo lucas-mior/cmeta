@@ -23,13 +23,35 @@ csane_token_name_in(Token *token, CsanePaths *names) {
 }
 
 static void
-csane_coverage_target(CsaneRuleCounts *counts, bool resolved) {
+csane_coverage_result(CsaneRuleCounts *counts, enum CsaneCoverageState state) {
     counts->eligible += 1;
-    if (resolved) {
+    if (state == CSANE_COVERAGE_CHECKED) {
         counts->checked += 1;
+    } else if (state == CSANE_COVERAGE_EXCLUDED) {
+        counts->excluded += 1;
     } else {
         counts->unresolved += 1;
     }
+}
+
+static void
+csane_coverage_target(CsaneRuleCounts *counts, bool resolved) {
+    csane_coverage_result(counts, resolved ? CSANE_COVERAGE_CHECKED
+                                           : CSANE_COVERAGE_UNRESOLVED);
+}
+
+static void
+csane_coverage_unresolved(CsaneFile *file, CsaneRuleCounts *counts,
+                          char *group, int32 token, char *reason,
+                          bool report) {
+    csane_coverage_target(counts, false);
+    if (!report) {
+        return;
+    }
+    SourceLocation location = tokenization_token_location(file->tokens, token);
+    printf("rule_coverage_unresolved file=%s group=%s line=%d column=%d "
+           "reason=%s\n",
+           file->path, group, location.line, location.column + 1, reason);
 }
 
 static bool
@@ -108,6 +130,307 @@ csane_coverage_statements(CsaneFile *file, CsaneRuleCounts *counts,
     }
 }
 
+
+static int32
+csane_coverage_first(CsaneFile *file, TokenRange range) {
+    int32 first = token_range_first_significant(file->tokens, range);
+    return first >= 0 && first < range.end ? first : -1;
+}
+
+static bool
+csane_coverage_token(CsaneFile *file, int32 index, char *text) {
+    return index >= 0 && index < file->tokens->token_count
+           && TOKEN_IS(&file->tokens->tokens[index], text);
+}
+
+static bool
+csane_coverage_declaration_start(CsaneFile *file, TokenRange range) {
+    int32 first = csane_coverage_first(file, range);
+    if (first < 0) {
+        return false;
+    }
+    Token *token = &file->tokens->tokens[first];
+    if (csane_type_name(token) || csane_type_hints_typedef(file->type_hints,
+                                                           token)) {
+        return true;
+    }
+    return csane_coverage_token(file, first, "struct")
+           || csane_coverage_token(file, first, "union")
+           || csane_coverage_token(file, first, "enum")
+           || csane_coverage_token(file, first, "typedef")
+           || csane_coverage_token(file, first, "static")
+           || csane_coverage_token(file, first, "extern")
+           || csane_coverage_token(file, first, "const")
+           || csane_coverage_token(file, first, "volatile");
+}
+
+static bool
+csane_coverage_contains(CsaneFile *file, TokenRange range, char *text) {
+    for (int32 i = range.first; i < range.end; i += 1) {
+        if (csane_coverage_token(file, i, text)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+csane_coverage_decl_one(CsaneFile *file, CsaneRuleCounts *counts,
+                        char *group, bool report) {
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if (item->kind == CSANE_TOP_DECLARATION
+            || item->kind == CSANE_TOP_TYPE_DECLARATION
+            || item->kind == CSANE_TOP_FUNCTION_DECLARATION
+            || item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
+            csane_coverage_target(counts, true);
+        } else if (item->kind == CSANE_TOP_OPAQUE
+                   && csane_coverage_declaration_start(file, item->tokens)) {
+            int32 first = csane_coverage_first(file, item->tokens);
+            csane_coverage_unresolved(file, counts, group, first,
+                                      "declaration-structure-unrecognized",
+                                      report);
+        }
+    }
+}
+
+static bool
+csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
+    int32 first = csane_coverage_first(file, range);
+    if (first < 0 || !csane_coverage_declaration_start(file, range)) {
+        return false;
+    }
+    for (int32 i = first; i < range.end; i += 1) {
+        if (csane_coverage_token(file, i, "=")) {
+            return false;
+        }
+        if (!csane_coverage_token(file, i, "(")) {
+            continue;
+        }
+        int32 previous = tokenization_previous_significant(file->tokens, i);
+        return previous >= first
+               && file->tokens->tokens[previous].kind == TOKEN_IDENT;
+    }
+    return false;
+}
+
+static void
+csane_coverage_func_headers(CsaneFile *file, CsaneRuleCounts *counts,
+                            char *group, bool report) {
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+            || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {
+            csane_coverage_target(counts, true);
+        } else if (item->kind == CSANE_TOP_OPAQUE
+                   && csane_coverage_function_shape(file, item->tokens)) {
+            int32 first = csane_coverage_first(file, item->tokens);
+            csane_coverage_unresolved(file, counts, group, first,
+                                      "function-header-unrecognized",
+                                      report);
+        }
+    }
+}
+
+static bool
+csane_coverage_control_kind(enum CsaneStatementKind kind) {
+    return kind == CSANE_STMT_IF || kind == CSANE_STMT_FOR
+           || kind == CSANE_STMT_WHILE || kind == CSANE_STMT_DO
+           || kind == CSANE_STMT_SWITCH || kind == CSANE_STMT_CASE
+           || kind == CSANE_STMT_DEFAULT || kind == CSANE_STMT_BLOCK;
+}
+
+static bool
+csane_coverage_control_start(CsaneFile *file, int32 token) {
+    return csane_coverage_token(file, token, "if")
+           || csane_coverage_token(file, token, "for")
+           || csane_coverage_token(file, token, "while")
+           || csane_coverage_token(file, token, "do")
+           || csane_coverage_token(file, token, "switch")
+           || csane_coverage_token(file, token, "case")
+           || csane_coverage_token(file, token, "default")
+           || csane_coverage_token(file, token, "{");
+}
+
+static void
+csane_coverage_control(CsaneFile *file, CsaneRuleCounts *counts,
+                       char *group, bool report) {
+    for (int32 i = 0; i < file->statements->count; i += 1) {
+        CsaneStatement *stmt = &file->statements->items[i];
+        if (csane_coverage_control_kind(stmt->kind)) {
+            csane_coverage_target(counts, true);
+        } else if (stmt->kind == CSANE_STMT_OPAQUE) {
+            int32 first = csane_coverage_first(file, stmt->tokens);
+            if (first >= 0 && csane_coverage_control_start(file, first)) {
+                csane_coverage_unresolved(file, counts, group, first,
+                                          "control-structure-unrecognized",
+                                          report);
+            }
+        }
+    }
+}
+
+static void
+csane_coverage_status(CsaneFile *file, CsaneRuleCounts *counts,
+                      char *group, bool report) {
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if (!csane_coverage_contains(file, item->tokens, "status")) {
+            continue;
+        }
+        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
+            csane_coverage_target(counts, true);
+        } else if (item->kind == CSANE_TOP_OPAQUE) {
+            int32 first = csane_coverage_first(file, item->tokens);
+            csane_coverage_unresolved(file, counts, group, first,
+                                      "status-function-unrecognized",
+                                      report);
+        }
+    }
+}
+
+static bool
+csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    int32 first;
+    int32 last;
+    int32 name;
+    int32 open;
+    if (!csane_tokens_view(&view, tokens, range)) {
+        return false;
+    }
+    first = csane_coverage_first(file, range);
+    last = token_range_last_significant(tokens, range);
+    if (first < 0 || last < first
+        || !csane_coverage_token(file, last, ";")) {
+        return false;
+    }
+    name = first;
+    if (csane_coverage_token(file, name, "return")) {
+        name = csane_tokens_next(&view, name);
+    } else {
+        int32 equals = -1;
+        for (int32 i = first; i < last; i += 1) {
+            if (csane_coverage_token(file, i, "=")) {
+                equals = i;
+            } else if (csane_coverage_token(file, i, "(")
+                       || csane_coverage_token(file, i, "[")) {
+                int32 close = csane_tokens_match(&view, i);
+                if (close > i && close < last) {
+                    i = close;
+                }
+            }
+        }
+        if (equals >= 0) {
+            name = csane_tokens_next(&view, equals);
+        }
+    }
+    if (name < 0 || name >= last || tokens->tokens[name].kind != TOKEN_IDENT) {
+        return false;
+    }
+    open = csane_tokens_next(&view, name);
+    if (open < 0 || open >= last || !csane_coverage_token(file, open, "(")) {
+        return false;
+    }
+    int32 close = csane_tokens_match(&view, open);
+    if (close < 0) {
+        *closed = false;
+        return true;
+    }
+    if (close >= last || csane_tokens_next(&view, close) != last) {
+        return false;
+    }
+    *closed = true;
+    return true;
+}
+
+static bool
+csane_coverage_assignment_shape(CsaneFile *file, TokenRange range,
+                                bool *closed) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    int32 first = csane_coverage_first(file, range);
+    int32 last = token_range_last_significant(tokens, range);
+    bool found = false;
+    if (first < 0 || last < first || !csane_tokens_view(&view, tokens, range)) {
+        return false;
+    }
+    *closed = csane_coverage_token(file, last, ";");
+    for (int32 i = first; i < last; i += 1) {
+        if (csane_coverage_token(file, i, "=")) {
+            found = true;
+        } else if (csane_coverage_token(file, i, "(")
+                   || csane_coverage_token(file, i, "[")
+                   || csane_coverage_token(file, i, "{")) {
+            int32 close = csane_tokens_match(&view, i);
+            if (close < 0) {
+                *closed = false;
+                break;
+            }
+            if (close < last) {
+                i = close;
+            }
+        }
+    }
+    return found;
+}
+
+static void
+csane_coverage_wrap_statements(CsaneFile *file, CsaneRuleCounts *counts,
+                               char *group, bool report, bool calls) {
+    for (int32 i = 0; i < file->statements->count; i += 1) {
+        CsaneStatement *stmt = &file->statements->items[i];
+        bool closed = false;
+        bool candidate;
+        if (stmt->kind != CSANE_STMT_SIMPLE
+            && stmt->kind != CSANE_STMT_OPAQUE) {
+            continue;
+        }
+        candidate = calls
+                    ? csane_coverage_call_shape(file, stmt->tokens, &closed)
+                    : csane_coverage_assignment_shape(file, stmt->tokens,
+                                                      &closed);
+        if (!candidate) {
+            continue;
+        }
+        if (closed && stmt->kind == CSANE_STMT_SIMPLE) {
+            csane_coverage_target(counts, true);
+        } else {
+            int32 first = csane_coverage_first(file, stmt->tokens);
+            char *reason = calls ? "call-statement-boundary-unrecognized"
+                                 : "assignment-statement-boundary-unrecognized";
+            csane_coverage_unresolved(file, counts, group, first, reason,
+                                      report);
+        }
+    }
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        bool closed = false;
+        bool candidate;
+        if (item->kind != CSANE_TOP_DECLARATION
+            && item->kind != CSANE_TOP_OPAQUE) {
+            continue;
+        }
+        candidate = calls
+                    ? csane_coverage_call_shape(file, item->tokens, &closed)
+                    : csane_coverage_assignment_shape(file, item->tokens,
+                                                      &closed);
+        if (!candidate) {
+            continue;
+        }
+        if (closed) {
+            csane_coverage_target(counts, true);
+        } else {
+            int32 first = csane_coverage_first(file, item->tokens);
+            char *reason = calls ? "call-statement-boundary-unrecognized"
+                                 : "assignment-statement-boundary-unrecognized";
+            csane_coverage_unresolved(file, counts, group, first, reason,
+                                      report);
+        }
+    }
+}
+
 static bool
 csane_coverage_operator(Token *token) {
     return TOKEN_IS(token, "*") || TOKEN_IS(token, "+")
@@ -153,10 +476,23 @@ csane_coverage_call_closed(CsaneFile *file, int32 index) {
 }
 
 CsaneRuleCounts
-csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind) {
+csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
+                    char *group, bool report) {
     CsaneRuleCounts counts = {0};
     Tokenization *tokens = file->tokens;
-    if (kind == CSANE_TARGET_LINES) {
+    if (kind == CSANE_TARGET_DECL_ONE) {
+        csane_coverage_decl_one(file, &counts, group, report);
+    } else if (kind == CSANE_TARGET_FUNC_HEADERS) {
+        csane_coverage_func_headers(file, &counts, group, report);
+    } else if (kind == CSANE_TARGET_CONTROL) {
+        csane_coverage_control(file, &counts, group, report);
+    } else if (kind == CSANE_TARGET_STYLE_STATUS) {
+        csane_coverage_status(file, &counts, group, report);
+    } else if (kind == CSANE_TARGET_CALL_WRAP) {
+        csane_coverage_wrap_statements(file, &counts, group, report, true);
+    } else if (kind == CSANE_TARGET_ASSIGN_WRAP) {
+        csane_coverage_wrap_statements(file, &counts, group, report, false);
+    } else if (kind == CSANE_TARGET_LINES) {
         for (int32 i = 0; i < tokens->text_len; i += 1) {
             if (i == 0 || tokens->text[i - 1] == '\n') {
                 csane_coverage_target(&counts, true);
@@ -223,7 +559,13 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind) {
                 resolved = csane_coverage_call_closed(file, i);
             }
             if (relevant) {
-                csane_coverage_target(&counts, resolved);
+                if (!resolved && kind == CSANE_TARGET_OPERATORS) {
+                    csane_coverage_unresolved(file, &counts, group, i,
+                                              "ambiguous-operator-context",
+                                              report);
+                } else {
+                    csane_coverage_target(&counts, resolved);
+                }
             }
         }
     }

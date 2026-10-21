@@ -141,8 +141,10 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         csane_coverage_report_structural(path, &tokens, &toplevel, &statements);
     }
     CsaneRuleCounts totals = {0};
-    int32 incomplete = csane_rules_incomplete(&file, options->rule_coverage,
-                                              &totals);
+    int32 incomplete =
+        csane_rules_incomplete(&file, options->rule_coverage,
+                               options->rule_coverage
+                               || options->require_coverage, &totals);
     if (options->coverage) {
         printf("coverage_layers file=%s eligible=%d checked=%d "
                "excluded=%d unresolved=%d\n",

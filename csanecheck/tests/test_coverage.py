@@ -69,10 +69,14 @@ class CoverageTests(unittest.TestCase):
         for name in ("SRC", "PP", "PP-SIZEOF", "API", "ASSIGN-EQ",
                      "FUNC-HEADERS"):
             self.assertEqual(groups[name]["status"], "checked", name)
-        for name in ("CONTROL", "STYLE-STATUS", "AST-DECL-ONE"):
-            self.assertEqual(groups[name]["status"], "partial", name)
-            self.assertGreater(groups[name]["checked"], 0, name)
-            self.assertGreater(groups[name]["unresolved"], 0, name)
+        for name in ("CONTROL", "STYLE-STATUS", "AST-DECL-ONE",
+                     "CALL-WRAP"):
+            self.assertEqual(groups[name]["status"], "checked", name)
+            self.assertEqual(groups[name]["unresolved"], 0, name)
+        self.assertEqual(groups["ASSIGN-WRAP"]["status"], "not_checked")
+        self.assertGreater(groups["ASSIGN-WRAP"]["unresolved"], 0)
+        self.assertIn("reason=assignment-statement-boundary-unrecognized",
+                      result.stdout)
         self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
 
     def test_broken_preprocessor_does_not_invalidate_token_rules(self):
@@ -91,6 +95,50 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertGreater(groups["LAYOUT"]["unresolved"], 0)
         self.assertEqual(groups["SRC"]["unresolved"], 0)
+
+
+    def test_rule_local_unresolved_reasons(self):
+        fixtures = {
+            "control.c": (
+                "int32 f(int32 x) {\n    if (x + {\n        return 1;\n    }\n}\n",
+                "CONTROL", "control-structure-unrecognized"),
+            "call.c": (
+                "void f(void) {\n    work(1 +;\n}\n",
+                "CALL-WRAP", "call-statement-boundary-unrecognized"),
+            "assign.c": (
+                "void f(void) {\n    value = (1 +;\n}\n",
+                "ASSIGN-WRAP",
+                "assignment-statement-boundary-unrecognized"),
+        }
+        for name, (text, group, reason) in fixtures.items():
+            with self.subTest(group=group):
+                result, groups = self.check(text, name=name, require=True)
+                self.assertGreater(groups[group]["unresolved"], 0,
+                                   result.stdout)
+                self.assertIn("rule_coverage_unresolved", result.stdout)
+                self.assertIn(f"group={group}", result.stdout)
+                self.assertIn(f"reason={reason}", result.stdout)
+
+    def test_declaration_and_status_unresolved_reasons(self):
+        result, groups = self.check(
+            "int32 broken(void {\n"
+            "    int32 status;\n"
+            "    return status;\n"
+            "}\n", require=True)
+        self.assertGreater(groups["AST-DECL-ONE"]["unresolved"], 0)
+        self.assertGreater(groups["FUNC-HEADERS"]["unresolved"], 0)
+        self.assertGreater(groups["STYLE-STATUS"]["unresolved"], 0)
+        self.assertIn("reason=declaration-structure-unrecognized",
+                      result.stdout)
+        self.assertIn("reason=function-header-unrecognized", result.stdout)
+        self.assertIn("reason=status-function-unrecognized", result.stdout)
+
+    def test_layout_unresolved_has_rule_reason(self):
+        result, groups = self.check(
+            "void f(void) {\n    mystery_type *pointer;\n}\n", require=True)
+        self.assertGreater(groups["LAYOUT"]["unresolved"], 0)
+        self.assertIn("group=LAYOUT", result.stdout)
+        self.assertIn("reason=ambiguous-operator-context", result.stdout)
 
     def test_legacy_fixture_exclusion_is_explicit(self):
         _, groups = self.check("void good(void) {\n    return;\n}\n",

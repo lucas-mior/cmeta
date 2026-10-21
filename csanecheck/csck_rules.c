@@ -395,17 +395,17 @@ static CsaneRule csane_rules[] = {
     {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN,
      CSANE_TARGET_SIZEOF, false},
     {"AST-DECL-ONE", csane_declarations_check, CSANE_PASS_TOKEN,
-     CSANE_TARGET_DECLARATIONS, false},
+     CSANE_TARGET_DECL_ONE, false},
     {"API", csane_rule_calls, CSANE_PASS_TOKEN,
      CSANE_TARGET_APIS, true},
     {"CONTROL", csane_control_check, CSANE_PASS_TOKEN,
-     CSANE_TARGET_STATEMENTS, false},
+     CSANE_TARGET_CONTROL, false},
     {"LAYOUT", csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
     {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGNMENTS, false},
     {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN,
-     CSANE_TARGET_FUNCTIONS, false},
+     CSANE_TARGET_FUNC_HEADERS, false},
     {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALLS, false},
     {"STYLE-EXPRESSIONS", csane_expression_style_check,
@@ -413,11 +413,11 @@ static CsaneRule csane_rules[] = {
     {"STYLE-BOUNDS", csane_bounds_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
     {"STYLE-STATUS", csane_status_check, CSANE_PASS_TOKEN,
-     CSANE_TARGET_STATEMENTS, false},
+     CSANE_TARGET_STYLE_STATUS, false},
     {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN,
-     CSANE_TARGET_STATEMENTS, false},
+     CSANE_TARGET_CALL_WRAP, false},
     {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN,
-     CSANE_TARGET_STATEMENTS, false},
+     CSANE_TARGET_ASSIGN_WRAP, false},
 };
 
 void
@@ -475,14 +475,16 @@ csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
 }
 
 int32
-csane_rules_incomplete(CsaneFile *file, bool report,
+csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
                        CsaneRuleCounts *totals) {
     int32 incomplete = 0;
     CsaneRuleCounts sum = {0};
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
-        CsaneRuleCounts counts = csane_coverage_rule(file, rule->target);
+        CsaneRuleCounts counts =
+            csane_coverage_rule(file, rule->target, rule->id,
+                                report_unresolved);
         bool excluded = csane_rule_excluded(file, rule);
         if (excluded) {
             counts.excluded = counts.eligible;
