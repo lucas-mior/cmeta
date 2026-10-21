@@ -190,6 +190,9 @@ unit_preprocessor(UnitCursor *c, int32 first, int32 directive) {
     int32 group = -1;
     int32 node;
     CPreprocessorDirective *d = &c->pp->directives[directive];
+    CPreprocessorGroup *g;
+    int32 head;
+    int32 tail;
     for (int32 i = 0; i < c->pp->group_count; i += 1) {
         int32 branch = c->pp->groups[i].first_branch;
         if ((branch >= 0)
@@ -205,7 +208,7 @@ unit_preprocessor(UnitCursor *c, int32 first, int32 directive) {
         c->pos = unit_sig(c, d->tokens.end);
         return node;
     }
-    CPreprocessorGroup *g = &c->pp->groups[group];
+    g = &c->pp->groups[group];
     if ((g->endif_directive < 0)
         || (c->pp->directives[g->endif_directive].tokens.end > c->range.end)) {
         return unit_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, first);
@@ -214,21 +217,21 @@ unit_preprocessor(UnitCursor *c, int32 first, int32 directive) {
                     (TokenRange){first,
                         c->pp->directives[g->endif_directive].tokens.end});
     c->ast->externals[node].directive = group;
-    int32 head = -1;
-    int32 tail = -1;
+    head = -1;
+    tail = -1;
     for (int32 b = g->first_branch; b >= 0;
          b = c->pp->branches[b].next_branch) {
         CPreprocessorBranch *branch = &c->pp->branches[b];
         UnitCursor inner = *c;
         int32 part = unit_new(c, C_EXTERNAL_PP_BRANCH, branch->body_tokens);
+        int32 child_head = -1;
+        int32 child_tail = -1;
         c->ast->externals[part].directive = branch->directive_index;
         unit_append(c, node, &head, &tail, part);
         inner.range = branch->body_tokens;
         inner.pos = inner.range.first;
         inner.depth += 1;
         c_ast_scope_push(c->ast);
-        int32 child_head = -1;
-        int32 child_tail = -1;
         unit_parse_region(&inner, part, &child_head, &child_tail);
         c_ast_scope_pop(c->ast);
     }
@@ -360,22 +363,33 @@ static int32
 unit_macro_invocation(UnitCursor *c, int32 first) {
     Tokenization *tokens = c->ast->tokenization;
     Token *name = &tokens->tokens[first];
+    int32 open;
+    StmtCursor view;
+    int32 close;
+    int32 next;
+    bool semicolon;
+    int32 following_token;
+    bool defined;
+    bool possible;
+    int32 end;
+    int32 node;
+    StmtCursor issue;
     if (name->kind != TOKEN_IDENT) {
         return -1;
     }
-    int32 open = unit_sig(c, first + 1);
+    open = unit_sig(c, first + 1);
     if (open >= c->range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
         return -1;
     }
-    StmtCursor view = {.ast = c->ast, .pp = c->pp, .range = c->range};
-    int32 close = stmt_match(&view, open);
+    view = (StmtCursor){.ast = c->ast, .pp = c->pp, .range = c->range};
+    close = stmt_match(&view, open);
     if (close < 0) {
         return -1;
     }
-    int32 next = unit_sig(c, close + 1);
-    bool semicolon = (next < c->range.end)
+    next = unit_sig(c, close + 1);
+    semicolon = (next < c->range.end)
                      && TOKEN_IS(&tokens->tokens[next], ";");
-    int32 following_token = semicolon ? unit_sig(c, next + 1) : next;
+    following_token = semicolon ? unit_sig(c, next + 1) : next;
     if (following_token < c->range.end) {
         Token *following = &tokens->tokens[following_token];
         int32 last = semicolon ? next : close;
@@ -392,14 +406,15 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
             return -1;
         }
     }
-    bool defined = false;
-    bool possible = false;
+    defined = false;
+    possible = false;
     for (int32 i = 0; i < c->pp->directive_count; i += 1) {
         CPreprocessorDirective *directive = &c->pp->directives[i];
+        int32 candidate_index = -1;
+        Token *candidate;
         if (directive->hash_token >= first) {
             break;
         }
-        int32 candidate_index = -1;
         if (directive->kind == C_PREPROCESSOR_DIRECTIVE_DEFINE) {
             CPreprocessorDefine define;
             if (c_preprocessor_define_info(tokens, directive, &define)) {
@@ -415,7 +430,7 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
             || candidate_index >= directive->tokens.end) {
             continue;
         }
-        Token *candidate = &tokens->tokens[candidate_index];
+        candidate = &tokens->tokens[candidate_index];
         if (candidate->len == name->len
             && !memcmp64(candidate->text, name->text, name->len)) {
             /* A conditional mutation cannot establish an unconditional
@@ -432,10 +447,10 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
     if (!defined && !possible) {
         return -1;
     }
-    int32 end = unit_sig(c, semicolon ? next + 1 : close + 1);
-    int32 node = unit_new(c, C_EXTERNAL_UNSUPPORTED,
-                          (TokenRange){first, end});
-    StmtCursor issue = {.ast = c->ast};
+    end = unit_sig(c, semicolon ? next + 1 : close + 1);
+    node = unit_new(c, C_EXTERNAL_UNSUPPORTED,
+                    (TokenRange){first, end});
+    issue = (StmtCursor){.ast = c->ast};
     stmt_issue(&issue, C_PARSE_ISSUE_UNSUPPORTED, first,
                (TokenRange){first, end});
     c->pos = end;
@@ -449,6 +464,7 @@ unit_parse_one(UnitCursor *c) {
     int32 end;
     CDeclParseResult result;
     int32 node;
+    bool previous;
     if (first >= c->range.end) {
         return -1;
     }
@@ -469,6 +485,9 @@ unit_parse_one(UnitCursor *c) {
         int32 open = unit_sig(c, first + 1);
         int32 close = -1;
         int32 semi = -1;
+        TokenRange args;
+        TokenDelimiterDepth depth = {0};
+        int32 comma = -1;
         if (open < end
             && TOKEN_IS(&c->ast->tokenization->tokens[open], "(")) {
             Tokenization *tokens = c->ast->tokenization;
@@ -478,9 +497,7 @@ unit_parse_one(UnitCursor *c) {
         if (close >= 0) {
             semi = unit_sig(c, close + 1);
         }
-        TokenRange args = {open + 1, close};
-        TokenDelimiterDepth depth = {0};
-        int32 comma = -1;
+        args = (TokenRange){open + 1, close};
         if (close > open + 1) {
             comma = token_range_next_text_at_depth(c->ast->tokenization,
                                                    args, open, depth, ",", 1);
@@ -494,7 +511,7 @@ unit_parse_one(UnitCursor *c) {
         }
         return unit_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, first);
     }
-    bool previous = c->ast->infer_external;
+    previous = c->ast->infer_external;
     c->ast->infer_external = true;
     result = c_ast_parse_declaration(c->ast, (TokenRange){first, end});
     if (result.status != C_DECL_PARSE_OK && end < c->range.end
@@ -506,10 +523,10 @@ unit_parse_one(UnitCursor *c) {
     c->ast->infer_external = previous;
     if (result.status != C_DECL_PARSE_OK) {
         int32 open = unit_partial_function_open(c, first);
+        enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
         if (open >= 0) {
             return unit_partial_function(c, first, open, result.issue_token);
         }
-        enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
         if (result.status == C_DECL_PARSE_UNSUPPORTED
             || result.status == C_DECL_PARSE_NOT_DECLARATION) {
             issue = C_PARSE_ISSUE_UNSUPPORTED;
@@ -562,6 +579,7 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
     int32 tail = -1;
     int32 before;
     int32 start;
+    UnitCursor c;
     if ((ast == NULL) || (ast->tokenization == NULL)
         || !token_range_is_valid(ast->tokenization, range)
         || ((pp != NULL) && (pp->tokenization != ast->tokenization))) {
@@ -574,8 +592,8 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
     }
     before = ast->issue_count;
     start = ast->external_count;
-    UnitCursor c = {.ast = ast, .pp = pp, .range = range,
-                    .pos = range.first};
+    c = (UnitCursor){.ast = ast, .pp = pp, .range = range,
+                     .pos = range.first};
     for (int32 i = 0; i < pp->issue_count; i += 1) {
         StmtCursor issue = {.ast = ast};
         int32 d = pp->issues[i].directive_index;
