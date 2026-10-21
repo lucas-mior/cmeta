@@ -111,7 +111,7 @@ csane_layout_qualifier(Token *token) {
 /* A token immediately after a closing cast parenthesis begins a unary
  * expression. Do not mistake (Type)-x or (int32*)*p for binary operators. */
 static bool
-csane_layout_cast(CsaneTokenView *view, int32 close) {
+csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     Tokenization *tokens = view->tokens;
     if (!csane_layout_is(tokens, close, ")")) {
         return false;
@@ -125,7 +125,9 @@ csane_layout_cast(CsaneTokenView *view, int32 close) {
         return false;
     }
     Token *type = &tokens->tokens[first];
-    bool named_type = csane_type_name(type) || csane_layout_qualifier(type);
+    bool named_type = csane_type_name(type)
+                      || csane_type_hints_typedef(file->type_hints, type)
+                      || csane_layout_qualifier(type);
     bool pointer_type = false;
     for (int32 i = first; i >= 0 && i < close;) {
         Token *part = &tokens->tokens[i];
@@ -295,6 +297,16 @@ csane_layout_parameter(CsaneTokenView *view, int32 before) {
     return false;
 }
 
+static bool
+csane_layout_tag_prefix(CsaneTokenView *view, int32 type) {
+    Tokenization *tokens = view->tokens;
+    int32 previous = csane_tokens_previous(view, type);
+    return previous >= view->range.first
+           && (TOKEN_IS(&tokens->tokens[previous], "struct")
+               || TOKEN_IS(&tokens->tokens[previous], "union")
+               || TOKEN_IS(&tokens->tokens[previous], "enum"));
+}
+
 /* At a declaration boundary, "Type *name = ..." is a declarator. The
  * otherwise identical "x *y;" may be an expression or a declaration, so
  * it must remain unresolved rather than produce a false multiplication. */
@@ -337,7 +349,10 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         /* A top-level declaration cannot instead be an expression
          * statement. Local "T *p;" remains syntactically ambiguous. */
         if (csane_name_kind(&tokens->tokens[before])
-            == CSANE_NAME_PRIMITIVE) {
+            == CSANE_NAME_PRIMITIVE
+            || csane_type_hints_typedef(file->type_hints,
+                                        &tokens->tokens[before])
+            || csane_layout_tag_prefix(view, before)) {
             return CSANE_LAYOUT_SKIP;
         }
         if (file->toplevel != NULL) {
@@ -411,7 +426,7 @@ csane_layout_classify(CsaneFile *file, int32 index) {
     if (!assign && (multiply || TOKEN_IS(op, "+")
                     || TOKEN_IS(op, "-") || TOKEN_IS(op, "&"))) {
         if (!csane_layout_operand_end(left)
-            || csane_layout_cast(&view, before)
+            || csane_layout_cast(file, &view, before)
             || csane_layout_control_close(&view, before)) {
             return CSANE_LAYOUT_SKIP;
         }

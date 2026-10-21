@@ -69,6 +69,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     CsaneRegions regions = {0};
     CsaneTopLevels toplevel = {0};
     CsaneStatements statements = {0};
+    CsaneTypeHints type_hints = {0};
     CsaneFile file = {
         .path = path,
         .tokens = &tokens,
@@ -103,7 +104,9 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         free2(source, (int64)len + 1);
         return 2;
     }
+    csane_type_hints_init(&type_hints, &regions);
     file.statements = &statements;
+    file.type_hints = &type_hints;
     file.preprocessor_ok = pp_ok;
     file.regions = &regions;
     file.toplevel = &toplevel;
@@ -190,6 +193,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
             }
         }
     }
+    csane_type_hints_free(&type_hints);
     csane_statements_free(&statements);
     csane_toplevel_free(&toplevel);
     csane_regions_free(&regions);

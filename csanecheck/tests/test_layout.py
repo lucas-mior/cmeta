@@ -110,6 +110,44 @@ int32 f(int32 x, int32 y) {
 }
 """, [])
 
+    def test_lowercase_typedef_hints_resolve_pointer_declarations(self):
+        self.check("""typedef int32 local_type;
+void f(void) {
+    local_type *pointer;
+    {
+        typedef int32 nested_type;
+        nested_type *nested;
+    }
+}
+""", [])
+
+    def test_aggregate_tags_and_typedef_aliases_are_type_hints(self):
+        self.check("""struct lower_tag { int32 value; };
+typedef struct lower_tag lower_type;
+union lower_union { int32 value; double other; };
+enum lower_enum { LOWER_VALUE = 1 };
+void f(void) {
+    struct lower_tag *tag_pointer;
+    lower_type *alias_pointer;
+    union lower_union *union_pointer;
+    enum lower_enum *enum_pointer;
+}
+""", [])
+
+    def test_type_hints_do_not_turn_expressions_into_declarations(self):
+        self.check("""typedef int32 local_type;
+int32 f(int32 local_type, int32 value) {
+    return local_type * value;
+}
+""", ["FMT-MULTIPLY"])
+
+    def test_unknown_bare_type_remains_ambiguous(self):
+        self.check("""void f(void) {
+    int32 known = 1 + 2;
+    mystery_type *pointer;
+}
+""", [], unresolved=1)
+
     def test_unknown_pointer_types_do_not_look_like_multiplication(self):
         self.check("""void f(void) {
     DIR *processes;
