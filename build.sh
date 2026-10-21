@@ -43,7 +43,7 @@ LDFLAGS="$LDFLAGS -lm"
 case "$mode" in
 check)
     (
-        common_build_run_analyzers build
+        common_build_run_analyzers fast_feedback
     )
     echo "static analysis finished."
     exit
