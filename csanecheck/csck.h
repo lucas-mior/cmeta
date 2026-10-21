@@ -9,6 +9,7 @@
 #include "csck_regions.h"
 #include "csck_toplevel.h"
 #include "csck_classify.h"
+#include "csck_type_hints.h"
 #if OS_UNIX
 #include <regex.h>
 #endif
@@ -123,6 +124,7 @@ typedef struct CsaneFile {
     CsaneRegions *regions;
     CsaneTopLevels *toplevel;
     CsaneStatements *statements;
+    CsaneTypeHints *type_hints;
     int32 violations;
     int32 column_limit;
     bool in_cbase;

@@ -18,6 +18,7 @@
 #include "csck_toplevel.c"
 #include "csck_statements.c"
 #include "csck_classify.c"
+#include "csck_type_hints.c"
 #include "csck_files.c"
 #include "csck_config.c"
 #include "csck_structure.c"
