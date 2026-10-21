@@ -57,7 +57,18 @@ debug-fast)
     CFLAGS="$CFLAGS -fsanitize-trap=undefined"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
     ;;
-build|install)
+build)
+    if ! common_command_exists zig; then
+        error "zig is required to build the portable Linux binary\n"
+        exit 1
+    fi
+    CC="zig cc"
+    CFLAGS="$CFLAGS -target x86_64-linux-musl"
+    LDFLAGS="$LDFLAGS -static"
+    CFLAGS="$CFLAGS -g -O2 -flto"
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
+    ;;
+install)
     CFLAGS="$CFLAGS -g -O2 -flto"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
     ;;
