@@ -75,10 +75,10 @@ or unclosed group is marked incomplete without marking otherwise valid code
 regions as incomplete. `CsaneRegions.complete` still reflects the overall
 preprocessor result; it is not a gate for building valid conditional groups.
 
-This step does not remove `CAst` from the diagnostic pipeline or replace the
-rule-level coverage machinery (Steps 6 and 15). It retains the existing
-`CPreprocessorAnalysis` for directive recognition and branch membership without
-evaluating conditions or expanding macros.
+At this stage, the source-region layer still coexisted with the older `CAst`
+pipeline. Step 15 removes that obsolete checker-side AST machinery; the active
+code retains `CPreprocessorAnalysis` only for directive recognition and branch
+membership, without evaluating conditions or expanding macros.
 
 ## Step 5 — Fault-tolerant function and statement structure
 
@@ -193,6 +193,83 @@ local `structural_issues`, `opaque_statements`, and `opaque_externals`, rather
 than AST-derived expression and parser metrics. `--require-coverage` continues
 to enforce unresolved rule targets separately.
 
-The legacy `csck_context.c`, `csck_types.c`, and `csck_macros.c` modules are no
-longer included in the checker build. Their contents are not needed by the
-active diagnostic pipeline; the shared `meta` library remains unchanged.
+The legacy `csck_context.c`, `csck_types.c`, and `csck_macros.c` modules have
+been removed. The active checker uses original tokens, local structural
+recognition, conditional token paths, and shallow type-name hints instead;
+the shared `meta` library remains unchanged.
+
+## Forbidden API compatibility
+
+`test_api_compat.py` covers replacement of the legacy grep scans using
+`functions_never_use.txt` and `functions_allowed_cbase_only.txt`.  It verifies
+all checked-in names, direct calls in conditional branches and macro
+replacements, cbase-only path handling (including canonical symlink targets),
+and the documented differences between textual grep and token-aware API call
+classification.  Comments, strings, prototypes and member calls are
+intentional legacy false positives and are not diagnostics; parenthesized and
+multiline direct calls are intentional token-aware improvements.
+
+## Temporary status compatibility
+
+`test_status_compat.py` differentially checks `STYLE-STATUS-TEMP` against
+`cbase/status_temporary_patterns.py`. It covers positive and negative pairs,
+blank and comment-only lines, nested blocks, macro and conditional source,
+return uses, repeated references, shadowing, and multiple statements on one
+line. The one intentional difference is the unsafe case where another
+completed statement follows the assignment before the next-line use; csanecheck
+does not suggest an inline transformation that would reorder side effects.
+
+
+## Step 13 — Full-tree legacy parity
+
+`test_full_tree_compat.py` is the permanent repository-level acceptance test
+for P01-P25. It compares the legacy wrapper's default source-selection policy
+with csanecheck configured to the same roots, then runs both pattern checkers on
+that exact file set and requires exact `(path, line, category)` parity including
+multiplicity.
+
+Focused synthetic differential fixtures remain required for every P01-P25
+category; the full-tree test explicitly verifies that each inventory row still
+references at least one such regression test.
+
+## Step 14 — Full-tree coverage acceptance
+
+`test_full_tree_coverage.py` runs the default first-party source discovery with
+`--require-coverage` and rejects any unresolved structural or rule candidate
+that is not part of the reviewed baseline in
+`full_tree_coverage_allowlist.tsv`. The baseline is keyed by file, target,
+reason and normalized source text rather than line number, so inserting lines
+above a known ambiguity does not require rebaselining. Counts are upper bounds:
+removing a known unresolved candidate is accepted automatically, while adding
+or duplicating one fails the gate.
+
+The baseline is deliberately narrow. Its current reason classes are
+`ambiguous-operator-context`, `conditional construct could not be merged`, and
+`control-structure-unrecognized`; each has a focused regression fixture in
+`test_layout.py`, `test_structure.py`, or `test_coverage.py`. New unresolved
+reason classes require both a focused regression and an explicit review before
+they can enter the baseline.
+
+## Step 16 — Unified rule inventory
+
+`csanecheck/rule_inventory.tsv` is the machine-readable enforcement inventory
+for `cbase/c-format.md`, `cbase/c-guidelines.md`, and the legacy checker
+surface.  Each entry has a stable inventory ID, exact source line range,
+section, concise requirement, enforcement classification, current csanecheck
+rule IDs where applicable, and notes for exceptions or intentionally manual
+judgment.
+
+The four classifications are:
+
+- `implemented`: csanecheck currently enforces the listed requirement;
+- `csanecheck_candidate`: the rule is local/token-oriented enough to implement
+  without turning csanecheck into a semantic C parser;
+- `compiler`: compiler/toolchain diagnostics are the preferred enforcement;
+- `manual`: the rule depends on design intent, cross-file semantics, API
+  contracts, performance knowledge, or readability judgment.
+
+`test_rule_inventory.py` validates the TSV schema and source ranges, verifies
+that referenced csanecheck diagnostic IDs exist, requires every major guide
+section and every top-level guide bullet to be covered by an inventory entry,
+and verifies that all P01-P25 mappings plus the legacy function-list,
+discovery, and temporary-status policies appear in the unified inventory.

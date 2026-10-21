@@ -356,12 +356,19 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
     bool misaligned = false;
     while (cursor < close) {
         int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
+        int32 end;
+        TokenRange argument;
+        int32 current;
         if (comma < 0) {
             return;
         }
-        int32 end = comma < close ? comma : close;
-        TokenRange argument = {cursor, end};
-        int32 current = csane_call_next(file, argument, cursor - 1);
+        if (comma < close) {
+            end = comma;
+        } else {
+            end = close;
+        }
+        argument = (TokenRange){cursor, end};
+        current = csane_call_next(file, argument, cursor - 1);
         if (current < end) {
             if (format < 0 && csane_call_format(file, argument)) {
                 format = current;
@@ -385,12 +392,23 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
         /* The legacy rule emits one issue per call. */
         cursor = content.first;
         previous = -1;
-        anchor = format >= 0 ? format : first;
+        if (format >= 0) {
+            anchor = format;
+        } else {
+            anchor = first;
+        }
         while (cursor < close) {
             int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
-            int32 end = comma < close ? comma : close;
-            TokenRange argument = {cursor, end};
-            int32 current = csane_call_next(file, argument, cursor - 1);
+            int32 end;
+            TokenRange argument;
+            int32 current;
+            if (comma < close) {
+                end = comma;
+            } else {
+                end = close;
+            }
+            argument = (TokenRange){cursor, end};
+            current = csane_call_next(file, argument, cursor - 1);
             if (current < end) {
                 if (previous >= 0
                     && csane_calls_line_break(file, previous, current)
@@ -410,6 +428,33 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
             cursor = comma + 1;
         }
     }
+}
+
+static bool
+csane_call_spacing_gap(CsaneFile *file, Token *name, Token *open) {
+    char *text = file->tokens->text;
+    int32 start = name->offset + name->len;
+    for (int32 i = start; i < open->offset; i += 1) {
+        if (text[i] != ' ' && text[i] != '\t'
+            && text[i] != '\r' && text[i] != '\n') {
+            return false;
+        }
+    }
+    return start < open->offset;
+}
+
+static bool
+csane_call_keyword(Token *token) {
+    static char *names[] = {
+        "if", "for", "while", "switch", "return", "sizeof", "_Alignof",
+        "_Generic", "_Static_assert",
+    };
+    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
+        if (TOKEN_IS(token, names[i])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool
@@ -464,6 +509,8 @@ csane_calls_token_check(CsaneFile *file) {
         }
         int32 name = csane_tokens_previous(&local, i);
         if (name < 0 || tokens->tokens[name].kind != TOKEN_IDENT
+            || !csane_calls_code(file, name)
+            || csane_call_keyword(&tokens->tokens[name])
             || csane_call_prototype(file, name)) {
             continue;
         }
@@ -478,6 +525,11 @@ csane_calls_token_check(CsaneFile *file) {
             csane_classify_invocation(tokens, range, name);
         if (kind != CSANE_LOCAL_CALL && kind != CSANE_LOCAL_MACRO_INVOCATION) {
             continue;
+        }
+        if (kind == CSANE_LOCAL_CALL
+            && csane_call_spacing_gap(file, &tokens->tokens[name], token)) {
+            csane_rule_issue(file, token->offset, "FMT-CALL-SPACING",
+                             "no whitespace before call parenthesis");
         }
         int32 close = csane_tokens_match(&local, i);
         if (close < 0) {

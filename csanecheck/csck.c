@@ -16,6 +16,8 @@ csane_usage(FILE *output) {
             "                  [--stats] [--coverage]\n"
             "                  [--rule-coverage]\n"
             "                  [--config FILE]\n"
+            "                  [--source-root DIR] [--skip-dir NAME]\n"
+            "                  [--clear-source-roots]\n"
             "                  [--exclude REGEX] [--filter MODULE]\n"
             "                  [--cbase-root DIR] [--no-column-limit REGEX]\n"
             "                  [--help]\n"
@@ -228,6 +230,7 @@ csane_value_option(char *arg) {
     return !strcmp(arg, "--root") || !strcmp(arg, "--file")
            || !strcmp(arg, "--file-list") || !strcmp(arg, "--max-depth")
            || !strcmp(arg, "--config") || !strcmp(arg, "--exclude")
+           || !strcmp(arg, "--source-root") || !strcmp(arg, "--skip-dir")
            || !strcmp(arg, "--filter") || !strcmp(arg, "--cbase-root")
            || !strcmp(arg, "--no-column-limit");
 }
@@ -241,7 +244,12 @@ csane_run(int32 argc, char **argv) {
     int32 exit_status = 0;
     char *value;
 
-    if (!csane_policy_init(&options.policy)) {
+    if (!csane_policy_init(&options.policy)
+        || !csane_discovery_defaults(&options.source_roots,
+                                     &options.skip_dirs)) {
+        csane_paths_free(&options.source_roots);
+        csane_paths_free(&options.skip_dirs);
+        csane_policy_free(&options.policy);
         return 2;
     }
     options.filter = getenv("TEST_FILTER");
@@ -343,6 +351,10 @@ csane_run(int32 argc, char **argv) {
             options.strict_parse = true;
             continue;
         }
+        if (!strcmp(arg, "--clear-source-roots")) {
+            csane_paths_free(&options.source_roots);
+            continue;
+        }
         if (csane_value_option(arg)) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "%s requires a value\n", arg);
@@ -357,6 +369,10 @@ csane_run(int32 argc, char **argv) {
             } else if (!strcmp(arg, "--exclude")) {
                 good = csane_policy_add_regex(&options.policy.excludes,
                                               value, NULL, 0);
+            } else if (!strcmp(arg, "--source-root")) {
+                good = csane_paths_add(&options.source_roots, value);
+            } else if (!strcmp(arg, "--skip-dir")) {
+                good = csane_paths_add(&options.skip_dirs, value);
             } else if (!strcmp(arg, "--filter")) {
                 options.filter = value;
             } else if (!strcmp(arg, "--cbase-root")) {
@@ -389,7 +405,9 @@ csane_run(int32 argc, char **argv) {
             char *path = argv[i + 1];
             if (!strcmp(arg, "--root")) {
                 good = csane_collect_root(&options.files, path,
-                                          options.max_depth);
+                                          options.max_depth,
+                                          &options.source_roots,
+                                          &options.skip_dirs);
             } else if (!strcmp(arg, "--file")) {
                 good = csane_collect_explicit(&options.files, path);
             } else if (!strcmp(arg, "--file-list")) {
@@ -400,7 +418,9 @@ csane_run(int32 argc, char **argv) {
             struct stat st;
             if ((stat(arg, &st) == 0) && S_ISDIR(st.st_mode)) {
                 good = csane_collect_root(&options.files, arg,
-                                          options.max_depth);
+                                          options.max_depth,
+                                          &options.source_roots,
+                                          &options.skip_dirs);
             } else {
                 good = csane_collect_explicit(&options.files, arg);
             }
@@ -411,7 +431,9 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (!had_inputs
-        && !csane_collect_root(&options.files, ".", options.max_depth)) {
+        && !csane_collect_root(&options.files, ".", options.max_depth,
+                               &options.source_roots,
+                               &options.skip_dirs)) {
         exit_status = 2;
         goto cleanup;
     }
@@ -450,6 +472,8 @@ csane_run(int32 argc, char **argv) {
     }
 cleanup:
     csane_paths_free(&options.files);
+    csane_paths_free(&options.source_roots);
+    csane_paths_free(&options.skip_dirs);
     csane_policy_free(&options.policy);
     return exit_status;
 }

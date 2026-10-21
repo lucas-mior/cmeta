@@ -167,6 +167,30 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(groups["ASSIGN-EQ"]["status"], "checked")
         self.assertGreater(groups["LAYOUT"]["unresolved"], 0)
 
+    def test_api_coverage_uses_direct_call_classification(self):
+        text = ("void f(void) {\n"
+                "    strcpy(dst, src);\n"
+                "    object.strcpy(dst, src);\n"
+                "    int32 strcpy(int32 value);\n"
+                "    void (*strcpy)(void);\n"
+                "}\n"
+                "#define PASS(strcpy) strcpy\n")
+        result, groups = self.check(text, require=True)
+        self.assertEqual(groups["API"]["unresolved"], 0, result.stdout)
+        self.assertEqual(groups["API"]["eligible"], 6, result.stdout)
+        self.assertEqual(groups["API"]["checked"], 6, result.stdout)
+
+    def test_api_coverage_reports_ambiguous_call_context(self):
+        text = ("void f(void) {\n"
+                "    mystery strcpy(int32 value);\n"
+                "}\n")
+        result, groups = self.check(text, require=True)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(groups["API"]["eligible"], 1, result.stdout)
+        self.assertEqual(groups["API"]["unresolved"], 1, result.stdout)
+        self.assertIn("group=API", result.stdout)
+        self.assertIn("reason=api-call-context-unrecognized", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
