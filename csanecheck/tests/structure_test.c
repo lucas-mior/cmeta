@@ -245,6 +245,89 @@ test_local_bad_statement(void) {
     return;
 }
 
+
+/* Conditional branches contained by a function are statement regions,
+ * never independent translation-unit declarations. */
+static void
+test_nested_function_guards(void) {
+    char *text =
+        "void guarded(void) {\n"
+        "    before();\n"
+        "#if PLATFORM_A\n"
+        "    while (ready()) {\n"
+        "        first();\n"
+        "    }\n"
+        "#elif PLATFORM_B\n"
+        "    second();\n"
+        "#if FEATURE\n"
+        "    third();\n"
+        "#else\n"
+        "    fourth();\n"
+        "#endif\n"
+        "#else\n"
+        "    {\n"
+        "        fifth();\n"
+        "    }\n"
+        "#endif\n"
+        "    after();\n"
+        "}\n"
+        "#if PLATFORM_A\n"
+        "void platform(void) { platform_call(); }\n"
+        "#else\n"
+        "void alternative(void) { alternative_call(); }\n"
+        "#endif\n";
+    TestStructure test;
+    test_init(&test, text);
+    int32 guarded = test_function(&test, "guarded");
+    int32 platform = test_function(&test, "platform");
+    int32 alternative = test_function(&test, "alternative");
+    CHECK(test.top.opaque_count == 0);
+    CHECK(guarded >= 0 && platform >= 0 && alternative >= 0);
+    CHECK(test.statements.opaque_count == 0);
+    CHECK(test_statement(&test, guarded, "before()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "while (ready())",
+                         CSANE_STMT_WHILE) >= 0);
+    CHECK(test_statement(&test, guarded, "first()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "second()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "third()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "fourth()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "fifth()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, guarded, "after()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, platform, "platform_call()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    CHECK(test_statement(&test, alternative, "alternative_call()",
+                         CSANE_STMT_SIMPLE) >= 0);
+    test_free(&test);
+    return;
+}
+
+/* Fields split by a directive have no statement-scanner owner. Until they
+ * have their own scanner, they must still contribute unresolved coverage. */
+static void
+test_struct_guard_is_not_silently_skipped(void) {
+    char *text =
+        "struct Fields {\n"
+        "#if OPTION\n"
+        "    int32 first;\n"
+        "#else\n"
+        "    int32 second;\n"
+        "#endif\n"
+        "};\n";
+    TestStructure test;
+    test_init(&test, text);
+    CHECK(test.top.opaque_count == 2);
+    CHECK(test.statements.count == 0);
+    test_free(&test);
+    return;
+}
+
 int
 main(void) {
     test_bad_top_level_expression();
@@ -253,6 +336,8 @@ main(void) {
     test_aggregates_and_labels();
     test_trailing_function_attribute();
     test_conditionals();
+    test_nested_function_guards();
+    test_struct_guard_is_not_silently_skipped();
     test_local_bad_statement();
     return failures > 0;
 }
