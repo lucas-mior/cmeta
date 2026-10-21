@@ -29,6 +29,7 @@ typedef struct CsaneTokenView {
     CsaneTokenPath *path;
 } CsaneTokenView;
 
+bool csane_token_macro_name(Token *);
 bool csane_token_path_init(CsaneTokenPath *, Tokenization *, TokenRange);
 bool csane_token_path_append(CsaneTokenPath *, TokenRange);
 void csane_token_path_free(CsaneTokenPath *);

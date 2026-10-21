@@ -114,7 +114,7 @@ class StructureTests(unittest.TestCase):
                 self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
                 self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
 
-    def test_macro_fragment_structure_gaps_remain_unresolved(self):
+    def test_macro_fragments_are_structurally_handled(self):
         cases = (
             ("initializer_macro",
              "static int32 values[] = {\n"
@@ -123,8 +123,7 @@ class StructureTests(unittest.TestCase):
              "    ITEM(B),\n"
              "#endif\n"
              "    ITEM(C),\n"
-             "};\n",
-             "opaque_statements=0", "opaque_externals=1"),
+             "};\n"),
             ("enum_macro",
              "#if ENABLE\n"
              "enum CAT(ENUM_NAME, _Indices) {\n"
@@ -135,8 +134,7 @@ class StructureTests(unittest.TestCase):
              "#undef XX\n"
              "#undef XX_2\n"
              "};\n"
-             "#endif\n",
-             "opaque_statements=1", "opaque_externals=0"),
+             "#endif\n"),
             ("generated_statement_macro",
              "int32 example(int32 value) {\n"
              "#if ENABLE\n"
@@ -154,10 +152,9 @@ class StructureTests(unittest.TestCase):
              "    }\n"
              "#endif\n"
              "    return value;\n"
-             "}\n",
-             "opaque_statements=1", "opaque_externals=0"),
+             "}\n"),
         )
-        for name, source, statements, externals in cases:
+        for name, source in cases:
             with self.subTest(name=name):
                 with tempfile.TemporaryDirectory() as directory:
                     path = Path(directory) / f"{name}.c"
@@ -168,11 +165,29 @@ class StructureTests(unittest.TestCase):
                          "--report-parse-issues"],
                         cwd=ROOT, capture_output=True, text=True,
                         check=False)
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn(statements, result.stdout)
-                self.assertIn(externals, result.stdout)
-                self.assertIn("STRUCTURE-OPAQUE", result.stdout)
-                self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertIn("opaque_statements=0", result.stdout)
+                self.assertIn("opaque_externals=0", result.stdout)
+                self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
+                self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
+
+    def test_unrelated_malformed_syntax_remains_opaque(self):
+        source = ("int broken = (1;\n"
+                  "static void okay(void) {\n"
+                  "    int32 value = (2;\n"
+                  "    return;\n"
+                  "}\n")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "malformed.c"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run(
+                [str(ROOT / "bin/csanecheck"), "--file", str(path),
+                 "--coverage", "--require-coverage",
+                 "--report-parse-issues"],
+                cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("STRUCTURE-OPAQUE", result.stdout)
+        self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
 
     def test_guarded_type_and_parameter_regions(self):
         source = ("typedef struct Box {\n"

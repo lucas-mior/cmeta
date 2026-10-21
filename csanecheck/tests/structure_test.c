@@ -182,11 +182,12 @@ test_initializer_macro_gap(void) {
         "};\n";
     TestStructure test;
     test_init(&test, text);
-    CHECK(test.top.opaque_count == 1);
+    CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
     CHECK(test_top_item(&test, "static int32 values[]",
                         CSANE_TOP_DECLARATION) >= 0);
-    CHECK(test_top_item(&test, "ITEM(B),", CSANE_TOP_OPAQUE) >= 0);
+    CHECK(test_top_item(&test, "ITEM(B),",
+                        CSANE_TOP_MACRO_INITIALIZER_FRAGMENT) >= 0);
     test_free(&test);
     return;
 }
@@ -211,14 +212,14 @@ test_enum_macro_gap(void) {
         "};\n"
         "#endif\n";
     TestStructure test;
-    int32 generated;
     test_init(&test, text);
-    generated = test_function(&test, "CAT");
-    CHECK(generated >= 0);
+    CHECK(test_function(&test, "CAT") < 0);
     CHECK(test.top.opaque_count == 0);
-    CHECK(test.statements.opaque_count == 1);
-    CHECK(test_statement(&test, generated, "ENUM_FIELDS",
-                         CSANE_STMT_OPAQUE) >= 0);
+    CHECK(test.statements.opaque_count == 0);
+    CHECK(test_top_item(&test, "enum CAT(ENUM_NAME, _Indices)",
+                        CSANE_TOP_TYPE_DECLARATION) >= 0);
+    CHECK(test_top_item(&test, "ENUM_FIELDS",
+                        CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT) >= 0);
     test_free(&test);
     return;
 }
@@ -255,9 +256,9 @@ test_generated_statement_macro_gap(void) {
     function = test_function(&test, "example");
     CHECK(function >= 0);
     CHECK(test.top.opaque_count == 0);
-    CHECK(test.statements.opaque_count == 1);
+    CHECK(test.statements.opaque_count == 0);
     CHECK(test_statement(&test, function, "ENUM_FIELDS",
-                         CSANE_STMT_OPAQUE) >= 0);
+                         CSANE_STMT_MACRO_FRAGMENT) >= 0);
     CHECK(test_statement(&test, function, "switch (value)",
                          CSANE_STMT_SWITCH) >= 0);
     CHECK(test_statement(&test, function, "return value;",
