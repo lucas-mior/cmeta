@@ -93,6 +93,25 @@ int32 result = 3*4;
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_macro_generated_typedef_pointer_declarations(self):
+        self.check("""typedef struct CAT(PID_NAME, _Data) {
+    int32 value;
+} CAT(PID_NAME, _Data);
+static void
+CAT(PID_NAME, _reset)(CAT(PID_NAME, _Data) *pid,
+                       int32 count) {
+    CAT(PID_NAME, _Data) *local = pid;
+    int32 product = count * 2;
+    use(local, product);
+}
+""", ["FMT-MULTIPLY"])
+
+    def test_macro_calls_are_not_automatically_typedefs(self):
+        self.check("""int32 f(int32 a, int32 b) {
+    return CAT(a, b) * a;
+}
+""", ["FMT-MULTIPLY"])
+
     def test_call_multiplication_is_not_a_parameter_declarator(self):
         self.check("""double f(int32 i, double denominator) {
     double a2 = 0.5;

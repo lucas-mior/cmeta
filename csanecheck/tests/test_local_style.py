@@ -75,6 +75,21 @@ int32 f(S *s) {
 }
 """, [])
 
+    def test_capitalized_if_conditions_are_not_casts(self):
+        self.check("""void f(int32 B_ptr, int32 C_ptr, int32 D_ptr) {
+    if (B_ptr) {
+        use(B_ptr);
+    }
+    if (C_ptr) {
+        use(C_ptr);
+    }
+    if (D_ptr) {
+        use(D_ptr);
+    }
+    int32 x = (int32) B_ptr;
+}
+""", ["FMT-CAST-SPACING"])
+
     def test_multiline_pointer_return_is_not_unary(self):
         self.check("""char **
 make_pointer(char **pointer) {
