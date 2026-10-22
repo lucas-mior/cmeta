@@ -1004,8 +1004,8 @@ bool generic_array_reserve(void **array, int32 needed_count,
 int32 generic_array_capacity(void *array);
 void generic_array_set_count(void *array, int32 count);
 
-#define ARRAY_HEADER(ARRAY)   ((union GenericArrayHeader *)((void *)(ARRAY)) - 1)
-#define ARRAY_LEN(ARRAY)      ((ARRAY) ? ARRAY_HEADER(ARRAY)->count : 0)
+#define ARRAY_HEADER(ARRAY)  ((union GenericArrayHeader *)((void *)(ARRAY)) - 1)
+#define ARRAY_LEN(ARRAY)     ((ARRAY) ? ARRAY_HEADER(ARRAY)->count : 0)
 #define ARRAY_CAPACITY(ARRAY) generic_array_capacity(ARRAY)
 
 #define ARRAY_RESERVE(ARRAY, NEEDED_COUNT)                       \
