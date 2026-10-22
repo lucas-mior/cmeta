@@ -84,6 +84,13 @@ CAT(hash_zero_, HASH_TYPE)(struct Map *map,
 }
 """, ["FMT-MULTIPLY"], unresolved=1)
 
+    def test_macro_annotated_pointer_return(self):
+        self.check("""INLINE UNUSED char *
+MEM_LITERAL_SHORT_FUNCTION(char *haystack) {
+    return haystack;
+}
+""", [])
+
     def test_lowercase_typedef_pointer_and_same_named_variable(self):
         self.check("""typedef int32 custom_t;
 custom_t *pointer;
