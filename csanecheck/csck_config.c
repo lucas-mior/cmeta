@@ -840,19 +840,16 @@ csane_ryu_filter(char *filter, int32 len) {
 }
 
 bool
-csane_policy_filter(char *path, char *filter) {
+csane_policy_filter(char *path, int32 path_len, char *filter,
+                    int32 filter_len) {
     char *basename = path;
     char *filter_base = filter;
-    int32 path_len;
-    int32 filter_len;
     int32 n;
     int32 m;
 
     if (filter == NULL || filter[0] == '\0') {
         return true;
     }
-    path_len = strlen32(path);
-    filter_len = strlen32(filter);
     for (int32 i = 0; i < path_len; i += 1) {
         if (path[i] == '/') {
             basename = path + i + 1;
@@ -914,7 +911,7 @@ csane_policy_filter(char *path, char *filter) {
  */
 static char *
 csane_policy_selection_path(CsanePolicy *policy, char *path,
-                            char *resolved) {
+                            int32 path_len, char *resolved, int32 *selected_len) {
     char directory[PATH_MAX];
     char *basename = path;
     int32 longest = -1;
@@ -923,17 +920,19 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
     int32 dir_len;
     int32 base_len;
 
-    for (char *p = path; *p; p += 1) {
-        if (*p == '/') {
-            basename = p + 1;
+    *selected_len = path_len;
+    for (int32 j = 0; j < path_len; j += 1) {
+        if (path[j] == '/') {
+            basename = path + j + 1;
         }
     }
     for (int32 i = 0; i < strflex_list_len(&policy->project_roots.strings); i += 1) {
         char *root = policy->project_roots.strings.items[i]->data;
         int32 length = policy->project_roots.strings.items[i]->len;
-        if (length > longest && csane_path_prefix(path, strlen32(path), root, length)
+        if (length > longest && csane_path_prefix(path, path_len, root, length)
             && path[length] == '/') {
             selected = path + length + 1;
+            *selected_len = path_len - length - 1;
             longest = length;
         }
     }
@@ -958,7 +957,7 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
         return path;
     }
     dir_len = strlen32(resolved);
-    base_len = strlen32(basename);
+    base_len = path_len - (int32)(basename - path);
     if (dir_len + base_len + 2 >= PATH_MAX) {
         return path;
     }
@@ -971,6 +970,7 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
                                                    dir_len + base_len + 1, root, length)
             && resolved[length] == '/') {
             selected = resolved + length + 1;
+            *selected_len = dir_len + base_len - length;
             longest = length;
         }
     }
@@ -978,14 +978,17 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
 }
 
 bool
-csane_policy_selected(CsanePolicy *policy, char *path, char *filter) {
+csane_policy_selected(CsanePolicy *policy, char *path, int32 path_len,
+                      char *filter, int32 filter_len) {
     char resolved[PATH_MAX];
-    char *source = csane_policy_selection_path(policy, path, resolved);
-    if (!csane_source_allowed(source, strlen32(source))
+    int32 source_len;
+    char *source = csane_policy_selection_path(policy, path, path_len,
+                                               resolved, &source_len);
+    if (!csane_source_allowed(source, source_len)
         || csane_policy_match(&policy->excludes, source)) {
         return false;
     }
-    return csane_policy_filter(source, filter);
+    return csane_policy_filter(source, source_len, filter, filter_len);
 }
 
 #endif /* CSANECHECK_CONFIG_C */

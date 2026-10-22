@@ -54,6 +54,7 @@ typedef struct CsaneOptions {
     CsanePaths skip_dirs;
     CsanePolicy policy;
     char *filter;
+    int32 filter_len;
     int32 max_depth;
     bool report_parse;
     bool strict_parse;
@@ -134,6 +135,7 @@ typedef struct CsaneStats {
  */
 typedef struct CsaneFile {
     char *path;
+    int32 path_len;
     Tokenization *tokens;
     CPreprocessorAnalysis *preprocessor;
     CsaneRegions *regions;
@@ -169,8 +171,8 @@ bool csane_policy_in_ryu(CsanePolicy *, char *);
 bool csane_policy_match(CsanePatterns *, char *);
 bool csane_policy_rule_allowed(CsanePolicy *, char *, char *, Token *);
 int32 csane_policy_columns(CsanePolicy *, char *);
-bool csane_policy_filter(char *, char *);
-bool csane_policy_selected(CsanePolicy *, char *, char *);
+bool csane_policy_filter(char *, int32, char *, int32);
+bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);
 CsaneCoverage csane_coverage_collect(CsaneTopLevels *,
                                      CsaneStatements *);
 void csane_coverage_report_structural(char *, Tokenization *,

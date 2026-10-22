@@ -15,8 +15,7 @@ csane_token_text(Token *token, char *text) {
 }
 
 static bool
-csane_fixture_path(char *path) {
-    int32 len = strlen32(path);
+csane_fixture_path(char *path, int32 len) {
     for (int32 i = 0; i + 15 <= len; i += 1) {
         if ((i == 0 || path[i - 1] == '/')
             && !memcmp64(path + i, "tests/fixtures/", 15)) {
@@ -485,7 +484,7 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
     bool fixture;
 
     ASSERT(file != NULL);
-    fixture = csane_fixture_path(file->path);
+    fixture = csane_fixture_path(file->path, file->path_len);
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
@@ -500,10 +499,10 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
  * File exclusions are distinct from zero eligible targets. */
 static bool
 csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
-    int32 len = strlen32(file->path);
+    int32 len = file->path_len;
     bool generated = len >= 7
                      && !memcmp64(file->path + len - 7, ".meta.h", 7);
-    if (csane_fixture_path(file->path) && !rule->include_fixtures) {
+    if (csane_fixture_path(file->path, file->path_len) && !rule->include_fixtures) {
         return true;
     }
     if (generated && (!strcmp(rule->id, "LAYOUT")
