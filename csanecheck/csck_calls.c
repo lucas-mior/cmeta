@@ -73,7 +73,26 @@ csane_calls_related(Token *a, Token *b) {
  * requiring an AST for the containing translation unit. */
 static int32
 csane_call_next(CsaneFile *file, TokenRange range, int32 after) {
-    return token_range_next_significant(file->tokens, range, after);
+    int32 result;
+
+    result = token_range_next_significant(file->tokens, range, after);
+    while (result < range.end
+           && c_preprocessor_token_is_line_splice(file->tokens, result)) {
+        result = token_range_next_significant(file->tokens, range, result);
+    }
+    return result;
+}
+
+static int32
+csane_call_previous(CsaneFile *file, TokenRange range, int32 before) {
+    int32 result;
+
+    result = token_range_previous_significant(file->tokens, range, before);
+    while (result >= range.first
+           && c_preprocessor_token_is_line_splice(file->tokens, result)) {
+        result = token_range_previous_significant(file->tokens, range, result);
+    }
+    return result;
 }
 
 static bool
@@ -241,8 +260,8 @@ csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
     }
     for (int32 i = 0; i < parts; i += 1) {
         TokenRange range = ranges[i];
-        int32 first = token_range_first_significant(file->tokens, range);
-        int32 last = token_range_last_significant(file->tokens, range);
+        int32 first = csane_call_next(file, range, range.first - 1);
+        int32 last = csane_call_previous(file, range, range.end);
         if (first >= range.end) {
             continue;
         }
@@ -417,7 +436,7 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
                    != csane_calls_location(file, anchor).column) {
                 misaligned = true;
             }
-            previous = token_range_last_significant(tokens, argument);
+            previous = csane_call_previous(file, argument, argument.end);
         }
         if (comma >= close) {
             break;
@@ -456,7 +475,7 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
                                      "with its alignment anchor");
                     break;
                 }
-                previous = token_range_last_significant(tokens, argument);
+                previous = csane_call_previous(file, argument, argument.end);
             }
             if (comma >= close) {
                 break;
