@@ -349,8 +349,11 @@ unit_partial_function_open(UnitCursor *c, int32 first) {
 static int32
 unit_partial_function(UnitCursor *c, int32 first, int32 open,
                       int32 issue_token) {
-    StmtCursor view = {.ast = c->ast, .pp = c->pp,
-                       .range = c->range};
+    StmtCursor view = {
+        .ast = c->ast,
+        .pp = c->pp,
+        .range = c->range,
+    };
     int32 close = stmt_match(&view, open);
     int32 node = unit_new(c, C_EXTERNAL_PARTIAL_FUNCTION,
                           (TokenRange){first, close + 1});
