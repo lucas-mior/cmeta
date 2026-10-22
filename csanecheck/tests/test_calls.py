@@ -146,6 +146,15 @@ class CallLayoutTests(unittest.TestCase):
             "}\n"
         ), {})
 
+    def test_format_string_in_macro_with_arguments_on_other_lines(self):
+        self.compare("format_macro_ok.c", (
+            "#define LOG_VALUE() do {                        \\\n"
+            "    log(message,                                \\\n"
+            "        \"value: %d\",                           \\\n"
+            "        a, b);                                  \\\n"
+            "} while (0)\n"
+        ), {})
+
     def test_related_arguments_must_occupy_single_argument_lines(self):
         self.compare("related.c", (
             "void f(void) {\n"

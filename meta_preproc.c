@@ -74,9 +74,9 @@ preprocessor_token_is_hash(Token *token) {
     return TOKEN_IS(token, "#") || TOKEN_IS(token, "%:");
 }
 
-static bool
-preprocessor_token_is_line_splice(Tokenization *tokenization,
-                                  int32 token_index) {
+bool
+c_preprocessor_token_is_line_splice(Tokenization *tokenization,
+                                    int32 token_index) {
     Token *token;
     int32 offset;
 
@@ -103,7 +103,7 @@ preprocessor_token_is_line_splice(Tokenization *tokenization,
 static bool
 preprocessor_token_is_trivia(Tokenization *tokenization, int32 token_index) {
     return token_is_trivia(&tokenization->tokens[token_index])
-           || preprocessor_token_is_line_splice(tokenization, token_index);
+           || c_preprocessor_token_is_line_splice(tokenization, token_index);
 }
 
 static int32

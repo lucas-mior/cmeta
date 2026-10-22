@@ -482,6 +482,7 @@ int32 token_range_split_collect(Tokenization *, TokenRange, char *, int32,
  * Raw preprocessor structure. No directives are expanded. Directive source
  * ranges include the terminating physical newline when one exists.
  */
+bool c_preprocessor_token_is_line_splice(Tokenization *, int32);
 enum CPreprocessorDirectiveKind c_preprocessor_directive_kind(Token *);
 bool c_preprocessor_directive_at(Tokenization *, int32,
                                  CPreprocessorDirective *);
