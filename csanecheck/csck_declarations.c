@@ -296,7 +296,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
     int32 token;
     int32 modifier = -1;
     bool base = false;
-    bool legacy_reported = false;
 
     token = csane_decl_next(file, range, range.first - 1);
     while (token < range.end) {
@@ -327,14 +326,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
             if ((csane_decl_word(file, token, "long")
                  || csane_decl_word(file, token, "int"))
                 && modifier >= 0) {
-                if (!legacy_reported) {
-                    csane_rule_issue(file,
-                                     file->tokens->tokens[modifier].offset,
-                                     "TYPE-LEGACY-INT",
-                                     "use project integer aliases instead of "
-                                     "legacy C integer types");
-                    legacy_reported = true;
-                }
                 token = csane_decl_next(file, range, token);
                 continue;
             }
@@ -354,12 +345,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
             if (csane_decl_long_double(file, range, token)) {
                 token = csane_decl_next(file, range, token);
                 continue;
-            }
-            if (!legacy_reported) {
-                csane_rule_issue(file, part->offset, "TYPE-LEGACY-INT",
-                                 "use project integer aliases instead of "
-                                 "legacy C integer types");
-                legacy_reported = true;
             }
             base = true;
             modifier = token;
@@ -387,12 +372,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
             continue;
         }
         break;
-    }
-    if (!base && modifier >= 0 && !legacy_reported) {
-        csane_rule_issue(file, file->tokens->tokens[modifier].offset,
-                         "TYPE-LEGACY-INT",
-                         "use project integer aliases instead of implicit "
-                         "signed or unsigned int");
     }
 }
 

@@ -15,7 +15,6 @@ RULES = frozenset({
     "DECL-AFTER-STMT",
     "TYPE-CONST-SIGNATURE",
     "TYPE-ENUM-TYPEDEF",
-    "TYPE-LEGACY-INT",
     "TYPE-POINTER-TYPEDEF",
     "TYPE-SIZE-T",
     "TYPE-STDINT-T",
@@ -74,7 +73,7 @@ int32 defined(int32 *const pointer) {
 }
 """, ["TYPE-STDINT-T"] * 4)
 
-    def test_legacy_integer_types_but_not_long_double(self):
+    def test_legacy_integer_types_are_not_checked(self):
         self.check("""void f(void) {
     short a;
     int b;
@@ -85,7 +84,7 @@ int32 defined(int32 *const pointer) {
     long double precise;
     unsigned char byte;
 }
-""", ["TYPE-LEGACY-INT"] * 6)
+""", [])
 
     def test_vla_only_when_dynamic_bound_is_syntactically_clear(self):
         self.check("""int32 count(void);
