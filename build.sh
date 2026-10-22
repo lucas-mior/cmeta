@@ -134,6 +134,14 @@ if [ "$mode" = install ]; then
 fi
 
 if [ "$mode" = test ]; then
+    if [ -z "$target" ] || [ "$target" = csanecheck ]; then
+        # The Python tests execute bin/csanecheck directly. Never use a
+        # leftover binary from a previous build when testing new rules.
+        trace_on
+        $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck/main.c $LDFLAGS
+        cp -f bin/csanecheck cbase/csanecheck
+        trace_off
+    fi
     TEST_MAXDEPTH=1 common_test "$target" .
     if [ -z "$target" ] || [ "$target" = csanecheck ]; then
         python3 -m unittest discover -s csanecheck/tests -p 'test_*.py' -v
