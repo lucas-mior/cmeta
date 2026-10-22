@@ -69,7 +69,7 @@ CG018	cbase/c-guidelines.md	138	139	Expressions and control flow	Avoid helper fu
 CG019	cbase/c-guidelines.md	141	145	sizeof	Never use builtin sizeof; use SIZEOF.	implemented	PP-SIZEOF	-
 CG020	cbase/c-guidelines.md	157	168	Memory allocation	Avoid raw malloc/calloc/realloc/free; use cbase wrappers and do not NULL-guard free2 solely for NULL.	csanecheck_candidate	-	Raw malloc/calloc/realloc/free are not currently in the configured legacy API lists; free2 NULL-guard is also not implemented.
 CG021	cbase/c-guidelines.md	169	188	Memory allocation	Choose arena, heap wrappers, stack, and generic arrays according to lifetime/flexibility needs.	manual	-	-
-CG022	cbase/c-guidelines.md	174	174	Memory allocation	Never use VLAs.	implemented	TYPE-VLA	Conservative: diagnoses syntactically definite dynamic bounds; ambiguous identifier-only bounds are left undecided.
+CG022	cbase/c-guidelines.md	174	174	Memory allocation	Never use VLAs.	compiler	-	Compiler diagnostics are the preferred enforcement mechanism.
 CG023	cbase/c-guidelines.md	191	193	Exiting the program	In main use exit rather than return; fatal errors use fatal(EXIT_FAILURE), clean exit uses exit(EXIT_SUCCESS).	csanecheck_candidate	-	-
 CG024	cbase/c-guidelines.md	196	208	Enums structs unions	Use manual enums starting at 1 unless xenums is needed for flags/string conversion.	manual	-	-
 CG025	cbase/c-guidelines.md	209	220	Enums structs unions	Typedef structs except anonymous inner structs.	manual	-	Intentionally not enforced by csanecheck.
