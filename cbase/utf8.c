@@ -56,7 +56,7 @@ utf8_decode_byte(char c, int32 *i) {
 
 char
 utf8_encode_byte(uint32 u, int32 i) {
-    return (char)(utf8_byte[i] | (u & (uint32) ~utf8_mask[i]));
+    return (char)(utf8_byte[i] | (u & (uint32)~utf8_mask[i]));
 }
 
 int32
