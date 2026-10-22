@@ -255,13 +255,6 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_decl_size_type(CsaneFile *file, int32 token) {
-    return csane_decl_word(file, token, "size_t")
-           || csane_decl_word(file, token, "ptrdiff_t")
-           || csane_decl_word(file, token, "ssize_t");
-}
-
-static bool
 csane_decl_stdint_type(CsaneFile *file, int32 token) {
     static char *words[] = {
         "int8_t", "uint8_t", "int16_t", "uint16_t",
@@ -348,14 +341,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
             }
             base = true;
             modifier = token;
-            token = csane_decl_next(file, range, token);
-            continue;
-        }
-        if (csane_decl_size_type(file, token)) {
-            csane_rule_issue(file, part->offset, "TYPE-SIZE-T",
-                             "avoid size_t, ptrdiff_t, and ssize_t in "
-                             "project declarations");
-            base = true;
             token = csane_decl_next(file, range, token);
             continue;
         }
