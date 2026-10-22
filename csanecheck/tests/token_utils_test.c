@@ -204,8 +204,15 @@ test_nested_arguments(void) {
 
 static void
 test_empty_malformed_arguments(void) {
-    char *cases[] = {"f()", "f( /* comment */ )", "f(a,,b)",
-                     "f(a,)", "f(a, b", "f((a, b)", "f(a, b)"};
+    char *cases[] = {
+        "f()",
+        "f( /* comment */ )",
+        "f(a,,b)",
+        "f(a,)",
+        "f(a, b",
+        "f((a, b)",
+        "f(a, b)",
+    };
     int32 expected[] = {0, 0, -1, -1, -1, -1, 2};
     for (int32 i = 0; i < SIZEOF(cases)/SIZEOF(cases[0]); i += 1) {
         Tokenization tokens = tokenize_copy(cases[i], strlen32(cases[i]),
