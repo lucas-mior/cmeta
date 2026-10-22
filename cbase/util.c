@@ -1182,7 +1182,7 @@ main(int argc, char **argv) {
     }
 
     {
-        int32 values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        int32 values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9,};
         bool seen[10] = {0};
 
         rand_int_seed(1234);
