@@ -141,9 +141,10 @@ csane_coverage_first(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_coverage_token(CsaneFile *file, int32 index, char *text) {
+csane_coverage_token(CsaneFile *file, int32 index,
+                     char *text, int32 text_len) {
     return index >= 0 && index < file->tokens->token_count
-           && TOKEN_IS(&file->tokens->tokens[index], text);
+           && TOKEN_IS(&file->tokens->tokens[index], text, text_len);
 }
 
 static bool
@@ -159,20 +160,21 @@ csane_coverage_declaration_start(CsaneFile *file, TokenRange range) {
                                                            token)) {
         return true;
     }
-    return csane_coverage_token(file, first, "struct")
-           || csane_coverage_token(file, first, "union")
-           || csane_coverage_token(file, first, "enum")
-           || csane_coverage_token(file, first, "typedef")
-           || csane_coverage_token(file, first, "static")
-           || csane_coverage_token(file, first, "extern")
-           || csane_coverage_token(file, first, "const")
-           || csane_coverage_token(file, first, "volatile");
+    return csane_coverage_token(file, first, STRLIT("struct"))
+           || csane_coverage_token(file, first, STRLIT("union"))
+           || csane_coverage_token(file, first, STRLIT("enum"))
+           || csane_coverage_token(file, first, STRLIT("typedef"))
+           || csane_coverage_token(file, first, STRLIT("static"))
+           || csane_coverage_token(file, first, STRLIT("extern"))
+           || csane_coverage_token(file, first, STRLIT("const"))
+           || csane_coverage_token(file, first, STRLIT("volatile"));
 }
 
 static bool
-csane_coverage_contains(CsaneFile *file, TokenRange range, char *text) {
+csane_coverage_contains(CsaneFile *file, TokenRange range,
+                        char *text, int32 text_len) {
     for (int32 i = range.first; i < range.end; i += 1) {
-        if (csane_coverage_token(file, i, text)) {
+        if (csane_coverage_token(file, i, text, text_len)) {
             return true;
         }
     }
@@ -208,10 +210,10 @@ csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
     for (int32 i = first; i < range.end; i += 1) {
         int32 previous;
 
-        if (csane_coverage_token(file, i, "=")) {
+        if (csane_coverage_token(file, i, STRLIT("="))) {
             return false;
         }
-        if (!csane_coverage_token(file, i, "(")) {
+        if (!csane_coverage_token(file, i, STRLIT("("))) {
             continue;
         }
         previous = tokenization_previous_significant(file->tokens, i);
@@ -249,14 +251,14 @@ csane_coverage_control_kind(enum CsaneStatementKind kind) {
 
 static bool
 csane_coverage_control_start(CsaneFile *file, int32 token) {
-    return csane_coverage_token(file, token, "if")
-           || csane_coverage_token(file, token, "for")
-           || csane_coverage_token(file, token, "while")
-           || csane_coverage_token(file, token, "do")
-           || csane_coverage_token(file, token, "switch")
-           || csane_coverage_token(file, token, "case")
-           || csane_coverage_token(file, token, "default")
-           || csane_coverage_token(file, token, "{");
+    return csane_coverage_token(file, token, STRLIT("if"))
+           || csane_coverage_token(file, token, STRLIT("for"))
+           || csane_coverage_token(file, token, STRLIT("while"))
+           || csane_coverage_token(file, token, STRLIT("do"))
+           || csane_coverage_token(file, token, STRLIT("switch"))
+           || csane_coverage_token(file, token, STRLIT("case"))
+           || csane_coverage_token(file, token, STRLIT("default"))
+           || csane_coverage_token(file, token, STRLIT("{"));
 }
 
 static void
@@ -282,7 +284,7 @@ csane_coverage_status(CsaneFile *file, CsaneRuleCounts *counts,
                       char *group, int32 group_len, bool report) {
     for (int32 i = 0; i < file->toplevel->count; i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
-        if (!csane_coverage_contains(file, item->tokens, "status")) {
+        if (!csane_coverage_contains(file, item->tokens, STRLIT("status"))) {
             continue;
         }
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
@@ -311,19 +313,19 @@ csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
     first = csane_coverage_first(file, range);
     last = token_range_last_significant(tokens, range);
     if (first < 0 || last < first
-        || !csane_coverage_token(file, last, ";")) {
+        || !csane_coverage_token(file, last, STRLIT(";"))) {
         return false;
     }
     name = first;
-    if (csane_coverage_token(file, name, "return")) {
+    if (csane_coverage_token(file, name, STRLIT("return"))) {
         name = csane_tokens_next(&view, name);
     } else {
         int32 equals = -1;
         for (int32 i = first; i < last; i += 1) {
-            if (csane_coverage_token(file, i, "=")) {
+            if (csane_coverage_token(file, i, STRLIT("="))) {
                 equals = i;
-            } else if (csane_coverage_token(file, i, "(")
-                       || csane_coverage_token(file, i, "[")) {
+            } else if (csane_coverage_token(file, i, STRLIT("("))
+                       || csane_coverage_token(file, i, STRLIT("["))) {
                 int32 match = csane_tokens_match(&view, i);
                 if (match > i && match < last) {
                     i = match;
@@ -338,7 +340,8 @@ csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
         return false;
     }
     open = csane_tokens_next(&view, name);
-    if (open < 0 || open >= last || !csane_coverage_token(file, open, "(")) {
+    if (open < 0 || open >= last
+        || !csane_coverage_token(file, open, STRLIT("("))) {
         return false;
     }
     close = csane_tokens_match(&view, open);
@@ -364,13 +367,13 @@ csane_coverage_assignment_shape(CsaneFile *file, TokenRange range,
     if (first < 0 || last < first || !csane_tokens_view(&view, tokens, range)) {
         return false;
     }
-    *closed = csane_coverage_token(file, last, ";");
+    *closed = csane_coverage_token(file, last, STRLIT(";"));
     for (int32 i = first; i < last; i += 1) {
-        if (csane_coverage_token(file, i, "=")) {
+        if (csane_coverage_token(file, i, STRLIT("="))) {
             found = true;
-        } else if (csane_coverage_token(file, i, "(")
-                   || csane_coverage_token(file, i, "[")
-                   || csane_coverage_token(file, i, "{")) {
+        } else if (csane_coverage_token(file, i, STRLIT("("))
+                   || csane_coverage_token(file, i, STRLIT("["))
+                   || csane_coverage_token(file, i, STRLIT("{"))) {
             int32 close = csane_tokens_match(&view, i);
             if (close < 0) {
                 *closed = false;

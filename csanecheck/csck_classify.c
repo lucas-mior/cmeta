@@ -7,22 +7,37 @@
 #include "cbase.h"
 #include "csck_classify.h"
 
+static StrFlex *csane_class_primitives[] = {
+    SFLIT("void"), SFLIT("bool"), SFLIT("char"), SFLIT("short"),
+    SFLIT("int"), SFLIT("long"), SFLIT("float"), SFLIT("double"),
+    SFLIT("signed"), SFLIT("unsigned"), SFLIT("ldouble"), SFLIT("int8"),
+    SFLIT("int16"), SFLIT("int32"), SFLIT("int64"), SFLIT("uint8"),
+    SFLIT("uint16"), SFLIT("uint32"), SFLIT("uint64"), SFLIT("size_t"),
+    SFLIT("ssize_t"), SFLIT("intptr_t"), SFLIT("uintptr_t"),
+    SFLIT("ptrdiff_t"), SFLIT("wchar_t"), SFLIT("char8_t"),
+    SFLIT("char16_t"), SFLIT("char32_t"), SFLIT("_Bool"),
+    SFLIT("_Complex"), SFLIT("_Atomic"),
+};
+
+static StrFlex *csane_class_qualifiers[] = {
+    SFLIT("const"), SFLIT("volatile"), SFLIT("static"), SFLIT("extern"),
+    SFLIT("register"), SFLIT("inline"), SFLIT("restrict"),
+    SFLIT("typedef"), SFLIT("struct"), SFLIT("union"), SFLIT("enum"),
+    SFLIT("_Atomic"), SFLIT("_Thread_local"),
+};
+
 static bool
-csane_class_word(Token *token, char *word) {
-    return token->kind == TOKEN_IDENT && TOKEN_IS(token, word);
+csane_class_word(Token *token, char *word, int32 word_len) {
+    return token->kind == TOKEN_IDENT && TOKEN_IS(token, word, word_len);
 }
 
 static bool
 csane_primitive(Token *token) {
-    static char *names[] = {
-        "void", "bool", "char", "short", "int", "long", "float", "double",
-        "signed", "unsigned", "ldouble", "int8", "int16", "int32", "int64",
-        "uint8", "uint16", "uint32", "uint64", "size_t", "ssize_t",
-        "intptr_t", "uintptr_t", "ptrdiff_t", "wchar_t", "char8_t",
-        "char16_t", "char32_t", "_Bool", "_Complex", "_Atomic",
-    };
-    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
-        if (csane_class_word(token, names[i])) {
+    int32 count =
+        SIZEOF(csane_class_primitives)/SIZEOF(csane_class_primitives[0]);
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *word = csane_class_primitives[i];
+        if (csane_class_word(token, word->data, word->len)) {
             return true;
         }
     }
@@ -41,7 +56,7 @@ csane_name_kind(Token *token) {
         return CSANE_NAME_PRIMITIVE;
     }
     /* The documented lowercase macro exception is not a type. */
-    if (csane_class_word(token, "error")) {
+    if (csane_class_word(token, STRLIT("error"))) {
         return CSANE_NAME_MACRO;
     }
     for (int32 i = 0; i < token->len; i += 1) {
@@ -80,13 +95,11 @@ csane_significant(Tokenization *tokens, TokenRange range, int32 from) {
 
 static bool
 csane_qualifier(Token *token) {
-    static char *names[] = {
-        "const", "volatile", "static", "extern", "register", "inline",
-        "restrict", "typedef", "struct", "union", "enum", "_Atomic",
-        "_Thread_local",
-    };
-    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
-        if (csane_class_word(token, names[i])) {
+    int32 count =
+        SIZEOF(csane_class_qualifiers)/SIZEOF(csane_class_qualifiers[0]);
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *word = csane_class_qualifiers[i];
+        if (csane_class_word(token, word->data, word->len)) {
             return true;
         }
     }
