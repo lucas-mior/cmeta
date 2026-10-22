@@ -4,12 +4,6 @@
 #define CBASE_IMPLEMENT
 #include "cbase.h"
 
-/* Mixed declarations are valid C11; Clang's pre-C99 warning is irrelevant. */
-#if CC_CLANG
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeclaration-after-statement"
-#endif
-
 #define CMETA_IMPLEMENT
 #include "meta.h"
 #include "csck.h"
