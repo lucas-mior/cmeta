@@ -19,10 +19,12 @@ csane_style_first(CsaneFile *file, TokenRange range) {
 static bool
 csane_style_string_start(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
+    Token *token;
+
     if (first >= range.end) {
         return false;
     }
-    Token *token = &file->tokens->tokens[first];
+    token = &file->tokens->tokens[first];
     return token->kind == TOKEN_LITERAL && token->len >= 2
            && token->text[0] == '"';
 }
@@ -30,11 +32,13 @@ csane_style_string_start(CsaneFile *file, TokenRange range) {
 static bool
 csane_style_decimal(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
+    Token *token;
+
     if (first >= range.end
         || tokenization_next_significant(file->tokens, first) < range.end) {
         return false;
     }
-    Token *token = &file->tokens->tokens[first];
+    token = &file->tokens->tokens[first];
     if (token->kind != TOKEN_LITERAL || token->len == 0) {
         return false;
     }
@@ -49,11 +53,13 @@ csane_style_decimal(CsaneFile *file, TokenRange range) {
 static bool
 csane_style_lower_name(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
+    Token *token;
+
     if (first >= range.end
         || tokenization_next_significant(file->tokens, first) < range.end) {
         return false;
     }
-    Token *token = &file->tokens->tokens[first];
+    token = &file->tokens->tokens[first];
     if (token->kind != TOKEN_IDENT || token->len == 0) {
         return false;
     }
@@ -70,12 +76,14 @@ csane_style_lower_name(CsaneFile *file, TokenRange range) {
  * The caller separately verifies that this token is the entire argument. */
 static bool
 csane_style_conversion(Token *token) {
+    int32 i = 2;
+    char c;
+
     if (token->kind != TOKEN_LITERAL || token->len < 4
         || token->text[0] != '"' || token->text[1] != '%'
         || token->text[token->len - 1] != '"') {
         return false;
     }
-    int32 i = 2;
     while (i < token->len - 1) {
         char c = token->text[i];
         if (c != '-' && c != '+' && c != ' ' && c != '#'
@@ -122,7 +130,7 @@ csane_style_conversion(Token *token) {
     if (i + 2 != token->len) {
         return false;
     }
-    char c = token->text[i];
+    c = token->text[i];
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
@@ -139,16 +147,19 @@ csane_style_arguments(CsaneFile *file, int32 open, int32 close,
 static int32
 csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
+    int32 open;
+    int32 literal;
+
     if (first >= range.end
         || !TOKEN_IS(&file->tokens->tokens[first], "STRLIT")) {
         return -1;
     }
-    int32 open = tokenization_next_significant(file->tokens, first);
+    open = tokenization_next_significant(file->tokens, first);
     if (open >= range.end
         || !TOKEN_IS(&file->tokens->tokens[open], "(")) {
         return -1;
     }
-    int32 literal = tokenization_next_significant(file->tokens, open);
+    literal = tokenization_next_significant(file->tokens, open);
     if (literal >= range.end
         || !csane_style_string_start(file,
                                      (TokenRange){literal, range.end})) {
@@ -230,6 +241,18 @@ csane_expression_style_check(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
     for (int32 i = 0; i < tokens->token_count; i += 1) {
         Token *token = &tokens->tokens[i];
+        int32 next;
+        int32 previous;
+        CsaneTokenView local;
+        CsaneRegions *r;
+        int32 region;
+        enum CsaneRegionKind region_kind;
+        int32 replacement;
+        int32 branch;
+        int32 close;
+        TokenRange range;
+        enum CsaneLocalKind kind;
+
         if (token->kind != TOKEN_IDENT
             || (!TOKEN_IS(token, "ASSERT")
                 && !TOKEN_IS(token, "STRLIT_LEN")
@@ -237,12 +260,12 @@ csane_expression_style_check(CsaneFile *file) {
                 && !TOKEN_IS(token, "str_printf"))) {
             continue;
         }
-        int32 next = csane_tokens_next(&view, i);
+        next = csane_tokens_next(&view, i);
         if (next >= tokens->token_count
             || !TOKEN_IS(&tokens->tokens[next], "(")) {
             continue;
         }
-        int32 previous = csane_tokens_previous(&view, i);
+        previous = csane_tokens_previous(&view, i);
         if (previous >= 0
             && (TOKEN_IS(&tokens->tokens[previous], ".")
                 || TOKEN_IS(&tokens->tokens[previous], "->")
@@ -259,13 +282,13 @@ csane_expression_style_check(CsaneFile *file) {
          * unmatched delimiters from unrelated preprocessing alternatives.
          * For ordinary code use the full view when its enclosing region
          * cannot contain the entire invocation. */
-        CsaneTokenView local = view;
-        CsaneRegions *r = file->regions;
-        int32 region = csane_regions_at_token(r, i);
-        enum CsaneRegionKind region_kind = CSANE_REGION_MACRO_REPLACEMENT;
-        int32 replacement = csane_regions_enclosing(r, region, region_kind);
+        local = view;
+        r = file->regions;
+        region = csane_regions_at_token(r, i);
+        region_kind = CSANE_REGION_MACRO_REPLACEMENT;
+        replacement = csane_regions_enclosing(r, region, region_kind);
         region_kind = CSANE_REGION_CONDITIONAL_BRANCH;
-        int32 branch = csane_regions_enclosing(r, region, region_kind);
+        branch = csane_regions_enclosing(r, region, region_kind);
         if (replacement >= 0) {
             if (!csane_tokens_view(&local, tokens,
                                    file->regions->items[replacement].tokens)) {
@@ -297,12 +320,12 @@ csane_expression_style_check(CsaneFile *file) {
                 }
             }
         }
-        int32 close = csane_tokens_match(&local, next);
+        close = csane_tokens_match(&local, next);
         if (close < 0) {
             continue;
         }
-        TokenRange range = {0, tokens->token_count};
-        enum CsaneLocalKind kind = csane_classify_invocation(tokens, range, i);
+        range = (TokenRange){0, tokens->token_count};
+        kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
             csane_style_one(file, i, next, close);

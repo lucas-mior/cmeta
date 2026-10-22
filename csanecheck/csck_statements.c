@@ -381,6 +381,7 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                  int32 parent, int32 *result, int32 depth) {
     int32 macro_end;
     enum CsaneStatementKind control;
+    bool malformed = false;
 
     *result = -1;
     if (first >= limit) {
@@ -452,7 +453,7 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         if (control != CSANE_STMT_ELSE && control != CSANE_STMT_DO) {
             if (!csane_stmt_is(stream, header_end, "(")
                 || stream->matches[header_end] < header_end) {
-                int32 end = csane_stmt_recover(stream, first + 1, limit);
+                end = csane_stmt_recover(stream, first + 1, limit);
                 /* An unrecognized control header can still have a complete
                  * brace-delimited body. Retain that body as one opaque
                  * fragment, rather than swallowing the next statement. */
@@ -507,7 +508,6 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         *result = id;
         return end;
     }
-    bool malformed = false;
     for (int32 i = first; i < limit; i += 1) {
         if (csane_stmt_is(stream, i, ";")) {
             enum CsaneStatementKind kind = malformed ? CSANE_STMT_OPAQUE

@@ -44,11 +44,13 @@ static void
 csane_coverage_unresolved(CsaneFile *file, CsaneRuleCounts *counts,
                           char *group, int32 token, char *reason,
                           bool report) {
+    SourceLocation location;
+
     csane_coverage_target(counts, false);
     if (!report) {
         return;
     }
-    SourceLocation location = tokenization_token_location(file->tokens, token);
+    location = tokenization_token_location(file->tokens, token);
     printf("rule_coverage_unresolved file=%s group=%s line=%d column=%d "
            "reason=%s\n",
            file->path, group, location.line, location.column + 1, reason);
@@ -146,10 +148,12 @@ csane_coverage_token(CsaneFile *file, int32 index, char *text) {
 static bool
 csane_coverage_declaration_start(CsaneFile *file, TokenRange range) {
     int32 first = csane_coverage_first(file, range);
+    Token *token;
+
     if (first < 0) {
         return false;
     }
-    Token *token = &file->tokens->tokens[first];
+    token = &file->tokens->tokens[first];
     if (csane_type_name(token) || csane_type_hints_typedef(file->type_hints,
                                                            token)) {
         return true;
@@ -201,13 +205,15 @@ csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
         return false;
     }
     for (int32 i = first; i < range.end; i += 1) {
+        int32 previous;
+
         if (csane_coverage_token(file, i, "=")) {
             return false;
         }
         if (!csane_coverage_token(file, i, "(")) {
             continue;
         }
-        int32 previous = tokenization_previous_significant(file->tokens, i);
+        previous = tokenization_previous_significant(file->tokens, i);
         return previous >= first
                && file->tokens->tokens[previous].kind == TOKEN_IDENT;
     }
@@ -297,6 +303,7 @@ csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
     int32 last;
     int32 name;
     int32 open;
+    int32 close;
     if (!csane_tokens_view(&view, tokens, range)) {
         return false;
     }
@@ -316,9 +323,9 @@ csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
                 equals = i;
             } else if (csane_coverage_token(file, i, "(")
                        || csane_coverage_token(file, i, "[")) {
-                int32 close = csane_tokens_match(&view, i);
-                if (close > i && close < last) {
-                    i = close;
+                int32 match = csane_tokens_match(&view, i);
+                if (match > i && match < last) {
+                    i = match;
                 }
             }
         }
@@ -333,7 +340,7 @@ csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
     if (open < 0 || open >= last || !csane_coverage_token(file, open, "(")) {
         return false;
     }
-    int32 close = csane_tokens_match(&view, open);
+    close = csane_tokens_match(&view, open);
     if (close < 0) {
         *closed = false;
         return true;

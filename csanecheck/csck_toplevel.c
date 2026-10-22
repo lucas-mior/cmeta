@@ -264,7 +264,7 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
             continue;
         }
         if (csane_top_is(stream, end - 1, ")")) {
-            int32 open = stream->matches[end - 1];
+            open = stream->matches[end - 1];
             if (open > first
                 && csane_top_trailing_attribute(stream, first, open - 1)) {
                 end = open - 1;
