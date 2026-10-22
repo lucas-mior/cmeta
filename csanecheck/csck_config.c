@@ -7,18 +7,21 @@
 #include "cbase.h"
 #include "csck.h"
 
-static char *csane_default_never[] = {
-    "stpcpy", "stpncpy", "strcat", "strchr", "strcpy", "strcspn",
-    "strdup", "strncat", "strncpy", "strndup", "strpbrk", "strrchr",
-    "strspn", "strstr", "strtok", "strtok_r", "strxfrm", "strxfrm_l",
-    "strsep", "isalnum", "isalpha", "isascii", "isblank", "iscntrl",
-    "isdigit", "isgraph", "islower", "isprint", "ispunct", "isspace",
-    "isupper", "isxdigit",
+static StrFlex *csane_default_never[] = {
+    SFLIT("stpcpy"), SFLIT("stpncpy"), SFLIT("strcat"), SFLIT("strchr"),
+    SFLIT("strcpy"), SFLIT("strcspn"), SFLIT("strdup"), SFLIT("strncat"),
+    SFLIT("strncpy"), SFLIT("strndup"), SFLIT("strpbrk"), SFLIT("strrchr"),
+    SFLIT("strspn"), SFLIT("strstr"), SFLIT("strtok"), SFLIT("strtok_r"),
+    SFLIT("strxfrm"), SFLIT("strxfrm_l"), SFLIT("strsep"), SFLIT("isalnum"),
+    SFLIT("isalpha"), SFLIT("isascii"), SFLIT("isblank"), SFLIT("iscntrl"),
+    SFLIT("isdigit"), SFLIT("isgraph"), SFLIT("islower"), SFLIT("isprint"),
+    SFLIT("ispunct"), SFLIT("isspace"), SFLIT("isupper"), SFLIT("isxdigit"),
 };
 
-static char *csane_default_cbase[] = {
-    "memccpy", "memchr", "memcmp", "memcpy", "memmove", "memset",
-    "strlen", "strncmp", "strnlen",
+static StrFlex *csane_default_cbase[] = {
+    SFLIT("memccpy"), SFLIT("memchr"), SFLIT("memcmp"), SFLIT("memcpy"),
+    SFLIT("memmove"), SFLIT("memset"), SFLIT("strlen"), SFLIT("strncmp"),
+    SFLIT("strnlen"),
 };
 
 static bool
@@ -555,16 +558,18 @@ csane_policy_init(CsanePolicy *policy) {
     *policy = (CsanePolicy){.default_columns = 80};
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_never)
                                 /SIZEOF(csane_default_never[0])); i += 1) {
-        if (!csane_paths_add(&policy->never_names, csane_default_never[i],
-                             strlen32(csane_default_never[i]))) {
+        if (!csane_paths_add(&policy->never_names,
+                             csane_default_never[i]->data,
+                             csane_default_never[i]->len)) {
             csane_policy_free(policy);
             return false;
         }
     }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_cbase)
                                 /SIZEOF(csane_default_cbase[0])); i += 1) {
-        if (!csane_paths_add(&policy->cbase_names, csane_default_cbase[i],
-                             strlen32(csane_default_cbase[i]))) {
+        if (!csane_paths_add(&policy->cbase_names,
+                             csane_default_cbase[i]->data,
+                             csane_default_cbase[i]->len)) {
             csane_policy_free(policy);
             return false;
         }
