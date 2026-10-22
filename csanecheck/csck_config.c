@@ -223,7 +223,7 @@ csane_policy_add_root(CsanePolicy *policy, char *path) {
         fprintf(stderr, "%s: cannot resolve cbase directory\n", path);
         return false;
     }
-    return csane_paths_add(&policy->cbase_roots, resolved);
+    return csane_paths_add(&policy->cbase_roots, resolved, strlen32(resolved));
 }
 
 /* As a fallback for isolated --file analysis, canonical directory segments
@@ -246,8 +246,8 @@ csane_policy_in_cbase(CsanePolicy *policy, char *path) {
     if (realpath(path, resolved) == NULL) {
         return false;
     }
-    for (int32 i = 0; i < policy->cbase_roots.count; i += 1) {
-        if (csane_path_prefix(resolved, policy->cbase_roots.items[i])) {
+    for (int32 i = 0; i < strflex_list_len(&policy->cbase_roots.strings); i += 1) {
+        if (csane_path_prefix(resolved, policy->cbase_roots.strings.items[i]->data)) {
             return true;
         }
     }
@@ -260,8 +260,8 @@ csane_policy_in_ryu(CsanePolicy *policy, char *path) {
     if (realpath(path, resolved) == NULL) {
         return false;
     }
-    for (int32 i = 0; i < policy->cbase_roots.count; i += 1) {
-        char *root = policy->cbase_roots.items[i];
+    for (int32 i = 0; i < strflex_list_len(&policy->cbase_roots.strings); i += 1) {
+        char *root = policy->cbase_roots.strings.items[i]->data;
         int32 length = strlen32(root);
         if (strlen32(resolved) <= length + 5
             || memcmp64(resolved, root, length)
@@ -339,7 +339,7 @@ csane_load_names(CsanePaths *names, char *path) {
                 end += 1;
             }
             *end = '\0';
-            if (!csane_paths_add(names, word)) {
+            if (!csane_paths_add(names, word, strlen32(word))) {
                 ok = false;
                 break;
             }
@@ -362,7 +362,7 @@ csane_policy_project(CsanePolicy *policy, char *project) {
     char *names;
 
     if (realpath(project, resolved) == NULL
-        || !csane_paths_add(&policy->project_roots, resolved)) {
+        || !csane_paths_add(&policy->project_roots, resolved, strlen32(resolved))) {
         fprintf(stderr, "%s: cannot resolve project directory\n", project);
         return false;
     }
@@ -409,14 +409,15 @@ csane_policy_project(CsanePolicy *policy, char *project) {
         if (realpath(names, resolved_config) == NULL) {
             ok = false;
         } else {
-            for (int32 i = 0; i < policy->configs.count; i += 1) {
-                if (!strcmp(policy->configs.items[i], resolved_config)) {
+            for (int32 i = 0; i < strflex_list_len(&policy->configs.strings); i += 1) {
+                if (!strcmp(policy->configs.strings.items[i]->data, resolved_config)) {
                     loaded = true;
                     break;
                 }
             }
             if (!loaded) {
-                loaded = csane_paths_add(&policy->configs, resolved_config);
+                loaded = csane_paths_add(&policy->configs, resolved_config,
+                                         strlen32(resolved_config));
                 ok = loaded && ok;
                 if (loaded) {
                     ok = csane_policy_config(policy, resolved_config) && ok;
@@ -478,7 +479,7 @@ csane_policy_source(CsanePolicy *policy, char *source) {
                 bool added;
 
                 leaf[-1] = '\0';
-                added = csane_paths_add(&policy->project_roots, resolved);
+                added = csane_paths_add(&policy->project_roots, resolved, strlen32(resolved));
                 leaf[-1] = '/';
                 if (!added) {
                     return false;
@@ -510,14 +511,16 @@ csane_policy_init(CsanePolicy *policy) {
     *policy = (CsanePolicy){.default_columns = 80};
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_never)
                                 /SIZEOF(csane_default_never[0])); i += 1) {
-        if (!csane_paths_add(&policy->never_names, csane_default_never[i])) {
+        if (!csane_paths_add(&policy->never_names, csane_default_never[i],
+                             strlen32(csane_default_never[i]))) {
             csane_policy_free(policy);
             return false;
         }
     }
     for (int32 i = 0; i < (int32)(SIZEOF(csane_default_cbase)
                                 /SIZEOF(csane_default_cbase[0])); i += 1) {
-        if (!csane_paths_add(&policy->cbase_names, csane_default_cbase[i])) {
+        if (!csane_paths_add(&policy->cbase_names, csane_default_cbase[i],
+                             strlen32(csane_default_cbase[i]))) {
             csane_policy_free(policy);
             return false;
         }
@@ -678,10 +681,10 @@ csane_config_line(CsanePolicy *policy, char *line, char *filename,
                                     extra, 0);
     } else if (!strcmp(key, "never-use") && csane_identifier(first)
                && !second) {
-        ok = csane_paths_add(&policy->never_names, first);
+        ok = csane_paths_add(&policy->never_names, first, strlen32(first));
     } else if (!strcmp(key, "cbase-only") && csane_identifier(first)
                && !second) {
-        ok = csane_paths_add(&policy->cbase_names, first);
+        ok = csane_paths_add(&policy->cbase_names, first, strlen32(first));
     } else if (!strcmp(key, "clear-never-use") && !first) {
         csane_paths_free(&policy->never_names);
         ok = true;
@@ -838,8 +841,8 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
             basename = p + 1;
         }
     }
-    for (int32 i = 0; i < policy->project_roots.count; i += 1) {
-        char *root = policy->project_roots.items[i];
+    for (int32 i = 0; i < strflex_list_len(&policy->project_roots.strings); i += 1) {
+        char *root = policy->project_roots.strings.items[i]->data;
         int32 length = strlen32(root);
         if (length > longest && csane_path_prefix(path, root)
             && path[length] == '/') {
@@ -874,8 +877,8 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
     }
     resolved[dir_len] = '/';
     memcpy64(resolved + dir_len + 1, basename, (int64)base_len + 1);
-    for (int32 i = 0; i < policy->project_roots.count; i += 1) {
-        char *root = policy->project_roots.items[i];
+    for (int32 i = 0; i < strflex_list_len(&policy->project_roots.strings); i += 1) {
+        char *root = policy->project_roots.strings.items[i]->data;
         int32 length = strlen32(root);
         if (length > longest && csane_path_prefix(resolved, root)
             && resolved[length] == '/') {

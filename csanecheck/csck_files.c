@@ -8,15 +8,7 @@
 #include "csck.h"
 
 static char *
-csane_strdup(char *string) {
-    int32 len = strlen32(string);
-    char *copy = malloc2((int64)len + 1);
-    memcpy64(copy, string, (int64)len + 1);
-    return copy;
-}
-
-static char *
-csane_join(char *directory, char *name) {
+csane_join(char *directory, char *name, int32 *path_len) {
     int32 left = strlen32(directory);
     int32 right = strlen32(name);
     bool slash = (left > 0) && (directory[left - 1] != '/');
@@ -26,76 +18,50 @@ csane_join(char *directory, char *name) {
         path[left] = '/';
     }
     memcpy64(path + left + slash, name, (int64)right + 1);
+    *path_len = left + slash + right;
     return path;
 }
 
-static void
-csane_path_free(char *path) {
-    free2(path, (int64)strlen32(path) + 1);
-    return;
-}
-
 bool
-csane_paths_add(CsanePaths *paths, char *path) {
-    if ((paths == NULL) || (path == NULL) || (path[0] == '\0')) {
+csane_paths_add(CsanePaths *paths, char *path, int32 path_len) {
+    if (paths == NULL || path == NULL || path_len <= 0
+        || strflex_list_len(&paths->strings) == INT32_MAX) {
         return false;
     }
-    if (paths->count == INT32_MAX) {
-        return false;
-    }
-    if (paths->count == paths->capacity) {
-        int32 capacity = paths->capacity;
-        int32 next;
-        if (capacity > INT32_MAX/2) {
-            return false;
-        }
-        next = (capacity == 0) ? 32 : capacity*2;
-        if (paths->items == NULL) {
-            paths->items = malloc2((int64)next*SIZEOF(*paths->items));
-        } else {
-            paths->items = realloc2(paths->items, capacity, next,
-                                    SIZEOF(*paths->items));
-        }
-        paths->capacity = next;
-    }
-    paths->items[paths->count] = csane_strdup(path);
-    paths->count += 1;
+    strflex_list_push(&paths->strings, path, path_len);
     return true;
 }
 
 static int
 csane_path_compare(void *a, void *b) {
-    char *left = *(char **)a;
-    char *right = *(char **)b;
-    return strcmp(left, right);
+    StrFlex *left = *(StrFlex **)a;
+    StrFlex *right = *(StrFlex **)b;
+    return strcmp(left->data, right->data);
 }
 
 void
 csane_paths_sort_unique(CsanePaths *paths) {
+    StrFlex **items = paths->strings.items;
+    int32 count = ARRAY_LEN(items);
     int32 kept = 0;
-    qsort64(paths->items, paths->count, SIZEOF(*paths->items),
-            csane_path_compare);
-    for (int32 i = 0; i < paths->count; i += 1) {
-        if ((kept > 0) && !strcmp(paths->items[kept - 1], paths->items[i])) {
-            csane_path_free(paths->items[i]);
+
+    qsort64(items, count, SIZEOF(*items), csane_path_compare);
+    for (int32 i = 0; i < count; i += 1) {
+        if (kept > 0 && items[kept - 1]->len == items[i]->len
+            && memcmp64(items[kept - 1]->data, items[i]->data,
+                        items[i]->len) == 0) {
             continue;
         }
-        paths->items[kept] = paths->items[i];
+        items[kept] = items[i];
         kept += 1;
     }
-    paths->count = kept;
+    ARRAY_SET_COUNT(paths->strings.items, kept);
     return;
 }
 
 void
 csane_paths_free(CsanePaths *paths) {
-    for (int32 i = 0; i < paths->count; i += 1) {
-        csane_path_free(paths->items[i]);
-    }
-    if (paths->items != NULL) {
-        free2(paths->items, (int64)paths->capacity*SIZEOF(*paths->items));
-    }
-    *paths = (CsanePaths){0};
+    strflex_list_destroy(&paths->strings);
     return;
 }
 
@@ -133,8 +99,11 @@ csane_source_allowed(char *path) {
 
 static bool
 csane_path_has(CsanePaths *paths, char *name) {
-    for (int32 i = 0; i < paths->count; i += 1) {
-        if (!strcmp(paths->items[i], name)) {
+    int32 name_len = strlen32(name);
+    for (int32 i = 0; i < strflex_list_len(&paths->strings); i += 1) {
+        StrFlex *entry = paths->strings.items[i];
+        if (entry->len == name_len
+            && memcmp64(entry->data, name, name_len) == 0) {
             return true;
         }
     }
@@ -153,13 +122,15 @@ csane_discovery_defaults(CsanePaths *roots, CsanePaths *skip_dirs) {
     };
     for (int32 i = 0; i < (int32)(SIZEOF(default_roots)
                                 /SIZEOF(default_roots[0])); i += 1) {
-        if (!csane_paths_add(roots, default_roots[i])) {
+        if (!csane_paths_add(roots, default_roots[i],
+                             strlen32(default_roots[i]))) {
             return false;
         }
     }
     for (int32 i = 0; i < (int32)(SIZEOF(default_skips)
                                 /SIZEOF(default_skips[0])); i += 1) {
-        if (!csane_paths_add(skip_dirs, default_skips[i])) {
+        if (!csane_paths_add(skip_dirs, default_skips[i],
+                             strlen32(default_skips[i]))) {
             return false;
         }
     }
@@ -200,12 +171,13 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
     for (int32 i = 0; i < count; i += 1) {
         char *name = entries[i].name;
         char *path;
+        int32 path_len;
         struct stat st;
 
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
         }
-        path = csane_join(directory, name);
+        path = csane_join(directory, name, &path_len);
 #if OS_WINDOWS
         if (stat(path, &st) != 0) {
 #else
@@ -222,10 +194,10 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
             }
         } else if ((S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))
                    && csane_source_allowed(name)
-                   && !csane_paths_add(paths, path)) {
+                   && !csane_paths_add(paths, path, path_len)) {
             ok = false;
         }
-        csane_path_free(path);
+        free2(path, (int64)path_len + 1);
     }
     free2(entries, (int64)count*SIZEOF(*entries));
     return ok;
@@ -242,7 +214,7 @@ csane_collect_explicit(CsanePaths *paths, char *path) {
         fprintf(stderr, "%s: not a regular file\n", path);
         return false;
     }
-    return csane_paths_add(paths, path);
+    return csane_paths_add(paths, path, strlen32(path));
 }
 
 bool
@@ -252,6 +224,9 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
     bool ok = true;
     char *ryu;
     char *standalone;
+    int32 path_len;
+    int32 ryu_len;
+    int32 standalone_len;
 
     if ((stat(root, &st) != 0) || !S_ISDIR(st.st_mode)) {
         fprintf(stderr, "%s: not a directory\n", root);
@@ -261,37 +236,38 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
     if (!csane_walk(paths, root, 0, 0, skip_dirs)) {
         ok = false;
     }
-    for (int32 i = 0; i < source_roots->count; i += 1) {
-        char *path = csane_join(root, source_roots->items[i]);
+    for (int32 i = 0; i < strflex_list_len(&source_roots->strings); i += 1) {
+        char *path = csane_join(root, source_roots->strings.items[i]->data,
+                                &path_len);
         if ((max_depth != 0) && csane_discovered_directory(path)) {
             if (!csane_walk(paths, path, 0, max_depth - (max_depth > 0),
                             skip_dirs)) {
                 ok = false;
             }
         }
-        csane_path_free(path);
+        free2(path, (int64)path_len + 1);
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
-    ryu = csane_join(root, "cbase/ryu");
+    ryu = csane_join(root, "cbase/ryu", &ryu_len);
     if (csane_discovered_directory(ryu)) {
         if (!csane_walk(paths, ryu, 0, -1, skip_dirs)) {
             ok = false;
         }
     }
-    csane_path_free(ryu);
+    free2(ryu, (int64)ryu_len + 1);
     /* The cbase repository can also be checked directly (with the policy
      * lists in its root rather than under a cbase subdirectory).
      */
-    standalone = csane_join(root, "functions_never_use.txt");
+    standalone = csane_join(root, "functions_never_use.txt", &standalone_len);
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
-        ryu = csane_join(root, "ryu");
+        ryu = csane_join(root, "ryu", &ryu_len);
         if (csane_discovered_directory(ryu)
             && !csane_walk(paths, ryu, 0, -1, skip_dirs)) {
             ok = false;
         }
-        csane_path_free(ryu);
+        free2(ryu, (int64)ryu_len + 1);
     }
-    csane_path_free(standalone);
+    free2(standalone, (int64)standalone_len + 1);
     return ok;
 }
 
