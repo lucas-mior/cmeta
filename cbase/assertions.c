@@ -912,8 +912,8 @@ assert_double_is_zero(double x) {
     return x == (double)0;
 }
 
-static int
-assert_fp_common_kind(int kind1, int kind2) {
+static int32
+assert_fp_common_kind(int32 kind1, int32 kind2) {
     if ((kind1 == ASSERT_FP_KIND_FLOAT) || (kind2 == ASSERT_FP_KIND_FLOAT)) {
         return ASSERT_FP_KIND_FLOAT;
     }
