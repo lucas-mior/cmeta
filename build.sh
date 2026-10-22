@@ -97,6 +97,7 @@ if [ "$mode" = install ]; then
         ./build.sh build
     fi
     install -Dm755 bin/csanecheck "${DESTDIR}${PREFIX}/bin/csanecheck"
+    cp -f bin/csanecheck cbase/csanecheck
     trace_off
 fi
 
