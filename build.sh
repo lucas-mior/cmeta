@@ -93,6 +93,9 @@ esac
 
 if [ "$mode" = install ]; then
     trace_on
+    if [ ! -x bin/csanecheck ]; then
+        ./build.sh build
+    fi
     install -Dm755 bin/csanecheck "${DESTDIR}${PREFIX}/bin/csanecheck"
     trace_off
 fi
