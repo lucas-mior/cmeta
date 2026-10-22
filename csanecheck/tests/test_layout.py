@@ -69,6 +69,17 @@ int32 f(Result callback, int32 value) {
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_noreturn_pointer_return_is_not_multiplication(self):
+        self.check("""static noreturn void *ipc_daemon_listen(void *);
+static _Noreturn void *other_listener(void *);
+static noreturn void *listener_definition(void *arg) {
+    return arg;
+}
+int32 product(int32 a, int32 b) {
+    return a * b;
+}
+""", ["FMT-MULTIPLY"])
+
     def test_global_function_pointer_parameter_declarations(self):
         self.check("""static void (*status_notification_observer)(void *user);
 static void (*status_database_update_observer)(void *user);

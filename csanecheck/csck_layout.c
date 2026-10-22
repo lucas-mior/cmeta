@@ -105,7 +105,8 @@ csane_layout_qualifier(Token *token) {
            || TOKEN_IS(token, "struct") || TOKEN_IS(token, "union")
            || TOKEN_IS(token, "enum") || TOKEN_IS(token, "static")
            || TOKEN_IS(token, "extern") || TOKEN_IS(token, "register")
-           || TOKEN_IS(token, "inline") || TOKEN_IS(token, "_Atomic");
+           || TOKEN_IS(token, "inline") || TOKEN_IS(token, "_Atomic")
+           || TOKEN_IS(token, "_Noreturn") || TOKEN_IS(token, "noreturn");
 }
 
 /* A token immediately after a closing cast parenthesis begins a unary
