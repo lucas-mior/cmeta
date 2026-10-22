@@ -614,10 +614,14 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
     token = csane_tokens_next(&view, range.first - 1);
     while (token >= range.first && token < close) {
         if (csane_decl_word(file, token, "const")) {
-            csane_rule_issue(file, file->tokens->tokens[token].offset,
-                             "TYPE-CONST-SIGNATURE",
-                             "const qualifiers are forbidden in function "
-                             "signatures");
+            if (!csane_policy_rule_allowed(file->policy, file->path,
+                                           "TYPE-CONST-SIGNATURE",
+                                           &file->tokens->tokens[name])) {
+                csane_rule_issue(file, file->tokens->tokens[token].offset,
+                                 "TYPE-CONST-SIGNATURE",
+                                 "const qualifiers are forbidden in function "
+                                 "signatures");
+            }
         }
         token = csane_tokens_next(&view, token);
     }

@@ -282,5 +282,6 @@ signature `const`, standard fixed-width `_t` types,
 definitely dynamic VLAs, aggregate/pointer typedef policy, and
 declaration-after-statement. Ambiguous VLA bounds remain undecided rather than
 being guessed. The tests also verify documented typedef exceptions and that
-all step-18 diagnostics are valid `allow-rule` policy IDs for exact externally
-imposed API/ABI signatures.
+all step-18 diagnostics are valid `allow-rule` policy IDs. Exact externally
+imposed API signatures can use `allow-function-rule` with path and function
+regular expressions without suppressing the rule for an entire file.

@@ -23,8 +23,10 @@ typedef struct CsanePaths {
 typedef struct CsanePattern {
 #if OS_UNIX
     regex_t compiled;
+    regex_t function_compiled;
 #endif
     char *text;
+    char *function_text;
     char *rule_id;
     int32 columns;
 } CsanePattern;
@@ -40,6 +42,7 @@ typedef struct CsanePolicy {
     CsanePaths cbase_names;
     CsanePaths cbase_roots;
     CsanePaths project_roots;
+    CsanePaths configs;
     CsanePatterns excludes;
     CsanePatterns no_columns;
     CsanePatterns column_overrides;
@@ -158,14 +161,14 @@ typedef struct CsaneRule {
 bool csane_policy_init(CsanePolicy *);
 void csane_policy_free(CsanePolicy *);
 bool csane_policy_config(CsanePolicy *, char *);
-bool csane_policy_add_regex(CsanePatterns *, char *, char *, int32);
+bool csane_policy_add_regex(CsanePatterns *, char *, char *, char *, int32);
 bool csane_policy_add_root(CsanePolicy *, char *);
 bool csane_policy_project(CsanePolicy *, char *);
 bool csane_policy_source(CsanePolicy *, char *);
 bool csane_policy_in_cbase(CsanePolicy *, char *);
 bool csane_policy_in_ryu(CsanePolicy *, char *);
 bool csane_policy_match(CsanePatterns *, char *);
-bool csane_policy_rule_allowed(CsanePolicy *, char *, char *);
+bool csane_policy_rule_allowed(CsanePolicy *, char *, char *, Token *);
 int32 csane_policy_columns(CsanePolicy *, char *);
 bool csane_policy_filter(char *, char *);
 bool csane_policy_selected(CsanePolicy *, char *, char *);
