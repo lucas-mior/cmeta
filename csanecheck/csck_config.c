@@ -22,15 +22,16 @@ static char *csane_default_cbase[] = {
 };
 
 static bool
-csane_number(char *text, int32 *out) {
+csane_number(char *text, int32 text_len, int32 *out) {
     char *end;
     long value;
-    if (text == NULL || text[0] == '\0') {
+    if (text == NULL || text_len == 0) {
         return false;
     }
     errno = 0;
     value = strtol(text, &end, 10);
-    if (errno != 0 || *end != '\0' || value < 1 || value >= INT32_MAX) {
+    if (errno != 0 || end != text + text_len || value < 1
+        || value >= INT32_MAX) {
         return false;
     }
     *out = (int32)value;
@@ -564,42 +565,33 @@ csane_policy_free(CsanePolicy *policy) {
     return;
 }
 
-typedef struct CsaneWord {
-    char *data;
-    int32 len;
-} CsaneWord;
+/* Return the next word's length, or zero if no word remains.  Tokens are
+ * terminated in place for the existing regex and filesystem interfaces. */
+static int32
+csane_word(char *line, int32 line_len, int32 *offset, char **word) {
+    int32 start = *offset;
+    int32 end;
 
-static CsaneWord
-csane_word(char **cursor, int32 *remaining) {
-    CsaneWord result = {0};
-    int32 skip = 0;
-    int32 count = 0;
-
-    while (skip < *remaining && ((*cursor)[skip] == ' '
-           || (*cursor)[skip] == '\t' || (*cursor)[skip] == '\r')) {
-        skip += 1;
+    *word = NULL;
+    while (start < line_len && (line[start] == ' ' || line[start] == '\t'
+           || line[start] == '\r')) {
+        start += 1;
     }
-    *cursor += skip;
-    *remaining -= skip;
-    while (count < *remaining && (*cursor)[count] != ' '
-           && (*cursor)[count] != '\t' && (*cursor)[count] != '\r'
-           && (*cursor)[count] != '\0') {
-        count += 1;
+    end = start;
+    while (end < line_len && line[end] != ' ' && line[end] != '\t'
+           && line[end] != '\r' && line[end] != '\0') {
+        end += 1;
     }
-    if (count == 0) {
-        return result;
+    *offset = end;
+    if (end == start) {
+        return 0;
     }
-    result.data = *cursor;
-    result.len = count;
-    if (count < *remaining) {
-        (*cursor)[count] = '\0';
-        *cursor += count + 1;
-        *remaining -= count + 1;
-    } else {
-        *cursor += count;
-        *remaining = 0;
+    *word = line + start;
+    if (end < line_len) {
+        line[end] = '\0';
+        *offset += 1;
     }
-    return result;
+    return end - start;
 }
 
 static bool
@@ -711,88 +703,88 @@ csane_config_path(char *filename, char *path) {
 static bool
 csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
                   char *filename, int32 lineno) {
-    char *cursor = line;
-    int32 remaining = line_len;
-    CsaneWord key = csane_word(&cursor, &remaining);
-    CsaneWord first;
-    CsaneWord second;
-    CsaneWord extra;
-    CsaneWord fourth;
+    int32 offset = 0;
+    char *key;
+    char *first;
+    char *second;
+    char *extra;
+    char *fourth;
+    int32 key_len = csane_word(line, line_len, &offset, &key);
+    int32 first_len;
+    int32 second_len;
+    int32 extra_len;
     int32 columns;
     bool ok = false;
-    if (key.data == NULL || key.data[0] == '#') {
+
+    if (key == NULL || key[0] == '#') {
         return true;
     }
-    first = csane_word(&cursor, &remaining);
-    second = csane_word(&cursor, &remaining);
-    extra = csane_word(&cursor, &remaining);
-    fourth = csane_word(&cursor, &remaining);
-    if (STREQUAL(key.data, key.len, "exclude")
-        && first.data && !second.data) {
-        ok = csane_policy_add_regex(&policy->excludes, first.data, first.len,
+    first_len = csane_word(line, line_len, &offset, &first);
+    second_len = csane_word(line, line_len, &offset, &second);
+    extra_len = csane_word(line, line_len, &offset, &extra);
+    csane_word(line, line_len, &offset, &fourth);
+    if (STREQUAL(key, key_len, "exclude")
+        && first && !second) {
+        ok = csane_policy_add_regex(&policy->excludes, first, first_len,
                                     NULL, 0, NULL, 0, 0);
-    } else if (STREQUAL(key.data, key.len, "no-column-limit")
-        && first.data && !second.data) {
-        ok = csane_policy_add_regex(&policy->no_columns, first.data, first.len,
+    } else if (STREQUAL(key, key_len, "no-column-limit")
+        && first && !second) {
+        ok = csane_policy_add_regex(&policy->no_columns, first, first_len,
                                     NULL, 0, NULL, 0, 0);
-    } else if (STREQUAL(key.data, key.len, "column-limit") && first.data && !second.data
-               && csane_number(first.data, &columns)) {
+    } else if (STREQUAL(key, key_len, "column-limit") && first && !second
+               && csane_number(first, first_len, &columns)) {
         policy->default_columns = columns;
         ok = true;
-    } else if (STREQUAL(key.data, key.len, "columns")
-               && first.data && second.data && !extra.data
-               && csane_number(second.data, &columns)) {
-        ok = csane_policy_add_regex(&policy->column_overrides, first.data, first.len,
+    } else if (STREQUAL(key, key_len, "columns")
+               && first && second && !extra
+               && csane_number(second, second_len, &columns)) {
+        ok = csane_policy_add_regex(&policy->column_overrides, first, first_len,
                                     NULL, 0, NULL, 0, columns);
-    } else if (STREQUAL(key.data, key.len, "allow-rule")
-               && first.data && second.data && !extra.data
-              
-               && csane_known_rule(first.data, first.len)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data,
-                                    second.len, first.data, first.len,
+    } else if (STREQUAL(key, key_len, "allow-rule")
+               && first && second && !extra
+               && csane_known_rule(first, first_len)) {
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second,
+                                    second_len, first, first_len,
                                     NULL, 0, 0);
-    } else if (STREQUAL(key.data, key.len, "allow-function-rule")
-               && first.data && second.data
-              
-               && extra.data && !fourth.data
-              
-               && csane_known_rule(first.data, first.len)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data,
-                                    second.len, first.data, first.len,
-                                    extra.data, extra.len, 0);
-    } else if (STREQUAL(key.data, key.len, "never-use")
-               && csane_identifier(first.data, first.len)
-               && !second.data) {
-        ok = csane_paths_add(&policy->never_names, first.data, first.len);
-    } else if (STREQUAL(key.data, key.len, "cbase-only")
-               && csane_identifier(first.data, first.len)
-               && !second.data) {
-        ok = csane_paths_add(&policy->cbase_names, first.data, first.len);
-    } else if (STREQUAL(key.data, key.len, "clear-never-use") && !first.data) {
+    } else if (STREQUAL(key, key_len, "allow-function-rule")
+               && first && second && extra && !fourth
+               && csane_known_rule(first, first_len)) {
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second,
+                                    second_len, first, first_len,
+                                    extra, extra_len, 0);
+    } else if (STREQUAL(key, key_len, "never-use")
+               && csane_identifier(first, first_len)
+               && !second) {
+        ok = csane_paths_add(&policy->never_names, first, first_len);
+    } else if (STREQUAL(key, key_len, "cbase-only")
+               && csane_identifier(first, first_len)
+               && !second) {
+        ok = csane_paths_add(&policy->cbase_names, first, first_len);
+    } else if (STREQUAL(key, key_len, "clear-never-use") && !first) {
         csane_paths_free(&policy->never_names);
         ok = true;
-    } else if (STREQUAL(key.data, key.len, "clear-cbase-only") && !first.data) {
+    } else if (STREQUAL(key, key_len, "clear-cbase-only") && !first) {
         csane_paths_free(&policy->cbase_names);
         ok = true;
-    } else if (STREQUAL(key.data, key.len, "never-use-file")
-        && first.data && !second.data) {
-        char *path = csane_config_path(filename, first.data);
+    } else if (STREQUAL(key, key_len, "never-use-file")
+        && first && !second) {
+        char *path = csane_config_path(filename, first);
         ok = csane_load_names(&policy->never_names, path);
         free2(path, (int64)strlen32(path) + 1);
-    } else if (STREQUAL(key.data, key.len, "cbase-only-file")
-        && first.data && !second.data) {
-        char *path = csane_config_path(filename, first.data);
+    } else if (STREQUAL(key, key_len, "cbase-only-file")
+        && first && !second) {
+        char *path = csane_config_path(filename, first);
         ok = csane_load_names(&policy->cbase_names, path);
         free2(path, (int64)strlen32(path) + 1);
-    } else if (STREQUAL(key.data, key.len, "cbase-root")
-        && first.data && !second.data) {
-        char *path = csane_config_path(filename, first.data);
+    } else if (STREQUAL(key, key_len, "cbase-root")
+        && first && !second) {
+        char *path = csane_config_path(filename, first);
         ok = csane_policy_add_root(policy, path);
         free2(path, (int64)strlen32(path) + 1);
     }
     if (!ok) {
         fprintf(stderr, "%s:%d: invalid csanecheck policy directive: %s\n",
-                        filename, lineno, key.data);
+                        filename, lineno, key);
     }
     return ok;
 }
