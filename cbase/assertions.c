@@ -22,7 +22,7 @@ static struct sigaction assert_traps_old_signal_action;
 static bool assert_traps_signal_installed = false;
 
 static noreturn void
-assert_traps_signal_handler(int signal_number) {
+assert_traps_signal_handler(int32 signal_number) {
     (void)signal_number;
     assert_traps_caught = true;
     siglongjmp(assert_traps_env, 1);
@@ -924,7 +924,7 @@ assert_fp_common_kind(int32 kind1, int32 kind2) {
 }
 
 static ullong
-assert_fp_max_ulps(int common_kind) {
+assert_fp_max_ulps(int32 common_kind) {
     if (common_kind == ASSERT_FP_KIND_FLOAT) {
         return (ullong)ASSERT_FLOAT_MAX_ULPS;
     }
@@ -1051,11 +1051,11 @@ assert_double_special_close(double var1, double var2,
 
 static bool
 assert_double_close_ulps(double var1, double var2,
-                         int kind1, int kind2,
+                         int32 kind1, int32 kind2,
                          double *diff_out,
                          ullong *ulps_out,
                          ullong *max_ulps_out) {
-    int common_kind;
+    int32 common_kind;
     bool handled;
     double diff;
     ullong ulps;
@@ -1172,7 +1172,7 @@ a_double_##MODE(char *file, int32 line, char *func,                            \
                 char *name1, char *name2,                                      \
                 char *type1, char *type2,                                      \
                 int32 bits1, int32 bits2,                                      \
-                int kind1, int kind2,                                          \
+                int32 kind1, int32 kind2,                                          \
                 double var1, double var2) {                                    \
     double diff;                                                               \
     ullong ulps;                                                               \
@@ -1354,7 +1354,7 @@ assert_functions_sink(void) {
 #define CBASE_IMPLEMENT
 #include "cbase.h"
 
-int
+int32
 main(void) {
     ASSERT(true);
     ASSERT(!false);
@@ -1405,19 +1405,19 @@ main(void) {
         ASSERT_EQ(a, b);
         ASSERT_NE(a, c);
     } {
-        int a = 1;
-        int b = 1;
+        int32 a = 1;
+        int32 b = 1;
         ASSERT_EQ(a, b);
         ASSERT_LE_VAR(a, b);
         ASSERT_GE_VAR(a, b);
     } {
-        int a = 1;
+        int32 a = 1;
         uint b = 1;
         ASSERT_EQ(a, b);
         ASSERT_LE_VAR(a, b);
         ASSERT_GE_VAR(a, b);
     } {
-        int a = 1;
+        int32 a = 1;
         uint b = 2;
         ASSERT_NE(a, b);
         ASSERT_LT_VAR(a, b);
@@ -1550,7 +1550,7 @@ main(void) {
         void *b = &a;
         ASSERT_NE(a, b);
     } {
-        int array[100];
+        int32 array[100];
         void *a = &array[0];
         void *b = &array[1];
         ASSERT_NE(a, b);
@@ -1600,13 +1600,13 @@ main(void) {
         /* ASSERT_GE_VAR(a, x); */
 
         // uncomment to trigger a non-constant RHS compile error
-        /* int y = 1; */
+        /* int32 y = 1; */
         /* ASSERT_LT(1, y); */
     }
 
 #if OS_UNIX
     {
-        int a = 0;
+        int32 a = 0;
         double b = 1;
         double close_a = 0.1 + 0.2;
         double close_b = 0.3;
