@@ -56,7 +56,7 @@ CG005	cbase/c-guidelines.md	53	55	Naming style	Choose descriptive names proporti
 CG006	cbase/c-guidelines.md	56	57	Naming style	Use i/j/k for ordinary for-loop counters, except enum iteration.	csanecheck_candidate	-	-
 CG007	cbase/c-guidelines.md	58	59	Naming style	Do not name variables error.	csanecheck_candidate	-	-
 CG008	cbase/c-guidelines.md	62	65	for loops	Use canonical int32/int64 loop-counter forms, with uint32 enum iteration exception.	csanecheck_candidate	-	-
-CG009	cbase/c-guidelines.md	69	73	Types	Do not use const qualifiers in function signatures; allow documented data/cast exceptions.	implemented	TYPE-CONST-SIGNATURE	Checks recognized function declarations/definitions; file-level allow-rule exemptions cover exact external ABI signatures.
+CG009	cbase/c-guidelines.md	69	73	Types	Do not use const qualifiers in function signatures except when required by an external API; allow documented data/cast exceptions.	implemented	TYPE-CONST-SIGNATURE	Checks recognized function declarations/definitions; file-level allow-rule exemptions cover exact external API signatures.
 CG010	cbase/c-guidelines.md	74	77	Types	Avoid size_t, ptrdiff_t, and ssize_t except interface casts.	manual	-	Intentionally not enforced by csanecheck.
 CG011	cbase/c-guidelines.md	78	80	Types	Do not use standard fixed-width _t integer types; use project aliases.	implemented	TYPE-STDINT-T	Checks standard int8_t/uint8_t through int64_t/uint64_t spellings in recognized declarations/signatures.
 CG012	cbase/c-guidelines.md	81	83	Types	Avoid legacy short/int/long/long long in favor of int16/int32/int64.	manual	-	Intentionally not enforced by csanecheck.
