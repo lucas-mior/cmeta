@@ -391,6 +391,7 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
     int32 cursor;
     int32 previous = -1;
     bool misaligned = false;
+    bool macro_parameters;
 
     if (!csane_tokens_view(&view, tokens, content)
         || !csane_tokens_balanced(&view)) {
@@ -428,11 +429,13 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
     if (!csane_calls_line_break(file, open, close)) {
         return;
     }
+    macro_parameters = macro
+                       && csane_call_macro_parameters(file, open, content);
     /* Contextual comparisons are sound for self-contained replacements.
      * Names of macros or parameters can change their argument structure. */
     if (!macro
         || (!csane_call_macro_fragments(file, content)
-            && !csane_call_macro_parameters(file, open, content))) {
+            && !macro_parameters)) {
         csane_call_context(file, &view);
     }
     anchor = first;
@@ -471,7 +474,10 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
         }
         cursor = comma + 1;
     }
-    if (misaligned) {
+    /* Parameters in macro replacements can be expanded into arbitrary
+     * argument layouts. Continuation-line indentation is not a reliable
+     * alignment anchor for those calls. */
+    if (misaligned && !macro_parameters) {
         /* The legacy rule emits one issue per call. */
         cursor = content.first;
         previous = -1;
