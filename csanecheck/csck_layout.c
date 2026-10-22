@@ -440,7 +440,8 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
         if (item->kind == CSANE_TOP_TYPE_DECLARATION
             && index >= item->header.first && index < item->header.end) {
             for (parameter_open = csane_tokens_previous(view, index);
-                 parameter_open >= item->header.first;
+                 parameter_open >= item->header.first
+                 && parameter_open >= view->range.first;
                  parameter_open = csane_tokens_previous(view,
                                                         parameter_open)) {
                 int32 declarator_close;

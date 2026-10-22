@@ -30,7 +30,7 @@ class OperatorLayoutTests(unittest.TestCase):
         if require:
             command.append("--require-coverage")
         result = subprocess.run(command, cwd=ROOT, capture_output=True,
-                                text=True, check=False)
+                                text=True, check=False, timeout=5)
         self.assertEqual(DIAGNOSTIC.findall(result.stdout), expected,
                          result.stdout + result.stderr)
         match = LAYOUT.search(result.stdout)
@@ -221,6 +221,15 @@ int32 f(int32 a, int32 b) {
 """, [])
         self.check("""void f(int32 count, int32 values[count * 2]);
 """, ["FMT-MULTIPLY"])
+
+    def test_typedef_pointer_after_preprocessor_branch_finishes(self):
+        self.check("""typedef struct Pattern {
+#if OS_UNIX
+    int32 compiled;
+#endif
+    char *rule_id;
+} Pattern;
+""", [])
 
     def test_type_arguments_casts_and_initializers(self):
         self.check("""void f(va_list args, int32 value) {
