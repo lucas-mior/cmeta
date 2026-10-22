@@ -936,8 +936,10 @@ csane_top_recovered_function_end(CsaneTopLevels *top, CsaneTopItem *item,
     CsaneRegions *regions = top->regions;
     CsaneTokenPath path;
     CsaneTokenView view;
-    TokenRange bounds = {item->body.first,
-                         regions->items[item->owner_region].tokens.end};
+    TokenRange bounds = {
+        item->body.first,
+        regions->items[item->owner_region].tokens.end,
+    };
     int32 close = -1;
 
     if (!csane_top_branch_path(top, owner, bounds, &path)) {
