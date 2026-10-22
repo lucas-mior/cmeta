@@ -1299,6 +1299,11 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
                 int32 dereference = csane_tokens_previous(&view, before);
                 int32 equal = csane_tokens_previous(&view, dereference);
 
+                while (equal >= view.range.first
+                       && csane_layout_cast(file, &view, equal)) {
+                    int32 open = csane_tokens_match(&view, equal);
+                    equal = csane_tokens_previous(&view, open);
+                }
                 allowed = dereference >= view.range.first
                           && equal >= view.range.first
                           && TOKEN_IS(&file->tokens->tokens[dereference], "*")
