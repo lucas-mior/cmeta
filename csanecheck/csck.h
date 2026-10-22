@@ -23,9 +23,9 @@ typedef struct CsanePattern {
     regex_t compiled;
     regex_t function_compiled;
 #endif
-    char *text;
-    char *function_text;
     char *rule_id;
+    int32 rule_id_len;
+    bool has_function;
     int32 columns;
 } CsanePattern;
 
@@ -159,7 +159,8 @@ typedef struct CsaneRule {
 bool csane_policy_init(CsanePolicy *);
 void csane_policy_free(CsanePolicy *);
 bool csane_policy_config(CsanePolicy *, char *);
-bool csane_policy_add_regex(CsanePatterns *, char *, char *, char *, int32);
+bool csane_policy_add_regex(CsanePatterns *, char *, int32, char *, int32,
+                            char *, int32, int32);
 bool csane_policy_add_root(CsanePolicy *, char *);
 bool csane_policy_project(CsanePolicy *, char *);
 bool csane_policy_source(CsanePolicy *, char *);
