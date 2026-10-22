@@ -75,6 +75,16 @@ int32 f(S *s) {
 }
 """, [])
 
+    def test_multiline_pointer_return_is_not_unary(self):
+        self.check("""char **
+make_pointer(char **pointer) {
+    return pointer;
+}
+char dereference(char **pointer) {
+    return ** pointer;
+}
+""", ["FMT-UNARY-SPACING"])
+
     def test_pointer_declarator_spacing(self):
         self.check("""void f(int32* a, int32 * b) {
     int32 (* function)(int32) = 0;
