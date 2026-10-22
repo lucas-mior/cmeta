@@ -55,19 +55,47 @@ cbase/util.c	RULE:LAYOUT	ambiguous-operator-context	uchar *p;	1
 cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	CAT(ENUM_PREFIX_, alias_free)(char *str) {	1
 cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	CAT(ENUM_PREFIX_, str_free)(char *str) {	1
 cbase/xenums.c	RULE:LAYOUT	ambiguous-operator-context	XENUMS_LINKAGE enum ENUM_NAME CAT(ENUM_PREFIX_, parse)(char *, int32);	1
+csanecheck/csck_bounds.c	RULE:LAYOUT	ambiguous-operator-context	Token *index;	1
+csanecheck/csck_calls.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	2
+csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *alternative;	1
+csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *body;	2
+csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *stmt;	1
+csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *sw;	1
+csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+csanecheck/csck_coverage.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
+csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	CsaneRegions *r;	1
+csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
 csanecheck/csck_files.c	RULE:CONTROL	control-structure-unrecognized	csane_discovered_directory(char *path) {	1
 csanecheck/csck_files.c	STRUCTURE:statement	conditional construct could not be merged	csane_discovered_directory(char *path) {	1
 csanecheck/csck_files.c	STRUCTURE:top-level	conditional construct could not be merged	}	2
+csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *left;	2
+csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *op;	2
+csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *part;	1
+csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *right;	2
+csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *tail;	1
+csanecheck/csck_regions.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorBranch *branch;	1
+csanecheck/csck_regions.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *group;	1
+csanecheck/csck_regions.c	RULE:LAYOUT	ambiguous-operator-context	CsaneSourceRegion *current;	1
 csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *directive;	1
-csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	2
+csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *name;	1
+csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneRegions *regions;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *item;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *owner;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatements *statements;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *last;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *start;	1
+csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	TokenRange *last;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *group;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	CsaneTopItem *enclosing;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	CsaneTopItem *item;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	CsaneTopLevels *top;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	Token *last;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	Token *start;	1
+csanecheck/csck_toplevel.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
 meta_decl.c	RULE:LAYOUT	ambiguous-operator-context	CRecord *record;	1
 meta_decl.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 meta_expr.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
