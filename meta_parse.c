@@ -105,9 +105,12 @@ unit_function_body(UnitCursor *c, int32 declaration) {
     int32 param;
     int32 open = decl->body.first;
     int32 close = decl->body.end - 1;
-    StmtCursor stmts = {.ast = ast, .pp = c->pp,
-                        .range = {open + 1, close},
-                        .pos = open + 1};
+    StmtCursor stmts = {
+        .ast = ast,
+        .pp = c->pp,
+        .range = {open + 1, close},
+        .pos = open + 1,
+    };
     int32 node = stmt_new(&stmts, C_STMT_COMPOUND, open);
     ast->statements[node].tokens = decl->body;
     c_ast_scope_push(ast);
