@@ -189,7 +189,8 @@ csane_layout_type_prefix(CsaneTokenView *view, int32 first,
         Token *part = &tokens->tokens[i];
         if (!csane_layout_qualifier(part) && !TOKEN_IS(part, "signed")
             && !TOKEN_IS(part, "unsigned") && !TOKEN_IS(part, "long")
-            && !TOKEN_IS(part, "short")) {
+            && !TOKEN_IS(part, "short")
+            && csane_name_kind(part) != CSANE_NAME_MACRO) {
             return false;
         }
         i = csane_tokens_next(view, i);
