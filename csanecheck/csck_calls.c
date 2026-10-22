@@ -92,15 +92,26 @@ csane_call_format(CsaneFile *file, TokenRange range) {
     for (int32 i = range.first; i < range.end; i += 1) {
         Token *token = &file->tokens->tokens[i];
         int32 quote;
+        int32 end;
 
         if (!csane_call_string(token)) {
             continue;
         }
         quote = literal_quote_index(token->text, token->len, 0);
-        for (int32 j = quote + 1; j < token->len; j += 1) {
+        end = quote + 1;
+        while (end < token->len) {
+            if (token->text[end] == '\\') {
+                end += 2;
+            } else if (token->text[end] == '"') {
+                break;
+            } else {
+                end += 1;
+            }
+        }
+        for (int32 j = quote + 1; j < end; j += 1) {
             if (token->text[j] == '\\') {
                 j += 1;
-            } else if (token->text[j] == '%') {
+            } else if (token->text[j] == '%' && j + 1 < end) {
                 return true;
             }
         }
