@@ -229,7 +229,7 @@ csane_policy_candidate(char *path) {
             name = p + 1;
         }
     }
-    return csane_source_allowed(name);
+    return csane_source_allowed(name, strlen32(name));
 }
 
 static bool
@@ -411,12 +411,12 @@ csane_run(int32 argc, char **argv) {
         if (csane_value_option(arg)) {
             char *path = argv[i + 1];
             if (!strcmp(arg, "--root")) {
-                good = csane_collect_root(&options.files, path,
+                good = csane_collect_root(&options.files, path, strlen32(path),
                                           options.max_depth,
                                           &options.source_roots,
                                           &options.skip_dirs);
             } else if (!strcmp(arg, "--file")) {
-                good = csane_collect_explicit(&options.files, path);
+                good = csane_collect_explicit(&options.files, path, strlen32(path));
             } else if (!strcmp(arg, "--file-list")) {
                 good = csane_collect_file_list(&options.files, path);
             }
@@ -424,12 +424,12 @@ csane_run(int32 argc, char **argv) {
         } else if (arg[0] != '-') {
             struct stat st;
             if ((stat(arg, &st) == 0) && S_ISDIR(st.st_mode)) {
-                good = csane_collect_root(&options.files, arg,
+                good = csane_collect_root(&options.files, arg, strlen32(arg),
                                           options.max_depth,
                                           &options.source_roots,
                                           &options.skip_dirs);
             } else {
-                good = csane_collect_explicit(&options.files, arg);
+                good = csane_collect_explicit(&options.files, arg, strlen32(arg));
             }
         }
         if (!good) {
@@ -438,7 +438,7 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (!had_inputs
-        && !csane_collect_root(&options.files, ".", options.max_depth,
+        && !csane_collect_root(&options.files, STRLIT("."), options.max_depth,
                                &options.source_roots,
                                &options.skip_dirs)) {
         exit_status = 2;

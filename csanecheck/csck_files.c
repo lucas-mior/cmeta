@@ -8,9 +8,8 @@
 #include "csck.h"
 
 static char *
-csane_join(char *directory, char *name, int32 *path_len) {
-    int32 left = strlen32(directory);
-    int32 right = strlen32(name);
+csane_join(char *directory, int32 left, char *name, int32 right,
+           int32 *path_len) {
     bool slash = (left > 0) && (directory[left - 1] != '/');
     char *path = malloc2((int64)left + right + slash + 1);
     memcpy64(path, directory, left);
@@ -70,17 +69,17 @@ csane_paths_free(CsanePaths *paths) {
  * .meta.h files regardless of how a source reaches a checker.
  */
 bool
-csane_source_allowed(char *path) {
+csane_source_allowed(char *path, int32 path_len) {
     char *name = path;
     int32 len;
 
-    for (char *p = path; *p; p += 1) {
-        if (*p == '/') {
-            name = p + 1;
+    for (int32 i = 0; i < path_len; i += 1) {
+        if (path[i] == '/') {
+            name = path + i + 1;
         }
     }
-    len = strlen32(name);
-    if ((len >= 7) && !strcmp(name + len - 7, ".meta.h")) {
+    len = path_len - (int32)(name - path);
+    if (ENDS_WITH(name, len, ".meta.h")) {
         return false;
     }
     if ((len < 3) || (name[len - 2] != '.')
@@ -88,9 +87,9 @@ csane_source_allowed(char *path) {
             && name[len - 1] != 'h' && name[len - 1] != 'H')) {
         return false;
     }
-    for (char *p = path; p < name; p += 1) {
-        if ((p == path || p[-1] == '/') && p[0] == 's'
-            && p[1] == 't' && p[2] == 'c' && p[3] == '/') {
+    for (int32 i = 0; i + 4 <= path_len && path + i < name; i += 1) {
+        if ((i == 0 || path[i - 1] == '/')
+            && BEGINS_WITH(path + i, path_len - i, "stc/")) {
             return false;
         }
     }
@@ -98,8 +97,7 @@ csane_source_allowed(char *path) {
 }
 
 static bool
-csane_path_has(CsanePaths *paths, char *name) {
-    int32 name_len = strlen32(name);
+csane_path_has(CsanePaths *paths, char *name, int32 name_len) {
     for (int32 i = 0; i < strflex_list_len(&paths->strings); i += 1) {
         StrFlex *entry = paths->strings.items[i];
         if (entry->len == name_len
@@ -157,8 +155,8 @@ csane_discovered_directory(char *path) {
  * are not followed: that avoids cycles and repeated files under aliases.
  */
 static bool
-csane_walk(CsanePaths *paths, char *directory, int32 depth,
-           int32 max_depth, CsanePaths *skip_dirs) {
+csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
+           int32 depth, int32 max_depth, CsanePaths *skip_dirs) {
     DirEntry *entries = NULL;
     int32 count = get_directory_entries(directory, &entries);
     bool ok = true;
@@ -170,14 +168,16 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
     }
     for (int32 i = 0; i < count; i += 1) {
         char *name = entries[i].name;
+        int32 name_len = entries[i].name_len;
         char *path;
         int32 path_len;
         struct stat st;
 
-        if (!strcmp(name, ".") || !strcmp(name, "..")) {
+        if (STREQUAL(name, name_len, ".")
+            || STREQUAL(name, name_len, "..")) {
             continue;
         }
-        path = csane_join(directory, name, &path_len);
+        path = csane_join(directory, directory_len, name, name_len, &path_len);
 #if OS_WINDOWS
         if (stat(path, &st) != 0) {
 #else
@@ -186,14 +186,14 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
             fprintf(stderr, "%s: cannot stat: %s\n", path, strerror(errno));
             ok = false;
         } else if (S_ISDIR(st.st_mode)) {
-            if (!csane_path_has(skip_dirs, name)
+            if (!csane_path_has(skip_dirs, name, name_len)
                 && ((max_depth < 0) || (depth < max_depth))
-                && !csane_walk(paths, path, depth + 1, max_depth,
+                && !csane_walk(paths, path, path_len, depth + 1, max_depth,
                                skip_dirs)) {
                 ok = false;
             }
         } else if ((S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))
-                   && csane_source_allowed(name)
+                   && csane_source_allowed(name, name_len)
                    && !csane_paths_add(paths, path, path_len)) {
             ok = false;
         }
@@ -204,7 +204,7 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
 }
 
 bool
-csane_collect_explicit(CsanePaths *paths, char *path) {
+csane_collect_explicit(CsanePaths *paths, char *path, int32 path_len) {
     struct stat st;
     if (stat(path, &st) != 0) {
         fprintf(stderr, "%s: cannot stat: %s\n", path, strerror(errno));
@@ -214,11 +214,12 @@ csane_collect_explicit(CsanePaths *paths, char *path) {
         fprintf(stderr, "%s: not a regular file\n", path);
         return false;
     }
-    return csane_paths_add(paths, path, strlen32(path));
+    return csane_paths_add(paths, path, path_len);
 }
 
 bool
-csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
+csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
+                   int32 max_depth,
                    CsanePaths *source_roots, CsanePaths *skip_dirs) {
     struct stat st;
     bool ok = true;
@@ -233,14 +234,14 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
         return false;
     }
     /* Ordinary files directly in the project root. */
-    if (!csane_walk(paths, root, 0, 0, skip_dirs)) {
+    if (!csane_walk(paths, root, root_len, 0, 0, skip_dirs)) {
         ok = false;
     }
     for (int32 i = 0; i < strflex_list_len(&source_roots->strings); i += 1) {
-        char *path = csane_join(root, source_roots->strings.items[i]->data,
-                                &path_len);
+        char *path = csane_join(root, root_len, source_roots->strings.items[i]->data,
+                                source_roots->strings.items[i]->len, &path_len);
         if ((max_depth != 0) && csane_discovered_directory(path)) {
-            if (!csane_walk(paths, path, 0, max_depth - (max_depth > 0),
+            if (!csane_walk(paths, path, path_len, 0, max_depth - (max_depth > 0),
                             skip_dirs)) {
                 ok = false;
             }
@@ -248,9 +249,9 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
         free2(path, (int64)path_len + 1);
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
-    ryu = csane_join(root, "cbase/ryu", &ryu_len);
+    ryu = csane_join(root, root_len, STRLIT("cbase/ryu"), &ryu_len);
     if (csane_discovered_directory(ryu)) {
-        if (!csane_walk(paths, ryu, 0, -1, skip_dirs)) {
+        if (!csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;
         }
     }
@@ -258,11 +259,12 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
     /* The cbase repository can also be checked directly (with the policy
      * lists in its root rather than under a cbase subdirectory).
      */
-    standalone = csane_join(root, "functions_never_use.txt", &standalone_len);
+    standalone = csane_join(root, root_len, STRLIT("functions_never_use.txt"),
+                            &standalone_len);
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
-        ryu = csane_join(root, "ryu", &ryu_len);
+        ryu = csane_join(root, root_len, STRLIT("ryu"), &ryu_len);
         if (csane_discovered_directory(ryu)
-            && !csane_walk(paths, ryu, 0, -1, skip_dirs)) {
+            && !csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;
         }
         free2(ryu, (int64)ryu_len + 1);
@@ -292,7 +294,7 @@ csane_collect_file_list(CsanePaths *paths, char *filename) {
             end -= 1;
         }
         text[end] = '\0';
-        if ((end > start) && !csane_collect_explicit(paths, text + start)) {
+        if ((end > start) && !csane_collect_explicit(paths, text + start, end - start)) {
             ok = false;
         }
         start = i + 1;
