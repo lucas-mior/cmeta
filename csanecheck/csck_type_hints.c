@@ -134,8 +134,9 @@ csane_hint_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
 
 void
 csane_type_hints_init(CsaneTypeHints *hints, CsaneRegions *regions) {
-    *hints = (CsaneTypeHints){.tokens = regions->tokens};
     Tokenization *tokens = regions->tokens;
+
+    *hints = (CsaneTypeHints){.tokens = regions->tokens};
     for (int32 i = 0; i < tokens->token_count; i += 1) {
         Token *token = &tokens->tokens[i];
         int32 region;

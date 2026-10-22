@@ -21,10 +21,12 @@ typedef struct CsaneTopStream {
 
 static bool
 csane_top_is(CsaneTopStream *stream, int32 pos, char *name) {
+    Token *token;
+
     if (pos < 0 || pos >= stream->count) {
         return false;
     }
-    Token *token = &stream->top->regions->tokens->tokens[stream->indices[pos]];
+    token = &stream->top->regions->tokens->tokens[stream->indices[pos]];
     return TOKEN_IS(token, name);
 }
 
@@ -42,19 +44,24 @@ csane_top_macro_at(CsaneTopStream *stream, int32 pos) {
 static void
 csane_top_append(CsaneTopStream *stream, enum CsaneTopKind kind,
                  int32 first, int32 end, int32 brace, int32 name) {
+    CsaneTopLevels *top;
+    Token *start;
+    Token *last;
+    CsaneTopItem *item;
+
     if (first >= end) {
         return;
     }
-    CsaneTopLevels *top = stream->top;
+    top = stream->top;
     if (top->count == top->capacity) {
         int32 next = top->capacity ? top->capacity*2 : 64;
         top->items = realloc2(top->items, top->capacity, next,
                               SIZEOF(*top->items));
         top->capacity = next;
     }
-    Token *start = csane_top_token(stream, first);
-    Token *last = csane_top_token(stream, end - 1);
-    CsaneTopItem *item = &top->items[top->count];
+    start = csane_top_token(stream, first);
+    last = csane_top_token(stream, end - 1);
+    item = &top->items[top->count];
     *item = (CsaneTopItem){
         .kind = kind,
         .source = {start->offset, last->offset + last->len},
@@ -160,13 +167,15 @@ csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
  * damaged nesting above it. Matches outside the damaged span survive. */
 static void
 csane_top_match(CsaneTopStream *stream) {
+    int32 size;
+    int32 depth = 0;
+
     if (stream->count == 0) {
         return;
     }
-    int32 size = stream->count*SIZEOF(int32);
+    size = stream->count*SIZEOF(int32);
     stream->matches = malloc2(size);
     stream->stack = malloc2(size);
-    int32 depth = 0;
     for (int32 i = 0; i < stream->count; i += 1) {
         stream->matches[i] = -1;
         if (csane_top_open(stream, i)) {
@@ -174,6 +183,8 @@ csane_top_match(CsaneTopStream *stream) {
             depth += 1;
         } else if (csane_top_close(stream, i)) {
             int32 found = depth - 1;
+            int32 open;
+
             while (found >= 0
                    && !csane_top_pair(stream, stream->stack[found], i)) {
                 found -= 1;
@@ -182,7 +193,7 @@ csane_top_match(CsaneTopStream *stream) {
                 depth = 0;
                 continue;
             }
-            int32 open = stream->stack[found];
+            open = stream->stack[found];
             stream->matches[open] = i;
             stream->matches[i] = open;
             depth = found;
@@ -207,10 +218,12 @@ csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
 
 static bool
 csane_top_attribute(CsaneTopStream *stream, int32 pos) {
+    Token *token;
+
     if (pos < 0 || pos >= stream->count) {
         return false;
     }
-    Token *token = csane_top_token(stream, pos);
+    token = csane_top_token(stream, pos);
     return csane_top_is(stream, pos, "__attribute__")
            || csane_top_is(stream, pos, "__attribute")
            || csane_top_is(stream, pos, "__declspec")
@@ -240,6 +253,9 @@ csane_top_trailing_attribute(CsaneTopStream *stream, int32 first,
  * supported: its name is the CAT macro, not an expanded identifier. */
 static int32
 csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
+    int32 open;
+    int32 name;
+
     /* Strip a mixture of attribute calls and object-like attributes in
      * reverse order. They may follow each other in either order. */
     while (end > first) {
@@ -260,11 +276,11 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
     if (first >= end || !csane_top_is(stream, end - 1, ")")) {
         return -1;
     }
-    int32 open = stream->matches[end - 1];
+    open = stream->matches[end - 1];
     if (open <= first) {
         return -1;
     }
-    int32 name = open - 1;
+    name = open - 1;
     if (csane_top_token(stream, name)->kind == TOKEN_IDENT) {
         return name;
     }
@@ -328,11 +344,13 @@ csane_top_type(CsaneTopStream *stream, int32 first, int32 end) {
 static bool
 csane_top_macro_statement(CsaneTopStream *stream, int32 first,
                           int32 end) {
+    int32 close;
+
     if (!csane_token_macro_name(csane_top_token(stream, first))
         || !csane_top_is(stream, first + 1, "(")) {
         return false;
     }
-    int32 close = stream->matches[first + 1];
+    close = stream->matches[first + 1];
     return close >= first + 2
            && (close + 1 == end
                || (close + 2 == end && csane_top_is(stream, end - 1, ";")));
@@ -378,11 +396,13 @@ csane_top_new_line(CsaneTopStream *stream, int32 a, int32 b) {
 static bool
 csane_top_macro_boundary(CsaneTopStream *stream, int32 first,
                          int32 close) {
+    int32 next;
+
     if (stream->matches[first + 1] != close
         || !csane_token_macro_name(csane_top_token(stream, first))) {
         return false;
     }
-    int32 next = close + 1;
+    next = close + 1;
     if (next >= stream->count) {
         return true;
     }
@@ -608,13 +628,15 @@ csane_top_parameters(CsaneTopStream *stream, CsaneTopItem *item) {
     CsaneTokenView view = csane_tokens_full(tokens);
     for (int32 i = item->header.first; i < limit; i += 1) {
         Token *token = &tokens->tokens[i];
+        int32 close;
+
         if (token->offset >= source.start) {
             break;
         }
         if (!TOKEN_IS(token, "(")) {
             continue;
         }
-        int32 close = csane_tokens_match(&view, i);
+        close = csane_tokens_match(&view, i);
         if (close >= 0 && close < limit
             && tokens->tokens[close].offset >= source.end) {
             return true;
@@ -668,6 +690,8 @@ csane_top_macro_fragment_kind(enum CsaneTopKind kind) {
 static bool
 csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
                          enum CsaneTopKind kind, bool terminated) {
+    int32 identifiers = 0;
+
     if (first >= end) {
         return kind == CSANE_TOP_PARAMETER_FRAGMENT;
     }
@@ -680,7 +704,6 @@ csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
         || csane_top_is(stream, first, "case")) {
         return false;
     }
-    int32 identifiers = 0;
     for (int32 i = first; i < end; i += 1) {
         if (csane_top_token(stream, i)->kind == TOKEN_IDENT) {
             identifiers += 1;
@@ -722,6 +745,11 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
         int32 end = stream->count;
         bool terminated = false;
         int32 scan = first;
+        int32 content_first;
+        int32 content_end;
+        bool complete;
+        enum CsaneTopKind result;
+
         if (kind == CSANE_TOP_PARAMETER_FRAGMENT
             && csane_top_is(stream, scan, ",")) {
             scan += 1;
@@ -742,14 +770,13 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
                 break;
             }
         }
-        int32 content_first = begin;
-        int32 content_end = terminated ? end - 1 : end;
+        content_first = begin;
+        content_end = terminated ? end - 1 : end;
         if (kind == CSANE_TOP_PARAMETER_FRAGMENT
             && csane_top_is(stream, content_first, ",")) {
             content_first += 1;
         }
-        bool complete = kind != CSANE_TOP_MEMBER_DECLARATION || terminated;
-        enum CsaneTopKind result;
+        complete = kind != CSANE_TOP_MEMBER_DECLARATION || terminated;
         if (!terminated
             && csane_top_macro_fragment(stream, content_first, content_end)) {
             result = csane_top_macro_fragment_kind(kind);
@@ -768,9 +795,11 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
 static void
 csane_top_owner(CsaneTopLevels *top, int32 owner) {
     CsaneTopStream stream = {.top = top, .owner = owner};
+    CsaneTopItem *enclosing;
+
     csane_top_collect(&stream);
     csane_top_match(&stream);
-    CsaneTopItem *enclosing = csane_top_enclosing(&stream);
+    enclosing = csane_top_enclosing(&stream);
     if (enclosing == NULL) {
         csane_top_scan(&stream);
     } else if (enclosing->kind == CSANE_TOP_FUNCTION_DEFINITION
@@ -820,19 +849,24 @@ csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
     CsaneRegions *regions = top->regions;
     CsaneSourceRegion *region = &regions->items[item->owner_region];
     CPreprocessorAnalysis *pp = regions->preprocessor;
+    CPreprocessorGroup *group;
+    int32 directive;
+    SourceRange source;
+    char *text;
+
     if (region->kind != CSANE_REGION_CONDITIONAL_BRANCH
         || region->branch_index < 0 || region->group_index < 0
         || !region->complete) {
         return false;
     }
-    CPreprocessorGroup *group = &pp->groups[region->group_index];
+    group = &pp->groups[region->group_index];
     if (region->branch_index != group->first_branch
         || group->endif_directive < 0) {
         return false;
     }
-    int32 directive = pp->branches[group->first_branch].directive_index;
-    SourceRange source = pp->directives[directive].source;
-    char *text = regions->tokens->text + source.start;
+    directive = pp->branches[group->first_branch].directive_index;
+    source = pp->directives[directive].source;
+    text = regions->tokens->text + source.start;
     return memmem64(text, source.end - source.start,
                     "__cplusplus", strlen32("__cplusplus")) != NULL;
 }
@@ -1011,11 +1045,14 @@ csane_top_linkage_pairs(CsaneTopLevels *top) {
     int32 pending = -1;
     for (int32 i = 0; i < top->count; i += 1) {
         CsaneTopItem *item = &top->items[i];
+        Token *token;
+        bool guarded;
+
         if (item->kind != CSANE_TOP_LINKAGE_FRAGMENT) {
             continue;
         }
-        Token *token = &top->regions->tokens->tokens[item->tokens.first];
-        bool guarded = csane_top_cpp_guard(top, item);
+        token = &top->regions->tokens->tokens[item->tokens.first];
+        guarded = csane_top_cpp_guard(top, item);
         if (TOKEN_IS(token, "extern")) {
             if (pending >= 0) {
                 top->items[pending].kind = CSANE_TOP_OPAQUE;

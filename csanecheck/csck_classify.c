@@ -31,6 +31,9 @@ csane_primitive(Token *token) {
 
 enum CsaneNameKind
 csane_name_kind(Token *token) {
+    bool upper = false;
+    bool lower = false;
+
     if (!token || token->kind != TOKEN_IDENT || token->len <= 0) {
         return CSANE_NAME_OTHER;
     }
@@ -41,8 +44,6 @@ csane_name_kind(Token *token) {
     if (csane_class_word(token, "error")) {
         return CSANE_NAME_MACRO;
     }
-    bool upper = false;
-    bool lower = false;
     for (int32 i = 0; i < token->len; i += 1) {
         char c = token->text[i];
         upper |= c >= 'A' && c <= 'Z';
@@ -94,11 +95,13 @@ csane_qualifier(Token *token) {
 
 enum CsaneLocalKind
 csane_classify_statement(Tokenization *tokens, TokenRange range) {
+    int32 i;
+
     if (!tokens || range.first < 0 || range.end > tokens->token_count
         || range.first >= range.end) {
         return CSANE_LOCAL_UNKNOWN;
     }
-    int32 i = csane_significant(tokens, range, range.first);
+    i = csane_significant(tokens, range, range.first);
     while (i < range.end && csane_qualifier(&tokens->tokens[i])) {
         i = csane_significant(tokens, range, i + 1);
     }
@@ -118,16 +121,20 @@ csane_classify_statement(Tokenization *tokens, TokenRange range) {
 enum CsaneLocalKind
 csane_classify_invocation(Tokenization *tokens, TokenRange range,
                           int32 name) {
+    int32 next;
+    enum CsaneNameKind kind;
+    int32 first;
+
     if (!tokens || range.first < 0 || range.end > tokens->token_count
         || name < range.first || name >= range.end
         || tokens->tokens[name].kind != TOKEN_IDENT) {
         return CSANE_LOCAL_UNKNOWN;
     }
-    int32 next = csane_significant(tokens, range, name + 1);
+    next = csane_significant(tokens, range, name + 1);
     if (next >= range.end || !TOKEN_IS(&tokens->tokens[next], "(")) {
         return CSANE_LOCAL_UNKNOWN;
     }
-    enum CsaneNameKind kind = csane_name_kind(&tokens->tokens[name]);
+    kind = csane_name_kind(&tokens->tokens[name]);
     if (kind == CSANE_NAME_MACRO) {
         return CSANE_LOCAL_MACRO_INVOCATION;
     }
@@ -135,7 +142,7 @@ csane_classify_invocation(Tokenization *tokens, TokenRange range,
         return CSANE_LOCAL_UNKNOWN;
     }
     /* A declaration header is not a call expression. */
-    int32 first = csane_significant(tokens, range, range.first);
+    first = csane_significant(tokens, range, range.first);
     if (first < name) {
         int32 preceding = first;
         while (preceding < name) {

@@ -256,8 +256,9 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
 static void
 csane_stmt_match(CsaneStatementStream *stream) {
     int32 *stack = malloc2((int64)stream->count*SIZEOF(*stack));
-    stream->matches = malloc2((int64)stream->count*SIZEOF(*stream->matches));
     int32 depth = 0;
+
+    stream->matches = malloc2((int64)stream->count*SIZEOF(*stream->matches));
     for (int32 i = 0; i < stream->count; i += 1) {
         stream->matches[i] = -1;
         if (csane_stmt_open(stream, i)) {
@@ -265,6 +266,8 @@ csane_stmt_match(CsaneStatementStream *stream) {
             depth += 1;
         } else if (csane_stmt_close(stream, i)) {
             int32 found = depth - 1;
+            int32 open;
+
             while (found >= 0 && !csane_stmt_pair(stream, stack[found], i)) {
                 found -= 1;
             }
@@ -272,7 +275,7 @@ csane_stmt_match(CsaneStatementStream *stream) {
                 depth = 0;
                 continue;
             }
-            int32 open = stack[found];
+            open = stack[found];
             stream->matches[open] = i;
             stream->matches[i] = open;
             depth = found;
@@ -376,6 +379,9 @@ csane_stmt_children(CsaneStatementStream *stream, int32 first, int32 end,
 static int32
 csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                  int32 parent, int32 *result, int32 depth) {
+    int32 macro_end;
+    enum CsaneStatementKind control;
+
     *result = -1;
     if (first >= limit) {
         return limit;
@@ -385,7 +391,7 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     limit, parent, first);
         return limit;
     }
-    int32 macro_end = csane_stmt_macro_fragment_end(stream, first, limit);
+    macro_end = csane_stmt_macro_fragment_end(stream, first, limit);
     if (macro_end > first
         && (macro_end == limit
             || csane_stmt_is(stream, macro_end, "}")
@@ -436,9 +442,13 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     first + 2, parent, first + 2);
         return first + 2;
     }
-    enum CsaneStatementKind control = csane_stmt_control(stream, first);
+    control = csane_stmt_control(stream, first);
     if (control != CSANE_STMT_SIMPLE) {
         int32 header_end = first + 1;
+        int32 id;
+        int32 body = -1;
+        int32 end;
+
         if (control != CSANE_STMT_ELSE && control != CSANE_STMT_DO) {
             if (!csane_stmt_is(stream, header_end, "(")
                 || stream->matches[header_end] < header_end) {
@@ -459,11 +469,10 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
             }
             header_end = stream->matches[header_end] + 1;
         }
-        int32 id = csane_stmt_append(stream, control, first, header_end,
-                                     parent, header_end);
-        int32 body = -1;
-        int32 end = csane_stmt_parse(stream, header_end, limit, id,
-                                     &body, depth + 1);
+        id = csane_stmt_append(stream, control, first, header_end,
+                               parent, header_end);
+        end = csane_stmt_parse(stream, header_end, limit, id,
+                               &body, depth + 1);
         /* realloc2 during recursive parsing can move the item array. */
         if (id >= 0) {
             stream->statements->items[id].body = body;
@@ -687,6 +696,8 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
 
 bool
 csane_statements_init(CsaneStatements *statements, CsaneTopLevels *top) {
+    CsaneRegions *regions;
+
     if (statements == NULL) {
         return false;
     }
@@ -695,18 +706,21 @@ csane_statements_init(CsaneStatements *statements, CsaneTopLevels *top) {
         return false;
     }
     statements->toplevel = top;
+    regions = top->regions;
     for (int32 i = 0; i < top->count; i += 1) {
+        SourceRange body = top->items[i].source;
+
         if (top->items[i].kind != CSANE_TOP_FUNCTION_DEFINITION) {
             continue;
         }
         csane_stmt_stream(statements, i, top->items[i].owner_region);
-        CsaneRegions *regions = top->regions;
         for (int32 r = 0; r < regions->count; r += 1) {
+            SourceRange span;
+
             if (regions->items[r].kind != CSANE_REGION_CONDITIONAL_BRANCH) {
                 continue;
             }
-            SourceRange span = regions->items[r].source;
-            SourceRange body = top->items[i].source;
+            span = regions->items[r].source;
             if (span.start >= body.start && span.end <= body.end) {
                 csane_stmt_stream(statements, i, r);
             }
@@ -728,15 +742,18 @@ csane_statements_free(CsaneStatements *statements) {
 int32
 csane_statements_at_token(CsaneStatements *statements, int32 function,
                           int32 token) {
+    Tokenization *tokens;
+    int32 offset;
+    int32 best = -1;
+
     if (statements == NULL || statements->toplevel == NULL) {
         return -1;
     }
-    Tokenization *tokens = statements->toplevel->regions->tokens;
+    tokens = statements->toplevel->regions->tokens;
     if (token < 0 || token >= tokens->token_count) {
         return -1;
     }
-    int32 offset = tokens->tokens[token].offset;
-    int32 best = -1;
+    offset = tokens->tokens[token].offset;
     for (int32 i = 0; i < statements->count; i += 1) {
         CsaneStatement *item = &statements->items[i];
         if (item->function != function || offset < item->source.start
