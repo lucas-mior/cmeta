@@ -255,7 +255,7 @@ csane_bounds_at(CsaneFile *file, int32 first) {
         return;
     }
     csane_rule_issue(file, tokens->tokens[first].offset,
-                     "STYLE-ASSERT-BOUNDS",
+                     STRLIT("STYLE-ASSERT-BOUNDS"),
                      "use ASSERT_BETWEEN for adjacent bounds");
 }
 

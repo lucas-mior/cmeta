@@ -26,10 +26,11 @@ csane_fixture_path(char *path, int32 len) {
 }
 
 void
-csane_rule_issue(CsaneFile *file, int32 offset, char *code, char *message) {
+csane_rule_issue(CsaneFile *file, int32 offset,
+                 char *code, int32 code_len, char *message) {
     SourceLocation loc;
     if (csane_policy_rule_allowed(file->policy, file->path, file->path_len,
-                                  code, NULL)) {
+                                  code, code_len, NULL)) {
         return;
     }
     if (offset < 0) {
@@ -39,8 +40,8 @@ csane_rule_issue(CsaneFile *file, int32 offset, char *code, char *message) {
         offset = file->tokens->text_len;
     }
     loc = tokenization_source_location(file->tokens, offset);
-    printf("%s:%d:%d: error[%s]: %s\n",
-           file->path, loc.line, loc.column + 1, code, message);
+    printf("%s:%d:%d: error[%.*s]: %s\n",
+           file->path, loc.line, loc.column + 1, code_len, code, message);
     file->violations += 1;
     return;
 }
@@ -85,21 +86,21 @@ csane_rule_source(CsaneFile *file) {
             && (end - start > file->column_limit)
             && (csane_columns(text + start, end - start)
                 > file->column_limit)) {
-            csane_rule_issue(file, start, "SRC-COLUMNS",
+            csane_rule_issue(file, start, STRLIT("SRC-COLUMNS"),
                              "line exceeds allowed column limit");
         }
         if (tab >= 0) {
-            csane_rule_issue(file, tab, "SRC-TABS",
+            csane_rule_issue(file, tab, STRLIT("SRC-TABS"),
                              "tab character is forbidden");
         }
         if (trailing < end) {
-            csane_rule_issue(file, trailing, "SRC-TRAILING",
+            csane_rule_issue(file, trailing, STRLIT("SRC-TRAILING"),
                              "trailing whitespace");
         }
         start = end + (end < len);
     }
     if (file->is_ryu && (len > 0) && text[len - 1] != '\n') {
-        csane_rule_issue(file, len - 1, "RYU-FINAL-NEWLINE",
+        csane_rule_issue(file, len - 1, STRLIT("RYU-FINAL-NEWLINE"),
                          "missing final newline");
     }
     return;
@@ -186,7 +187,7 @@ csane_rule_preprocessor(CsaneFile *file) {
         keyword = csane_source_directive(file, start, end, &cursor);
         if (csane_source_keyword(text, end, keyword, "ifdef")
             || csane_source_keyword(text, end, keyword, "ifndef")) {
-            csane_rule_issue(file, start, "PP-DEFINED",
+            csane_rule_issue(file, start, STRLIT("PP-DEFINED"),
                              "use #if defined or #if !defined");
         }
         /* The Ryu rule is a raw-line check in Perl, not a parsed-directive
@@ -205,7 +206,8 @@ csane_rule_preprocessor(CsaneFile *file) {
                 if (csane_source_keyword(text, end, i, "endif")) {
                     for (int32 j = i + 5; j + 1 < end; j += 1) {
                         if (text[j] == '/' && text[j + 1] == '/') {
-                            csane_rule_issue(file, j, "RYU-ENDIF-COMMENT",
+                            csane_rule_issue(file, j,
+                                             STRLIT("RYU-ENDIF-COMMENT"),
                                              "use a block comment after "
                                              "#endif");
                             break;
@@ -288,7 +290,7 @@ csane_rule_sizeof(CsaneFile *file) {
         /* Perl checks directive conditions and macro names as raw code too.
          * Exclude only the SIZEOF wrapper's own definition and vendored Ryu.
          */
-        csane_rule_issue(file, token->offset, "PP-SIZEOF",
+        csane_rule_issue(file, token->offset, STRLIT("PP-SIZEOF"),
                          "use SIZEOF instead of sizeof");
     }
     return;
@@ -425,10 +427,10 @@ csane_rule_calls(CsaneFile *file) {
             continue;
         }
         if (never) {
-            csane_rule_issue(file, token->offset, "API-NEVER",
+            csane_rule_issue(file, token->offset, STRLIT("API-NEVER"),
                              "function must never be used");
         } else {
-            csane_rule_issue(file, token->offset, "API-CBASE-ONLY",
+            csane_rule_issue(file, token->offset, STRLIT("API-CBASE-ONLY"),
                              "function is allowed only inside cbase");
         }
     }
@@ -438,35 +440,35 @@ csane_rule_calls(CsaneFile *file) {
  * The ordering within each pass retains
  * the legacy dispatch order and its rule-specific exemptions. */
 static CsaneRule csane_rules[] = {
-    {"SRC", csane_rule_source, CSANE_PASS_SOURCE,
+    {STRLIT("SRC"), csane_rule_source, CSANE_PASS_SOURCE,
      CSANE_TARGET_LINES, false},
-    {"PP", csane_rule_preprocessor, CSANE_PASS_TOKEN,
+    {STRLIT("PP"), csane_rule_preprocessor, CSANE_PASS_TOKEN,
      CSANE_TARGET_DIRECTIVES, false},
-    {"PP-SIZEOF", csane_rule_sizeof, CSANE_PASS_TOKEN,
+    {STRLIT("PP-SIZEOF"), csane_rule_sizeof, CSANE_PASS_TOKEN,
      CSANE_TARGET_SIZEOF, false},
-    {"AST-DECL-ONE", csane_declarations_check, CSANE_PASS_TOKEN,
+    {STRLIT("AST-DECL-ONE"), csane_declarations_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_DECL_ONE, false},
-    {"API", csane_rule_calls, CSANE_PASS_TOKEN,
+    {STRLIT("API"), csane_rule_calls, CSANE_PASS_TOKEN,
      CSANE_TARGET_APIS, true},
-    {"CONTROL", csane_control_check, CSANE_PASS_TOKEN,
+    {STRLIT("CONTROL"), csane_control_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CONTROL, false},
-    {"LAYOUT", csane_layout_check, CSANE_PASS_TOKEN,
+    {STRLIT("LAYOUT"), csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
-    {"ASSIGN-EQ", csane_layout_assignment_check, CSANE_PASS_TOKEN,
+    {STRLIT("ASSIGN-EQ"), csane_layout_assignment_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGNMENTS, false},
-    {"FUNC-HEADERS", csane_declarations_headers, CSANE_PASS_TOKEN,
+    {STRLIT("FUNC-HEADERS"), csane_declarations_headers, CSANE_PASS_TOKEN,
      CSANE_TARGET_FUNC_HEADERS, false},
-    {"CALL-BASIC", csane_calls_token_check, CSANE_PASS_TOKEN,
+    {STRLIT("CALL-BASIC"), csane_calls_token_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALLS, false},
-    {"STYLE-EXPRESSIONS", csane_expression_style_check,
+    {STRLIT("STYLE-EXPRESSIONS"), csane_expression_style_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_STYLE_CALLS, false},
-    {"STYLE-BOUNDS", csane_bounds_check, CSANE_PASS_TOKEN,
+    {STRLIT("STYLE-BOUNDS"), csane_bounds_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
-    {"STYLE-STATUS", csane_status_check, CSANE_PASS_TOKEN,
+    {STRLIT("STYLE-STATUS"), csane_status_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STYLE_STATUS, false},
-    {"CALL-WRAP", csane_wrap_call_check, CSANE_PASS_TOKEN,
+    {STRLIT("CALL-WRAP"), csane_wrap_call_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALL_WRAP, false},
-    {"ASSIGN-WRAP", csane_wrap_check, CSANE_PASS_TOKEN,
+    {STRLIT("ASSIGN-WRAP"), csane_wrap_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGN_WRAP, false},
 };
 
@@ -504,27 +506,26 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
 static bool
 csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
     int32 len = file->path_len;
-    bool generated = len >= 7
-                     && !memcmp64(file->path + len - 7, ".meta.h", 7);
+    bool generated = ENDS_WITH(file->path, len, ".meta.h");
     if (csane_fixture_path(file->path, file->path_len)
         && !rule->include_fixtures) {
         return true;
     }
-    if (generated && (!strcmp(rule->id, "LAYOUT")
-                      || !strcmp(rule->id, "AST-DECL-ONE")
-                      || !strcmp(rule->id, "FUNC-HEADERS")
-                      || !strcmp(rule->id, "CALL-BASIC")
-                      || !strcmp(rule->id, "CALL-WRAP")
-                      || !strcmp(rule->id, "ASSIGN-WRAP"))) {
+    if (generated && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
+                      || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
+                      || STREQUAL(rule->id, rule->id_len, "FUNC-HEADERS")
+                      || STREQUAL(rule->id, rule->id_len, "CALL-BASIC")
+                      || STREQUAL(rule->id, rule->id_len, "CALL-WRAP")
+                      || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
         return true;
     }
-    if (file->is_ryu && (!strcmp(rule->id, "LAYOUT")
-                         || !strcmp(rule->id, "AST-DECL-ONE")
-                         || !strcmp(rule->id, "CONTROL")
-                         || !strcmp(rule->id, "PP-SIZEOF")
-                         || !strcmp(rule->id, "STYLE-BOUNDS")
-                         || !strcmp(rule->id, "ASSIGN-EQ")
-                         || !strcmp(rule->id, "ASSIGN-WRAP"))) {
+    if (file->is_ryu && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
+                         || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
+                         || STREQUAL(rule->id, rule->id_len, "CONTROL")
+                         || STREQUAL(rule->id, rule->id_len, "PP-SIZEOF")
+                         || STREQUAL(rule->id, rule->id_len, "STYLE-BOUNDS")
+                         || STREQUAL(rule->id, rule->id_len, "ASSIGN-EQ")
+                         || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
         return true;
     }
     return false;
@@ -540,7 +541,7 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
         CsaneRule *rule = &csane_rules[i];
         CsaneRuleCounts counts =
             csane_coverage_rule(file, rule->target, rule->id,
-                                report_unresolved);
+                                rule->id_len, report_unresolved);
         bool excluded = csane_rule_excluded(file, rule);
         char *status = "checked";
 
@@ -560,9 +561,10 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
             incomplete += 1;
         }
         if (report) {
-            printf("rule_coverage file=%s group=%s status=%s pass=%d "
+            printf("rule_coverage file=%s group=%.*s status=%s pass=%d "
                    "eligible=%d checked=%d excluded=%d unresolved=%d\n",
-                   file->path, rule->id, status, (int32)rule->pass,
+                   file->path, rule->id_len, rule->id, status,
+                   (int32)rule->pass,
                    counts.eligible, counts.checked, counts.excluded,
                    counts.unresolved);
         }

@@ -194,7 +194,8 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
             int32 semicolon = csane_tokens_next(&view, close);
             if (semicolon < tokens->token_count
                 && TOKEN_IS(&tokens->tokens[semicolon], ";")) {
-                csane_rule_issue(file, token->offset, "STYLE-ASSERT-REL",
+                csane_rule_issue(file, token->offset,
+                                 STRLIT("STYLE-ASSERT-REL"),
                                  "use ASSERT_GE/GT/LE/LT for integer "
                                  "comparison");
             }
@@ -202,7 +203,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     }
     if (TOKEN_IS(token, "STRLIT_LEN") && count >= 1
         && csane_style_string_start(file, args[0])) {
-        csane_rule_issue(file, token->offset, "STYLE-STRLIT-LEN",
+        csane_rule_issue(file, token->offset, STRLIT("STYLE-STRLIT-LEN"),
                          "STRLIT_LEN called on a literal string");
     }
     if (TOKEN_IS(token, "STREQUAL")) {
@@ -210,7 +211,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
             int32 strlit = csane_style_strlit_argument(file, args[i]);
             if (strlit >= 0) {
                 csane_rule_issue(file, tokens->tokens[args[i].first].offset,
-                                 "STYLE-STREQUAL",
+                                 STRLIT("STYLE-STREQUAL"),
                                  "STREQUAL called with STRLIT literal");
                 break;
             }
@@ -229,7 +230,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
             && tokens->text[tokens->tokens[first].offset
                             + tokens->tokens[first].len] == ',') {
             csane_rule_issue(file, tokens->tokens[format.first].offset,
-                             "STYLE-PRINTF",
+                             STRLIT("STYLE-PRINTF"),
                              "format contains only one conversion");
         }
     }

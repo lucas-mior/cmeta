@@ -172,11 +172,11 @@ csane_pattern_name_matches(CsanePattern *pattern, Token *name) {
 
 bool
 csane_policy_rule_allowed(CsanePolicy *policy, char *path, int32 path_len,
-                          char *rule_id, Token *function) {
+                          char *rule_id, int32 rule_id_len, Token *function) {
     for (int32 i = 0; i < policy->rule_exemptions.count; i += 1) {
         CsanePattern *pattern = &policy->rule_exemptions.items[i];
         if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
-                     rule_id, strlen32(rule_id))
+                     rule_id, rule_id_len)
             && csane_match(pattern, path, path_len)) {
             if (!pattern->has_function) {
                 return true;
@@ -211,11 +211,12 @@ csane_policy_macro_allowed(CsanePolicy *policy, char *path, int32 path_len,
  * enclosing function or every declaration in the same source file. */
 bool
 csane_policy_typedef_allowed(CsanePolicy *policy, char *path,
-                             int32 path_len, char *rule_id, Token *alias) {
+                             int32 path_len, char *rule_id, int32 rule_id_len,
+                             Token *alias) {
     for (int32 i = 0; i < policy->typedef_exemptions.count; i += 1) {
         CsanePattern *pattern = &policy->typedef_exemptions.items[i];
         if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
-                     rule_id, strlen32(rule_id))
+                     rule_id, rule_id_len)
             && csane_match(pattern, path, path_len)
             && csane_pattern_name_matches(pattern, alias)) {
             return true;

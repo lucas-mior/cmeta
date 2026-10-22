@@ -427,7 +427,7 @@ csane_wrap_call_group(CsaneFile *file, CsaneWrapSpan *items,
     }
     for (int32 i = first; i < end; i += 1) {
         if (items[i].wrapped) {
-            csane_rule_issue(file, items[i].start, "FMT-CALL-WRAP",
+            csane_rule_issue(file, items[i].start, STRLIT("FMT-CALL-WRAP"),
                              "call fits on one line but is "
                              "split across multiple lines");
         }
@@ -630,7 +630,7 @@ csane_wrap_assignment_group(CsaneFile *file, CsaneWrapSpan *items,
     }
     for (int32 i = 0; i < count; i += 1) {
         if (items[i].wrapped) {
-            csane_rule_issue(file, items[i].start, "FMT-ASSIGN-WRAP",
+            csane_rule_issue(file, items[i].start, STRLIT("FMT-ASSIGN-WRAP"),
                              "assignment fits on one line "
                              "but is split after =");
         }

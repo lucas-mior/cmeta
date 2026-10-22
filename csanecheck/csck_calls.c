@@ -227,7 +227,7 @@ csane_call_literals(CsaneFile *file, TokenRange range) {
         if (csane_calls_line_break(file, previous, i)
             && csane_calls_location(file, first).column
                != csane_calls_location(file, i).column) {
-            csane_rule_issue(file, token->offset, "FMT-LITERAL-ALIGN",
+            csane_rule_issue(file, token->offset, STRLIT("FMT-LITERAL-ALIGN"),
                              "call string literal is not aligned "
                              "with first literal");
             return;
@@ -320,7 +320,7 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
         }
         if (on_line && off_line) {
             csane_rule_issue(file, tokens->tokens[args[format].first].offset,
-                             "FMT-FORMAT-LINE",
+                             STRLIT("FMT-FORMAT-LINE"),
                              "format-string line must contain all "
                              "format arguments or none");
         }
@@ -348,7 +348,7 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
             && (csane_call_count_on_line(file, args, count, line_a) != 1
                 || csane_call_count_on_line(file, args, count, line_b) != 1)) {
             csane_rule_issue(file, tokens->tokens[b].offset,
-                             "FMT-RELATED-ARGS",
+                             STRLIT("FMT-RELATED-ARGS"),
                              "related arguments must be the only "
                              "arguments on their lines");
             break;
@@ -414,15 +414,16 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
     }
     if (newline && plain) {
         bool top_macro = !macro && csane_call_top_macro(file, name);
-        char *rule = top_macro ? "FMT-CALL-FIRST-TOPLEVEL"
-                               : "FMT-CALL-FIRST";
+        StrFlex *rule = top_macro ? SFLIT("FMT-CALL-FIRST-TOPLEVEL")
+                                  : SFLIT("FMT-CALL-FIRST");
 
         if (!top_macro
             || !csane_policy_macro_allowed(file->policy,
                                            file->path, file->path_len,
                                            STRLIT("FMT-CALL-FIRST-TOPLEVEL"),
                                            &tokens->tokens[name])) {
-            csane_rule_issue(file, tokens->tokens[open].offset, rule,
+            csane_rule_issue(file, tokens->tokens[open].offset,
+                             rule->data, rule->len,
                              "call breaks before the first argument");
         }
     }
@@ -504,7 +505,7 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
                     && csane_calls_location(file, current).column
                        != csane_calls_location(file, anchor).column) {
                     csane_rule_issue(file, tokens->tokens[current].offset,
-                                     "FMT-ARG-ALIGN",
+                                     STRLIT("FMT-ARG-ALIGN"),
                                      "call argument is not aligned "
                                      "with its alignment anchor");
                     break;
@@ -628,7 +629,7 @@ csane_calls_token_check(CsaneFile *file) {
         }
         if (kind == CSANE_LOCAL_CALL
             && csane_call_spacing_gap(file, &tokens->tokens[name], token)) {
-            csane_rule_issue(file, token->offset, "FMT-CALL-SPACING",
+            csane_rule_issue(file, token->offset, STRLIT("FMT-CALL-SPACING"),
                              "no whitespace before call parenthesis");
         }
         close = csane_tokens_match(&local, i);

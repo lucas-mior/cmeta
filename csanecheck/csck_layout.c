@@ -894,7 +894,7 @@ csane_layout_leading_assignment(CsaneFile *file) {
             }
         }
         if (start >= 0 && start < token->offset + 1) {
-            csane_rule_issue(file, token->offset, "FMT-ASSIGN-EQ",
+            csane_rule_issue(file, token->offset, STRLIT("FMT-ASSIGN-EQ"),
                              "assignment = must end the preceding line");
         }
     }
@@ -948,7 +948,7 @@ csane_layout_comma_check(CsaneFile *file, int32 index) {
     if (after >= tokens->text_len
         || (tokens->text[after] != ' ' && tokens->text[after] != '\t'
             && tokens->text[after] != '\r' && tokens->text[after] != '\n')) {
-        csane_rule_issue(file, comma->offset, "FMT-COMMA-SPACING",
+        csane_rule_issue(file, comma->offset, STRLIT("FMT-COMMA-SPACING"),
                          "whitespace required after comma");
     }
 }
@@ -985,7 +985,7 @@ csane_layout_member_check(CsaneFile *file, int32 index) {
                                              op);
     }
     if (bad) {
-        csane_rule_issue(file, op->offset, "FMT-MEMBER-SPACING",
+        csane_rule_issue(file, op->offset, STRLIT("FMT-MEMBER-SPACING"),
                          "no whitespace around member access");
     }
 }
@@ -1084,7 +1084,7 @@ csane_layout_unary_check(CsaneFile *file, int32 index) {
     }
     if (csane_layout_prefix_unary(file, &view, index)) {
         if (!csane_layout_adjacent(op, &tokens->tokens[after])) {
-            csane_rule_issue(file, op->offset, "FMT-UNARY-SPACING",
+            csane_rule_issue(file, op->offset, STRLIT("FMT-UNARY-SPACING"),
                              "no whitespace after unary operator");
         }
         return;
@@ -1093,7 +1093,7 @@ csane_layout_unary_check(CsaneFile *file, int32 index) {
         && before >= view.range.first
         && csane_layout_operand_end(&tokens->tokens[before])
         && !csane_layout_adjacent(&tokens->tokens[before], op)) {
-        csane_rule_issue(file, op->offset, "FMT-UNARY-SPACING",
+        csane_rule_issue(file, op->offset, STRLIT("FMT-UNARY-SPACING"),
                          "no whitespace before postfix operator");
     }
 }
@@ -1132,7 +1132,7 @@ csane_layout_cast_spacing_check(CsaneFile *file, int32 close) {
         && !csane_layout_adjacent(&tokens->tokens[close],
                                   &tokens->tokens[after])) {
         csane_rule_issue(file, tokens->tokens[close].offset,
-                         "FMT-CAST-SPACING",
+                         STRLIT("FMT-CAST-SPACING"),
                          "no whitespace after cast");
     }
 }
@@ -1177,7 +1177,7 @@ csane_layout_pointer_spacing_check(CsaneFile *file, int32 index,
         bad = true;
     }
     if (bad) {
-        csane_rule_issue(file, star->offset, "FMT-POINTER-SPACING",
+        csane_rule_issue(file, star->offset, STRLIT("FMT-POINTER-SPACING"),
                          "use `type *name` pointer spacing");
     }
 }
@@ -1268,7 +1268,7 @@ csane_layout_trailing_comma_check(CsaneFile *file, int32 open) {
     if ((array && elements >= 4)
         || (!array && open_loc.line != close_loc.line)) {
         csane_rule_issue(file, tokens->tokens[last].offset,
-                         "FMT-TRAILING-COMMA",
+                         STRLIT("FMT-TRAILING-COMMA"),
                          "initializer requires a trailing comma");
     }
 }
@@ -1343,7 +1343,7 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
             }
         }
         if (!allowed) {
-            csane_rule_issue(file, token->offset, "STYLE-INCDEC",
+            csane_rule_issue(file, token->offset, STRLIT("STYLE-INCDEC"),
                              "prefer += 1 or -= 1 instead of ++ or --");
         }
     }
@@ -1363,17 +1363,17 @@ csane_layout_check(CsaneFile *file) {
         csane_layout_local_style_check(file, i, kind);
         if (kind == CSANE_LAYOUT_MULTIPLY) {
             if (csane_layout_spacing(file, i, true)) {
-                csane_rule_issue(file, op->offset, "FMT-MULTIPLY",
+                csane_rule_issue(file, op->offset, STRLIT("FMT-MULTIPLY"),
                                  "no spaces around multiplication");
             }
         } else if (kind == CSANE_LAYOUT_BINARY) {
             if (csane_layout_spacing(file, i, false)) {
-                csane_rule_issue(file, op->offset, "FMT-BINARY-SPACING",
+                csane_rule_issue(file, op->offset, STRLIT("FMT-BINARY-SPACING"),
                                  "spaces required around binary operator");
             }
         } else if (kind == CSANE_LAYOUT_ASSIGN) {
             if (csane_layout_spacing(file, i, false)) {
-                csane_rule_issue(file, op->offset, "FMT-ASSIGN-SPACING",
+                csane_rule_issue(file, op->offset, STRLIT("FMT-ASSIGN-SPACING"),
                                  "assignment requires surrounding whitespace");
             }
         }

@@ -345,7 +345,7 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
             continue;
         }
         if (csane_decl_stdint_type(file, token)) {
-            csane_rule_issue(file, part->offset, "TYPE-STDINT-T",
+            csane_rule_issue(file, part->offset, STRLIT("TYPE-STDINT-T"),
                              "use cbase fixed-width integer aliases");
             base = true;
             token = csane_decl_next(file, range, token);
@@ -474,11 +474,11 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     }
     if (csane_decl_word(file, type, "enum") && !csane_decl_xenums(file)) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
-                         "TYPE-ENUM-TYPEDEF", "do not typedef enums");
+                         STRLIT("TYPE-ENUM-TYPEDEF"), "do not typedef enums");
     }
     if (csane_decl_word(file, type, "union")) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
-                         "TYPE-UNION-TYPEDEF", "do not typedef unions");
+                         STRLIT("TYPE-UNION-TYPEDEF"), "do not typedef unions");
     }
     if (csane_decl_pointer_typedef(file, range)) {
         CsaneTokenView view;
@@ -492,11 +492,12 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
         if (alias < range.first
             || !csane_policy_typedef_allowed(file->policy, file->path,
                                              file->path_len,
-                                             "TYPE-POINTER-TYPEDEF",
+                                             STRLIT("TYPE-POINTER-TYPEDEF"),
                                              &file->tokens->tokens[alias])) {
             csane_rule_issue(file, file->tokens->tokens[first].offset,
-                             "TYPE-POINTER-TYPEDEF",
-                             "do not typedef pointers except function pointers");
+                             STRLIT("TYPE-POINTER-TYPEDEF"),
+                             "do not typedef pointers except "
+                             "function pointers");
         }
     }
 }
@@ -557,10 +558,10 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
         if (csane_decl_word(file, token, "const")) {
             if (!csane_policy_rule_allowed(file->policy, file->path,
                                            file->path_len,
-                                           "TYPE-CONST-SIGNATURE",
+                                           STRLIT("TYPE-CONST-SIGNATURE"),
                                            &file->tokens->tokens[name])) {
                 csane_rule_issue(file, file->tokens->tokens[token].offset,
-                                 "TYPE-CONST-SIGNATURE",
+                                 STRLIT("TYPE-CONST-SIGNATURE"),
                                  "const qualifiers are forbidden in function "
                                  "signatures");
             }
@@ -616,7 +617,7 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
     if ((line > 0 && line < line_count && lines[line])
         || (comma >= 0 && comma < range.end)) {
         csane_rule_issue(file, file->tokens->tokens[first].offset,
-                         "AST-DECL-ONE",
+                         STRLIT("AST-DECL-ONE"),
                          "only one variable declaration per line");
     }
     if (line > 0 && line < line_count) {
@@ -768,7 +769,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
             && tokenization_token_location(file->tokens, current).column
                != first_column) {
             csane_rule_issue(file, file->tokens->tokens[current].offset,
-                             "FMT-FUNC-ALIGN",
+                             STRLIT("FMT-FUNC-ALIGN"),
                              "function header parameter is not aligned "
                              "with first parameter");
             break;

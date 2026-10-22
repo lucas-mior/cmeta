@@ -112,7 +112,7 @@ csane_status_function(CsaneFile *file, CsaneTopItem *top) {
     }
     if (matches) {
         csane_rule_issue(file, file->tokens->tokens[refs[0]].offset,
-                         "STYLE-STATUS-TEMP",
+                         STRLIT("STYLE-STATUS-TEMP"),
                          "inline int32 status assignment/use pairs");
     }
     free2(refs, (int64)count*SIZEOF(*refs));
