@@ -16,7 +16,6 @@ RULES = frozenset({
     "TYPE-CONST-SIGNATURE",
     "TYPE-ENUM-TYPEDEF",
     "TYPE-POINTER-TYPEDEF",
-    "TYPE-SIZE-T",
     "TYPE-STDINT-T",
     "TYPE-STRUCT-TYPEDEF",
     "TYPE-UNION-TYPEDEF",
@@ -53,14 +52,14 @@ int32 defined(int32 *const pointer) {
 }
 """, ["TYPE-CONST-SIGNATURE", "TYPE-CONST-SIGNATURE"])
 
-    def test_size_types_ignore_interface_casts(self):
+    def test_size_types_are_not_checked(self):
         self.check("""void f(void) {
     size_t count;
     ptrdiff_t difference;
     ssize_t signed_size;
     int64 converted = (size_t)count;
 }
-""", ["TYPE-SIZE-T", "TYPE-SIZE-T", "TYPE-SIZE-T"])
+""", [])
 
     def test_standard_fixed_width_integer_types(self):
         self.check("""void f(void) {
