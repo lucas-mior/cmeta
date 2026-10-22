@@ -86,6 +86,7 @@ trace_off
 if [ "$mode" = install ]; then
     trace_on
     install -Dm755 bin/csanecheck "${DESTDIR}${PREFIX}/bin/csanecheck"
+    install -Dm755 bin/csanecheck "cbase/csanecheck"
     trace_off
 fi
 
