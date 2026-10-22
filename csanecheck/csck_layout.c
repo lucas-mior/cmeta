@@ -1021,6 +1021,23 @@ csane_layout_function_pointer(CsaneTokenView *view, int32 index) {
 }
 
 static bool
+csane_layout_return_pointer(CsaneFile *file, int32 index) {
+    if (file->toplevel == NULL) {
+        return false;
+    }
+    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
+             || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
+            && item->name_token > index
+            && index >= item->header.first && index < item->header.end) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
 csane_layout_prefix_unary(CsaneFile *file, CsaneTokenView *view,
                           int32 index) {
     Tokenization *tokens = view->tokens;
@@ -1030,7 +1047,9 @@ csane_layout_prefix_unary(CsaneFile *file, CsaneTokenView *view,
     if (after >= view->range.end) {
         return false;
     }
-    if (TOKEN_IS(op, "*") && csane_layout_function_pointer(view, index)) {
+    if (TOKEN_IS(op, "*")
+        && (csane_layout_function_pointer(view, index)
+            || csane_layout_return_pointer(file, index))) {
         return false;
     }
     if (TOKEN_IS(op, "!") || TOKEN_IS(op, "~")) {
@@ -1126,23 +1145,6 @@ csane_layout_cast_spacing_check(CsaneFile *file, int32 close) {
                          "FMT-CAST-SPACING",
                          "no whitespace after cast");
     }
-}
-
-static bool
-csane_layout_return_pointer(CsaneFile *file, int32 index) {
-    if (file->toplevel == NULL) {
-        return false;
-    }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
-             || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
-            && item->name_token > index
-            && index >= item->header.first && index < item->header.end) {
-            return true;
-        }
-    }
-    return false;
 }
 
 static void
