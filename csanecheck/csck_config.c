@@ -75,8 +75,7 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
             char description[256];
             regerror(result, &pattern.function_compiled, description,
                      SIZEOF(description));
-            fprintf(stderr, "invalid regex '%s': %s\n", function,
-                    description);
+            error2("invalid regex '%s': %s\n", function, description);
             regfree(&pattern.compiled);
             free2(pattern.text, (int64)strlen32(pattern.text) + 1);
             return false;
