@@ -163,14 +163,15 @@ void csane_policy_free(CsanePolicy *);
 bool csane_policy_config(CsanePolicy *, char *, int32);
 bool csane_policy_add_regex(CsanePatterns *, char *, int32, char *, int32,
                             char *, int32, int32);
-bool csane_policy_add_root(CsanePolicy *, char *);
-bool csane_policy_project(CsanePolicy *, char *);
-bool csane_policy_source(CsanePolicy *, char *);
-bool csane_policy_in_cbase(CsanePolicy *, char *);
-bool csane_policy_in_ryu(CsanePolicy *, char *);
-bool csane_policy_match(CsanePatterns *, char *);
-bool csane_policy_rule_allowed(CsanePolicy *, char *, char *, Token *);
-int32 csane_policy_columns(CsanePolicy *, char *);
+bool csane_policy_add_root(CsanePolicy *, char *, int32);
+bool csane_policy_project(CsanePolicy *, char *, int32);
+bool csane_policy_source(CsanePolicy *, char *, int32);
+bool csane_policy_in_cbase(CsanePolicy *, char *, int32);
+bool csane_policy_in_ryu(CsanePolicy *, char *, int32);
+bool csane_policy_match(CsanePatterns *, char *, int32);
+bool csane_policy_rule_allowed(CsanePolicy *, char *, int32, char *,
+                               Token *);
+int32 csane_policy_columns(CsanePolicy *, char *, int32);
 bool csane_policy_filter(char *, int32, char *, int32);
 bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);
 CsaneCoverage csane_coverage_collect(CsaneTopLevels *,

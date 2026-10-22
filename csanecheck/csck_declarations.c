@@ -542,6 +542,7 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
     while (token >= range.first && token < close) {
         if (csane_decl_word(file, token, "const")) {
             if (!csane_policy_rule_allowed(file->policy, file->path,
+                                           file->path_len,
                                            "TYPE-CONST-SIGNATURE",
                                            &file->tokens->tokens[name])) {
                 csane_rule_issue(file, file->tokens->tokens[token].offset,
