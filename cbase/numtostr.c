@@ -245,7 +245,8 @@ fmt_time_elapsed(char *buffer, double elapsed) {
     milliseconds = total_milliseconds%1000;
 
     if (negative) {
-        raw_seconds[raw_len++] = '-';
+        raw_seconds[raw_len] = '-';
+        raw_len += 1;
     }
     number_len = itoa2(number, SIZEOF(number), total_seconds);
     memcpy64(raw_seconds + raw_len, number, number_len);
