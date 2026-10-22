@@ -247,7 +247,7 @@ assert_compare_const_pointer(enum AssertCompareMode mode,
 static bool
 assert_compare_const_string(enum AssertCompareMode mode,
                             char *var1, char *var2) {
-    int comparison;
+    int32 comparison;
 
     if ((var1 == NULL) || (var2 == NULL)) {
         return (var1 == NULL) && (var2 == NULL)
