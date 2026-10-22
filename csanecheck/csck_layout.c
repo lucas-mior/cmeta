@@ -1134,6 +1134,9 @@ csane_layout_trailing_comma_check(CsaneFile *file, int32 open) {
     int32 equal;
     int32 close;
     int32 last;
+    int32 token;
+    int32 match;
+    int32 elements;
     bool array;
     SourceLocation open_loc;
     SourceLocation close_loc;
@@ -1156,9 +1159,27 @@ csane_layout_trailing_comma_check(CsaneFile *file, int32 open) {
         return;
     }
     array = csane_layout_array_initializer(&view, equal);
+    elements = 1;
+    if (array) {
+        token = csane_tokens_next(&view, open);
+        while (token < close) {
+            if (TOKEN_IS(&tokens->tokens[token], ",")) {
+                elements += 1;
+            } else if (TOKEN_IS(&tokens->tokens[token], "(")
+                       || TOKEN_IS(&tokens->tokens[token], "[")
+                       || TOKEN_IS(&tokens->tokens[token], "{")) {
+                match = csane_tokens_match(&view, token);
+                if (match > token && match < close) {
+                    token = match;
+                }
+            }
+            token = csane_tokens_next(&view, token);
+        }
+    }
     open_loc = tokenization_token_location(tokens, open);
     close_loc = tokenization_token_location(tokens, close);
-    if (array || open_loc.line != close_loc.line) {
+    if ((array && elements >= 4)
+        || (!array && open_loc.line != close_loc.line)) {
         csane_rule_issue(file, tokens->tokens[last].offset,
                          "FMT-TRAILING-COMMA",
                          "initializer requires a trailing comma");
