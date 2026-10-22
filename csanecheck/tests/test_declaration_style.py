@@ -57,13 +57,13 @@ int32 defined(int32 *const pointer) {
         policy = self.root / "policy.conf"
         policy.write_text(
             "allow-function-rule TYPE-CONST-SIGNATURE "
-            r"(^|/)fs_windows[.]c$ ^lstat$" "\n",
+            r"(^|/)fs_windows[.]c$ ^external_api$" "\n",
             encoding="utf-8",
         )
-        self.check("""int32 lstat(const char *path) { return path != 0; }
+        self.check("""int32 external_api(const char *path) { return path != 0; }
 int32 local(const char *path) { return path != 0; }
 """, ["TYPE-CONST-SIGNATURE"], name="fs_windows.c", config=policy)
-        self.check("""int32 lstat(const char *path) { return path != 0; }
+        self.check("""int32 external_api(const char *path) { return path != 0; }
 """, ["TYPE-CONST-SIGNATURE"], name="other.c", config=policy)
 
         result = subprocess.run(
