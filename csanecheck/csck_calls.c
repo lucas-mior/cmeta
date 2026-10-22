@@ -78,10 +78,12 @@ csane_call_next(CsaneFile *file, TokenRange range, int32 after) {
 
 static bool
 csane_call_string(Token *token) {
+    int32 quote;
+
     if (token->kind != TOKEN_LITERAL) {
         return false;
     }
-    int32 quote = literal_quote_index(token->text, token->len, 0);
+    quote = literal_quote_index(token->text, token->len, 0);
     return quote >= 0 && token->text[quote] == '"';
 }
 
@@ -89,10 +91,12 @@ static bool
 csane_call_format(CsaneFile *file, TokenRange range) {
     for (int32 i = range.first; i < range.end; i += 1) {
         Token *token = &file->tokens->tokens[i];
+        int32 quote;
+
         if (!csane_call_string(token)) {
             continue;
         }
-        int32 quote = literal_quote_index(token->text, token->len, 0);
+        quote = literal_quote_index(token->text, token->len, 0);
         for (int32 j = quote + 1; j < token->len; j += 1) {
             if (token->text[j] == '\\') {
                 j += 1;
@@ -125,10 +129,13 @@ csane_call_macro_parameters(CsaneFile *file, int32 open,
     int32 region = csane_regions_at_token(regions, open);
     int32 definition = csane_regions_enclosing(regions, region,
                                                CSANE_REGION_MACRO_DEFINE);
+    int32 parameters = -1;
+    Tokenization *tokens;
+    TokenRange names;
+
     if (definition < 0) {
         return false;
     }
-    int32 parameters = -1;
     for (int32 child = regions->items[definition].first_child;
          child >= 0; child = regions->items[child].next_sibling) {
         if (regions->items[child].kind == CSANE_REGION_MACRO_PARAMETERS) {
@@ -139,8 +146,8 @@ csane_call_macro_parameters(CsaneFile *file, int32 open,
     if (parameters < 0) {
         return false;
     }
-    Tokenization *tokens = file->tokens;
-    TokenRange names = regions->items[parameters].tokens;
+    tokens = file->tokens;
+    names = regions->items[parameters].tokens;
     for (int32 i = content.first; i < content.end; i += 1) {
         Token *candidate = &tokens->tokens[i];
         if (candidate->kind != TOKEN_IDENT) {
@@ -164,15 +171,18 @@ csane_call_macro_parameters(CsaneFile *file, int32 open,
  * expression or separated by comments/other tokens. */
 static void
 csane_call_literals(CsaneFile *file, TokenRange range) {
+    int32 first;
+    int32 previous;
+
     if (csane_call_macro_fragments(file, range)) {
         return;
     }
-    int32 first = token_range_first_significant(file->tokens, range);
+    first = token_range_first_significant(file->tokens, range);
     if (first >= range.end
         || !csane_call_string(&file->tokens->tokens[first])) {
         return;
     }
-    int32 previous = first;
+    previous = first;
     for (int32 i = first + 1; i < range.end; i += 1) {
         Token *token = &file->tokens->tokens[i];
         if (token->kind == TOKEN_COMMENT) {
@@ -208,14 +218,16 @@ static int32
 csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
                      CsaneCallArgument *args, int32 capacity) {
     TokenRange ranges[256];
+    int32 parts;
+    int32 count = 0;
+
     if (capacity > 256 || capacity < 0) {
         return -1;
     }
-    int32 parts = csane_tokens_split(view, ",", 1, ranges, capacity);
+    parts = csane_tokens_split(view, ",", 1, ranges, capacity);
     if (parts < 0 || parts > capacity) {
         return -1;
     }
-    int32 count = 0;
     for (int32 i = 0; i < parts; i += 1) {
         TokenRange range = ranges[i];
         int32 first = token_range_first_significant(file->tokens, range);
@@ -252,11 +264,13 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
      * by the basic layout checks; no contextual conclusion is inferred. */
     CsaneCallArgument args[256];
     int32 count = csane_call_arguments(file, view, args, 256);
+    Tokenization *tokens;
+    int32 format = -1;
+
     if (count < 1) {
         return;
     }
-    Tokenization *tokens = file->tokens;
-    int32 format = -1;
+    tokens = file->tokens;
     for (int32 i = 0; i < count; i += 1) {
         if (args[i].format) {
             format = i;
@@ -285,16 +299,21 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
         return;
     }
     for (int32 i = 0; i + 1 < count; i += 1) {
+        int32 a;
+        int32 b;
+        int32 line_a;
+        int32 line_b;
+
         if (!args[i].identifier || !args[i + 1].identifier) {
             continue;
         }
-        int32 a = args[i].first;
-        int32 b = args[i + 1].first;
+        a = args[i].first;
+        b = args[i + 1].first;
         if (!csane_calls_related(&tokens->tokens[a], &tokens->tokens[b])) {
             continue;
         }
-        int32 line_a = csane_calls_location(file, a).line;
-        int32 line_b = csane_calls_location(file, b).line;
+        line_a = csane_calls_location(file, a).line;
+        line_b = csane_calls_location(file, b).line;
         if (line_a != line_b
             && (csane_call_count_on_line(file, args, count, line_a) != 1
                 || csane_call_count_on_line(file, args, count, line_b) != 1)) {
@@ -313,18 +332,27 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
     Tokenization *tokens = file->tokens;
     TokenRange content = {open + 1, close};
     CsaneTokenView view;
+    int32 first;
+    int32 from;
+    int32 to;
+    bool newline = false;
+    bool plain = true;
+    int32 format = -1;
+    int32 anchor;
+    int32 cursor;
+    int32 previous = -1;
+    bool misaligned = false;
+
     if (!csane_tokens_view(&view, tokens, content)
         || !csane_tokens_balanced(&view)) {
         return;
     }
-    int32 first = csane_call_next(file, content, open);
+    first = csane_call_next(file, content, open);
     if (first >= close) {
         return;
     }
-    int32 from = tokens->tokens[open].offset + tokens->tokens[open].len;
-    int32 to = tokens->tokens[first].offset;
-    bool newline = false;
-    bool plain = true;
+    from = tokens->tokens[open].offset + tokens->tokens[open].len;
+    to = tokens->tokens[first].offset;
     for (int32 j = from; j < to; j += 1) {
         char c = tokens->text[j];
         if (c == '\n') {
@@ -349,11 +377,8 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
             && !csane_call_macro_parameters(file, open, content))) {
         csane_call_context(file, &view);
     }
-    int32 format = -1;
-    int32 anchor = first;
-    int32 cursor = content.first;
-    int32 previous = -1;
-    bool misaligned = false;
+    anchor = first;
+    cursor = content.first;
     while (cursor < close) {
         int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
         int32 end;
@@ -476,24 +501,36 @@ csane_call_prototype(CsaneFile *file, int32 name) {
 
 void
 csane_calls_token_check(CsaneFile *file) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view = csane_tokens_full(tokens);
+
     if (csane_calls_generated(file->path)) {
         return;
     }
-    Tokenization *tokens = file->tokens;
-    CsaneTokenView view = csane_tokens_full(tokens);
     for (int32 i = 0; i < tokens->token_count; i += 1) {
         Token *token = &tokens->tokens[i];
+        CsaneTokenView local;
+        int32 region;
+        enum CsaneRegionKind region_kind;
+        int32 replacement;
+        int32 branch;
+        int32 name;
+        TokenRange range;
+        int32 before;
+        enum CsaneLocalKind kind;
+        int32 close;
+        bool macro;
+
         if (!TOKEN_IS(token, "(") || !csane_calls_code(file, i)) {
             continue;
         }
-        CsaneTokenView local = view;
-        int32 region = csane_regions_at_token(file->regions, i);
-        enum CsaneRegionKind region_kind = CSANE_REGION_MACRO_REPLACEMENT;
-        int32 replacement = csane_regions_enclosing(file->regions, region,
-                                                    region_kind);
+        local = view;
+        region = csane_regions_at_token(file->regions, i);
+        region_kind = CSANE_REGION_MACRO_REPLACEMENT;
+        replacement = csane_regions_enclosing(file->regions, region,
+                                              region_kind);
         region_kind = CSANE_REGION_CONDITIONAL_BRANCH;
-        int32 branch = csane_regions_enclosing(file->regions, region,
-                                               region_kind);
+        branch = csane_regions_enclosing(file->regions, region, region_kind);
         if (replacement >= 0) {
             if (!csane_tokens_view(&local, tokens,
                                    file->regions->items[replacement].tokens)) {
@@ -507,22 +544,21 @@ csane_calls_token_check(CsaneFile *file) {
                 local = candidate;
             }
         }
-        int32 name = csane_tokens_previous(&local, i);
+        name = csane_tokens_previous(&local, i);
         if (name < 0 || tokens->tokens[name].kind != TOKEN_IDENT
             || !csane_calls_code(file, name)
             || csane_call_keyword(&tokens->tokens[name])
             || csane_call_prototype(file, name)) {
             continue;
         }
-        TokenRange range = {0, tokens->token_count};
-        int32 before = csane_tokens_previous(&local, name);
+        range = (TokenRange){0, tokens->token_count};
+        before = csane_tokens_previous(&local, name);
         if (before >= 0
             && (csane_type_name(&tokens->tokens[before])
                 || TOKEN_IS(&tokens->tokens[before], "*"))) {
             continue;
         }
-        enum CsaneLocalKind kind =
-            csane_classify_invocation(tokens, range, name);
+        kind = csane_classify_invocation(tokens, range, name);
         if (kind != CSANE_LOCAL_CALL && kind != CSANE_LOCAL_MACRO_INVOCATION) {
             continue;
         }
@@ -531,13 +567,13 @@ csane_calls_token_check(CsaneFile *file) {
             csane_rule_issue(file, token->offset, "FMT-CALL-SPACING",
                              "no whitespace before call parenthesis");
         }
-        int32 close = csane_tokens_match(&local, i);
+        close = csane_tokens_match(&local, i);
         if (close < 0) {
             continue;
         }
-        bool macro = file->preprocessor->token_roles != NULL
-                     && file->preprocessor->token_roles[i]
-                        == C_PP_TOKEN_MACRO_REPLACEMENT;
+        macro = file->preprocessor->token_roles != NULL
+                && file->preprocessor->token_roles[i]
+                   == C_PP_TOKEN_MACRO_REPLACEMENT;
         csane_call_token_one(file, i, close, macro);
     }
 }
