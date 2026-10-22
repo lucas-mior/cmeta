@@ -20,12 +20,12 @@ csane_control_first(CsaneFile *file, CsaneStatement *stmt) {
 }
 
 static void
-csane_control_issue(CsaneFile *file, CsaneStatement *stmt, char *rule,
-                    char *message) {
+csane_control_issue(CsaneFile *file, CsaneStatement *stmt,
+                    char *rule, int32 rule_len, char *message) {
     int32 token = csane_control_first(file, stmt);
     if (token >= 0) {
         csane_rule_issue(file, file->tokens->tokens[token].offset,
-                         rule, message);
+                         rule, rule_len, message);
     }
 }
 
@@ -78,7 +78,7 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
         && !csane_control_block(file, stmt->body)
         && !(stmt->kind == CSANE_STMT_FOR
              && csane_control_for_empty(file, stmt->body))) {
-        csane_control_issue(file, stmt, "AST-BRACES",
+        csane_control_issue(file, stmt, STRLIT("AST-BRACES"),
                             "control body must use curly braces");
     }
     if (stmt->kind != CSANE_STMT_IF || stmt->alternative < 0) {
@@ -93,7 +93,7 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
         || body->kind == CSANE_STMT_IF) {
         return;
     }
-    csane_control_issue(file, alternative, "AST-BRACES",
+    csane_control_issue(file, alternative, STRLIT("AST-BRACES"),
                         "else body must use curly braces");
 }
 
@@ -148,7 +148,7 @@ csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
     switch_column = tokenization_token_location(file->tokens,
                                                 switch_token).column;
     if (label_column != switch_column) {
-        csane_control_issue(file, stmt, "AST-SWITCH-ALIGN",
+        csane_control_issue(file, stmt, STRLIT("AST-SWITCH-ALIGN"),
                             "case/default must align with switch");
     }
 }
@@ -352,7 +352,7 @@ csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
             return;
         }
     }
-    csane_control_issue(file, stmt, "AST-ARTIFICIAL-BLOCK",
+    csane_control_issue(file, stmt, STRLIT("AST-ARTIFICIAL-BLOCK"),
                         "artificial block at nesting level 3 or more");
 }
 

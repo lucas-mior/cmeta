@@ -154,6 +154,7 @@ typedef struct CsaneFile {
 
 typedef struct CsaneRule {
     char *id;
+    int32 id_len;
     void (*check)(CsaneFile *);
     enum CsanePass pass;
     enum CsaneTargetKind target;
@@ -171,12 +172,12 @@ bool csane_policy_source(CsanePolicy *, char *, int32);
 bool csane_policy_in_cbase(CsanePolicy *, char *, int32);
 bool csane_policy_in_ryu(CsanePolicy *, char *, int32);
 bool csane_policy_match(CsanePatterns *, char *, int32);
-bool csane_policy_rule_allowed(CsanePolicy *, char *, int32, char *,
-                               Token *);
+bool csane_policy_rule_allowed(CsanePolicy *, char *, int32,
+                               char *, int32, Token *);
 bool csane_policy_macro_allowed(CsanePolicy *, char *, int32, char *,
                                 int32, Token *);
-bool csane_policy_typedef_allowed(CsanePolicy *, char *, int32, char *,
-                                  Token *);
+bool csane_policy_typedef_allowed(CsanePolicy *, char *, int32,
+                                  char *, int32, Token *);
 int32 csane_policy_columns(CsanePolicy *, char *, int32);
 bool csane_policy_filter(char *, int32, char *, int32);
 bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);
@@ -217,9 +218,9 @@ void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
 int32 csane_rules_incomplete(CsaneFile *, bool, bool, CsaneRuleCounts *);
 CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
-                                     char *, bool);
+                                     char *, int32, bool);
 bool csane_token_name_in(Token *, CsanePaths *);
-void csane_rule_issue(CsaneFile *, int32, char *, char *);
+void csane_rule_issue(CsaneFile *, int32, char *, int32, char *);
 
 bool csane_paths_add(CsanePaths *, char *, int32);
 void csane_paths_sort_unique(CsanePaths *);
