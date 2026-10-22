@@ -386,7 +386,9 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
         CsaneTopItem *item = &file->toplevel->items[i];
         int32 parameter_open;
         int32 parameter_close;
-        if (item->kind == CSANE_TOP_TYPE_DECLARATION
+        if ((item->kind == CSANE_TOP_TYPE_DECLARATION
+             || item->kind == CSANE_TOP_DECLARATION
+             || item->kind == CSANE_TOP_MEMBER_DECLARATION)
             && index >= item->header.first && index < item->header.end) {
             for (parameter_open = csane_tokens_previous(view, index);
                  parameter_open >= item->header.first

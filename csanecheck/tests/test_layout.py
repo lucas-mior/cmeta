@@ -69,6 +69,16 @@ int32 f(Result callback, int32 value) {
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_global_function_pointer_parameter_declarations(self):
+        self.check("""static void (*status_notification_observer)(void *user);
+static void (*status_database_update_observer)(void *user);
+static void (*status_playlist_update_observer)(void *user);
+typedef struct Callbacks {
+    void (*notify)(void *user);
+} Callbacks;
+int32 result = 3*4;
+""", ["FMT-MULTIPLY"])
+
     def test_pointer_declaration_in_for_initializer(self):
         self.check("""void f(Arena *arena) {
     for (Arena *item = arena; item; item = item->next) {
