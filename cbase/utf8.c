@@ -554,7 +554,7 @@ main(void) {
             0x20AC,
             0x1F60A,
             0x1F1E9, // Regional Indicator D
-            0x1F1EA  // Regional Indicator E
+            0x1F1EA, // Regional Indicator E
         };
         int32 str_len = strlen32(test_str);
         int32 consumed_total = 0;
