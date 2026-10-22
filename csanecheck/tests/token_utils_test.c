@@ -213,7 +213,7 @@ test_empty_malformed_arguments(void) {
         "f((a, b)",
         "f(a, b)",
     };
-    int32 expected[] = {0, 0, -1, -1, -1, -1, 2};
+    int32 expected[] = {0, 0, -1, -1, -1, -1, 2,};
     for (int32 i = 0; i < SIZEOF(cases)/SIZEOF(cases[0]); i += 1) {
         Tokenization tokens = tokenize_copy(cases[i], strlen32(cases[i]),
                                             TOKENIZE_DEFAULT);
