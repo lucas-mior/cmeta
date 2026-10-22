@@ -310,8 +310,7 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
                 int32 first = before;
                 int32 previous = csane_tokens_previous(view, first);
                 while (previous >= view->range.first
-                       && (csane_layout_qualifier(
-                               &tokens->tokens[previous])
+                       && (csane_layout_qualifier(&tokens->tokens[previous])
                            || TOKEN_IS(&tokens->tokens[previous], "signed")
                            || TOKEN_IS(&tokens->tokens[previous], "unsigned")
                            || TOKEN_IS(&tokens->tokens[previous], "long")
