@@ -396,6 +396,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
                 int32 declarator_close;
                 int32 declarator_open;
                 int32 first;
+                int32 type;
 
                 if (!csane_layout_is(tokens, parameter_open, "(")) {
                     continue;
@@ -407,6 +408,22 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
                 }
                 declarator_close = csane_tokens_previous(view,
                                                          parameter_open);
+                if (declarator_close >= item->header.first
+                    && tokens->tokens[declarator_close].kind == TOKEN_IDENT) {
+                    type = csane_tokens_previous(view, declarator_close);
+                    if (csane_layout_is(tokens, type, "*")) {
+                        type = csane_tokens_previous(view, type);
+                    }
+                    if (type >= item->header.first
+                        && (csane_type_name(&tokens->tokens[type])
+                            || csane_type_hints_typedef(file->type_hints,
+                                                       &tokens->tokens[type])
+                            || csane_layout_tag_prefix(view, type))) {
+                        *open = parameter_open;
+                        *close = parameter_close;
+                        return true;
+                    }
+                }
                 if (!csane_layout_is(tokens, declarator_close, ")")) {
                     continue;
                 }

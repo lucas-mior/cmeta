@@ -227,6 +227,13 @@ int32 f(int32 a, int32 b) {
         self.check("""void f(char *, int32 *named,
        int32 (*compare)(void *, const char *));
 """, [])
+        self.check("""typedef void *AllocatorMalloc(int64 size,
+                                       void *context);
+typedef void AllocatorFree(void *pointer, int64 size, void *context);
+typedef void *AllocatorRealloc(void *pointer,
+                              int64 old_size, int64 new_size,
+                              void *context);
+""", [])
         self.check("""typedef bool (*RunFunction)(void *backend,
                                     ModelInput *input,
                                     Emissions *emissions,
