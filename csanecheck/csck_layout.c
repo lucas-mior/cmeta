@@ -1267,14 +1267,45 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
     if (TOKEN_IS(token, "++") || TOKEN_IS(token, "--")) {
         int32 region = csane_regions_at_token(file->regions, index);
         CsaneTokenView view;
-        bool bracketed;
+        bool allowed;
 
-        bracketed = region >= 0
-                    && csane_tokens_view(&view, file->tokens,
-                                         file->regions->items[region].tokens)
-                    && csane_layout_inside_brackets(&view,
-                                                    view.range.first, index);
-        if (!bracketed) {
+        allowed = region >= 0
+                  && csane_tokens_view(&view, file->tokens,
+                                       file->regions->items[region].tokens)
+                  && csane_layout_inside_brackets(&view,
+                                                  view.range.first, index);
+        if (!allowed && region >= 0
+            && csane_tokens_view(&view, file->tokens,
+                                 file->regions->items[region].tokens)) {
+            int32 before = csane_tokens_previous(&view, index);
+            int32 after = csane_tokens_next(&view, index);
+
+            if (TOKEN_IS(token, "--") && before >= view.range.first
+                && after < view.range.end
+                && file->tokens->tokens[before].kind == TOKEN_IDENT
+                && TOKEN_IS(&file->tokens->tokens[after], ")")) {
+                int32 open = csane_tokens_match(&view, after);
+                int32 first = csane_tokens_previous(&view, before);
+                int32 keyword = csane_tokens_previous(&view, open);
+
+                allowed = open >= view.range.first && first == open
+                          && TOKEN_IS(&file->tokens->tokens[keyword],
+                                      "while");
+            } else if (TOKEN_IS(token, "++")
+                       && before >= view.range.first
+                       && after < view.range.end
+                       && file->tokens->tokens[before].kind == TOKEN_IDENT
+                       && TOKEN_IS(&file->tokens->tokens[after], ";")) {
+                int32 dereference = csane_tokens_previous(&view, before);
+                int32 equal = csane_tokens_previous(&view, dereference);
+
+                allowed = dereference >= view.range.first
+                          && equal >= view.range.first
+                          && TOKEN_IS(&file->tokens->tokens[dereference], "*")
+                          && TOKEN_IS(&file->tokens->tokens[equal], "=");
+            }
+        }
+        if (!allowed) {
             csane_rule_issue(file, token->offset, "STYLE-INCDEC",
                              "prefer += 1 or -= 1 instead of ++ or --");
         }
