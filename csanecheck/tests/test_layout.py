@@ -72,6 +72,18 @@ int32 *f(int32 *p, MyType *q) {
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_macro_generated_function_name_parameters(self):
+        self.check("""static void
+CAT(hash_zero_, HASH_TYPE)(struct Map *map,
+                           HASH_KEY_TYPE *key
+#if HASH_FIXED
+                           , int32 values[count * 2]
+#endif
+                           ) {
+    use(map, key);
+}
+""", ["FMT-MULTIPLY"], unresolved=1)
+
     def test_lowercase_typedef_pointer_and_same_named_variable(self):
         self.check("""typedef int32 custom_t;
 custom_t *pointer;
