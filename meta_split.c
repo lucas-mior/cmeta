@@ -358,7 +358,7 @@ test_split_deep_nesting(void) {
 
 static void
 test_split_invalid_and_unbalanced(void) {
-    char *bad[] = {"a, ([)] , z", "a, (b", "a, b]", "[ a }"};
+    char *bad[] = {"a, ([)] , z", "a, (b", "a, b]", "[ a }",};
 
     for (int32 i = 0; i < LENGTH(bad); i += 1) {
         Tokenization t = tokenize(bad[i], strlen32(bad[i]));
