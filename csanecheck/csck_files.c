@@ -73,8 +73,8 @@ csane_path_compare(void *a, void *b) {
 void
 csane_paths_sort_unique(CsanePaths *paths) {
     int32 kept = 0;
-    qsort(paths->items, (size_t)paths->count,
-          (size_t)SIZEOF(*paths->items), csane_path_compare);
+    qsort64(paths->items, paths->count, SIZEOF(*paths->items),
+            csane_path_compare);
     for (int32 i = 0; i < paths->count; i += 1) {
         if ((kept > 0) && !strcmp(paths->items[kept - 1], paths->items[i])) {
             csane_path_free(paths->items[i]);
