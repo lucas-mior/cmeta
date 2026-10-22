@@ -228,8 +228,10 @@ csane_regions_group(CsaneRegions *regions, int32 parent,
         CPreprocessorBranch *branch = &pp->branches[b];
         CPreprocessorDirective *directive =
             &pp->directives[branch->directive_index];
-        SourceRange source = {directive->source.start,
-                              branch->body_source.end};
+        SourceRange source = {
+            directive->source.start,
+            branch->body_source.end,
+        };
         int32 branch_region;
         csane_regions_code(regions, region, cursor, source.start);
         branch_region = csane_regions_append(regions, region,
