@@ -284,8 +284,11 @@ unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
 static int32
 unit_partial_function_open(UnitCursor *c, int32 first) {
     Tokenization *tokens = c->ast->tokenization;
-    StmtCursor view = {.ast = c->ast, .pp = c->pp,
-                       .range = c->range};
+    StmtCursor view = {
+        .ast = c->ast,
+        .pp = c->pp,
+        .range = c->range
+    };
     int32 parens = 0;
     int32 brackets = 0;
     int32 previous = -1;
