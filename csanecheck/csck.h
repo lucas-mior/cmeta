@@ -15,9 +15,7 @@
 #endif
 
 typedef struct CsanePaths {
-    char **items;
-    int32 count;
-    int32 capacity;
+    StrFlexList strings;
 } CsanePaths;
 
 typedef struct CsanePattern {
@@ -213,7 +211,7 @@ CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
 bool csane_token_name_in(Token *, CsanePaths *);
 void csane_rule_issue(CsaneFile *, int32, char *, char *);
 
-bool csane_paths_add(CsanePaths *, char *);
+bool csane_paths_add(CsanePaths *, char *, int32);
 void csane_paths_sort_unique(CsanePaths *);
 void csane_paths_free(CsanePaths *);
 bool csane_source_allowed(char *);

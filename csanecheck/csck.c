@@ -296,10 +296,10 @@ csane_run(int32 argc, char **argv) {
                 } else if (!strcmp(arg, "--file-list")) {
                     CsanePaths sources = {0};
                     good = csane_collect_file_list(&sources, argv[i + 1]);
-                    for (int32 j = 0; good && j < sources.count; j += 1) {
-                        if (csane_policy_candidate(sources.items[j])) {
+                    for (int32 j = 0; good && j < strflex_list_len(&sources.strings); j += 1) {
+                        if (csane_policy_candidate(sources.strings.items[j]->data)) {
                             good = csane_policy_source(&options.policy,
-                                                       sources.items[j]);
+                                                       sources.strings.items[j]->data);
                         }
                     }
                     csane_paths_free(&sources);
@@ -377,9 +377,9 @@ csane_run(int32 argc, char **argv) {
                 good = csane_policy_add_regex(&options.policy.excludes,
                                               value, NULL, NULL, 0);
             } else if (!strcmp(arg, "--source-root")) {
-                good = csane_paths_add(&options.source_roots, value);
+                good = csane_paths_add(&options.source_roots, value, strlen32(value));
             } else if (!strcmp(arg, "--skip-dir")) {
-                good = csane_paths_add(&options.skip_dirs, value);
+                good = csane_paths_add(&options.skip_dirs, value, strlen32(value));
             } else if (!strcmp(arg, "--filter")) {
                 options.filter = value;
             } else if (!strcmp(arg, "--cbase-root")) {
@@ -447,8 +447,8 @@ csane_run(int32 argc, char **argv) {
     csane_paths_sort_unique(&options.files);
     csane_paths_sort_unique(&options.policy.cbase_roots);
     csane_paths_sort_unique(&options.policy.project_roots);
-    for (int32 i = 0; i < options.files.count; i += 1) {
-        char *path = options.files.items[i];
+    for (int32 i = 0; i < strflex_list_len(&options.files.strings); i += 1) {
+        char *path = options.files.strings.items[i]->data;
         int32 status;
         if (!csane_policy_selected(&options.policy, path, options.filter)) {
             continue;

@@ -12,10 +12,10 @@ csane_token_name_in(Token *token, CsanePaths *names) {
     if (token->kind != TOKEN_IDENT) {
         return false;
     }
-    for (int32 i = 0; i < names->count; i += 1) {
-        int32 len = strlen32(names->items[i]);
+    for (int32 i = 0; i < strflex_list_len(&names->strings); i += 1) {
+        int32 len = names->strings.items[i]->len;
         if (len == token->len
-            && !memcmp64(token->text, names->items[i], len)) {
+            && !memcmp64(token->text, names->strings.items[i]->data, len)) {
             return true;
         }
     }
