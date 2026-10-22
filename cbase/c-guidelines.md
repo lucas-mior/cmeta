@@ -67,7 +67,7 @@ preconditions; assert those instead.
 ## Types
 
 - `const` keyword:
-  * Never use const qualifiers in function signatures.
+  * Function signatures may use const only when required by an external API.
   * You can use it for static constant global data.
   * You can use it for casts needed to interface with the C standard library or
     other stupid libraries.
