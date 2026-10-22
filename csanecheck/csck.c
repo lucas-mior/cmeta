@@ -392,7 +392,7 @@ csane_run(int32 argc, char **argv) {
             if (!strcmp(arg, "--max-depth")) {
                 good = csane_depth(value, &options.max_depth);
             } else if (!strcmp(arg, "--config")) {
-                good = csane_policy_config(&options.policy, value);
+                good = csane_policy_config(&options.policy, value, value_len);
             } else if (!strcmp(arg, "--exclude")) {
                 good = csane_policy_add_regex(&options.policy.excludes,
                                               value, value_len, NULL, 0, NULL, 0, 0);
