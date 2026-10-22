@@ -230,7 +230,7 @@ csane_top_attribute(CsaneTopStream *stream, int32 pos) {
            || csane_top_is(stream, pos, STRLIT("__declspec"))
            || csane_top_is(stream, pos, STRLIT("__asm__"))
            || (token->kind == TOKEN_IDENT && token->len > 5
-               && !memcmp64(token->text, "ATTR_", 5));
+               && BEGINS_WITH(token->text, token->len, "ATTR_"));
 }
 
 /* ATTR_* can itself be a macro-generated function name. Treat it as a
@@ -874,7 +874,7 @@ csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
     source = pp->directives[directive].source;
     text = regions->tokens->text + source.start;
     return memmem64(text, source.end - source.start,
-                    "__cplusplus", strlen32("__cplusplus")) != NULL;
+                    STRLIT("__cplusplus")) != NULL;
 }
 
 static bool

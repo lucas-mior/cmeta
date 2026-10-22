@@ -16,9 +16,9 @@ csane_token_text(Token *token, char *text, int32 text_len) {
 
 static bool
 csane_fixture_path(char *path, int32 len) {
-    for (int32 i = 0; i + 15 <= len; i += 1) {
+    for (int32 i = 0; i < len; i += 1) {
         if ((i == 0 || path[i - 1] == '/')
-            && !memcmp64(path + i, "tests/fixtures/", 15)) {
+            && BEGINS_WITH(path + i, len - i, "tests/fixtures/")) {
             return true;
         }
     }

@@ -491,7 +491,7 @@ csane_tokens_arguments(CsaneTokenView *view, int32 open,
     if (csane_tokens_empty(&inner)) {
         return 0;
     }
-    count = csane_tokens_split(&inner, ",", 1, args, capacity);
+    count = csane_tokens_split(&inner, STRLIT(","), args, capacity);
     if (count < 0 || count > capacity) {
         return -1;
     }
@@ -505,13 +505,18 @@ csane_tokens_arguments(CsaneTokenView *view, int32 open,
     return count;
 }
 
+static StrFlex *csane_token_assignments[] = {
+    SFLIT("="), SFLIT("+="), SFLIT("-="), SFLIT("*="),
+    SFLIT("/="), SFLIT("%="), SFLIT("<<="), SFLIT(">>="),
+    SFLIT("&="), SFLIT("^="), SFLIT("|="),
+};
+
 bool
 csane_tokens_assignment(CsaneTokenView *view, TokenRange *left,
                         TokenRange *right, int32 *operator_index) {
-    static char *operators[] = {
-        "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=",
-    };
     int32 chosen;
+    int32 count = SIZEOF(csane_token_assignments)
+                  /SIZEOF(csane_token_assignments[0]);
     TokenRange lhs;
     TokenRange rhs;
     CsaneTokenView lhs_view;
@@ -521,10 +526,10 @@ csane_tokens_assignment(CsaneTokenView *view, TokenRange *left,
         return false;
     }
     chosen = view->range.end;
-    for (int32 i = 0; i < SIZEOF(operators)/SIZEOF(operators[0]); i += 1) {
-        char *op = operators[i];
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *op = csane_token_assignments[i];
         int32 index = csane_tokens_top_level(view, view->range.first - 1,
-                                             op, strlen32(op));
+                                             op->data, op->len);
         if (index < 0) {
             return false;
         }

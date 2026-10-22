@@ -45,7 +45,7 @@ csane_calls_related(Token *a, Token *b) {
     int32 prefix;
     if (b->len == a->len + 4
         && !memcmp64(b->text, a->text, a->len)
-        && !memcmp64(b->text + a->len, "_len", 4)) {
+        && ENDS_WITH(b->text, b->len, "_len")) {
         return true;
     }
     if (a->len >= 1 && a->text[a->len - 1] == 'x') {
@@ -57,12 +57,12 @@ csane_calls_related(Token *a, Token *b) {
             return true;
         }
     }
-    if (a->len >= 5 && !memcmp64(a->text + a->len - 5, "width", 5)) {
+    if (ENDS_WITH(a->text, a->len, "width")) {
         prefix = a->len - 5;
         if ((prefix == 0 || a->text[prefix - 1] == '_')
             && b->len == prefix + 6
             && !memcmp64(a->text, b->text, prefix)
-            && !memcmp64(b->text + prefix, "height", 6)) {
+            && ENDS_WITH(b->text, b->len, "height")) {
             return true;
         }
     }
@@ -254,7 +254,7 @@ csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
     if (capacity > 256 || capacity < 0) {
         return -1;
     }
-    parts = csane_tokens_split(view, ",", 1, ranges, capacity);
+    parts = csane_tokens_split(view, STRLIT(","), ranges, capacity);
     if (parts < 0 || parts > capacity) {
         return -1;
     }
@@ -442,7 +442,7 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
     anchor = first;
     cursor = content.first;
     while (cursor < close) {
-        int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
+        int32 comma = csane_tokens_top_level(&view, cursor, STRLIT(","));
         int32 end;
         TokenRange argument;
         int32 current;
@@ -488,7 +488,7 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
             anchor = first;
         }
         while (cursor < close) {
-            int32 comma = csane_tokens_top_level(&view, cursor, ",", 1);
+            int32 comma = csane_tokens_top_level(&view, cursor, STRLIT(","));
             int32 end;
             TokenRange argument;
             int32 current;
@@ -533,14 +533,19 @@ csane_call_spacing_gap(CsaneFile *file, Token *name, Token *open) {
     return start < open->offset;
 }
 
+static StrFlex *csane_call_keywords[] = {
+    SFLIT("if"), SFLIT("for"), SFLIT("while"),
+    SFLIT("switch"), SFLIT("return"), SFLIT("sizeof"),
+    SFLIT("_Alignof"), SFLIT("_Generic"), SFLIT("_Static_assert"),
+};
+
 static bool
 csane_call_keyword(Token *token) {
-    static char *names[] = {
-        "if", "for", "while", "switch", "return", "sizeof", "_Alignof",
-        "_Generic", "_Static_assert",
-    };
-    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
-        if (TOKEN_IS(token, names[i])) {
+    int32 count = SIZEOF(csane_call_keywords)
+                  /SIZEOF(csane_call_keywords[0]);
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *word = csane_call_keywords[i];
+        if (TOKEN_IS(token, word->data, word->len)) {
             return true;
         }
     }
