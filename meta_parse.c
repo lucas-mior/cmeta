@@ -141,8 +141,11 @@ unit_recover(UnitCursor *c, int32 first) {
     int32 boundary = unit_boundary(c, first);
     int32 parens = 0;
     int32 brackets = 0;
-    StmtCursor view = {.ast = c->ast, .pp = c->pp,
-                       .range = c->range};
+    StmtCursor view = {
+        .ast = c->ast,
+        .pp = c->pp,
+        .range = c->range,
+    };
     for (int32 i = unit_sig(c, first); i < boundary;
          i = unit_sig(c, i + 1)) {
         Token *token = &tokens->tokens[i];
