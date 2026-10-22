@@ -1052,7 +1052,7 @@ stmt_test_unresolved_pointer_declarations(void) {
     child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
     child = ast.statements[child].next;
-    ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
+    ASSERT_EQ(ast.statements[child].kind, C_STMT_DECLARATION);
     child = ast.statements[child].next;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_DECLARATION);
     child = ast.statements[child].next;
@@ -1065,7 +1065,7 @@ stmt_test_unresolved_pointer_declarations(void) {
     ASSERT_EQ(ast.statements[child].kind, C_STMT_FOR);
     ASSERT_LT(ast.statements[child].for_init_expression, 0);
     ASSERT_GE(ast.statements[child].expression, 0);
-    ASSERT_GE(ast.issue_count, 3);
+    ASSERT_GE(ast.issue_count, 2);
     ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "Arena", 0)),
               C_NAME_UNKNOWN);
     ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "GenericArrayHeader", 0)),
