@@ -21,13 +21,19 @@ cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	Bucket *iterator;	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	Bucket *target;	3
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(CAT(hash_create_, HASH_TYPE), _value)(uint32 length, char *name) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_create_, HASH_TYPE)(uint32 length, char *name) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_deinit_, HASH_TYPE)(struct Map *map) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_destroy_, HASH_TYPE)(struct Map *map) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_init_, HASH_TYPE)(struct Map *map, uint32 length, char *name) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_insert_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_lookup_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_ndeleted_, HASH_TYPE)(struct Map *map) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_overwrite_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_overwrite_pre_calc_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_print_summary_, HASH_TYPE)(struct Map *map) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_probe_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_remove_, HASH_TYPE)(struct Map *map, HASH_KEY_TYPE *key	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_resize_, HASH_TYPE)(struct Map *map) {	1
+cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	CAT(hash_zero_, HASH_TYPE)(struct Map *map) {	1
 cbase/hash.c	RULE:LAYOUT	ambiguous-operator-context	HASH_KEY_TYPE *key	3
 cbase/memory.c	RULE:LAYOUT	ambiguous-operator-context	uchar *p;	1
 cbase/memory.c	RULE:LAYOUT	ambiguous-operator-context	uchar *ptr;	4

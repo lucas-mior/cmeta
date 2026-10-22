@@ -64,7 +64,7 @@ csane_paths_add(CsanePaths *paths, char *path) {
 }
 
 static int
-csane_path_compare(const void *a, const void *b) {
+csane_path_compare(void *a, void *b) {
     char *left = *(char **)a;
     char *right = *(char **)b;
     return strcmp(left, right);
