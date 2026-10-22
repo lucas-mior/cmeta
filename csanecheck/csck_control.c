@@ -31,27 +31,33 @@ csane_control_issue(CsaneFile *file, CsaneStatement *stmt, char *rule,
 
 static bool
 csane_control_block(CsaneFile *file, int32 index) {
+    CsaneStatement *stmt;
+    int32 first;
+
     if (index < 0 || index >= file->statements->count) {
         return false;
     }
-    CsaneStatement *stmt = &file->statements->items[index];
+    stmt = &file->statements->items[index];
     if (stmt->kind == CSANE_STMT_BLOCK) {
         return true;
     }
     /* An unmatched closing brace can make a block OPAQUE, but its opening
      * token still establishes that curly braces were present. */
-    int32 first = csane_control_first(file, stmt);
+    first = csane_control_first(file, stmt);
     return stmt->kind == CSANE_STMT_OPAQUE && first >= 0
            && TOKEN_IS(&file->tokens->tokens[first], "{");
 }
 
 static bool
 csane_control_for_empty(CsaneFile *file, int32 index) {
+    CsaneStatement *body;
+    int32 first;
+
     if (index < 0 || index >= file->statements->count) {
         return false;
     }
-    CsaneStatement *body = &file->statements->items[index];
-    int32 first = csane_control_first(file, body);
+    body = &file->statements->items[index];
+    first = csane_control_first(file, body);
     return body->kind == CSANE_STMT_SIMPLE && first >= 0
            && TOKEN_IS(&file->tokens->tokens[first], ";");
 }
@@ -63,6 +69,9 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
                    || stmt->kind == CSANE_STMT_WHILE
                    || stmt->kind == CSANE_STMT_DO
                    || stmt->kind == CSANE_STMT_SWITCH;
+    CsaneStatement *alternative;
+    CsaneStatement *body;
+
     /* Even an opaque body is definitely unbraced if its first token is
      * not '{'. An unrecognized expression must not hide this violation. */
     if (control && stmt->body >= 0
@@ -75,11 +84,11 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
     if (stmt->kind != CSANE_STMT_IF || stmt->alternative < 0) {
         return;
     }
-    CsaneStatement *alternative = &file->statements->items[stmt->alternative];
+    alternative = &file->statements->items[stmt->alternative];
     if (alternative->kind != CSANE_STMT_ELSE || alternative->body < 0) {
         return;
     }
-    CsaneStatement *body = &file->statements->items[alternative->body];
+    body = &file->statements->items[alternative->body];
     if (csane_control_block(file, alternative->body)
         || body->kind == CSANE_STMT_IF) {
         return;
@@ -113,24 +122,31 @@ csane_control_enclosing_switch(CsaneFile *file, CsaneStatement *label) {
 
 static void
 csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
+    int32 parent;
+    int32 label_token;
+    CsaneStatement *sw;
+    int32 switch_token;
+    int32 label_column;
+    int32 switch_column;
+
     if (stmt->kind != CSANE_STMT_CASE
         && stmt->kind != CSANE_STMT_DEFAULT) {
         return;
     }
-    int32 parent = csane_control_enclosing_switch(file, stmt);
+    parent = csane_control_enclosing_switch(file, stmt);
     if (parent < 0) {
         return;
     }
-    int32 label_token = csane_control_first(file, stmt);
-    CsaneStatement *sw = &file->statements->items[parent];
-    int32 switch_token = csane_control_first(file, sw);
+    label_token = csane_control_first(file, stmt);
+    sw = &file->statements->items[parent];
+    switch_token = csane_control_first(file, sw);
     if (label_token < 0 || switch_token < 0) {
         return;
     }
-    int32 label_column = tokenization_token_location(file->tokens,
-                                                     label_token).column;
-    int32 switch_column = tokenization_token_location(file->tokens,
-                                                      switch_token).column;
+    label_column = tokenization_token_location(file->tokens,
+                                               label_token).column;
+    switch_column = tokenization_token_location(file->tokens,
+                                                switch_token).column;
     if (label_column != switch_column) {
         csane_control_issue(file, stmt, "AST-SWITCH-ALIGN",
                             "case/default must align with switch");
@@ -146,13 +162,15 @@ csane_control_previous(CsaneFile *file, CsaneStatement *stmt, int32 before) {
     int32 base = top->owner_region;
     for (int32 i = before - 1; i >= 0; i -= 1) {
         Token *token = &file->tokens->tokens[i];
+        int32 region;
+
         if (token->offset < top->source.start) {
             break;
         }
         if (token_is_trivia(token) || token->kind == TOKEN_PREPROC) {
             continue;
         }
-        int32 region = csane_regions_at_token(file->regions, i);
+        region = csane_regions_at_token(file->regions, i);
         if (region < 0
             || file->regions->items[region].kind != CSANE_REGION_CODE) {
             continue;
@@ -176,17 +194,21 @@ csane_control_previous(CsaneFile *file, CsaneStatement *stmt, int32 before) {
 static bool
 csane_control_after_endif(CsaneFile *file, CsaneStatement *stmt) {
     int32 first = csane_control_first(file, stmt);
+    char *source;
+    int32 pos;
+    int32 line;
+
     if (first < 0) {
         return false;
     }
-    char *source = file->tokens->text;
-    int32 pos = file->tokens->tokens[first].offset;
+    source = file->tokens->text;
+    pos = file->tokens->tokens[first].offset;
     while (pos > 0 && (source[pos - 1] == ' '
                        || source[pos - 1] == '\t'
                        || source[pos - 1] == '\n')) {
         pos -= 1;
     }
-    int32 line = pos;
+    line = pos;
     while (line > 0 && source[line - 1] != '\n') {
         line -= 1;
     }
@@ -200,10 +222,12 @@ csane_control_after_endif(CsaneFile *file, CsaneStatement *stmt) {
     for (int32 i = first - 1; i >= 0; i -= 1) {
         Token *token = &file->tokens->tokens[i];
         int32 start = file->toplevel->items[stmt->function].source.start;
+        int32 region;
+
         if (token->offset < start) {
             break;
         }
-        int32 region = csane_regions_at_token(file->regions, i);
+        region = csane_regions_at_token(file->regions, i);
         if (region < 0
             || file->regions->items[region].kind != CSANE_REGION_CODE
             || token_is_trivia(token)) {
@@ -222,10 +246,13 @@ static bool
 csane_control_header_before(CsaneFile *file, CsaneStatement *stmt) {
     int32 first = csane_control_first(file, stmt);
     int32 prev = csane_control_previous(file, stmt, first);
+    Token *token;
+    int32 before;
+
     if (prev < 0) {
         return false;
     }
-    Token *token = &file->tokens->tokens[prev];
+    token = &file->tokens->tokens[prev];
     if (TOKEN_IS(token, ")") || TOKEN_IS(token, "else")
         || TOKEN_IS(token, "do") || TOKEN_IS(token, "=")
         || TOKEN_IS(token, ",") || TOKEN_IS(token, "(")) {
@@ -234,20 +261,22 @@ csane_control_header_before(CsaneFile *file, CsaneStatement *stmt) {
     if (TOKEN_IS(token, ":")) {
         int32 line_start = token->offset;
         char *source = file->tokens->text;
+        int32 length;
+
         while (line_start > 0 && source[line_start - 1] != '\n') {
             line_start -= 1;
         }
         while (source[line_start] == ' ') {
             line_start += 1;
         }
-        int32 length = token->offset + token->len - line_start;
+        length = token->offset + token->len - line_start;
         if ((length >= 5 && !memcmp64(source + line_start, "case ", 5))
             || (length >= 8
                 && !memcmp64(source + line_start, "default:", 8))) {
             return true;
         }
     }
-    int32 before = csane_control_previous(file, stmt, prev);
+    before = csane_control_previous(file, stmt, prev);
     if (before >= 0 && (TOKEN_IS(&file->tokens->tokens[before], "struct")
                         || TOKEN_IS(&file->tokens->tokens[before], "union")
                         || TOKEN_IS(&file->tokens->tokens[before], "enum"))) {
@@ -259,6 +288,12 @@ csane_control_header_before(CsaneFile *file, CsaneStatement *stmt) {
 
 static void
 csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
+    int32 token;
+    SourceLocation loc;
+    int32 offset;
+    char *text;
+    int32 start;
+
     if (stmt->kind != CSANE_STMT_BLOCK) {
         return;
     }
@@ -270,11 +305,13 @@ csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
         /* A block immediately after a case/default label is its body. */
         for (int32 i = parent->first_child; i >= 0;
              i = file->statements->items[i].next_sibling) {
+            enum CsaneStatementKind kind;
+
             if (file->statements->items[i].next_sibling
                 != (int32)(stmt - file->statements->items)) {
                 continue;
             }
-            enum CsaneStatementKind kind = file->statements->items[i].kind;
+            kind = file->statements->items[i].kind;
             if (kind == CSANE_STMT_CASE || kind == CSANE_STMT_DEFAULT
                 || kind == CSANE_STMT_LABEL) {
                 return;
@@ -293,17 +330,17 @@ csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
         || csane_control_after_endif(file, stmt)) {
         return;
     }
-    int32 token = csane_control_first(file, stmt);
+    token = csane_control_first(file, stmt);
     if (token < 0) {
         return;
     }
-    SourceLocation loc = tokenization_token_location(file->tokens, token);
+    loc = tokenization_token_location(file->tokens, token);
     if (loc.column < 12) {
         return;
     }
-    int32 offset = file->tokens->tokens[token].offset;
-    char *text = file->tokens->text;
-    int32 start = offset;
+    offset = file->tokens->tokens[token].offset;
+    text = file->tokens->text;
+    start = offset;
     while (start > 0 && text[start - 1] != '\n') {
         start -= 1;
     }

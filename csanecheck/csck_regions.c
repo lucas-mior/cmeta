@@ -77,6 +77,7 @@ csane_regions_define(CsaneRegions *regions, int32 parent,
                      CPreprocessorDefine *define) {
     Tokenization *tokens = regions->tokens;
     SourceRange source = regions->items[parent].source;
+    SourceRange replacement = define->replacement_source;
     int32 cursor = source.start;
     if (define->function_like) {
         Token *open = &tokens->tokens[define->open_paren_token];
@@ -88,7 +89,6 @@ csane_regions_define(CsaneRegions *regions, int32 parent,
                              parameters, -1, -1, -1);
         cursor = parameters.end;
     }
-    SourceRange replacement = define->replacement_source;
     if (replacement.start < cursor) {
         replacement.start = cursor;
     }
@@ -167,28 +167,34 @@ csane_regions_first_directive(CsaneRegions *regions, int32 offset) {
 static bool
 csane_regions_group_usable(CsaneRegions *regions, int32 index) {
     CPreprocessorAnalysis *pp = regions->preprocessor;
+    CPreprocessorGroup *group;
+    int32 cursor;
+
     if (index < 0 || index >= pp->group_count) {
         return false;
     }
-    CPreprocessorGroup *group = &pp->groups[index];
+    group = &pp->groups[index];
     if (group->first_branch < 0 || group->first_branch >= pp->branch_count
         || group->source.start < 0
         || group->source.end > regions->tokens->text_len
         || group->source.end <= group->source.start) {
         return false;
     }
-    int32 cursor = group->source.start;
+    cursor = group->source.start;
     for (int32 b = group->first_branch; b >= 0;
          b = pp->branches[b].next_branch) {
+        CPreprocessorBranch *branch;
+        SourceRange directive;
+
         if (b >= pp->branch_count || pp->branches[b].group_index != index) {
             return false;
         }
-        CPreprocessorBranch *branch = &pp->branches[b];
+        branch = &pp->branches[b];
         if (branch->directive_index < 0
             || branch->directive_index >= pp->directive_count) {
             return false;
         }
-        SourceRange directive = pp->directives[branch->directive_index].source;
+        directive = pp->directives[branch->directive_index].source;
         if (directive.start < cursor
             || branch->body_source.start != directive.end
             || branch->body_source.end < branch->body_source.start
@@ -221,8 +227,9 @@ csane_regions_group(CsaneRegions *regions, int32 parent,
     int32 region = csane_regions_append(regions, parent,
                                         CSANE_REGION_CONDITIONAL_GROUP,
                                         group->source, -1, group_index, -1);
-    regions->items[region].complete = group->endif_directive >= 0;
     int32 cursor = group->source.start;
+
+    regions->items[region].complete = group->endif_directive >= 0;
     for (int32 b = group->first_branch; b >= 0;
          b = pp->branches[b].next_branch) {
         CPreprocessorBranch *branch = &pp->branches[b];
@@ -233,11 +240,13 @@ csane_regions_group(CsaneRegions *regions, int32 parent,
             branch->body_source.end,
         };
         int32 branch_region;
+        CsaneSourceRegion *current;
+
         csane_regions_code(regions, region, cursor, source.start);
         branch_region = csane_regions_append(regions, region,
                                              CSANE_REGION_CONDITIONAL_BRANCH,
                                              source, -1, group_index, b);
-        CsaneSourceRegion *current = &regions->items[branch_region];
+        current = &regions->items[branch_region];
         current->complete = group->endif_directive >= 0
                             || branch->next_branch >= 0;
         csane_regions_directive(regions, branch_region,
@@ -293,6 +302,8 @@ bool
 csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
                    CPreprocessorAnalysis *pp) {
     int32 *opening_groups = NULL;
+    int32 root;
+
     if (regions == NULL) {
         return false;
     }
@@ -305,9 +316,9 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
     regions->tokens = tokens;
     regions->preprocessor = pp;
     regions->complete = pp->issue_count == 0;
-    int32 root = csane_regions_append(regions, -1, CSANE_REGION_FILE,
-                                      (SourceRange){0, tokens->text_len},
-                                      -1, -1, -1);
+    root = csane_regions_append(regions, -1, CSANE_REGION_FILE,
+                                (SourceRange){0, tokens->text_len},
+                                -1, -1, -1);
     if (pp->directive_count > 0) {
         opening_groups = malloc2((int64)pp->directive_count
                                  *SIZEOF(*opening_groups));
@@ -316,11 +327,14 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
         }
         /* Partial conditional groups survive unrelated syntax issues. */
         for (int32 i = 0; i < pp->group_count; i += 1) {
+            int32 branch;
+            int32 directive;
+
             if (!csane_regions_group_usable(regions, i)) {
                 continue;
             }
-            int32 branch = pp->groups[i].first_branch;
-            int32 directive = pp->branches[branch].directive_index;
+            branch = pp->groups[i].first_branch;
+            directive = pp->branches[branch].directive_index;
             opening_groups[directive] = i;
         }
     }
@@ -343,11 +357,12 @@ csane_regions_free(CsaneRegions *regions) {
 
 int32
 csane_regions_at_offset(CsaneRegions *regions, int32 offset) {
+    int32 region = 0;
+
     if (regions == NULL || regions->count == 0 || offset < 0
         || offset >= regions->tokens->text_len) {
         return -1;
     }
-    int32 region = 0;
     while (regions->items[region].first_child >= 0) {
         int32 child = regions->items[region].first_child;
         while (child >= 0) {

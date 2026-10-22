@@ -106,12 +106,14 @@ csane_paths_free(CsanePaths *paths) {
 bool
 csane_source_allowed(char *path) {
     char *name = path;
+    int32 len;
+
     for (char *p = path; *p; p += 1) {
         if (*p == '/') {
             name = p + 1;
         }
     }
-    int32 len = strlen32(name);
+    len = strlen32(name);
     if ((len >= 7) && !strcmp(name + len - 7, ".meta.h")) {
         return false;
     }
@@ -188,19 +190,22 @@ csane_walk(CsanePaths *paths, char *directory, int32 depth,
            int32 max_depth, CsanePaths *skip_dirs) {
     DirEntry *entries = NULL;
     int32 count = get_directory_entries(directory, &entries);
+    bool ok = true;
+
     if (count < 0) {
         fprintf(stderr, "%s: cannot read directory: %s\n",
                         directory, strerror(errno));
         return false;
     }
-    bool ok = true;
     for (int32 i = 0; i < count; i += 1) {
         char *name = entries[i].name;
+        char *path;
+        struct stat st;
+
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
         }
-        char *path = csane_join(directory, name);
-        struct stat st;
+        path = csane_join(directory, name);
 #if OS_WINDOWS
         if (stat(path, &st) != 0) {
 #else
@@ -245,6 +250,9 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
                    CsanePaths *source_roots, CsanePaths *skip_dirs) {
     struct stat st;
     bool ok = true;
+    char *ryu;
+    char *standalone;
+
     if ((stat(root, &st) != 0) || !S_ISDIR(st.st_mode)) {
         fprintf(stderr, "%s: not a directory\n", root);
         return false;
@@ -264,7 +272,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
         csane_path_free(path);
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
-    char *ryu = csane_join(root, "cbase/ryu");
+    ryu = csane_join(root, "cbase/ryu");
     if (csane_discovered_directory(ryu)) {
         if (!csane_walk(paths, ryu, 0, -1, skip_dirs)) {
             ok = false;
@@ -274,7 +282,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 max_depth,
     /* The cbase repository can also be checked directly (with the policy
      * lists in its root rather than under a cbase subdirectory).
      */
-    char *standalone = csane_join(root, "functions_never_use.txt");
+    standalone = csane_join(root, "functions_never_use.txt");
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
         ryu = csane_join(root, "ryu");
         if (csane_discovered_directory(ryu)
@@ -291,16 +299,19 @@ bool
 csane_collect_file_list(CsanePaths *paths, char *filename) {
     char *text = NULL;
     int32 len = read_entire_file(filename, &text);
+    bool ok = true;
+    int32 start = 0;
+
     if (len < 0) {
         return false;
     }
-    bool ok = true;
-    int32 start = 0;
     for (int32 i = 0; i <= len; i += 1) {
+        int32 end;
+
         if ((i < len) && (text[i] != '\n')) {
             continue;
         }
-        int32 end = i;
+        end = i;
         if ((end > start) && (text[end - 1] == '\r')) {
             end -= 1;
         }
