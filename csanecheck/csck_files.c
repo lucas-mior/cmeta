@@ -240,11 +240,12 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
         ok = false;
     }
     for (int32 i = 0; i < strflex_list_len(&source_roots->strings); i += 1) {
-        char *path = csane_join(root, root_len, source_roots->strings.items[i]->data,
-                                source_roots->strings.items[i]->len, &path_len);
+        StrFlex *entry = source_roots->strings.items[i];
+        char *path = csane_join(root, root_len, entry->data, entry->len,
+                                &path_len);
         if ((max_depth != 0) && csane_discovered_directory(path)) {
-            if (!csane_walk(paths, path, path_len, 0, max_depth - (max_depth > 0),
-                            skip_dirs)) {
+            if (!csane_walk(paths, path, path_len, 0,
+                            max_depth - (max_depth > 0), skip_dirs)) {
                 ok = false;
             }
         }
@@ -296,7 +297,8 @@ csane_collect_file_list(CsanePaths *paths, char *filename) {
             end -= 1;
         }
         text[end] = '\0';
-        if ((end > start) && !csane_collect_explicit(paths, text + start, end - start)) {
+        if (end > start
+            && !csane_collect_explicit(paths, text + start, end - start)) {
             ok = false;
         }
         start = i + 1;

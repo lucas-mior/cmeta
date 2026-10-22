@@ -480,7 +480,7 @@ csane_rules_prepare(CsaneFile *file) {
     file->is_ryu = csane_policy_in_ryu(file->policy, file->path,
                                        file->path_len);
     file->column_limit = csane_policy_columns(file->policy, file->path,
-                                               file->path_len);
+                                              file->path_len);
 }
 
 void
@@ -506,7 +506,8 @@ csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
     int32 len = file->path_len;
     bool generated = len >= 7
                      && !memcmp64(file->path + len - 7, ".meta.h", 7);
-    if (csane_fixture_path(file->path, file->path_len) && !rule->include_fixtures) {
+    if (csane_fixture_path(file->path, file->path_len)
+        && !rule->include_fixtures) {
         return true;
     }
     if (generated && (!strcmp(rule->id, "LAYOUT")
