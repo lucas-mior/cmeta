@@ -16,8 +16,9 @@ csane_join(char *directory, int32 left, char *name, int32 right,
     if (slash) {
         path[left] = '/';
     }
-    memcpy64(path + left + slash, name, (int64)right + 1);
+    memcpy64(path + left + slash, name, right);
     *path_len = left + slash + right;
+    path[*path_len] = '\0';
     return path;
 }
 

@@ -160,7 +160,7 @@ typedef struct CsaneRule {
 
 bool csane_policy_init(CsanePolicy *);
 void csane_policy_free(CsanePolicy *);
-bool csane_policy_config(CsanePolicy *, char *);
+bool csane_policy_config(CsanePolicy *, char *, int32);
 bool csane_policy_add_regex(CsanePatterns *, char *, int32, char *, int32,
                             char *, int32, int32);
 bool csane_policy_add_root(CsanePolicy *, char *);
