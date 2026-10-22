@@ -5227,10 +5227,10 @@ test_fmt_null_string_configuration(void) {
 static void
 test_fmt_char_string_outputs(void) {
     char nul_char_expected[] = {'\0'};
-    char span[] = {'a', '\0', 'b', 'c'};
-    char span_expected[] = {'a', '\0', 'b', 'c'};
-    char span_width_expected[] = {' ', ' ', 'a', '\0', 'b'};
-    char span_left_expected[] = {'a', '\0', 'b', ' ', ' '};
+    char span[] = {'a', '\0', 'b', 'c',};
+    char span_expected[] = {'a', '\0', 'b', 'c',};
+    char span_width_expected[] = {' ', ' ', 'a', '\0', 'b',};
+    char span_left_expected[] = {'a', '\0', 'b', ' ', ' ',};
     char plain_precision_expected[] = {'a'};
     char spaces[] = {' ', ' ', ' '};
     char buffer[16];
