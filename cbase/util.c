@@ -84,7 +84,8 @@ here_impl(char *file, int32 line, char *func) {
 #endif
 
     error2("\n======== HERE(%lld): %s:%d:%s()\n",
-           here_counter++, file, line, func);
+           here_counter, file, line, func);
+    here_counter += 1;
 #if OS_UNIX
     SNPRINTF(buffer, "%s:%d:%s\n", file, line, func);
     switch (fork()) {
