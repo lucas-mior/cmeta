@@ -1112,8 +1112,10 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
                 }
             }
             if (!already) {
-                CsaneTopStream stream = {.top = top,
-                                         .owner = item->owner_region};
+                CsaneTopStream stream = {
+                    .top = top,
+                    .owner = item->owner_region,
+                };
                 csane_top_push(&stream, i, csane_regions_at_token(top->regions,
                                                                   i));
                 csane_top_append(&stream,
