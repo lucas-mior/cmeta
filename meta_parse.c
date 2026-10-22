@@ -263,7 +263,7 @@ unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
             StmtCursor view = {
                 .ast = c->ast,
                 .pp = c->pp,
-                .range = c->range
+                .range = c->range,
             };
             int32 aware = stmt_match(&view, i);
             int32 raw = token_range_matching_delimiter_forward(tokens,
@@ -287,7 +287,7 @@ unit_partial_function_open(UnitCursor *c, int32 first) {
     StmtCursor view = {
         .ast = c->ast,
         .pp = c->pp,
-        .range = c->range
+        .range = c->range,
     };
     int32 parens = 0;
     int32 brackets = 0;
@@ -357,8 +357,12 @@ unit_partial_function(UnitCursor *c, int32 first, int32 open,
     int32 close = stmt_match(&view, open);
     int32 node = unit_new(c, C_EXTERNAL_PARTIAL_FUNCTION,
                           (TokenRange){first, close + 1});
-    StmtCursor body = {.ast = c->ast, .pp = c->pp,
-                       .range = {open + 1, close}, .pos = open + 1};
+    StmtCursor body = {
+        .ast = c->ast,
+        .pp = c->pp,
+        .range = {open + 1, close},
+        .pos = open + 1,
+    };
     int32 block = stmt_new(&body, C_STMT_COMPOUND, open);
     c->ast->statements[block].tokens = (TokenRange){open, close + 1};
     c->ast->externals[node].function_body = block;
