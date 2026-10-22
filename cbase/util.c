@@ -240,7 +240,9 @@ getopt_long(
     optarg = NULL;
     if (short_position && *short_position) {
         opt = memchr64(optstring, *short_position, strlen32(optstring));
-        optopt = *short_position++;
+        optopt = *short_position;
+        short_position += 1;
+
         if ((opt == NULL) || (*opt == ':')) {
             return '?';
         }
@@ -260,6 +262,7 @@ getopt_long(
             optind += 1;
             short_position = NULL;
         }
+
         return optopt;
     }
 
