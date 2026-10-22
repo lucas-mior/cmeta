@@ -111,25 +111,26 @@ csane_path_has(CsanePaths *paths, char *name, int32 name_len) {
 
 bool
 csane_discovery_defaults(CsanePaths *roots, CsanePaths *skip_dirs) {
-    char *default_roots[] = {
-        "cbase", "src", "test", "tests", "examples", "cyblocks",
-        "tools", "csanecheck",
+    StrFlex *default_roots[] = {
+        SFLIT("cbase"), SFLIT("src"), SFLIT("test"), SFLIT("tests"),
+        SFLIT("examples"), SFLIT("cyblocks"), SFLIT("tools"),
+        SFLIT("csanecheck"),
     };
-    char *default_skips[] = {
-        ".git", "bin", "build", "generated", "stc", "third_party",
-        "vendor",
+    StrFlex *default_skips[] = {
+        SFLIT(".git"), SFLIT("bin"), SFLIT("build"), SFLIT("generated"),
+        SFLIT("stc"), SFLIT("third_party"), SFLIT("vendor"),
     };
     for (int32 i = 0; i < (int32)(SIZEOF(default_roots)
                                 /SIZEOF(default_roots[0])); i += 1) {
-        if (!csane_paths_add(roots, default_roots[i],
-                             strlen32(default_roots[i]))) {
+        if (!csane_paths_add(roots, default_roots[i]->data,
+                             default_roots[i]->len)) {
             return false;
         }
     }
     for (int32 i = 0; i < (int32)(SIZEOF(default_skips)
                                 /SIZEOF(default_skips[0])); i += 1) {
-        if (!csane_paths_add(skip_dirs, default_skips[i],
-                             strlen32(default_skips[i]))) {
+        if (!csane_paths_add(skip_dirs, default_skips[i]->data,
+                             default_skips[i]->len)) {
             return false;
         }
     }
