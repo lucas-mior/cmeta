@@ -1568,7 +1568,7 @@ main(void) {
         ASSERT_NE(a, b);
     } {
         char haystack[] = "alpha beta gamma";
-        char binary_haystack[] = { 'a', 'b', '\0', 'c', 'd' };
+        char binary_haystack[] = { 'a', 'b', '\0', 'c', 'd', };
 
         ASSERT_CONTAINS(haystack, SIZEOF(haystack) - 1, "alpha");
         ASSERT_CONTAINS(haystack, SIZEOF(haystack) - 1, "beta");
