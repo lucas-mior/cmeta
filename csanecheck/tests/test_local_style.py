@@ -113,6 +113,16 @@ int32 f(int32 x) {
 }
 """, [])
 
+    def test_increment_decrement_allowed_in_array_index(self):
+        self.check("""void f(double *array, int32 n) {
+    int32 i = 0;
+    array[i++] = 1.0;
+    array[--i] = 2.0;
+    array[i ++] = 3.0;
+    for (int32 j = 0; j < n; j++);
+}
+""", ["FMT-UNARY-SPACING", "STYLE-INCDEC"])
+
     def test_ternary_operator_is_not_checked(self):
         self.check("""int32 f(bool condition, int32 a, int32 b) {
     return condition ? a : b;

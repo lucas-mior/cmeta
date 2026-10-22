@@ -1233,8 +1233,18 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
         csane_layout_pointer_spacing_check(file, index, kind);
     }
     if (TOKEN_IS(token, "++") || TOKEN_IS(token, "--")) {
-        csane_rule_issue(file, token->offset, "STYLE-INCDEC",
-                         "prefer += 1 or -= 1 instead of ++ or --");
+        int32 region = csane_regions_at_token(file->regions, index);
+        CsaneTokenView view;
+        bool bracketed = region >= 0
+                         && csane_tokens_view(
+                             &view, file->tokens,
+                             file->regions->items[region].tokens)
+                         && csane_layout_inside_brackets(
+                             &view, view.range.first, index);
+        if (!bracketed) {
+            csane_rule_issue(file, token->offset, "STYLE-INCDEC",
+                             "prefer += 1 or -= 1 instead of ++ or --");
+        }
     }
     if (TOKEN_IS(token, "{")) {
         csane_layout_trailing_comma_check(file, index);
