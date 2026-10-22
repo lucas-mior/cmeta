@@ -437,6 +437,42 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
         CsaneTopItem *item = &file->toplevel->items[i];
         int32 parameter_open;
         int32 parameter_close;
+        if (item->kind == CSANE_TOP_TYPE_DECLARATION
+            && index >= item->header.first && index < item->header.end) {
+            for (parameter_open = csane_tokens_previous(view, index);
+                 parameter_open >= item->header.first;
+                 parameter_open = csane_tokens_previous(view,
+                                                        parameter_open)) {
+                int32 declarator_close;
+                int32 declarator_open;
+                int32 first;
+
+                if (!csane_layout_is(tokens, parameter_open, "(")) {
+                    continue;
+                }
+                parameter_close = csane_tokens_match(view, parameter_open);
+                if (parameter_close <= index
+                    || parameter_close >= item->header.end) {
+                    continue;
+                }
+                declarator_close = csane_tokens_previous(view,
+                                                         parameter_open);
+                if (!csane_layout_is(tokens, declarator_close, ")")) {
+                    continue;
+                }
+                declarator_open = csane_tokens_match(view,
+                                                     declarator_close);
+                first = csane_tokens_next(view, declarator_open);
+                if (declarator_open >= item->header.first
+                    && first < declarator_close
+                    && csane_layout_is(tokens, first, "*")) {
+                    *open = parameter_open;
+                    *close = parameter_close;
+                    return true;
+                }
+            }
+            continue;
+        }
         if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
             && item->kind != CSANE_TOP_FUNCTION_DECLARATION) {
             continue;

@@ -209,6 +209,12 @@ int32 f(int32 a, int32 b) {
         self.check("""void f(char *, int32 *named,
        int32 (*compare)(void *, const char *));
 """, [])
+        self.check("""typedef bool (*RunFunction)(void *backend,
+                                    ModelInput *input,
+                                    Emissions *emissions,
+                                    int32 values[count * 2],
+                                    Result *result);
+""", ["FMT-MULTIPLY"])
         self.check("""typedef struct Callback {
     void (*function)(union Arg *arg);
 } Callback;
