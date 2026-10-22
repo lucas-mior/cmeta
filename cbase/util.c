@@ -1201,7 +1201,7 @@ main(int argc, char **argv) {
 
 
     {
-        int32 arr[] = {10, 5, 20, 1};
+        int32 arr[] = {10, 5, 20, 1,};
         qsort64(arr, 4, SIZEOF(int32), util_test_qsort_cmp);
         ASSERT_EQ(arr[0], 1);
         ASSERT_EQ(arr[1], 5);
