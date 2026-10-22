@@ -646,6 +646,24 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     if (csane_layout_tag_prefix(view, before)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
+    if (TOKEN_IS(name, "(") && csane_layout_known_type(file, view, before)
+        && (csane_layout_statement_prefix(file, view, index, before)
+            || csane_layout_local_prefix(view, before))) {
+        int32 pointer = csane_tokens_next(view, after);
+        int32 declarator = csane_tokens_next(view, pointer);
+        int32 close = csane_tokens_next(view, declarator);
+        int32 parameters = csane_tokens_next(view, close);
+
+        if (csane_layout_is(tokens, pointer, "*")
+            && declarator >= view->range.first
+            && declarator < view->range.end
+            && tokens->tokens[declarator].kind == TOKEN_IDENT
+            && csane_layout_is(tokens, close, ")")
+            && csane_tokens_match(view, after) == close
+            && csane_layout_is(tokens, parameters, "(")) {
+            return CSANE_LAYOUT_DECLARATOR;
+        }
+    }
     if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_MULTIPLY;
     }
