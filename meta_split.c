@@ -155,7 +155,7 @@ test_split_assert_text(Tokenization *tokenization, TokenRange range,
 static void
 test_split_nested_arguments(void) {
     char *text = " a, foo(b, c), (T){1, 2}, array[x, y] ";
-    char *expected[] = {"a", "foo(b, c)", "(T){1, 2}", "array[x, y]"};
+    char *expected[] = {"a", "foo(b, c)", "(T){1, 2}", "array[x, y]",};
     Tokenization tokenization = tokenize(text, strlen32(text));
     TokenRange all = {0, tokenization.token_count};
     TokenRange items[4];
