@@ -112,6 +112,20 @@ int32 f(int32 x) {
     return value;
 }
 """, [])
+        self.check("""int32 f(int32 *pointer, int32 n) {
+    int32 value = 0;
+    while (n--) {}
+    value = *pointer++;
+    return value;
+}
+""", [])
+        self.check("""int32 f(int32 *pointer, int32 n) {
+    int32 value = 0;
+    while (n-- > 0) {}
+    value = *pointer++ + 1;
+    return value;
+}
+""", ["STYLE-INCDEC", "STYLE-INCDEC"])
 
     def test_increment_decrement_allowed_in_array_index(self):
         self.check("""void f(double *array, int32 n) {

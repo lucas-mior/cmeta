@@ -13,7 +13,7 @@ FMT011	cbase/c-format.md	38	39	Operators	Require spaces around binary & and bit 
 FMT012	cbase/c-format.md	40	43	Operators	Forbid spaces around member access . and -> and after designator dots.	implemented	FMT-MEMBER-SPACING	-
 FMT013	cbase/c-format.md	44	45	Operators	Require spaces around &&, ||, and comparison operators.	implemented	FMT-BINARY-SPACING	-
 FMT014	cbase/c-format.md	46	46	Operators	Forbid spaces between unary operators and operands.	implemented	FMT-UNARY-SPACING	-
-FMT015	cbase/c-format.md	47	48	Operators	Prefer += 1 and -= 1 over ++ and --.	implemented	STYLE-INCDEC	-
+FMT015	cbase/c-format.md	47	48	Operators	Prefer += 1 and -= 1 over ++ and --, except complete while conditions and dereferenced-pointer consumption.	implemented	STYLE-INCDEC	-
 FMT016	cbase/c-format.md	52	56	Casts	Do not put whitespace between a cast and its operand.	implemented	FMT-CAST-SPACING	-
 FMT017	cbase/c-format.md	60	63	Pointers	Format pointer declarators with a space after the type and no space between * and the name.	implemented	FMT-POINTER-SPACING	-
 FMT018	cbase/c-format.md	67	67	Function calls	Do not put whitespace before a function-call opening parenthesis.	implemented	FMT-CALL-SPACING	-
@@ -64,8 +64,9 @@ CG013	cbase/c-guidelines.md	84	88	Types	Use bool for ordinary boolean flags; int
 CG014	cbase/c-guidelines.md	89	113	Types	Range-check potentially narrowing numeric casts with MAXOF/MINOF when fit is uncertain.	manual	-	-
 CG015	cbase/c-guidelines.md	114	127	Types	Avoid unsigned integers except documented bit/enum/wrapping/interface cases.	manual	-	-
 CG016	cbase/c-guidelines.md	131	132	Expressions and control flow	End void functions with explicit return unless the path is unreachable.	csanecheck_candidate	-	-
-CG017	cbase/c-guidelines.md	133	137	Expressions and control flow	Avoid the ternary operator.	manual	-	Preference; intentionally not enforced by csanecheck.
-CG018	cbase/c-guidelines.md	138	139	Expressions and control flow	Avoid helper functions that exit the program; call fatal at the failure site.	manual	-	-
+CG017	cbase/c-guidelines.md	133	136	Expressions and control flow	Avoid the ternary operator.	manual	-	Preference; intentionally not enforced by csanecheck.
+CG080	cbase/c-guidelines.md	137	138	Expressions and control flow	Allow postfix decrement as a complete while condition and postfix pointer increment when consuming a dereferenced pointer.	implemented	STYLE-INCDEC	-
+CG018	cbase/c-guidelines.md	139	139	Expressions and control flow	Avoid helper functions that exit the program; call fatal at the failure site.	manual	-	-
 CG019	cbase/c-guidelines.md	141	145	sizeof	Never use builtin sizeof; use SIZEOF.	implemented	PP-SIZEOF	-
 CG020	cbase/c-guidelines.md	157	168	Memory allocation	Avoid raw malloc/calloc/realloc/free; use cbase wrappers and do not NULL-guard free2 solely for NULL.	csanecheck_candidate	-	Raw malloc/calloc/realloc/free are not currently in the configured legacy API lists; free2 NULL-guard is also not implemented.
 CG021	cbase/c-guidelines.md	169	188	Memory allocation	Choose arena, heap wrappers, stack, and generic arrays according to lifetime/flexibility needs.	manual	-	-
