@@ -83,6 +83,13 @@ int32 f(Result callback, int32 value) {
 }
 """, ["FMT-MULTIPLY"])
 
+    def test_call_multiplication_is_not_a_parameter_declarator(self):
+        self.check("""double f(int32 i, double denominator) {
+    double a2 = 0.5;
+    return a2*cos(4.0*PI*(double)i /denominator);
+}
+""", [])
+
     def test_macro_generated_function_name_parameters(self):
         self.check("""static void
 CAT(hash_zero_, HASH_TYPE)(struct Map *map,
