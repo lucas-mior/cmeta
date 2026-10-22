@@ -8,6 +8,29 @@
 #include "csck.h"
 #include "csck_tokens.h"
 
+static StrFlex *csane_decl_qualifiers[] = {
+    SFLIT("static"), SFLIT("extern"), SFLIT("auto"), SFLIT("register"),
+    SFLIT("const"), SFLIT("volatile"), SFLIT("restrict"), SFLIT("inline"),
+    SFLIT("_Atomic"), SFLIT("_Thread_local"),
+};
+
+static StrFlex *csane_decl_statements[] = {
+    SFLIT("return"), SFLIT("if"), SFLIT("for"), SFLIT("while"),
+    SFLIT("switch"), SFLIT("do"), SFLIT("else"), SFLIT("case"),
+    SFLIT("default"), SFLIT("goto"), SFLIT("break"), SFLIT("continue"),
+};
+
+static StrFlex *csane_decl_storage_words[] = {
+    SFLIT("typedef"), SFLIT("static"), SFLIT("extern"), SFLIT("auto"),
+    SFLIT("register"), SFLIT("inline"), SFLIT("_Thread_local"),
+};
+
+static StrFlex *csane_decl_stdint_words[] = {
+    SFLIT("int8_t"), SFLIT("uint8_t"), SFLIT("int16_t"),
+    SFLIT("uint16_t"), SFLIT("int32_t"), SFLIT("uint32_t"),
+    SFLIT("int64_t"), SFLIT("uint64_t"),
+};
+
 /* A deliberately local declaration view: no typedef table or AST is needed. */
 static int32
 csane_decl_next(CsaneFile *file, TokenRange range, int32 after) {
@@ -24,19 +47,18 @@ csane_decl_next(CsaneFile *file, TokenRange range, int32 after) {
 }
 
 static bool
-csane_decl_is(CsaneFile *file, int32 i, char *name) {
+csane_decl_is(CsaneFile *file, int32 i, char *name, int32 name_len) {
     return i >= 0 && i < file->tokens->token_count
-           && TOKEN_IS(&file->tokens->tokens[i], name);
+           && TOKEN_IS(&file->tokens->tokens[i], name, name_len);
 }
 
 static bool
 csane_decl_qualifier(CsaneFile *file, int32 i) {
-    static char *words[] = {
-        "static", "extern", "auto", "register", "const", "volatile",
-        "restrict", "inline", "_Atomic", "_Thread_local",
-    };
-    for (int32 j = 0; j < SIZEOF(words)/SIZEOF(words[0]); j += 1) {
-        if (csane_decl_is(file, i, words[j])) {
+    int32 count = SIZEOF(csane_decl_qualifiers)
+                  /SIZEOF(csane_decl_qualifiers[0]);
+    for (int32 j = 0; j < count; j += 1) {
+        StrFlex *word = csane_decl_qualifiers[j];
+        if (csane_decl_is(file, i, word->data, word->len)) {
             return true;
         }
     }
@@ -45,21 +67,20 @@ csane_decl_qualifier(CsaneFile *file, int32 i) {
 
 static bool
 csane_decl_type_start(CsaneFile *file, TokenRange range) {
-    static char *statements[] = {
-        "return", "if", "for", "while", "switch", "do", "else",
-        "case", "default", "goto", "break", "continue",
-    };
     int32 first;
     int32 type;
     int32 second;
     int32 j;
+    int32 count = SIZEOF(csane_decl_statements)
+                  /SIZEOF(csane_decl_statements[0]);
 
     first = csane_decl_next(file, range, range.first - 1);
-    if (first >= range.end || csane_decl_is(file, first, "typedef")) {
+    if (first >= range.end || csane_decl_is(file, first, STRLIT("typedef"))) {
         return false;
     }
-    for (j = 0; j < SIZEOF(statements)/SIZEOF(statements[0]); j += 1) {
-        if (csane_decl_is(file, first, statements[j])) {
+    for (j = 0; j < count; j += 1) {
+        StrFlex *word = csane_decl_statements[j];
+        if (csane_decl_is(file, first, word->data, word->len)) {
             return false;
         }
     }
@@ -70,9 +91,9 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
     if (type >= range.end) {
         return false;
     }
-    if (csane_decl_is(file, type, "struct")
-        || csane_decl_is(file, type, "union")
-        || csane_decl_is(file, type, "enum")) {
+    if (csane_decl_is(file, type, STRLIT("struct"))
+        || csane_decl_is(file, type, STRLIT("union"))
+        || csane_decl_is(file, type, STRLIT("enum"))) {
         type = csane_decl_next(file, range, type);
         if (type >= range.end) {
             return false;
@@ -88,14 +109,15 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
         return false;
     }
     if (file->tokens->tokens[second].kind == TOKEN_IDENT
-        || csane_decl_is(file, second, "*")) {
+        || csane_decl_is(file, second, STRLIT("*"))) {
         return true;
     }
-    if (csane_decl_is(file, second, "(")) {
+    if (csane_decl_is(file, second, STRLIT("("))) {
         int32 inside;
 
         inside = csane_decl_next(file, range, second);
-        return inside < range.end && csane_decl_is(file, inside, "*");
+        return inside < range.end
+                   && csane_decl_is(file, inside, STRLIT("*"));
     }
     return false;
 }
@@ -122,7 +144,7 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
         int32 close;
         int32 next;
 
-        if (!csane_decl_is(file, i, "(")) {
+        if (!csane_decl_is(file, i, STRLIT("("))) {
             continue;
         }
         before = (TokenRange){range.first, i};
@@ -145,8 +167,8 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
             continue;
         }
         next = csane_decl_next(file, range, close);
-        if (next >= range.end || csane_decl_is(file, next, ";")
-            || csane_decl_is(file, next, "{")) {
+        if (next >= range.end || csane_decl_is(file, next, STRLIT(";"))
+            || csane_decl_is(file, next, STRLIT("{"))) {
             return i;
         }
     }
@@ -154,22 +176,22 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_decl_word(CsaneFile *file, int32 token, char *word) {
+csane_decl_word(CsaneFile *file, int32 token,
+                char *word, int32 word_len) {
     return token >= 0 && token < file->tokens->token_count
            && file->tokens->tokens[token].kind == TOKEN_IDENT
-           && TOKEN_IS(&file->tokens->tokens[token], word);
+           && TOKEN_IS(&file->tokens->tokens[token], word, word_len);
 }
 
 static bool
 csane_decl_storage(CsaneFile *file, int32 token) {
-    static char *words[] = {
-        "typedef", "static", "extern", "auto", "register", "inline",
-        "_Thread_local",
-    };
     int32 i;
+    int32 count = SIZEOF(csane_decl_storage_words)
+                  /SIZEOF(csane_decl_storage_words[0]);
 
-    for (i = 0; i < SIZEOF(words)/SIZEOF(words[0]); i += 1) {
-        if (csane_decl_word(file, token, words[i])) {
+    for (i = 0; i < count; i += 1) {
+        StrFlex *word = csane_decl_storage_words[i];
+        if (csane_decl_word(file, token, word->data, word->len)) {
             return true;
         }
     }
@@ -178,17 +200,17 @@ csane_decl_storage(CsaneFile *file, int32 token) {
 
 static bool
 csane_decl_cv_qualifier(CsaneFile *file, int32 token) {
-    return csane_decl_word(file, token, "const")
-           || csane_decl_word(file, token, "volatile")
-           || csane_decl_word(file, token, "restrict")
-           || csane_decl_word(file, token, "_Atomic");
+    return csane_decl_word(file, token, STRLIT("const"))
+           || csane_decl_word(file, token, STRLIT("volatile"))
+           || csane_decl_word(file, token, STRLIT("restrict"))
+           || csane_decl_word(file, token, STRLIT("_Atomic"));
 }
 
 static bool
 csane_decl_aggregate(CsaneFile *file, int32 token) {
-    return csane_decl_word(file, token, "struct")
-           || csane_decl_word(file, token, "union")
-           || csane_decl_word(file, token, "enum");
+    return csane_decl_word(file, token, STRLIT("struct"))
+           || csane_decl_word(file, token, STRLIT("union"))
+           || csane_decl_word(file, token, STRLIT("enum"));
 }
 
 static bool
@@ -214,7 +236,7 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
     if (token >= range.end) {
         return false;
     }
-    if (csane_decl_word(file, token, "typedef")) {
+    if (csane_decl_word(file, token, STRLIT("typedef"))) {
         return true;
     }
     while (token < range.end
@@ -228,8 +250,8 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
     if (csane_decl_aggregate(file, token)) {
         return true;
     }
-    if (csane_decl_word(file, token, "signed")
-        || csane_decl_word(file, token, "unsigned")
+    if (csane_decl_word(file, token, STRLIT("signed"))
+        || csane_decl_word(file, token, STRLIT("unsigned"))
         || csane_decl_stdint_type(file, token)) {
         return true;
     }
@@ -241,14 +263,15 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
             return false;
         }
         if (file->tokens->tokens[next].kind == TOKEN_IDENT
-            || csane_decl_is(file, next, "*")) {
+            || csane_decl_is(file, next, STRLIT("*"))) {
             return true;
         }
-        if (csane_decl_is(file, next, "(")) {
+        if (csane_decl_is(file, next, STRLIT("("))) {
             int32 inside;
 
             inside = csane_decl_next(file, range, next);
-            return inside < range.end && csane_decl_is(file, inside, "*");
+            return inside < range.end
+                   && csane_decl_is(file, inside, STRLIT("*"));
         }
     }
     return false;
@@ -256,14 +279,13 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
 
 static bool
 csane_decl_stdint_type(CsaneFile *file, int32 token) {
-    static char *words[] = {
-        "int8_t", "uint8_t", "int16_t", "uint16_t",
-        "int32_t", "uint32_t", "int64_t", "uint64_t",
-    };
     int32 i;
+    int32 count = SIZEOF(csane_decl_stdint_words)
+                  /SIZEOF(csane_decl_stdint_words[0]);
 
-    for (i = 0; i < SIZEOF(words)/SIZEOF(words[0]); i += 1) {
-        if (csane_decl_word(file, token, words[i])) {
+    for (i = 0; i < count; i += 1) {
+        StrFlex *word = csane_decl_stdint_words[i];
+        if (csane_decl_word(file, token, word->data, word->len)) {
             return true;
         }
     }
@@ -274,11 +296,11 @@ static bool
 csane_decl_long_double(CsaneFile *file, TokenRange range, int32 token) {
     int32 next;
 
-    if (!csane_decl_word(file, token, "long")) {
+    if (!csane_decl_word(file, token, STRLIT("long"))) {
         return false;
     }
     next = csane_decl_next(file, range, token);
-    return next < range.end && csane_decl_word(file, next, "double");
+    return next < range.end && csane_decl_word(file, next, STRLIT("double"));
 }
 
 /* Check only the leading type-specifier sequence. Initializers, declarator
@@ -316,25 +338,25 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
                 token = csane_decl_next(file, range, token);
                 continue;
             }
-            if ((csane_decl_word(file, token, "long")
-                 || csane_decl_word(file, token, "int"))
+            if ((csane_decl_word(file, token, STRLIT("long"))
+                 || csane_decl_word(file, token, STRLIT("int")))
                 && modifier >= 0) {
                 token = csane_decl_next(file, range, token);
                 continue;
             }
             break;
         }
-        if (csane_decl_word(file, token, "signed")
-            || csane_decl_word(file, token, "unsigned")) {
+        if (csane_decl_word(file, token, STRLIT("signed"))
+            || csane_decl_word(file, token, STRLIT("unsigned"))) {
             if (modifier < 0) {
                 modifier = token;
             }
             token = csane_decl_next(file, range, token);
             continue;
         }
-        if (csane_decl_word(file, token, "short")
-            || csane_decl_word(file, token, "int")
-            || csane_decl_word(file, token, "long")) {
+        if (csane_decl_word(file, token, STRLIT("short"))
+            || csane_decl_word(file, token, STRLIT("int"))
+            || csane_decl_word(file, token, STRLIT("long"))) {
             if (csane_decl_long_double(file, range, token)) {
                 token = csane_decl_next(file, range, token);
                 continue;
@@ -374,12 +396,12 @@ csane_decl_function_pointer_typedef(CsaneFile *file, TokenRange range) {
         int32 close;
         int32 after;
 
-        if (!csane_decl_is(file, token, "*")) {
+        if (!csane_decl_is(file, token, STRLIT("*"))) {
             token = csane_tokens_next(&view, token);
             continue;
         }
         previous = csane_tokens_previous(&view, token);
-        if (!csane_decl_is(file, previous, "(")) {
+        if (!csane_decl_is(file, previous, STRLIT("("))) {
             token = csane_tokens_next(&view, token);
             continue;
         }
@@ -388,7 +410,7 @@ csane_decl_function_pointer_typedef(CsaneFile *file, TokenRange range) {
             return false;
         }
         after = csane_tokens_next(&view, close);
-        if (csane_decl_is(file, after, "(")) {
+        if (csane_decl_is(file, after, STRLIT("("))) {
             return true;
         }
         token = csane_tokens_next(&view, token);
@@ -410,8 +432,8 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
     while (token >= range.first && token < range.end) {
         int32 previous;
 
-        if (csane_decl_is(file, token, "{")
-            || csane_decl_is(file, token, "[")) {
+        if (csane_decl_is(file, token, STRLIT("{"))
+            || csane_decl_is(file, token, STRLIT("["))) {
             int32 close;
 
             close = csane_tokens_match(&view, token);
@@ -421,12 +443,12 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
             token = csane_tokens_next(&view, close);
             continue;
         }
-        if (!csane_decl_is(file, token, "*")) {
+        if (!csane_decl_is(file, token, STRLIT("*"))) {
             token = csane_tokens_next(&view, token);
             continue;
         }
         previous = csane_tokens_previous(&view, token);
-        if (csane_decl_is(file, previous, "(")) {
+        if (csane_decl_is(file, previous, STRLIT("("))) {
             int32 close;
             int32 after;
 
@@ -435,7 +457,7 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
             if (close >= 0) {
                 after = csane_tokens_next(&view, close);
             }
-            if (close >= 0 && !csane_decl_is(file, after, "(")) {
+            if (close >= 0 && !csane_decl_is(file, after, STRLIT("("))) {
                 return true;
             }
         }
@@ -463,7 +485,7 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     int32 type;
 
     first = csane_decl_next(file, range, range.first - 1);
-    if (!csane_decl_word(file, first, "typedef")) {
+    if (!csane_decl_word(file, first, STRLIT("typedef"))) {
         return;
     }
     type = csane_decl_next(file, range, first);
@@ -472,11 +494,12 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
                || csane_decl_cv_qualifier(file, type))) {
         type = csane_decl_next(file, range, type);
     }
-    if (csane_decl_word(file, type, "enum") && !csane_decl_xenums(file)) {
+    if (csane_decl_word(file, type, STRLIT("enum"))
+        && !csane_decl_xenums(file)) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
                          STRLIT("TYPE-ENUM-TYPEDEF"), "do not typedef enums");
     }
-    if (csane_decl_word(file, type, "union")) {
+    if (csane_decl_word(file, type, STRLIT("union"))) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
                          STRLIT("TYPE-UNION-TYPEDEF"), "do not typedef unions");
     }
@@ -549,13 +572,13 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
     }
     result = (TokenRange){range.first, name};
     args = (TokenRange){open + 1, close};
-    if (!csane_decl_word(file, name, "main")) {
+    if (!csane_decl_word(file, name, STRLIT("main"))) {
         csane_decl_type_prefix_check(file, result);
         csane_decl_parameter_checks(file, args);
     }
     token = csane_tokens_next(&view, range.first - 1);
     while (token >= range.first && token < close) {
-        if (csane_decl_word(file, token, "const")) {
+        if (csane_decl_word(file, token, STRLIT("const"))) {
             if (!csane_policy_rule_allowed(file->policy, file->path,
                                            file->path_len,
                                            STRLIT("TYPE-CONST-SIGNATURE"),
@@ -642,7 +665,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
             int32 open;
 
             open = csane_decl_next(file, range, i);
-            if (csane_decl_is(file, open, "(")) {
+            if (csane_decl_is(file, open, STRLIT("("))) {
                 CsaneTokenView view;
 
                 if (csane_tokens_view(&view, file->tokens, range)) {
@@ -667,8 +690,8 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                     }
                 }
             }
-        } else if (csane_decl_is(file, i, "(")
-                   || csane_decl_is(file, i, "[")) {
+        } else if (csane_decl_is(file, i, STRLIT("("))
+                   || csane_decl_is(file, i, STRLIT("["))) {
             CsaneTokenView view;
 
             if (csane_tokens_view(&view, file->tokens, range)) {
@@ -679,7 +702,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                     i = close;
                 }
             }
-        } else if (csane_decl_is(file, i, "{")) {
+        } else if (csane_decl_is(file, i, STRLIT("{"))) {
             CsaneTokenView view;
 
             if (csane_tokens_view(&view, file->tokens, range)) {
@@ -698,11 +721,12 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
 
                         cursor = start;
                         while (cursor < i) {
-                            if (csane_decl_is(file, cursor, "struct")
-                                || csane_decl_is(file, cursor, "union")) {
+                            if (csane_decl_is(file, cursor, STRLIT("struct"))
+                                || csane_decl_is(file, cursor,
+                                                    STRLIT("union"))) {
                                 aggregate_type = true;
                             }
-                            if (csane_decl_is(file, cursor, "=")) {
+                            if (csane_decl_is(file, cursor, STRLIT("="))) {
                                 aggregate_type = false;
                                 break;
                             }
@@ -719,7 +743,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                     i = close;
                 }
             }
-        } else if (csane_decl_is(file, i, ";")) {
+        } else if (csane_decl_is(file, i, STRLIT(";"))) {
             csane_decl_one(file, (TokenRange){start, i + 1}, lines,
                            line_count);
             start = csane_decl_next(file, range, i);
@@ -817,7 +841,7 @@ csane_declarations_check(CsaneFile *file) {
             /* Type members form a separate declaration sequence. */
             open = item->tokens.first;
             while (open < item->tokens.end
-                   && !csane_decl_is(file, open, "{")) {
+                   && !csane_decl_is(file, open, STRLIT("{"))) {
                 open += 1;
             }
             if (open < item->tokens.end) {

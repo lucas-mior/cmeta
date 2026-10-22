@@ -27,9 +27,10 @@ csane_layout_code(CsaneFile *file, int32 index) {
 }
 
 static bool
-csane_layout_is(Tokenization *tokens, int32 i, char *name) {
+csane_layout_is(Tokenization *tokens, int32 i,
+                char *name, int32 name_len) {
     return i >= 0 && i < tokens->token_count
-           && TOKEN_IS(&tokens->tokens[i], name);
+           && TOKEN_IS(&tokens->tokens[i], name, name_len);
 }
 
 static bool
@@ -122,7 +123,7 @@ csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     bool tag = false;
     bool unknown = false;
     bool pointer = false;
-    if (!csane_layout_is(tokens, close, ")")) {
+    if (!csane_layout_is(tokens, close, STRLIT(")"))) {
         return false;
     }
     open = csane_tokens_match(view, close);
@@ -269,8 +270,8 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
                 int32 semicolon;
                 int32 first;
 
-                if (!csane_layout_is(tokens, keyword, "for")
-                    || !csane_layout_is(tokens, open, "(")
+                if (!csane_layout_is(tokens, keyword, STRLIT("for"))
+                    || !csane_layout_is(tokens, open, STRLIT("("))
                     || close < 0) {
                     continue;
                 }
@@ -405,7 +406,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
                 int32 first;
                 int32 type;
 
-                if (!csane_layout_is(tokens, parameter_open, "(")) {
+                if (!csane_layout_is(tokens, parameter_open, STRLIT("("))) {
                     continue;
                 }
                 parameter_close = csane_tokens_match(view, parameter_open);
@@ -417,7 +418,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
                 if (declarator_close >= item->header.first
                     && tokens->tokens[declarator_close].kind == TOKEN_IDENT) {
                     type = csane_tokens_previous(view, declarator_close);
-                    if (csane_layout_is(tokens, type, "*")) {
+                    if (csane_layout_is(tokens, type, STRLIT("*"))) {
                         type = csane_tokens_previous(view, type);
                     }
                     if (type >= item->header.first
@@ -430,14 +431,14 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
                         return true;
                     }
                 }
-                if (!csane_layout_is(tokens, declarator_close, ")")) {
+                if (!csane_layout_is(tokens, declarator_close, STRLIT(")"))) {
                     continue;
                 }
                 declarator_open = csane_tokens_match(view, declarator_close);
                 first = csane_tokens_next(view, declarator_open);
                 if (declarator_open >= item->header.first
                     && first < declarator_close
-                    && csane_layout_is(tokens, first, "*")) {
+                    && csane_layout_is(tokens, first, STRLIT("*"))) {
                     *open = parameter_open;
                     *close = parameter_close;
                     return true;
@@ -454,7 +455,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
             continue;
         }
         parameter_open = csane_tokens_next(view, item->name_token);
-        if (!csane_layout_is(tokens, parameter_open, "(")) {
+        if (!csane_layout_is(tokens, parameter_open, STRLIT("("))) {
             continue;
         }
         parameter_close = csane_tokens_match(view, parameter_open);
@@ -527,14 +528,15 @@ csane_layout_parameter_pointer(CsaneFile *file, CsaneTokenView *view,
     }
     /* Parenthesized pointer declarators, as in int (*compare)(...), and
      * parameters of the function type that immediately follows one. */
-    if (csane_layout_is(tokens, csane_tokens_previous(view, index), "(")) {
+    if (csane_layout_is(tokens, csane_tokens_previous(view, index),
+                        STRLIT("("))) {
         return true;
     }
     if (depth == 1 && nested_open >= 0) {
         int32 declarator_close = csane_tokens_previous(view, nested_open);
         int32 declarator_open;
         int32 first;
-        if (!csane_layout_is(tokens, declarator_close, ")")) {
+        if (!csane_layout_is(tokens, declarator_close, STRLIT(")"))) {
             return false;
         }
         declarator_open = csane_tokens_match(view, declarator_close);
@@ -564,7 +566,7 @@ csane_layout_type_argument_pointer(CsaneFile *file, CsaneTokenView *view,
     Tokenization *tokens = view->tokens;
     int32 first = before;
     int32 previous;
-    if (!csane_layout_is(tokens, after, ")")
+    if (!csane_layout_is(tokens, after, STRLIT(")"))
         || !csane_layout_known_type(file, view, first)) {
         return false;
     }
@@ -611,7 +613,8 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         return CSANE_LAYOUT_DECLARATOR;
     }
     if (TOKEN_IS(name, ")")
-        && csane_layout_is(tokens, csane_tokens_previous(view, before), "(")) {
+        && csane_layout_is(tokens, csane_tokens_previous(view, before),
+                            STRLIT("("))) {
         return CSANE_LAYOUT_DECLARATOR;
     }
     if (csane_layout_parameter_pointer(file, view, index)
@@ -629,13 +632,13 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         int32 close = csane_tokens_next(view, declarator);
         int32 parameters = csane_tokens_next(view, close);
 
-        if (csane_layout_is(tokens, pointer, "*")
+        if (csane_layout_is(tokens, pointer, STRLIT("*"))
             && declarator >= view->range.first
             && declarator < view->range.end
             && tokens->tokens[declarator].kind == TOKEN_IDENT
-            && csane_layout_is(tokens, close, ")")
+            && csane_layout_is(tokens, close, STRLIT(")"))
             && csane_tokens_match(view, after) == close
-            && csane_layout_is(tokens, parameters, "(")) {
+            && csane_layout_is(tokens, parameters, STRLIT("("))) {
             return CSANE_LAYOUT_DECLARATOR;
         }
     }
@@ -643,7 +646,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         return CSANE_LAYOUT_MULTIPLY;
     }
     if (csane_layout_is(tokens, csane_tokens_previous(view, before),
-                        "return")) {
+                        STRLIT("return"))) {
         return CSANE_LAYOUT_MULTIPLY;
     }
     if (!csane_layout_statement_prefix(file, view, index, before)
@@ -697,7 +700,7 @@ csane_layout_control_close(CsaneTokenView *view, int32 before) {
     int32 open;
     int32 keyword;
 
-    if (!csane_layout_is(tokens, before, ")")) {
+    if (!csane_layout_is(tokens, before, STRLIT(")"))) {
         return false;
     }
     open = csane_tokens_match(view, before);
@@ -705,10 +708,10 @@ csane_layout_control_close(CsaneTokenView *view, int32 before) {
         return false;
     }
     keyword = csane_tokens_previous(view, open);
-    return csane_layout_is(tokens, keyword, "if")
-           || csane_layout_is(tokens, keyword, "while")
-           || csane_layout_is(tokens, keyword, "for")
-           || csane_layout_is(tokens, keyword, "switch");
+    return csane_layout_is(tokens, keyword, STRLIT("if"))
+           || csane_layout_is(tokens, keyword, STRLIT("while"))
+           || csane_layout_is(tokens, keyword, STRLIT("for"))
+           || csane_layout_is(tokens, keyword, STRLIT("switch"));
 }
 
 /* Only examine neighbors inside the same original code region. When a local

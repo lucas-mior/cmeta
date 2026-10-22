@@ -9,9 +9,9 @@
 
 
 static bool
-csane_token_text(Token *token, char *text) {
-    int32 len = strlen32(text);
-    return token->len == len && !memcmp64(token->text, text, len);
+csane_token_text(Token *token, char *text, int32 text_len) {
+    return token->len == text_len
+           && !memcmp64(token->text, text, text_len);
 }
 
 static bool
@@ -164,12 +164,12 @@ csane_source_directive(CsaneFile *file, int32 start, int32 end,
 }
 
 static bool
-csane_source_keyword(char *text, int32 end, int32 index, char *word) {
-    int32 length = strlen32(word);
-    return index >= 0 && index + length <= end
-           && !memcmp64(text + index, word, length)
-           && (index + length == end
-               || !char_is_identifier_body(text[index + length]));
+csane_source_keyword(char *text, int32 end, int32 index,
+                     char *word, int32 word_len) {
+    return index >= 0 && index + word_len <= end
+           && !memcmp64(text + index, word, word_len)
+           && (index + word_len == end
+               || !char_is_identifier_body(text[index + word_len]));
 }
 
 static void
@@ -185,8 +185,8 @@ csane_rule_preprocessor(CsaneFile *file) {
             end += 1;
         }
         keyword = csane_source_directive(file, start, end, &cursor);
-        if (csane_source_keyword(text, end, keyword, "ifdef")
-            || csane_source_keyword(text, end, keyword, "ifndef")) {
+        if (csane_source_keyword(text, end, keyword, STRLIT("ifdef"))
+            || csane_source_keyword(text, end, keyword, STRLIT("ifndef"))) {
             csane_rule_issue(file, start, STRLIT("PP-DEFINED"),
                              "use #if defined or #if !defined");
         }
@@ -203,7 +203,7 @@ csane_rule_preprocessor(CsaneFile *file) {
                 while (i < end && char_is_horizontal_space(text[i])) {
                     i += 1;
                 }
-                if (csane_source_keyword(text, end, i, "endif")) {
+                if (csane_source_keyword(text, end, i, STRLIT("endif"))) {
                     for (int32 j = i + 5; j + 1 < end; j += 1) {
                         if (text[j] == '/' && text[j + 1] == '/') {
                             csane_rule_issue(file, j,
@@ -243,7 +243,7 @@ csane_in_sizeof_definition(CsaneFile *file, int32 token_index) {
         return false;
     }
     name = &file->tokens->tokens[define.name_token];
-    return csane_token_text(name, "SIZEOF");
+    return csane_token_text(name, STRLIT("SIZEOF"));
 }
 
 /* Avoid treating an isolated macro alias or keyword table entry as a
@@ -268,10 +268,13 @@ csane_sizeof_has_operand(CsaneFile *file, int32 index) {
     if ((token->kind == TOKEN_IDENT) || (token->kind == TOKEN_LITERAL)) {
         return true;
     }
-    return csane_token_text(token, "(") || csane_token_text(token, "*")
-           || csane_token_text(token, "&") || csane_token_text(token, "+")
-           || csane_token_text(token, "-") || csane_token_text(token, "!")
-           || csane_token_text(token, "~");
+    return csane_token_text(token, STRLIT("("))
+           || csane_token_text(token, STRLIT("*"))
+           || csane_token_text(token, STRLIT("&"))
+           || csane_token_text(token, STRLIT("+"))
+           || csane_token_text(token, STRLIT("-"))
+           || csane_token_text(token, STRLIT("!"))
+           || csane_token_text(token, STRLIT("~"));
 }
 
 static void
@@ -281,7 +284,7 @@ csane_rule_sizeof(CsaneFile *file) {
     }
     for (int32 i = 0; i < file->tokens->token_count; i += 1) {
         Token *token = &file->tokens->tokens[i];
-        if (!csane_token_text(token, "sizeof")
+        if (!csane_token_text(token, STRLIT("sizeof"))
             || (token->kind != TOKEN_IDENT)
             || csane_in_sizeof_definition(file, i)
             || !csane_sizeof_has_operand(file, i)) {

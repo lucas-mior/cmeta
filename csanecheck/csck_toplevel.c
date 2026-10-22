@@ -20,14 +20,15 @@ typedef struct CsaneTopStream {
 } CsaneTopStream;
 
 static bool
-csane_top_is(CsaneTopStream *stream, int32 pos, char *name) {
+csane_top_is(CsaneTopStream *stream, int32 pos,
+             char *name, int32 name_len) {
     Token *token;
 
     if (pos < 0 || pos >= stream->count) {
         return false;
     }
     token = &stream->top->regions->tokens->tokens[stream->indices[pos]];
-    return TOKEN_IS(token, name);
+    return TOKEN_IS(token, name, name_len);
 }
 
 static Token *
@@ -138,26 +139,26 @@ csane_top_collect(CsaneTopStream *stream) {
 
 static bool
 csane_top_open(CsaneTopStream *stream, int32 pos) {
-    return csane_top_is(stream, pos, "(")
-           || csane_top_is(stream, pos, "[")
-           || csane_top_is(stream, pos, "{");
+    return csane_top_is(stream, pos, STRLIT("("))
+           || csane_top_is(stream, pos, STRLIT("["))
+           || csane_top_is(stream, pos, STRLIT("{"));
 }
 
 static bool
 csane_top_close(CsaneTopStream *stream, int32 pos) {
-    return csane_top_is(stream, pos, ")")
-           || csane_top_is(stream, pos, "]")
-           || csane_top_is(stream, pos, "}");
+    return csane_top_is(stream, pos, STRLIT(")"))
+           || csane_top_is(stream, pos, STRLIT("]"))
+           || csane_top_is(stream, pos, STRLIT("}"));
 }
 
 static bool
 csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
-    return (csane_top_is(stream, a, "(")
-            && csane_top_is(stream, b, ")"))
-           || (csane_top_is(stream, a, "[")
-               && csane_top_is(stream, b, "]"))
-           || (csane_top_is(stream, a, "{")
-               && csane_top_is(stream, b, "}"));
+    return (csane_top_is(stream, a, STRLIT("("))
+            && csane_top_is(stream, b, STRLIT(")")))
+           || (csane_top_is(stream, a, STRLIT("["))
+               && csane_top_is(stream, b, STRLIT("]")))
+           || (csane_top_is(stream, a, STRLIT("{"))
+               && csane_top_is(stream, b, STRLIT("}")));
 }
 
 /* Matches are stream-local: directives and nested conditional alternatives
@@ -204,9 +205,9 @@ csane_top_match(CsaneTopStream *stream) {
 
 static bool
 csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
-              char *name) {
+              char *name, int32 name_len) {
     for (int32 i = first; i < end; i += 1) {
-        if (csane_top_is(stream, i, name)) {
+        if (csane_top_is(stream, i, name, name_len)) {
             return true;
         }
         if (csane_top_open(stream, i) && stream->matches[i] > i) {
@@ -224,10 +225,10 @@ csane_top_attribute(CsaneTopStream *stream, int32 pos) {
         return false;
     }
     token = csane_top_token(stream, pos);
-    return csane_top_is(stream, pos, "__attribute__")
-           || csane_top_is(stream, pos, "__attribute")
-           || csane_top_is(stream, pos, "__declspec")
-           || csane_top_is(stream, pos, "__asm__")
+    return csane_top_is(stream, pos, STRLIT("__attribute__"))
+           || csane_top_is(stream, pos, STRLIT("__attribute"))
+           || csane_top_is(stream, pos, STRLIT("__declspec"))
+           || csane_top_is(stream, pos, STRLIT("__asm__"))
            || (token->kind == TOKEN_IDENT && token->len > 5
                && !memcmp64(token->text, "ATTR_", 5));
 }
@@ -241,7 +242,7 @@ csane_top_trailing_attribute(CsaneTopStream *stream, int32 first,
         return false;
     }
     for (int32 i = first; i < pos; i += 1) {
-        if (csane_top_is(stream, i, ")")
+        if (csane_top_is(stream, i, STRLIT(")"))
             && stream->matches[i] >= first) {
             return true;
         }
@@ -263,7 +264,7 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
             end -= 1;
             continue;
         }
-        if (csane_top_is(stream, end - 1, ")")) {
+        if (csane_top_is(stream, end - 1, STRLIT(")"))) {
             open = stream->matches[end - 1];
             if (open > first
                 && csane_top_trailing_attribute(stream, first, open - 1)) {
@@ -273,7 +274,7 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
         }
         break;
     }
-    if (first >= end || !csane_top_is(stream, end - 1, ")")) {
+    if (first >= end || !csane_top_is(stream, end - 1, STRLIT(")"))) {
         return -1;
     }
     open = stream->matches[end - 1];
@@ -284,7 +285,7 @@ csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
     if (csane_top_token(stream, name)->kind == TOKEN_IDENT) {
         return name;
     }
-    if (csane_top_is(stream, name, ")")) {
+    if (csane_top_is(stream, name, STRLIT(")"))) {
         int32 macro_open = stream->matches[name];
         if (macro_open > first
             && csane_top_macro_at(stream, macro_open - 1)) {
@@ -298,8 +299,8 @@ static bool
 csane_top_is_function(CsaneTopStream *stream, int32 first,
                       int32 end, int32 *name) {
     *name = -1;
-    if (first >= end || csane_top_is(stream, first, "typedef")
-        || csane_top_has(stream, first, end, "=")) {
+    if (first >= end || csane_top_is(stream, first, STRLIT("typedef"))
+        || csane_top_has(stream, first, end, STRLIT("="))) {
         return false;
     }
     *name = csane_top_function_name(stream, first, end);
@@ -307,9 +308,9 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
         return false;
     }
     if (*name == first + 1
-        && (csane_top_is(stream, first, "struct")
-            || csane_top_is(stream, first, "union")
-            || csane_top_is(stream, first, "enum"))) {
+        && (csane_top_is(stream, first, STRLIT("struct"))
+            || csane_top_is(stream, first, STRLIT("union"))
+            || csane_top_is(stream, first, STRLIT("enum")))) {
         return false;
     }
     /* The '*' immediately before a function name is part of its return
@@ -321,18 +322,18 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
 
 static bool
 csane_top_type(CsaneTopStream *stream, int32 first, int32 end) {
-    if (csane_top_is(stream, first, "typedef")) {
+    if (csane_top_is(stream, first, STRLIT("typedef"))) {
         return true;
     }
     for (int32 i = first; i < end && i < first + 3; i += 1) {
-        if (csane_top_is(stream, i, "struct")
-            || csane_top_is(stream, i, "union")
-            || csane_top_is(stream, i, "enum")) {
+        if (csane_top_is(stream, i, STRLIT("struct"))
+            || csane_top_is(stream, i, STRLIT("union"))
+            || csane_top_is(stream, i, STRLIT("enum"))) {
             for (int32 j = i + 1; j < end; j += 1) {
-                if (csane_top_is(stream, j, "{")) {
+                if (csane_top_is(stream, j, STRLIT("{"))) {
                     return true;
                 }
-                if (csane_top_is(stream, j, ";")) {
+                if (csane_top_is(stream, j, STRLIT(";"))) {
                     break;
                 }
             }
@@ -347,13 +348,14 @@ csane_top_macro_statement(CsaneTopStream *stream, int32 first,
     int32 close;
 
     if (!csane_token_macro_name(csane_top_token(stream, first))
-        || !csane_top_is(stream, first + 1, "(")) {
+        || !csane_top_is(stream, first + 1, STRLIT("("))) {
         return false;
     }
     close = stream->matches[first + 1];
     return close >= first + 2
            && (close + 1 == end
-               || (close + 2 == end && csane_top_is(stream, end - 1, ";")));
+               || (close + 2 == end
+               && csane_top_is(stream, end - 1, STRLIT(";"))));
 }
 
 static enum CsaneTopKind
@@ -371,10 +373,10 @@ csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
         return CSANE_TOP_TYPE_DECLARATION;
     }
     if (csane_top_is_function(stream, first, end - 1, name)
-        && csane_top_is(stream, end - 1, ";")) {
+        && csane_top_is(stream, end - 1, STRLIT(";"))) {
         return CSANE_TOP_FUNCTION_DECLARATION;
     }
-    if (csane_top_is(stream, end - 1, ";")) {
+    if (csane_top_is(stream, end - 1, STRLIT(";"))) {
         return CSANE_TOP_DECLARATION;
     }
     return CSANE_TOP_OPAQUE;
@@ -406,10 +408,10 @@ csane_top_macro_boundary(CsaneTopStream *stream, int32 first,
     if (next >= stream->count) {
         return true;
     }
-    if (csane_top_is(stream, next, ";")
-        || csane_top_is(stream, next, "(")
-        || csane_top_is(stream, next, "{")
-        || csane_top_is(stream, next, ",")) {
+    if (csane_top_is(stream, next, STRLIT(";"))
+        || csane_top_is(stream, next, STRLIT("("))
+        || csane_top_is(stream, next, STRLIT("{"))
+        || csane_top_is(stream, next, STRLIT(","))) {
         return false;
     }
     return csane_top_new_line(stream, close, next);
@@ -426,9 +428,9 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
            && stream->leaf[leaf_end] == stream->leaf[broken]) {
         leaf_end += 1;
     }
-    if (!csane_top_is(stream, broken, "{")) {
+    if (!csane_top_is(stream, broken, STRLIT("{"))) {
         for (int32 i = broken + 1; i < leaf_end; i += 1) {
-            if (csane_top_is(stream, i, ";")) {
+            if (csane_top_is(stream, i, STRLIT(";"))) {
                 return i + 1;
             }
             if (stream->matches[i] > i) {
@@ -443,10 +445,11 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
             continue;
         }
         for (int32 j = i + 1; j < stream->count; j += 1) {
-            if (csane_top_is(stream, j, ";")) {
+            if (csane_top_is(stream, j, STRLIT(";"))) {
                 break;
             }
-            if (csane_top_is(stream, j, "{") && stream->matches[j] > j) {
+            if (csane_top_is(stream, j, STRLIT("{"))
+                && stream->matches[j] > j) {
                 int32 name = -1;
                 if (csane_top_is_function(stream, i, j, &name)) {
                     return i;
@@ -468,9 +471,9 @@ csane_top_scan(CsaneTopStream *stream) {
         int32 name = -1;
         bool emitted = false;
         for (int32 i = first; i < stream->count; i += 1) {
-            if (i == first + 2 && csane_top_is(stream, first, "extern")
-                && csane_top_is(stream, first + 1, "\"C\"")
-                && csane_top_is(stream, i, "{")
+            if (i == first + 2 && csane_top_is(stream, first, STRLIT("extern"))
+                && csane_top_is(stream, first + 1, STRLIT("\"C\""))
+                && csane_top_is(stream, i, STRLIT("{"))
                 && stream->matches[i] < 0
                 && stream->top->regions->items[stream->owner].kind
                    == CSANE_REGION_CONDITIONAL_BRANCH) {
@@ -480,7 +483,7 @@ csane_top_scan(CsaneTopStream *stream) {
                 emitted = true;
                 break;
             }
-            if (i == first && csane_top_is(stream, i, "}")
+            if (i == first && csane_top_is(stream, i, STRLIT("}"))
                 && stream->top->regions->items[stream->owner].kind
                    == CSANE_REGION_CONDITIONAL_BRANCH) {
                 csane_top_append(stream, CSANE_TOP_LINKAGE_FRAGMENT,
@@ -500,7 +503,7 @@ csane_top_scan(CsaneTopStream *stream) {
                     emitted = true;
                     break;
                 }
-                if (csane_top_is(stream, i, "{")
+                if (csane_top_is(stream, i, STRLIT("{"))
                     && csane_top_is_function(stream, first, i, &name)) {
                     int32 end = stream->matches[i] + 1;
                     csane_top_append(stream, CSANE_TOP_FUNCTION_DEFINITION,
@@ -509,7 +512,7 @@ csane_top_scan(CsaneTopStream *stream) {
                     emitted = true;
                     break;
                 }
-                if (i == first + 1 && csane_top_is(stream, i, "(")
+                if (i == first + 1 && csane_top_is(stream, i, STRLIT("("))
                     && csane_top_macro_boundary(stream, first,
                                                 stream->matches[i])) {
                     int32 end = stream->matches[i] + 1;
@@ -526,7 +529,7 @@ csane_top_scan(CsaneTopStream *stream) {
                 first = i + 1;
                 emitted = true;
                 break;
-            } else if (csane_top_is(stream, i, ";")) {
+            } else if (csane_top_is(stream, i, STRLIT(";"))) {
                 enum CsaneTopKind kind =
                     csane_top_classify(stream, first, i + 1, &name);
                 csane_top_append(stream, kind, first, i + 1, -1, name);
@@ -537,7 +540,7 @@ csane_top_scan(CsaneTopStream *stream) {
                        && csane_token_macro_name(csane_top_token(stream, i))
                        && (i + 1 == stream->count
                            || (csane_top_new_line(stream, i, i + 1)
-                               && !csane_top_is(stream, i + 1, "(")))) {
+                               && !csane_top_is(stream, i + 1, STRLIT("("))))) {
                 csane_top_append(stream, CSANE_TOP_MACRO_INVOCATION,
                                  first, i + 1, -1, first);
                 first = i + 1;
@@ -653,7 +656,7 @@ csane_top_macro_fragment(CsaneTopStream *stream, int32 first, int32 end) {
     if (first + 1 == end) {
         return true;
     }
-    if (!csane_top_is(stream, first + 1, "(")) {
+    if (!csane_top_is(stream, first + 1, STRLIT("("))) {
         return false;
     }
     return stream->matches[first + 1] == end - 1;
@@ -696,12 +699,12 @@ csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
         return kind == CSANE_TOP_PARAMETER_FRAGMENT;
     }
     if (csane_top_token(stream, first)->kind != TOKEN_IDENT
-        || csane_top_is(stream, first, "return")
-        || csane_top_is(stream, first, "if")
-        || csane_top_is(stream, first, "for")
-        || csane_top_is(stream, first, "while")
-        || csane_top_is(stream, first, "switch")
-        || csane_top_is(stream, first, "case")) {
+        || csane_top_is(stream, first, STRLIT("return"))
+        || csane_top_is(stream, first, STRLIT("if"))
+        || csane_top_is(stream, first, STRLIT("for"))
+        || csane_top_is(stream, first, STRLIT("while"))
+        || csane_top_is(stream, first, STRLIT("switch"))
+        || csane_top_is(stream, first, STRLIT("case"))) {
         return false;
     }
     for (int32 i = first; i < end; i += 1) {
@@ -716,7 +719,7 @@ csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
         } else if (csane_top_close(stream, i)) {
             return false;
         }
-        if (csane_top_is(stream, i, ";")) {
+        if (csane_top_is(stream, i, STRLIT(";"))) {
             return false;
         }
     }
@@ -738,7 +741,7 @@ csane_top_fragment_valid(CsaneTopStream *stream, int32 first, int32 end,
 
 static void
 csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
-    char *separator = kind == CSANE_TOP_MEMBER_DECLARATION ? ";" : ",";
+    char separator = kind == CSANE_TOP_MEMBER_DECLARATION ? ';' : ',';
     int32 first = 0;
     while (first < stream->count) {
         int32 begin = first;
@@ -751,7 +754,7 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
         enum CsaneTopKind result;
 
         if (kind == CSANE_TOP_PARAMETER_FRAGMENT
-            && csane_top_is(stream, scan, ",")) {
+            && csane_top_is(stream, scan, STRLIT(","))) {
             scan += 1;
         }
         for (int32 i = scan; i < stream->count; i += 1) {
@@ -764,7 +767,9 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
             } else if (csane_top_close(stream, i)) {
                 end = i + 1;
                 break;
-            } else if (csane_top_is(stream, i, separator)) {
+            } else if (csane_top_token(stream, i)->len == 1
+                       && csane_top_token(stream, i)->text[0]
+                          == separator) {
                 end = i + 1;
                 terminated = true;
                 break;
@@ -773,7 +778,7 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
         content_first = begin;
         content_end = terminated ? end - 1 : end;
         if (kind == CSANE_TOP_PARAMETER_FRAGMENT
-            && csane_top_is(stream, content_first, ",")) {
+            && csane_top_is(stream, content_first, STRLIT(","))) {
             content_first += 1;
         }
         complete = kind != CSANE_TOP_MEMBER_DECLARATION || terminated;
@@ -829,7 +834,8 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
                                            stream.count
                                            - (csane_top_is(&stream,
                                                            stream.count - 1,
-                                                           ",") ? 1 : 0))) {
+                                                           STRLIT(","))
+                                              ? 1 : 0))) {
         csane_top_append(&stream, CSANE_TOP_MACRO_INITIALIZER_FRAGMENT,
                          0, stream.count, -1, -1);
     } else {

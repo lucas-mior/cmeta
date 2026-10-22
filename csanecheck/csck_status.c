@@ -8,9 +8,10 @@
 #include "csck.h"
 
 static bool
-csane_status_is(CsaneFile *file, int32 i, char *text) {
+csane_status_is(CsaneFile *file, int32 i,
+                char *text, int32 text_len) {
     return i >= 0 && i < file->tokens->token_count
-           && TOKEN_IS(&file->tokens->tokens[i], text);
+           && TOKEN_IS(&file->tokens->tokens[i], text, text_len);
 }
 
 /* A status member, label, or preprocessor occurrence is not a reference to
@@ -32,9 +33,9 @@ csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
     previous = tokenization_previous_significant(file->tokens, i);
     next = tokenization_next_significant(file->tokens, i);
     if ((previous >= body.first
-         && (csane_status_is(file, previous, ".")
-             || csane_status_is(file, previous, "->")))
-        || (next < body.end && csane_status_is(file, next, ":"))) {
+         && (csane_status_is(file, previous, STRLIT("."))
+             || csane_status_is(file, previous, STRLIT("->"))))
+        || (next < body.end && csane_status_is(file, next, STRLIT(":")))) {
         return false;
     }
     return true;
@@ -46,8 +47,8 @@ csane_status_declaration(CsaneFile *file, int32 token,
     int32 previous = tokenization_previous_significant(file->tokens, token);
     int32 next = tokenization_next_significant(file->tokens, token);
     return previous >= body.first && next < body.end
-           && csane_status_is(file, previous, "int32")
-           && csane_status_is(file, next, ";");
+           && csane_status_is(file, previous, STRLIT("int32"))
+           && csane_status_is(file, next, STRLIT(";"));
 }
 
 static bool
@@ -58,11 +59,11 @@ csane_status_pair(CsaneFile *file, int32 assignment, int32 use,
     SourceLocation a;
     SourceLocation b;
 
-    if (next >= body.end || !csane_status_is(file, next, "=")) {
+    if (next >= body.end || !csane_status_is(file, next, STRLIT("="))) {
         return false;
     }
     for (int32 i = next + 1; i < use; i += 1) {
-        terminators += csane_status_is(file, i, ";");
+        terminators += csane_status_is(file, i, STRLIT(";"));
     }
     /* A second completed statement can have side effects that would be
      * reordered by inlining the assignment into the following use. */
