@@ -5872,7 +5872,7 @@ fmt_test_planned_sprintf(FmtPlan *plan, char *buffer, int64 capacity, ...) {
 static void
 test_fmt_planned_plan(void) {
     char format[] = "x=%d s=%.*s f=%g";
-    char span[] = {'a', '\0', 'b', 'c'};
+    char span[] = {'a', '\0', 'b', 'c',};
     char buffer[128];
     FmtPlan plan = {0};
     int32 estimate;
@@ -6191,7 +6191,7 @@ test_fmt_public_api(void) {
 
 static void
 test_fmt_estimate(void) {
-    char span[] = {'a', '\0', 'b', 'c'};
+    char span[] = {'a', '\0', 'b', 'c',};
     char buffer[64];
     int32 estimate;
     int32 exact;
