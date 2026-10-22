@@ -209,6 +209,10 @@ int32 f(int32 a, int32 b) {
         self.check("""void f(char *, int32 *named,
        int32 (*compare)(void *, const char *));
 """, [])
+        self.check("""typedef struct Callback {
+    void (*function)(union Arg *arg);
+} Callback;
+""", [])
         self.check("""void f(int32 count, int32 values[count * 2]);
 """, ["FMT-MULTIPLY"])
 

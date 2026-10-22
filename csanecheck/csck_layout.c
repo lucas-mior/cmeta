@@ -606,6 +606,9 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         || csane_layout_type_argument_pointer(file, view, before, after)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
+    if (csane_layout_tag_prefix(view, before)) {
+        return CSANE_LAYOUT_DECLARATOR;
+    }
     if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_MULTIPLY;
     }
