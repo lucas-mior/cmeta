@@ -26,7 +26,7 @@ FMT024	cbase/c-format.md	214	315	Printf-like calls	Apply the documented format-s
 FMT025	cbase/c-format.md	317	339	realloc2 style	Use the documented preferred realloc2 wrapping order.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Covered through generic call/assignment wrapping heuristics.
 FMT026	cbase/c-format.md	341	354	Switch formatting	Align case/default labels with their switch.	implemented	AST-SWITCH-ALIGN	-
 FMT027	cbase/c-format.md	358	366	Declaration formatting	Declare at most one variable per line.	implemented	AST-DECL-ONE	-
-FMT028	cbase/c-format.md	367	382	Initialization formatting	Require trailing commas in array initializers and multiline struct initializers, except {0}.	implemented	FMT-TRAILING-COMMA	-
+FMT028	cbase/c-format.md	367	382	Initialization formatting	Require trailing commas in array initializers with at least four elements and multiline struct initializers, except {0}.	implemented	FMT-TRAILING-COMMA	-
 FMT029	cbase/c-format.md	386	396	Curly braces	Require braces for all control-flow bodies.	implemented	AST-BRACES	-
 FMT030	cbase/c-format.md	398	409	If expressions	Parenthesize binary-expression operands of && and ||.	csanecheck_candidate	-	-
 FMT031	cbase/c-format.md	411	436	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-

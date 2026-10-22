@@ -117,7 +117,14 @@ int32 f(int32 x) {
 
     def test_initializer_trailing_comma_rules(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
-int32 array[] = {1, 2};
+int32 short_array[] = {1, 2, 3};
+int32 nested_short[][2] = {{1, 2}, {3, 4}, {5, 6}};
+int32 multiline_short[] = {
+    1,
+    2,
+    3
+};
+int32 long_array[] = {1, 2, 3, 4};
 S horizontal = {1, 2};
 S vertical = {
     1,
@@ -126,7 +133,8 @@ S vertical = {
 S zero = {0};
 """, ["FMT-TRAILING-COMMA", "FMT-TRAILING-COMMA"])
         self.check("""typedef struct S { int32 x; int32 y; } S;
-int32 array[] = {1, 2,};
+int32 short_array[] = {1, 2, 3};
+int32 long_array[] = {1, 2, 3, 4,};
 S horizontal = {1, 2};
 S vertical = {
     1,
