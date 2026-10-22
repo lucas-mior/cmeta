@@ -108,7 +108,7 @@ if [ "$mode" = callgrind ]; then
     set +e
     valgrind --tool=callgrind --smc-check=none \
         --callgrind-out-file="$callgrind_out" \
-        --dump-instr \
+        --dump-instr=yes \
         $CALLGRIND_FLAGS \
         bin/csanecheck $CALLGRIND_ARGS
     csanecheck_status=$?
