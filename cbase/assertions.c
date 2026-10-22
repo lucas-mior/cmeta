@@ -777,7 +777,7 @@ GENERATE_ASSERT_INTEGERS_SAME_SIGN(unsigned, "%llx", >=, greater_equal)
 
 #undef GENERATE_ASSERT_INTEGERS_SAME_SIGN
 
-static int
+static int32
 compare_sign_with_unsign(llong s, ullong u) {
     ullong saux;
     if (s < 0) {
