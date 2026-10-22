@@ -13,7 +13,7 @@ script=$(basename "$0")
 common_build_parse_args "$@"
 
 case "$mode" in
-build|check|debug|debug-fast|fast_feedback|install|test)
+build|callgrind|check|debug|debug-fast|fast_feedback|install|test)
     ;;
 *)
     common_build_unknown_mode
@@ -41,6 +41,10 @@ CFLAGS="$CFLAGS -std=c11"
 LDFLAGS="$LDFLAGS -lm"
 
 case "$mode" in
+callgrind)
+    CFLAGS="$CFLAGS -g3 -O2"
+    CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
+    ;;
 check)
     (
         common_build_run_analyzers fast_feedback
@@ -81,7 +85,7 @@ mkdir -p bin
 # shellcheck disable=SC2086
 
 case "$mode" in
-build|debug|fast_feedback|debug-fast)
+build|callgrind|debug|fast_feedback|debug-fast)
     trace_on
     $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck/main.c $LDFLAGS
     cp -f bin/csanecheck cbase/csanecheck
@@ -90,6 +94,33 @@ build|debug|fast_feedback|debug-fast)
 *)
     ;;
 esac
+
+if [ "$mode" = callgrind ]; then
+    if ! common_command_exists valgrind; then
+        error "valgrind is required for callgrind mode.\n"
+        exit 1
+    fi
+
+    callgrind_out=${CALLGRIND_OUT:-csanecheck.callgrind}
+    rm -f "$callgrind_out" "${callgrind_out}.txt"
+
+    trace_on
+    set +e
+    valgrind --tool=callgrind --smc-check=none \
+        --callgrind-out-file="$callgrind_out" \
+        $CALLGRIND_FLAGS \
+        bin/csanecheck $CALLGRIND_ARGS
+    csanecheck_status=$?
+    set -e
+    if [ "$csanecheck_status" -gt 1 ]; then
+        exit "$csanecheck_status"
+    fi
+    python3 cbase/callgrind-parse.py "$callgrind_out" \
+        > "${callgrind_out}.txt"
+    trace_off
+    echo "$callgrind_out"
+    exit
+fi
 
 if [ "$mode" = install ]; then
     trace_on
