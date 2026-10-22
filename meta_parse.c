@@ -260,8 +260,11 @@ unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
         Token *token = &tokens->tokens[i];
         if (TOKEN_IS(token, "{") && previous >= 0
             && TOKEN_IS(&tokens->tokens[previous], ")")) {
-            StmtCursor view = {.ast = c->ast, .pp = c->pp,
-                               .range = c->range};
+            StmtCursor view = {
+                .ast = c->ast,
+                .pp = c->pp,
+                .range = c->range
+            };
             int32 aware = stmt_match(&view, i);
             int32 raw = token_range_matching_delimiter_forward(tokens,
                                                                c->range, i);
