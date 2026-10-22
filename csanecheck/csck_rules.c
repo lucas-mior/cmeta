@@ -28,7 +28,8 @@ csane_fixture_path(char *path, int32 len) {
 void
 csane_rule_issue(CsaneFile *file, int32 offset, char *code, char *message) {
     SourceLocation loc;
-    if (csane_policy_rule_allowed(file->policy, file->path, code, NULL)) {
+    if (csane_policy_rule_allowed(file->policy, file->path, file->path_len,
+                                  code, NULL)) {
         return;
     }
     if (offset < 0) {
@@ -474,9 +475,12 @@ csane_rules_prepare(CsaneFile *file) {
     ASSERT(file != NULL);
     ASSERT(file->tokens != NULL);
     file->violations = 0;
-    file->in_cbase = csane_policy_in_cbase(file->policy, file->path);
-    file->is_ryu = csane_policy_in_ryu(file->policy, file->path);
-    file->column_limit = csane_policy_columns(file->policy, file->path);
+    file->in_cbase = csane_policy_in_cbase(file->policy, file->path,
+                                           file->path_len);
+    file->is_ryu = csane_policy_in_ryu(file->policy, file->path,
+                                       file->path_len);
+    file->column_limit = csane_policy_columns(file->policy, file->path,
+                                               file->path_len);
 }
 
 void

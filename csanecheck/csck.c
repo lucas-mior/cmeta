@@ -296,7 +296,7 @@ csane_run(int32 argc, char **argv) {
     /* Discover repository policy roots first. Explicit configuration can
      * then extend or override the imported project's default name lists.
      */
-    if (!csane_policy_project(&options.policy, ".")) {
+    if (!csane_policy_project(&options.policy, STRLIT("."))) {
         exit_status = 2;
         goto cleanup;
     }
@@ -305,20 +305,24 @@ csane_run(int32 argc, char **argv) {
         if (csane_value_option(arg)) {
             if (i + 1 < argc) {
                 if (!strcmp(arg, "--root")) {
-                    good = csane_policy_project(&options.policy, argv[i + 1]);
+                    good = csane_policy_project(&options.policy, argv[i + 1],
+                                                arg_lens[i + 1]);
                 } else if (!strcmp(arg, "--file")) {
                     if (csane_policy_candidate(argv[i + 1], arg_lens[i + 1])) {
                         good = csane_policy_source(&options.policy,
-                                                   argv[i + 1]);
+                                                   argv[i + 1],
+                                                   arg_lens[i + 1]);
                     }
                 } else if (!strcmp(arg, "--file-list")) {
                     CsanePaths sources = {0};
                     good = csane_collect_file_list(&sources, argv[i + 1]);
-                    for (int32 j = 0; good && j < strflex_list_len(&sources.strings); j += 1) {
-                        if (csane_policy_candidate(sources.strings.items[j]->data,
-                                                   sources.strings.items[j]->len)) {
+                    for (int32 j = 0; good && j <
+                         strflex_list_len(&sources.strings); j += 1) {
+                        StrFlex *source = sources.strings.items[j];
+                        if (csane_policy_candidate(source->data, source->len)) {
                             good = csane_policy_source(&options.policy,
-                                                       sources.strings.items[j]->data);
+                                                       source->data,
+                                                       source->len);
                         }
                     }
                     csane_paths_free(&sources);
@@ -334,7 +338,7 @@ csane_run(int32 argc, char **argv) {
         if (arg[0] != '-') {
             struct stat st;
             if (stat(arg, &st) == 0 && S_ISDIR(st.st_mode)) {
-                if (!csane_policy_project(&options.policy, arg)) {
+                if (!csane_policy_project(&options.policy, arg, arg_lens[i])) {
                     exit_status = 2;
                     goto cleanup;
                 }
@@ -404,7 +408,7 @@ csane_run(int32 argc, char **argv) {
                 options.filter = value;
                 options.filter_len = value_len;
             } else if (!strcmp(arg, "--cbase-root")) {
-                good = csane_policy_add_root(&options.policy, value);
+                good = csane_policy_add_root(&options.policy, value, value_len);
             } else if (!strcmp(arg, "--no-column-limit")) {
                 good = csane_policy_add_regex(&options.policy.no_columns,
                                               value, value_len, NULL, 0, NULL, 0, 0);
