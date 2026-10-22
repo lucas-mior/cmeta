@@ -112,6 +112,8 @@ csane_rule_source(CsaneFile *file) {
  */
 static bool
 csane_source_masked(Tokenization *tokens, int32 *cursor, int32 offset) {
+    Token *token;
+
     while (*cursor < tokens->token_count
            && tokens->tokens[*cursor].offset
               + tokens->tokens[*cursor].len <= offset) {
@@ -120,7 +122,7 @@ csane_source_masked(Tokenization *tokens, int32 *cursor, int32 offset) {
     if (*cursor >= tokens->token_count) {
         return false;
     }
-    Token *token = &tokens->tokens[*cursor];
+    token = &tokens->tokens[*cursor];
     if (token->offset > offset) {
         return false;
     }
@@ -176,10 +178,12 @@ csane_rule_preprocessor(CsaneFile *file) {
     int32 cursor = 0;
     for (int32 start = 0; start < len;) {
         int32 end = start;
+        int32 keyword;
+
         while (end < len && text[end] != '\n') {
             end += 1;
         }
-        int32 keyword = csane_source_directive(file, start, end, &cursor);
+        keyword = csane_source_directive(file, start, end, &cursor);
         if (csane_source_keyword(text, end, keyword, "ifdef")
             || csane_source_keyword(text, end, keyword, "ifndef")) {
             csane_rule_issue(file, start, "PP-DEFINED",
@@ -221,6 +225,8 @@ csane_in_sizeof_definition(CsaneFile *file, int32 token_index) {
     int32 directive_index;
     CPreprocessorDirective *directive;
     CPreprocessorDefine define;
+    Token *name;
+
     if (pp->token_directives == NULL) {
         return false;
     }
@@ -234,7 +240,7 @@ csane_in_sizeof_definition(CsaneFile *file, int32 token_index) {
         || define.name_token < 0) {
         return false;
     }
-    Token *name = &file->tokens->tokens[define.name_token];
+    name = &file->tokens->tokens[define.name_token];
     return csane_token_text(name, "SIZEOF");
 }
 
@@ -476,8 +482,10 @@ csane_rules_prepare(CsaneFile *file) {
 
 void
 csane_rules_run(CsaneFile *file, enum CsanePass pass) {
+    bool fixture;
+
     ASSERT(file != NULL);
-    bool fixture = csane_fixture_path(file->path);
+    fixture = csane_fixture_path(file->path);
     for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
          i += 1) {
         CsaneRule *rule = &csane_rules[i];
@@ -530,6 +538,8 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
             csane_coverage_rule(file, rule->target, rule->id,
                                 report_unresolved);
         bool excluded = csane_rule_excluded(file, rule);
+        char *status = "checked";
+
         if (excluded) {
             counts.excluded = counts.eligible;
             counts.checked = 0;
@@ -539,7 +549,6 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
         sum.checked += counts.checked;
         sum.excluded += counts.excluded;
         sum.unresolved += counts.unresolved;
-        char *status = "checked";
         if (excluded) {
             status = "excluded";
         } else if (counts.unresolved > 0) {

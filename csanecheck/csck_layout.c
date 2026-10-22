@@ -337,12 +337,16 @@ static bool
 csane_layout_local_prefix(CsaneTokenView *view, int32 before) {
     Tokenization *tokens = view->tokens;
     int32 first = before;
+    int32 previous;
+
     for (int32 i = 0; i < 8; i += 1) {
-        int32 previous = csane_tokens_previous(view, first);
+        Token *part;
+
+        previous = csane_tokens_previous(view, first);
         if (previous < view->range.first) {
             break;
         }
-        Token *part = &tokens->tokens[previous];
+        part = &tokens->tokens[previous];
         if (!csane_layout_qualifier(part) && !TOKEN_IS(part, "signed")
             && !TOKEN_IS(part, "unsigned") && !TOKEN_IS(part, "long")
             && !TOKEN_IS(part, "short")) {
@@ -353,7 +357,7 @@ csane_layout_local_prefix(CsaneTokenView *view, int32 before) {
     if (!csane_layout_type_prefix(view, first, before)) {
         return false;
     }
-    int32 previous = csane_tokens_previous(view, first);
+    previous = csane_tokens_previous(view, first);
     return previous < view->range.first
            || TOKEN_IS(&tokens->tokens[previous], ";")
            || TOKEN_IS(&tokens->tokens[previous], "{")
@@ -380,6 +384,9 @@ csane_layout_parameter(CsaneTokenView *view, int32 before) {
         if (TOKEN_IS(part, "(")) {
             int32 close = csane_tokens_match(view, i);
             int32 next = -1;
+            int32 name;
+            int32 type;
+
             if (close >= 0) {
                 next = csane_tokens_next(view, close);
             }
@@ -388,8 +395,8 @@ csane_layout_parameter(CsaneTokenView *view, int32 before) {
                     && !csane_layout_is(tokens, next, ";"))) {
                 return false;
             }
-            int32 name = csane_tokens_previous(view, i);
-            int32 type = csane_tokens_previous(view, name);
+            name = csane_tokens_previous(view, i);
+            type = csane_tokens_previous(view, name);
             if (name < 0 || type < 0
                 || tokens->tokens[name].kind != TOKEN_IDENT) {
                 return false;
@@ -585,6 +592,9 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                      int32 before, int32 after) {
     Tokenization *tokens = view->tokens;
     Token *name = &tokens->tokens[after];
+    int32 following;
+    Token *tail;
+
     if (csane_layout_in_cast(file, view, index)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
@@ -613,11 +623,11 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     if (TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_DECLARATOR;
     }
-    int32 following = csane_tokens_next(view, after);
+    following = csane_tokens_next(view, after);
     if (following >= view->range.end) {
         return CSANE_LAYOUT_UNRESOLVED;
     }
-    Token *tail = &tokens->tokens[following];
+    tail = &tokens->tokens[following];
     if (TOKEN_IS(tail, "=") || TOKEN_IS(tail, ",")
         || TOKEN_IS(tail, "[") || TOKEN_IS(tail, "(")) {
         return CSANE_LAYOUT_DECLARATOR;
@@ -654,14 +664,17 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
 static bool
 csane_layout_control_close(CsaneTokenView *view, int32 before) {
     Tokenization *tokens = view->tokens;
+    int32 open;
+    int32 keyword;
+
     if (!csane_layout_is(tokens, before, ")")) {
         return false;
     }
-    int32 open = csane_tokens_match(view, before);
+    open = csane_tokens_match(view, before);
     if (open < 0) {
         return false;
     }
-    int32 keyword = csane_tokens_previous(view, open);
+    keyword = csane_tokens_previous(view, open);
     return csane_layout_is(tokens, keyword, "if")
            || csane_layout_is(tokens, keyword, "while")
            || csane_layout_is(tokens, keyword, "for")
@@ -673,33 +686,43 @@ csane_layout_control_close(CsaneTokenView *view, int32 before) {
 enum CsaneLayoutOperator
 csane_layout_classify(CsaneFile *file, int32 index) {
     Tokenization *tokens = file->tokens;
+    Token *op;
+    bool multiply;
+    bool binary;
+    bool assign;
+    int32 region;
+    CsaneTokenView view;
+    int32 before;
+    int32 after;
+    Token *left;
+    Token *right;
+
     if (!csane_layout_code(file, index)) {
         return CSANE_LAYOUT_SKIP;
     }
-    Token *op = &tokens->tokens[index];
-    bool multiply = TOKEN_IS(op, "*");
-    bool binary = csane_layout_binary(op);
-    bool assign = csane_layout_assignment(op);
+    op = &tokens->tokens[index];
+    multiply = TOKEN_IS(op, "*");
+    binary = csane_layout_binary(op);
+    assign = csane_layout_assignment(op);
     if (!multiply && !binary && !assign) {
         return CSANE_LAYOUT_SKIP;
     }
-    int32 region = csane_regions_at_token(file->regions, index);
-    CsaneTokenView view;
+    region = csane_regions_at_token(file->regions, index);
     if (region < 0
         || !csane_tokens_view(&view, tokens,
                               file->regions->items[region].tokens)) {
         return CSANE_LAYOUT_UNRESOLVED;
     }
-    int32 before = csane_tokens_previous(&view, index);
-    int32 after = csane_tokens_next(&view, index);
+    before = csane_tokens_previous(&view, index);
+    after = csane_tokens_next(&view, index);
     if (before < view.range.first || after >= view.range.end) {
         if (!assign && before < view.range.first) {
             return CSANE_LAYOUT_SKIP;
         }
         return CSANE_LAYOUT_UNRESOLVED;
     }
-    Token *left = &tokens->tokens[before];
-    Token *right = &tokens->tokens[after];
+    left = &tokens->tokens[before];
+    right = &tokens->tokens[after];
     if (!assign && csane_layout_operator_argument(&view, before, after)) {
         return CSANE_LAYOUT_SKIP;
     }
@@ -760,26 +783,32 @@ static bool
 csane_layout_spacing(CsaneFile *file, int32 index, bool tight) {
     Tokenization *tokens = file->tokens;
     int32 region = csane_regions_at_token(file->regions, index);
-    if (region < 0) {
-        return false;
-    }
     CsaneTokenView view;
-    if (!csane_tokens_view(&view, tokens,
-                           file->regions->items[region].tokens)) {
-        return false;
-    }
-    int32 before = csane_tokens_previous(&view, index);
-    int32 after = csane_tokens_next(&view, index);
-    if (before < view.range.first || after >= view.range.end) {
-        return false;
-    }
-    Token *left = &tokens->tokens[before];
-    Token *op = &tokens->tokens[index];
-    Token *right = &tokens->tokens[after];
+    int32 before;
+    int32 after;
+    Token *left;
+    Token *op;
+    Token *right;
     bool before_space = false;
     bool after_space = false;
     bool before_sep = false;
     bool after_sep = false;
+
+    if (region < 0) {
+        return false;
+    }
+    if (!csane_tokens_view(&view, tokens,
+                           file->regions->items[region].tokens)) {
+        return false;
+    }
+    before = csane_tokens_previous(&view, index);
+    after = csane_tokens_next(&view, index);
+    if (before < view.range.first || after >= view.range.end) {
+        return false;
+    }
+    left = &tokens->tokens[before];
+    op = &tokens->tokens[index];
+    right = &tokens->tokens[after];
     if (!csane_layout_gap(file, left->offset + left->len, op->offset,
                           &before_space, &before_sep)
         || !csane_layout_gap(file, op->offset + op->len, right->offset,
@@ -810,11 +839,12 @@ csane_layout_leading_assignment(CsaneFile *file) {
             start -= 1;
         }
         for (int32 j = start; j < token->offset;) {
+            bool comment = false;
+
             if (text[j] == ' ' || text[j] == '\t' || text[j] == '\r') {
                 j += 1;
                 continue;
             }
-            bool comment = false;
             for (int32 k = 0; k < tokens->token_count; k += 1) {
                 Token *part = &tokens->tokens[k];
                 if (part->offset > j) {

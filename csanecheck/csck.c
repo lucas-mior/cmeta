@@ -63,16 +63,26 @@ static int32
 csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     char *source = NULL;
     int32 len = read_entire_file(path, &source);
-    if (len < 0) {
-        return 2;
-    }
-    Tokenization tokens = tokenize(source, len);
+    Tokenization tokens;
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
     CsaneTopLevels toplevel = {0};
     CsaneStatements statements = {0};
     CsaneTypeHints type_hints = {0};
-    CsaneFile file = {
+    CsaneFile file;
+    bool pp_ok;
+    CsaneCoverage coverage;
+    int32 violations;
+    int32 structural_issues;
+    int32 issues;
+    CsaneRuleCounts totals = {0};
+    int32 incomplete;
+
+    if (len < 0) {
+        return 2;
+    }
+    tokens = tokenize(source, len);
+    file = (CsaneFile){
         .path = path,
         .tokens = &tokens,
         .preprocessor = &pp,
@@ -81,7 +91,7 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     csane_rules_prepare(&file);
     /* Source checks are independent of preprocessing and syntax parsing. */
     csane_rules_run(&file, CSANE_PASS_SOURCE);
-    bool pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
+    pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
     if (!csane_regions_init(&regions, &tokens, &pp)) {
         fprintf(stderr, "%s: unable to initialize source regions\n", path);
         c_preprocessor_analysis_free(&pp);
@@ -113,11 +123,10 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
     file.regions = &regions;
     file.toplevel = &toplevel;
     csane_rules_run(&file, CSANE_PASS_TOKEN);
-    CsaneCoverage coverage = csane_coverage_collect(&toplevel, &statements);
-    int32 violations = file.violations;
-    int32 structural_issues = coverage.opaque_externals
-                              + coverage.opaque_statements;
-    int32 issues = structural_issues + pp.issue_count;
+    coverage = csane_coverage_collect(&toplevel, &statements);
+    violations = file.violations;
+    structural_issues = coverage.opaque_externals + coverage.opaque_statements;
+    issues = structural_issues + pp.issue_count;
     if (!pp_ok && pp.issue_count == 0) {
         issues += 1;
     }
@@ -142,11 +151,9 @@ csane_analyze(char *path, CsaneOptions *options, CsaneStats *stats) {
         && structural_issues > 0) {
         csane_coverage_report_structural(path, &tokens, &toplevel, &statements);
     }
-    CsaneRuleCounts totals = {0};
-    int32 incomplete =
-        csane_rules_incomplete(&file, options->rule_coverage,
-                               options->rule_coverage
-                               || options->require_coverage, &totals);
+    incomplete = csane_rules_incomplete(&file, options->rule_coverage,
+                                        options->rule_coverage
+                                        || options->require_coverage, &totals);
     if (options->coverage) {
         printf("coverage_layers file=%s eligible=%d checked=%d "
                "excluded=%d unresolved=%d\n",

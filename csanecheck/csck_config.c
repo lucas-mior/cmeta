@@ -618,6 +618,8 @@ csane_known_rule(char *id) {
 static char *
 csane_config_path(char *filename, char *path) {
     int32 slash = -1;
+    int32 len;
+    char *result;
 
     if (path[0] == '/') {
         return csane_copy(path);
@@ -630,8 +632,8 @@ csane_config_path(char *filename, char *path) {
     if (slash < 0) {
         return csane_copy(path);
     }
-    int32 len = strlen32(path);
-    char *result = malloc2((int64)slash + len + 2);
+    len = strlen32(path);
+    result = malloc2((int64)slash + len + 2);
     memcpy64(result, filename, slash + 1);
     memcpy64(result + slash + 1, path, (int64)len + 1);
     return result;
@@ -755,6 +757,8 @@ bool
 csane_policy_filter(char *path, char *filter) {
     char *basename = path;
     char *filter_base = filter;
+    int32 n;
+    int32 m;
 
     if (filter == NULL || filter[0] == '\0') {
         return true;
@@ -772,8 +776,8 @@ csane_policy_filter(char *path, char *filter) {
     if (!strcmp(path, filter) || !strcmp(basename, filter_base)) {
         return true;
     }
-    int32 n = strlen32(basename);
-    int32 m = strlen32(filter_base);
+    n = strlen32(basename);
+    m = strlen32(filter_base);
     if (n >= 2 && (!strcmp(basename + n - 2, ".h")
                    || !strcmp(basename + n - 2, ".H")
                    || !strcmp(basename + n - 2, ".C"))) {

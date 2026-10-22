@@ -19,6 +19,9 @@ csane_status_is(CsaneFile *file, int32 i, char *text) {
 static bool
 csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
     Token *token = &file->tokens->tokens[i];
+    int32 previous;
+    int32 next;
+
     if (token->kind != TOKEN_IDENT || !TOKEN_IS(token, "status")) {
         return false;
     }
@@ -26,8 +29,8 @@ csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
         && file->preprocessor->token_directives[i] >= 0) {
         return false;
     }
-    int32 previous = tokenization_previous_significant(file->tokens, i);
-    int32 next = tokenization_next_significant(file->tokens, i);
+    previous = tokenization_previous_significant(file->tokens, i);
+    next = tokenization_next_significant(file->tokens, i);
     if ((previous >= body.first
          && (csane_status_is(file, previous, ".")
              || csane_status_is(file, previous, "->")))
@@ -51,10 +54,13 @@ static bool
 csane_status_pair(CsaneFile *file, int32 assignment, int32 use,
                   TokenRange body) {
     int32 next = tokenization_next_significant(file->tokens, assignment);
+    int32 terminators = 0;
+    SourceLocation a;
+    SourceLocation b;
+
     if (next >= body.end || !csane_status_is(file, next, "=")) {
         return false;
     }
-    int32 terminators = 0;
     for (int32 i = next + 1; i < use; i += 1) {
         terminators += csane_status_is(file, i, ";");
     }
@@ -63,40 +69,44 @@ csane_status_pair(CsaneFile *file, int32 assignment, int32 use,
     if (terminators != 1) {
         return false;
     }
-    SourceLocation a = tokenization_token_location(file->tokens, assignment);
-    SourceLocation b = tokenization_token_location(file->tokens, use);
+    a = tokenization_token_location(file->tokens, assignment);
+    b = tokenization_token_location(file->tokens, use);
     return b.line == a.line + 1;
 }
 
 static void
 csane_status_function(CsaneFile *file, CsaneTopItem *top) {
+    TokenRange body;
+    int32 count = 0;
+    int32 *refs;
+    int32 used = 0;
+    int32 declarations = 0;
+    bool matches;
+
     if (top->kind != CSANE_TOP_FUNCTION_DEFINITION) {
         return;
     }
-    TokenRange body = top->body;
-    int32 count = 0;
+    body = top->body;
     for (int32 i = body.first; i < body.end; i += 1) {
         count += csane_status_reference(file, i, body);
     }
     if (count < 3 || !(count & 1)) {
         return;
     }
-    int32 *refs = malloc2((int64)count*SIZEOF(*refs));
+    refs = malloc2((int64)count*SIZEOF(*refs));
     if (refs == NULL) {
         return;
     }
-    int32 used = 0;
     for (int32 i = body.first; i < body.end; i += 1) {
         if (csane_status_reference(file, i, body)) {
             refs[used++] = i;
         }
     }
-    int32 declarations = 0;
     for (int32 i = 0; i < count; i += 1) {
         declarations += csane_status_declaration(file, refs[i], body);
     }
-    bool matches = declarations == 1
-                   && csane_status_declaration(file, refs[0], body);
+    matches = declarations == 1
+              && csane_status_declaration(file, refs[0], body);
     for (int32 i = 1; matches && i < count; i += 2) {
         matches = csane_status_pair(file, refs[i], refs[i + 1], body);
     }
