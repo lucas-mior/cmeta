@@ -365,57 +365,6 @@ csane_layout_local_prefix(CsaneTokenView *view, int32 before) {
            || TOKEN_IS(&tokens->tokens[previous], ":");
 }
 
-/* A parameter declarator belongs to a function signature only when the
- * surrounding parentheses close before a body or a function prototype.
- * This is local recognition, not a typedef or translation-unit parse. */
-static bool
-csane_layout_parameter(CsaneTokenView *view, int32 before) {
-    Tokenization *tokens = view->tokens;
-    for (int32 i = csane_tokens_previous(view, before);
-         i >= view->range.first; i = csane_tokens_previous(view, i)) {
-        Token *part = &tokens->tokens[i];
-        if (TOKEN_IS(part, ")") || TOKEN_IS(part, "]")) {
-            int32 open = csane_tokens_match(view, i);
-            if (open >= 0) {
-                i = open;
-                continue;
-            }
-        }
-        if (TOKEN_IS(part, "(")) {
-            int32 close = csane_tokens_match(view, i);
-            int32 next = -1;
-            int32 name;
-            int32 type;
-
-            if (close >= 0) {
-                next = csane_tokens_next(view, close);
-            }
-            if (next < 0 || next >= view->range.end
-                || (!csane_layout_is(tokens, next, "{")
-                    && !csane_layout_is(tokens, next, ";"))) {
-                return false;
-            }
-            name = csane_tokens_previous(view, i);
-            type = csane_tokens_previous(view, name);
-            if (name < 0 || type < 0
-                || tokens->tokens[name].kind != TOKEN_IDENT) {
-                return false;
-            }
-            if (TOKEN_IS(&tokens->tokens[type], "*")) {
-                type = csane_tokens_previous(view, type);
-            }
-            return type >= view->range.first
-                   && tokens->tokens[type].kind == TOKEN_IDENT
-                   && !csane_layout_keyword(&tokens->tokens[type]);
-        }
-        if (TOKEN_IS(part, ";") || TOKEN_IS(part, "{")
-            || TOKEN_IS(part, "}")) {
-            return false;
-        }
-    }
-    return false;
-}
-
 static bool
 csane_layout_tag_prefix(CsaneTokenView *view, int32 type) {
     Tokenization *tokens = view->tokens;
@@ -666,9 +615,6 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     }
     if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_MULTIPLY;
-    }
-    if (csane_layout_parameter(view, before)) {
-        return CSANE_LAYOUT_DECLARATOR;
     }
     if (csane_layout_is(tokens, csane_tokens_previous(view, before),
                         "return")) {
