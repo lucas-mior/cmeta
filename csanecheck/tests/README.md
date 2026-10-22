@@ -278,9 +278,8 @@ discovery, and temporary-status policies appear in the unified inventory.
 
 `test_declaration_style.py` covers the declaration/type rules that can be
 decided from local tokens and permissive declaration structure: function
-signature `const`, standard fixed-width `_t` types, definitely dynamic VLAs,
-and aggregate/pointer typedef policy. Ambiguous VLA bounds remain undecided
-rather than being guessed. The tests also verify documented typedef exceptions
-and that all step-18 diagnostics are valid `allow-rule` policy IDs. Exact
+signature `const`, standard fixed-width `_t` types, and aggregate/pointer
+typedef policy. The tests also verify documented typedef exceptions and that
+all step-18 diagnostics are valid `allow-rule` policy IDs. Exact
 externally imposed API signatures can use `allow-function-rule` with path and
 function regular expressions without suppressing the rule for an entire file.

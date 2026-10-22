@@ -667,7 +667,6 @@ csane_known_rule(char *id, int32 id_len) {
         CSANE_RULE("STYLE-INCDEC"),
         CSANE_RULE("TYPE-CONST-SIGNATURE"),
         CSANE_RULE("TYPE-STDINT-T"),
-        CSANE_RULE("TYPE-VLA"),
         CSANE_RULE("TYPE-ENUM-TYPEDEF"),
         CSANE_RULE("TYPE-UNION-TYPEDEF"),
         CSANE_RULE("TYPE-POINTER-TYPEDEF"),

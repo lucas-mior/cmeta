@@ -17,7 +17,6 @@ RULES = frozenset({
     "TYPE-POINTER-TYPEDEF",
     "TYPE-STDINT-T",
     "TYPE-UNION-TYPEDEF",
-    "TYPE-VLA",
 })
 
 
@@ -106,17 +105,6 @@ int32 local(const char *path) { return path != 0; }
     unsigned char byte;
 }
 """, [])
-
-    def test_vla_only_when_dynamic_bound_is_syntactically_clear(self):
-        self.check("""int32 count(void);
-void f(void) {
-    int32 fixed[16];
-    int32 macro_bound[COUNT];
-    int32 ambiguous[count_value];
-    int32 dynamic[count()];
-    int32 size_bound[SIZEOF(int32)];
-}
-""", ["TYPE-VLA"])
 
     def test_enum_union_and_pointer_typedef_policy(self):
         self.check("""typedef enum Kind {

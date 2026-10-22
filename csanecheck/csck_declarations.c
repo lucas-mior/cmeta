@@ -361,78 +361,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_decl_dynamic_bound(CsaneFile *file, TokenRange range) {
-    int32 token;
-
-    token = csane_decl_next(file, range, range.first - 1);
-    while (token < range.end) {
-        Token *part = &file->tokens->tokens[token];
-        int32 next;
-
-        if (part->kind == TOKEN_IDENT
-            && !csane_decl_word(file, token, "sizeof")
-            && !csane_decl_word(file, token, "_Alignof")) {
-            next = csane_decl_next(file, range, token);
-            if (next < range.end && csane_decl_is(file, next, "(")) {
-                enum CsaneLocalKind kind;
-
-                kind = csane_classify_invocation(file->tokens, range, token);
-                if (kind == CSANE_LOCAL_CALL) {
-                    return true;
-                }
-            }
-        }
-        if (csane_decl_is(file, token, "->")
-            || csane_decl_is(file, token, ".")
-            || csane_decl_is(file, token, "++")
-            || csane_decl_is(file, token, "--")) {
-            return true;
-        }
-        token = csane_decl_next(file, range, token);
-    }
-    return false;
-}
-
-/* Only definitely dynamic bounds are diagnosed. A bare identifier such as
- * count may be a macro or enumerator, so it remains intentionally unknown. */
-static void
-csane_decl_vla_check(CsaneFile *file, TokenRange range) {
-    CsaneTokenView view;
-    int32 token;
-
-    if (!csane_tokens_view(&view, file->tokens, range)) {
-        return;
-    }
-    token = csane_tokens_next(&view, range.first - 1);
-    while (token >= range.first && token < range.end) {
-        int32 close;
-        TokenRange bound;
-
-        if (csane_decl_is(file, token, "=")) {
-            return;
-        }
-        if (csane_decl_is(file, token, "{")) {
-            return;
-        }
-        if (!csane_decl_is(file, token, "[")) {
-            token = csane_tokens_next(&view, token);
-            continue;
-        }
-        close = csane_tokens_match(&view, token);
-        if (close < 0 || close >= range.end) {
-            return;
-        }
-        bound = (TokenRange){token + 1, close};
-        if (csane_decl_dynamic_bound(file, bound)) {
-            csane_rule_issue(file, file->tokens->tokens[token].offset,
-                             "TYPE-VLA",
-                             "variable-length arrays are forbidden");
-        }
-        token = csane_tokens_next(&view, close);
-    }
-}
-
-static bool
 csane_decl_function_pointer_typedef(CsaneFile *file, TokenRange range) {
     CsaneTokenView view;
     int32 token;
@@ -578,7 +506,6 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args) {
             parameter.end = comma;
         }
         csane_decl_type_prefix_check(file, parameter);
-        csane_decl_vla_check(file, parameter);
         if (comma < first || comma >= args.end) {
             break;
         }
@@ -641,7 +568,6 @@ csane_decl_style_check(CsaneFile *file, TokenRange range) {
         return;
     }
     csane_decl_type_prefix_check(file, range);
-    csane_decl_vla_check(file, range);
     csane_decl_typedef_check(file, range);
 }
 
