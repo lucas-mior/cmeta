@@ -21,14 +21,6 @@ static char *csane_default_cbase[] = {
     "strlen", "strncmp", "strnlen",
 };
 
-static char *
-csane_copy(char *text) {
-    int32 len = strlen32(text);
-    char *result = malloc2((int64)len + 1);
-    memcpy64(result, text, (int64)len + 1);
-    return result;
-}
-
 static bool
 csane_number(char *text, int32 *out) {
     char *end;
@@ -46,8 +38,9 @@ csane_number(char *text, int32 *out) {
 }
 
 bool
-csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
-                       char *function, int32 columns) {
+csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
+                       char *id, int32 id_len, char *function,
+                       int32 function_len, int32 columns) {
     CsanePattern pattern = {0};
 #if OS_UNIX
     int result;
@@ -63,14 +56,15 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
     if (result != 0) {
         char description[256];
         regerror(result, &pattern.compiled, description, SIZEOF(description));
-        fprintf(stderr, "invalid regex '%s': %s\n", text, description);
+        fprintf(stderr, "invalid regex '%.*s': %s\n", text_len, text,
+                description);
         return false;
     }
 #else
-    fprintf(stderr, "POSIX regular expressions are unavailable: %s\n", text);
+    fprintf(stderr, "POSIX regular expressions are unavailable: %.*s\n",
+            text_len, text);
     return false;
 #endif
-    pattern.text = csane_copy(text);
     if (function != NULL) {
 #if OS_UNIX
         result = regcomp(&pattern.function_compiled, function,
@@ -79,16 +73,17 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
             char description[256];
             regerror(result, &pattern.function_compiled, description,
                      SIZEOF(description));
-            error2("invalid regex '%s': %s\n", function, description);
+            error2("invalid regex '%.*s': %s\n", function_len, function,
+                   description);
             regfree(&pattern.compiled);
-            free2(pattern.text, (int64)strlen32(pattern.text) + 1);
             return false;
         }
 #endif
-        pattern.function_text = csane_copy(function);
+        pattern.has_function = true;
     }
     if (id != NULL) {
-        pattern.rule_id = csane_copy(id);
+        pattern.rule_id = xstrndup(id, id_len);
+        pattern.rule_id_len = id_len;
     }
     pattern.columns = columns;
     if (patterns->count == patterns->capacity) {
@@ -116,17 +111,12 @@ csane_patterns_free(CsanePatterns *patterns) {
         CsanePattern *item = &patterns->items[i];
 #if OS_UNIX
         regfree(&item->compiled);
-        if (item->function_text != NULL) {
+        if (item->has_function) {
             regfree(&item->function_compiled);
         }
 #endif
-        free2(item->text, (int64)strlen32(item->text) + 1);
-        if (item->function_text != NULL) {
-            free2(item->function_text,
-                  (int64)strlen32(item->function_text) + 1);
-        }
         if (item->rule_id != NULL) {
-            free2(item->rule_id, (int64)strlen32(item->rule_id) + 1);
+            free2(item->rule_id, (int64)item->rule_id_len + 1);
         }
     }
     if (patterns->items != NULL) {
@@ -165,9 +155,10 @@ csane_policy_rule_allowed(CsanePolicy *policy, char *path, char *rule_id,
                           Token *function) {
     for (int32 i = 0; i < policy->rule_exemptions.count; i += 1) {
         CsanePattern *pattern = &policy->rule_exemptions.items[i];
-        if (!strcmp(pattern->rule_id, rule_id)
+        if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
+                     rule_id, strlen32(rule_id))
             && csane_match(pattern, path)) {
-            if (pattern->function_text == NULL) {
+            if (!pattern->has_function) {
                 return true;
             }
             if (function != NULL) {
@@ -395,7 +386,7 @@ csane_policy_project(CsanePolicy *policy, char *project) {
         char *config = csane_join_path(project, "config.h");
         if (csane_exists(config)) {
             ok = csane_policy_add_regex(&policy->no_columns,
-                                        "(^|/)config\\.h$", NULL, NULL, 0)
+                                        STRLIT("(^|/)config\\.h$"), NULL, 0, NULL, 0, 0)
                  && ok;
         }
         free2(config, (int64)strlen32(config) + 1);
@@ -526,7 +517,7 @@ csane_policy_init(CsanePolicy *policy) {
         }
     }
     if (!csane_policy_add_regex(&policy->column_overrides,
-                                "(^|/)cecup/src/", NULL, NULL, 100)) {
+                                STRLIT("(^|/)cecup/src/"), NULL, 0, NULL, 0, 100)) {
         csane_policy_free(policy);
         return false;
     }
@@ -676,7 +667,7 @@ csane_config_path(char *filename, char *path) {
     char *result;
 
     if (path[0] == '/') {
-        return csane_copy(path);
+        return xstrndup(path, strlen32(path));
     }
     for (int32 i = 0; filename[i]; i += 1) {
         if (filename[i] == '/') {
@@ -684,7 +675,7 @@ csane_config_path(char *filename, char *path) {
         }
     }
     if (slash < 0) {
-        return csane_copy(path);
+        return xstrndup(path, strlen32(path));
     }
     len = strlen32(path);
     result = malloc2((int64)slash + len + 2);
@@ -714,12 +705,12 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
     fourth = csane_word(&cursor, &remaining);
     if (STREQUAL(key.data, key.len, "exclude")
         && first.data && !second.data) {
-        ok = csane_policy_add_regex(&policy->excludes, first.data, NULL,
-                                    NULL, 0);
+        ok = csane_policy_add_regex(&policy->excludes, first.data, first.len,
+                                    NULL, 0, NULL, 0, 0);
     } else if (STREQUAL(key.data, key.len, "no-column-limit")
         && first.data && !second.data) {
-        ok = csane_policy_add_regex(&policy->no_columns, first.data, NULL,
-                                    NULL, 0);
+        ok = csane_policy_add_regex(&policy->no_columns, first.data, first.len,
+                                    NULL, 0, NULL, 0, 0);
     } else if (STREQUAL(key.data, key.len, "column-limit") && first.data && !second.data
                && csane_number(first.data, &columns)) {
         policy->default_columns = columns;
@@ -727,22 +718,24 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
     } else if (STREQUAL(key.data, key.len, "columns")
                && first.data && second.data && !extra.data
                && csane_number(second.data, &columns)) {
-        ok = csane_policy_add_regex(&policy->column_overrides, first.data, NULL,
-                                    NULL, columns);
+        ok = csane_policy_add_regex(&policy->column_overrides, first.data, first.len,
+                                    NULL, 0, NULL, 0, columns);
     } else if (STREQUAL(key.data, key.len, "allow-rule")
                && first.data && second.data && !extra.data
               
                && csane_known_rule(first.data, first.len)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data, first.data,
-                                    NULL, 0);
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data,
+                                    second.len, first.data, first.len,
+                                    NULL, 0, 0);
     } else if (STREQUAL(key.data, key.len, "allow-function-rule")
                && first.data && second.data
               
                && extra.data && !fourth.data
               
                && csane_known_rule(first.data, first.len)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data, first.data,
-                                    extra.data, 0);
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data,
+                                    second.len, first.data, first.len,
+                                    extra.data, extra.len, 0);
     } else if (STREQUAL(key.data, key.len, "never-use")
                && csane_identifier(first.data, first.len)
                && !second.data) {

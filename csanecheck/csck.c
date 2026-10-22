@@ -270,7 +270,7 @@ csane_run(int32 argc, char **argv) {
     value = getenv("TEST_EXCLUDE_PATTERN");
     if (value != NULL && value[0] != '\0'
         && !csane_policy_add_regex(&options.policy.excludes, value,
-                                   NULL, NULL, 0)) {
+                                   strlen32(value), NULL, 0, NULL, 0, 0)) {
         exit_status = 2;
         goto cleanup;
     }
@@ -375,7 +375,7 @@ csane_run(int32 argc, char **argv) {
                 good = csane_policy_config(&options.policy, value);
             } else if (!strcmp(arg, "--exclude")) {
                 good = csane_policy_add_regex(&options.policy.excludes,
-                                              value, NULL, NULL, 0);
+                                              value, strlen32(value), NULL, 0, NULL, 0, 0);
             } else if (!strcmp(arg, "--source-root")) {
                 good = csane_paths_add(&options.source_roots, value, strlen32(value));
             } else if (!strcmp(arg, "--skip-dir")) {
@@ -386,7 +386,7 @@ csane_run(int32 argc, char **argv) {
                 good = csane_policy_add_root(&options.policy, value);
             } else if (!strcmp(arg, "--no-column-limit")) {
                 good = csane_policy_add_regex(&options.policy.no_columns,
-                                              value, NULL, NULL, 0);
+                                              value, strlen32(value), NULL, 0, NULL, 0, 0);
             } else if (!strcmp(arg, "--root") || !strcmp(arg, "--file")
                        || !strcmp(arg, "--file-list")) {
                 had_inputs = true;
