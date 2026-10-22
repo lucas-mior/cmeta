@@ -60,8 +60,7 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
     if (result != 0) {
         char description[256];
         regerror(result, &pattern.compiled, description, SIZEOF(description));
-        error2("invalid regex '%.*s': %s\n",
-               text_len, text, description);
+        error2("invalid regex '%.*s': %s\n", text_len, text, description);
         return false;
     }
 #else
