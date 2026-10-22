@@ -613,8 +613,11 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
     CsaneTopItem *top = &statements->toplevel->items[function];
     CsaneRegions *regions = statements->toplevel->regions;
     Tokenization *tokens = regions->tokens;
-    CsaneStatementStream stream = {.statements = statements,
-                                   .function = function, .owner = owner};
+    CsaneStatementStream stream = {
+        .statements = statements,
+        .function = function,
+        .owner = owner,
+    };
     CsaneTokenPath path;
     CsaneTokenView view;
     int32 part_first = -1;
