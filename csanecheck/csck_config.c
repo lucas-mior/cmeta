@@ -328,18 +328,18 @@ csane_load_names(CsanePaths *names, char *path) {
         if (i < len && text[i] != '\n') {
             continue;
         }
-        text[i] = '\0';
-        word = text + start;
-        while (*word == ' ' || *word == '\t') {
-            word += 1;
+        int32 begin = start;
+        int32 end = i;
+        while (begin < end && (text[begin] == ' ' || text[begin] == '\t')) {
+            begin += 1;
         }
-        if (*word != '#' && *word != '\0') {
-            char *end = word;
-            while (*end && *end != ' ' && *end != '\t' && *end != '\r') {
-                end += 1;
+        if (begin < end && text[begin] != '#') {
+            int32 word_end = begin;
+            while (word_end < end && text[word_end] != ' '
+                   && text[word_end] != '\t' && text[word_end] != '\r') {
+                word_end += 1;
             }
-            *end = '\0';
-            if (!csane_paths_add(names, word, strlen32(word))) {
+            if (!csane_paths_add(names, text + begin, word_end - begin)) {
                 ok = false;
                 break;
             }
@@ -548,36 +548,55 @@ csane_policy_free(CsanePolicy *policy) {
     return;
 }
 
-static char *
-csane_word(char **cursor) {
-    char *start = *cursor;
-    char *end;
+typedef struct CsaneWord {
+    char *data;
+    int32 len;
+} CsaneWord;
 
-    while (*start == ' ' || *start == '\t' || *start == '\r') {
-        start += 1;
+static CsaneWord
+csane_word(char **cursor, int32 *remaining) {
+    CsaneWord result = {0};
+    int32 skip = 0;
+    int32 count = 0;
+
+    while (skip < *remaining && ((*cursor)[skip] == ' '
+           || (*cursor)[skip] == '\t' || (*cursor)[skip] == '\r')) {
+        skip += 1;
     }
-    end = start;
-    while (*end != '\0' && *end != ' ' && *end != '\t' && *end != '\r') {
-        end += 1;
+    *cursor += skip;
+    *remaining -= skip;
+    while (count < *remaining && (*cursor)[count] != ' '
+           && (*cursor)[count] != '\t' && (*cursor)[count] != '\r'
+           && (*cursor)[count] != '\0') {
+        count += 1;
     }
-    if (*end) {
-        *end = '\0';
-        end += 1;
+    if (count == 0) {
+        return result;
     }
-    *cursor = end;
-    return *start ? start : NULL;
+    result.data = *cursor;
+    result.len = count;
+    if (count < *remaining) {
+        (*cursor)[count] = '\0';
+        *cursor += count + 1;
+        *remaining -= count + 1;
+    } else {
+        *cursor += count;
+        *remaining = 0;
+    }
+    return result;
 }
 
 static bool
-csane_identifier(char *name) {
-    if (name == NULL || !((*name >= 'A' && *name <= 'Z')
-                          || (*name >= 'a' && *name <= 'z')
-                          || *name == '_')) {
+csane_identifier(char *name, int32 len) {
+    if (name == NULL || len == 0
+        || !((name[0] >= 'A' && name[0] <= 'Z')
+             || (name[0] >= 'a' && name[0] <= 'z') || name[0] == '_')) {
         return false;
     }
-    for (char *p = name + 1; *p; p += 1) {
-        if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
-              || (*p >= '0' && *p <= '9') || *p == '_')) {
+    for (int32 i = 1; i < len; i += 1) {
+        char c = name[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+              || (c >= '0' && c <= '9') || c == '_')) {
             return false;
         }
     }
@@ -585,29 +604,62 @@ csane_identifier(char *name) {
 }
 
 static bool
-csane_known_rule(char *id) {
-    char *known[] = {
-        "API-NEVER", "API-CBASE-ONLY", "PP-DEFINED", "PP-SIZEOF",
-        "SRC-TABS", "SRC-TRAILING", "SRC-COLUMNS", "RYU-ENDIF-COMMENT",
-        "RYU-FINAL-NEWLINE", "AST-DECL-ONE",
-        "AST-BRACES", "AST-SWITCH-ALIGN", "AST-ARTIFICIAL-BLOCK",
-        "STYLE-ASSERT-REL", "STYLE-ASSERT-BOUNDS", "STYLE-STRLIT-LEN",
-        "STYLE-STREQUAL", "STYLE-PRINTF", "STYLE-STATUS-TEMP",
-        "FMT-MULTIPLY", "FMT-BINARY-SPACING", "FMT-ASSIGN-SPACING",
-        "FMT-ASSIGN-EQ", "FMT-CALL-FIRST", "FMT-FUNC-ALIGN",
-        "FMT-LITERAL-ALIGN", "FMT-ARG-ALIGN", "FMT-FORMAT-LINE",
-        "FMT-RELATED-ARGS", "FMT-CALL-WRAP", "FMT-ASSIGN-WRAP",
-        "FMT-COMMA-SPACING", "FMT-MEMBER-SPACING",
-        "FMT-UNARY-SPACING", "FMT-CAST-SPACING",
-        "FMT-POINTER-SPACING", "FMT-CALL-SPACING",
-        "FMT-TRAILING-COMMA", "STYLE-INCDEC",
-        "TYPE-CONST-SIGNATURE", "TYPE-STDINT-T", "TYPE-VLA",
-        "TYPE-ENUM-TYPEDEF", "TYPE-UNION-TYPEDEF",
-        "TYPE-POINTER-TYPEDEF",
+csane_known_rule(char *id, int32 id_len) {
+    static struct {
+        char *data;
+        int32 len;
+    } known[] = {
+#define CSANE_RULE(NAME) {STRLIT(NAME)}
+        CSANE_RULE("API-NEVER"),
+        CSANE_RULE("API-CBASE-ONLY"),
+        CSANE_RULE("PP-DEFINED"),
+        CSANE_RULE("PP-SIZEOF"),
+        CSANE_RULE("SRC-TABS"),
+        CSANE_RULE("SRC-TRAILING"),
+        CSANE_RULE("SRC-COLUMNS"),
+        CSANE_RULE("RYU-ENDIF-COMMENT"),
+        CSANE_RULE("RYU-FINAL-NEWLINE"),
+        CSANE_RULE("AST-DECL-ONE"),
+        CSANE_RULE("AST-BRACES"),
+        CSANE_RULE("AST-SWITCH-ALIGN"),
+        CSANE_RULE("AST-ARTIFICIAL-BLOCK"),
+        CSANE_RULE("STYLE-ASSERT-REL"),
+        CSANE_RULE("STYLE-ASSERT-BOUNDS"),
+        CSANE_RULE("STYLE-STRLIT-LEN"),
+        CSANE_RULE("STYLE-STREQUAL"),
+        CSANE_RULE("STYLE-PRINTF"),
+        CSANE_RULE("STYLE-STATUS-TEMP"),
+        CSANE_RULE("FMT-MULTIPLY"),
+        CSANE_RULE("FMT-BINARY-SPACING"),
+        CSANE_RULE("FMT-ASSIGN-SPACING"),
+        CSANE_RULE("FMT-ASSIGN-EQ"),
+        CSANE_RULE("FMT-CALL-FIRST"),
+        CSANE_RULE("FMT-FUNC-ALIGN"),
+        CSANE_RULE("FMT-LITERAL-ALIGN"),
+        CSANE_RULE("FMT-ARG-ALIGN"),
+        CSANE_RULE("FMT-FORMAT-LINE"),
+        CSANE_RULE("FMT-RELATED-ARGS"),
+        CSANE_RULE("FMT-CALL-WRAP"),
+        CSANE_RULE("FMT-ASSIGN-WRAP"),
+        CSANE_RULE("FMT-COMMA-SPACING"),
+        CSANE_RULE("FMT-MEMBER-SPACING"),
+        CSANE_RULE("FMT-UNARY-SPACING"),
+        CSANE_RULE("FMT-CAST-SPACING"),
+        CSANE_RULE("FMT-POINTER-SPACING"),
+        CSANE_RULE("FMT-CALL-SPACING"),
+        CSANE_RULE("FMT-TRAILING-COMMA"),
+        CSANE_RULE("STYLE-INCDEC"),
+        CSANE_RULE("TYPE-CONST-SIGNATURE"),
+        CSANE_RULE("TYPE-STDINT-T"),
+        CSANE_RULE("TYPE-VLA"),
+        CSANE_RULE("TYPE-ENUM-TYPEDEF"),
+        CSANE_RULE("TYPE-UNION-TYPEDEF"),
+        CSANE_RULE("TYPE-POINTER-TYPEDEF"),
+#undef CSANE_RULE
     };
     for (int32 i = 0; i < (int32)(SIZEOF(known)/SIZEOF(known[0]));
          i += 1) {
-        if (!strcmp(id, known[i])) {
+        if (STREQUAL(id, id_len, known[i].data, known[i].len)) {
             return true;
         }
     }
@@ -642,71 +694,88 @@ csane_config_path(char *filename, char *path) {
 }
 
 static bool
-csane_config_line(CsanePolicy *policy, char *line, char *filename,
-                  int32 lineno) {
+csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
+                  char *filename, int32 lineno) {
     char *cursor = line;
-    char *key = csane_word(&cursor);
-    char *first;
-    char *second;
-    char *extra;
-    char *fourth;
+    int32 remaining = line_len;
+    CsaneWord key = csane_word(&cursor, &remaining);
+    CsaneWord first;
+    CsaneWord second;
+    CsaneWord extra;
+    CsaneWord fourth;
     int32 columns;
     bool ok = false;
-    if (key == NULL || key[0] == '#') {
+    if (key.data == NULL || key.data[0] == '#') {
         return true;
     }
-    first = csane_word(&cursor);
-    second = csane_word(&cursor);
-    extra = csane_word(&cursor);
-    fourth = csane_word(&cursor);
-    if (!strcmp(key, "exclude") && first && !second) {
-        ok = csane_policy_add_regex(&policy->excludes, first, NULL, NULL, 0);
-    } else if (!strcmp(key, "no-column-limit") && first && !second) {
-        ok = csane_policy_add_regex(&policy->no_columns, first, NULL, NULL, 0);
-    } else if (!strcmp(key, "column-limit") && first && !second
-               && csane_number(first, &columns)) {
+    first = csane_word(&cursor, &remaining);
+    second = csane_word(&cursor, &remaining);
+    extra = csane_word(&cursor, &remaining);
+    fourth = csane_word(&cursor, &remaining);
+    if (STREQUAL(key.data, key.len, "exclude")
+        && first.data && !second.data) {
+        ok = csane_policy_add_regex(&policy->excludes, first.data, NULL,
+                                    NULL, 0);
+    } else if (STREQUAL(key.data, key.len, "no-column-limit")
+        && first.data && !second.data) {
+        ok = csane_policy_add_regex(&policy->no_columns, first.data, NULL,
+                                    NULL, 0);
+    } else if (STREQUAL(key.data, key.len, "column-limit") && first.data && !second.data
+               && csane_number(first.data, &columns)) {
         policy->default_columns = columns;
         ok = true;
-    } else if (!strcmp(key, "columns") && first && second && !extra
-               && csane_number(second, &columns)) {
-        ok = csane_policy_add_regex(&policy->column_overrides, first, NULL,
+    } else if (STREQUAL(key.data, key.len, "columns")
+               && first.data && second.data && !extra.data
+               && csane_number(second.data, &columns)) {
+        ok = csane_policy_add_regex(&policy->column_overrides, first.data, NULL,
                                     NULL, columns);
-    } else if (!strcmp(key, "allow-rule") && first && second && !extra
-               && csane_known_rule(first)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second, first,
+    } else if (STREQUAL(key.data, key.len, "allow-rule")
+               && first.data && second.data && !extra.data
+              
+               && csane_known_rule(first.data, first.len)) {
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data, first.data,
                                     NULL, 0);
-    } else if (!strcmp(key, "allow-function-rule") && first && second
-               && extra && !fourth && csane_known_rule(first)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second, first,
-                                    extra, 0);
-    } else if (!strcmp(key, "never-use") && csane_identifier(first)
-               && !second) {
-        ok = csane_paths_add(&policy->never_names, first, strlen32(first));
-    } else if (!strcmp(key, "cbase-only") && csane_identifier(first)
-               && !second) {
-        ok = csane_paths_add(&policy->cbase_names, first, strlen32(first));
-    } else if (!strcmp(key, "clear-never-use") && !first) {
+    } else if (STREQUAL(key.data, key.len, "allow-function-rule")
+               && first.data && second.data
+              
+               && extra.data && !fourth.data
+              
+               && csane_known_rule(first.data, first.len)) {
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second.data, first.data,
+                                    extra.data, 0);
+    } else if (STREQUAL(key.data, key.len, "never-use")
+               && csane_identifier(first.data, first.len)
+               && !second.data) {
+        ok = csane_paths_add(&policy->never_names, first.data, first.len);
+    } else if (STREQUAL(key.data, key.len, "cbase-only")
+               && csane_identifier(first.data, first.len)
+               && !second.data) {
+        ok = csane_paths_add(&policy->cbase_names, first.data, first.len);
+    } else if (STREQUAL(key.data, key.len, "clear-never-use") && !first.data) {
         csane_paths_free(&policy->never_names);
         ok = true;
-    } else if (!strcmp(key, "clear-cbase-only") && !first) {
+    } else if (STREQUAL(key.data, key.len, "clear-cbase-only") && !first.data) {
         csane_paths_free(&policy->cbase_names);
         ok = true;
-    } else if (!strcmp(key, "never-use-file") && first && !second) {
-        char *path = csane_config_path(filename, first);
+    } else if (STREQUAL(key.data, key.len, "never-use-file")
+        && first.data && !second.data) {
+        char *path = csane_config_path(filename, first.data);
         ok = csane_load_names(&policy->never_names, path);
         free2(path, (int64)strlen32(path) + 1);
-    } else if (!strcmp(key, "cbase-only-file") && first && !second) {
-        char *path = csane_config_path(filename, first);
+    } else if (STREQUAL(key.data, key.len, "cbase-only-file")
+        && first.data && !second.data) {
+        char *path = csane_config_path(filename, first.data);
         ok = csane_load_names(&policy->cbase_names, path);
         free2(path, (int64)strlen32(path) + 1);
-    } else if (!strcmp(key, "cbase-root") && first && !second) {
-        char *path = csane_config_path(filename, first);
+    } else if (STREQUAL(key.data, key.len, "cbase-root")
+        && first.data && !second.data) {
+        char *path = csane_config_path(filename, first.data);
         ok = csane_policy_add_root(policy, path);
         free2(path, (int64)strlen32(path) + 1);
     }
     if (!ok) {
         fprintf(stderr, "%s:%d: invalid csanecheck policy directive: %s\n",
-                        filename, lineno, key);
+                        filename, lineno, key.data);
     }
     return ok;
 }
@@ -728,7 +797,7 @@ csane_policy_config(CsanePolicy *policy, char *filename) {
             continue;
         }
         text[i] = '\0';
-        if (!csane_config_line(policy, text + start, filename, lineno)) {
+        if (!csane_config_line(policy, text + start, i - start, filename, lineno)) {
             ok = false;
         }
         start = i + 1;
