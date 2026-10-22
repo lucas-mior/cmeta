@@ -17,7 +17,6 @@ RULES = frozenset({
     "TYPE-ENUM-TYPEDEF",
     "TYPE-POINTER-TYPEDEF",
     "TYPE-STDINT-T",
-    "TYPE-STRUCT-TYPEDEF",
     "TYPE-UNION-TYPEDEF",
     "TYPE-VLA",
 })
@@ -120,16 +119,8 @@ void f(void) {
 }
 """, ["TYPE-VLA"])
 
-    def test_struct_enum_union_and_pointer_typedef_policy(self):
-        self.check("""typedef struct Good {
-    int32 value;
-    int32 *pointer_member;
-} Good;
-struct Bad {
-    int32 value;
-};
-struct ForwardBad;
-typedef enum Kind {
+    def test_enum_union_and_pointer_typedef_policy(self):
+        self.check("""typedef enum Kind {
     KIND_A = 1,
     KIND_COUNT,
 } Kind;
@@ -141,8 +132,7 @@ typedef int32 *IntPointer;
 typedef int32 (*FunctionPointer)(int32);
 typedef int32 (*ArrayPointer)[4];
 """, ["TYPE-ENUM-TYPEDEF", "TYPE-UNION-TYPEDEF",
-       "TYPE-POINTER-TYPEDEF", "TYPE-POINTER-TYPEDEF",
-       "TYPE-STRUCT-TYPEDEF", "TYPE-STRUCT-TYPEDEF"])
+       "TYPE-POINTER-TYPEDEF", "TYPE-POINTER-TYPEDEF"])
 
     def test_xenums_template_enum_typedef_exception(self):
         self.check("""typedef enum ENUM_NAME ENUM_PREFIX_;

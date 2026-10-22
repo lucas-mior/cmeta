@@ -645,44 +645,6 @@ csane_decl_style_check(CsaneFile *file, TokenRange range) {
     csane_decl_typedef_check(file, range);
 }
 
-static void
-csane_decl_struct_typedef_check(CsaneFile *file, TokenRange range) {
-    CsaneTokenView view;
-    int32 first;
-    int32 token;
-
-    if (!csane_tokens_view(&view, file->tokens, range)) {
-        return;
-    }
-    first = csane_tokens_next(&view, range.first - 1);
-    if (first < range.end && csane_decl_word(file, first, "typedef")) {
-        return;
-    }
-    token = first;
-    while (token >= range.first && token < range.end) {
-        if (csane_decl_word(file, token, "struct")) {
-            int32 cursor;
-
-            cursor = csane_tokens_next(&view, token);
-            if (cursor < range.end
-                && file->tokens->tokens[cursor].kind == TOKEN_IDENT) {
-                cursor = csane_tokens_next(&view, cursor);
-            }
-            if (csane_decl_is(file, cursor, "{")
-                || csane_decl_is(file, cursor, ";")) {
-                csane_rule_issue(file, file->tokens->tokens[token].offset,
-                                 "TYPE-STRUCT-TYPEDEF",
-                                 "top-level structs must be typedefed");
-            }
-            return;
-        }
-        if (csane_decl_is(file, token, "{")) {
-            return;
-        }
-        token = csane_tokens_next(&view, token);
-    }
-}
-
 static bool
 csane_decl_statement(CsaneFile *file, CsaneStatement *statement) {
     return statement->kind == CSANE_STMT_SIMPLE
@@ -1012,12 +974,9 @@ csane_declarations_check(CsaneFile *file) {
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
             csane_decl_signature_check(file, item->header);
             csane_decl_scope(file, item->body, lines, line_count);
-        } else if (item->kind == CSANE_TOP_DECLARATION) {
-            csane_decl_struct_typedef_check(file, item->tokens);
         } else if (item->kind == CSANE_TOP_TYPE_DECLARATION) {
             int32 open;
 
-            csane_decl_struct_typedef_check(file, item->tokens);
             /* Type members form a separate declaration sequence. */
             open = item->tokens.first;
             while (open < item->tokens.end
