@@ -47,7 +47,7 @@ csane_number(char *text, int32 *out) {
 
 bool
 csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
-                       int32 columns) {
+                       char *function, int32 columns) {
     CsanePattern pattern = {0};
     if (patterns->count == INT32_MAX
         || (patterns->count == patterns->capacity
@@ -67,6 +67,23 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, char *id,
     return false;
 #endif
     pattern.text = csane_copy(text);
+    if (function != NULL) {
+#if OS_UNIX
+        result = regcomp(&pattern.function_compiled, function,
+                         REG_EXTENDED | REG_NOSUB);
+        if (result != 0) {
+            char description[256];
+            regerror(result, &pattern.function_compiled, description,
+                     SIZEOF(description));
+            fprintf(stderr, "invalid regex '%s': %s\n", function,
+                    description);
+            regfree(&pattern.compiled);
+            free2(pattern.text, (int64)strlen32(pattern.text) + 1);
+            return false;
+        }
+#endif
+        pattern.function_text = csane_copy(function);
+    }
     if (id != NULL) {
         pattern.rule_id = csane_copy(id);
     }
@@ -96,8 +113,15 @@ csane_patterns_free(CsanePatterns *patterns) {
         CsanePattern *item = &patterns->items[i];
 #if OS_UNIX
         regfree(&item->compiled);
+        if (item->function_text != NULL) {
+            regfree(&item->function_compiled);
+        }
 #endif
         free2(item->text, (int64)strlen32(item->text) + 1);
+        if (item->function_text != NULL) {
+            free2(item->function_text,
+                  (int64)strlen32(item->function_text) + 1);
+        }
         if (item->rule_id != NULL) {
             free2(item->rule_id, (int64)strlen32(item->rule_id) + 1);
         }
@@ -134,12 +158,32 @@ csane_policy_match(CsanePatterns *patterns, char *path) {
 }
 
 bool
-csane_policy_rule_allowed(CsanePolicy *policy, char *path, char *rule_id) {
+csane_policy_rule_allowed(CsanePolicy *policy, char *path, char *rule_id,
+                          Token *function) {
     for (int32 i = 0; i < policy->rule_exemptions.count; i += 1) {
         CsanePattern *pattern = &policy->rule_exemptions.items[i];
         if (!strcmp(pattern->rule_id, rule_id)
             && csane_match(pattern, path)) {
-            return true;
+            if (pattern->function_text == NULL) {
+                return true;
+            }
+            if (function != NULL) {
+                char *name = malloc2((int64)function->len + 1);
+                bool matches;
+
+                memcpy64(name, function->text, function->len);
+                name[function->len] = '\0';
+#if OS_UNIX
+                matches = regexec(&pattern->function_compiled, name,
+                                  0, NULL, 0) == 0;
+#else
+                matches = false;
+#endif
+                free2(name, (int64)function->len + 1);
+                if (matches) {
+                    return true;
+                }
+            }
         }
     }
     return false;
@@ -341,10 +385,34 @@ csane_policy_project(CsanePolicy *policy, char *project) {
         char *config = csane_join_path(project, "config.h");
         if (csane_exists(config)) {
             ok = csane_policy_add_regex(&policy->no_columns,
-                                        "(^|/)config\\.h$", NULL, 0)
+                                        "(^|/)config\\.h$", NULL, NULL, 0)
                  && ok;
         }
         free2(config, (int64)strlen32(config) + 1);
+    }
+    free2(names, (int64)strlen32(names) + 1);
+    names = csane_join_path(root, "csanecheck.conf");
+    if (csane_exists(names)) {
+        char resolved_config[PATH_MAX];
+        bool loaded = false;
+
+        if (realpath(names, resolved_config) == NULL) {
+            ok = false;
+        } else {
+            for (int32 i = 0; i < policy->configs.count; i += 1) {
+                if (!strcmp(policy->configs.items[i], resolved_config)) {
+                    loaded = true;
+                    break;
+                }
+            }
+            if (!loaded) {
+                loaded = csane_paths_add(&policy->configs, resolved_config);
+                ok = loaded && ok;
+                if (loaded) {
+                    ok = csane_policy_config(policy, resolved_config) && ok;
+                }
+            }
+        }
     }
     free2(names, (int64)strlen32(names) + 1);
     free2(cbase, (int64)strlen32(cbase) + 1);
@@ -440,7 +508,7 @@ csane_policy_init(CsanePolicy *policy) {
         }
     }
     if (!csane_policy_add_regex(&policy->column_overrides,
-                                "(^|/)cecup/src/", NULL, 100)) {
+                                "(^|/)cecup/src/", NULL, NULL, 100)) {
         csane_policy_free(policy);
         return false;
     }
@@ -453,6 +521,7 @@ csane_policy_free(CsanePolicy *policy) {
     csane_paths_free(&policy->cbase_names);
     csane_paths_free(&policy->cbase_roots);
     csane_paths_free(&policy->project_roots);
+    csane_paths_free(&policy->configs);
     csane_patterns_free(&policy->excludes);
     csane_patterns_free(&policy->no_columns);
     csane_patterns_free(&policy->column_overrides);
@@ -558,6 +627,7 @@ csane_config_line(CsanePolicy *policy, char *line, char *filename,
     char *first;
     char *second;
     char *extra;
+    char *fourth;
     int32 columns;
     bool ok = false;
     if (key == NULL || key[0] == '#') {
@@ -566,10 +636,11 @@ csane_config_line(CsanePolicy *policy, char *line, char *filename,
     first = csane_word(&cursor);
     second = csane_word(&cursor);
     extra = csane_word(&cursor);
+    fourth = csane_word(&cursor);
     if (!strcmp(key, "exclude") && first && !second) {
-        ok = csane_policy_add_regex(&policy->excludes, first, NULL, 0);
+        ok = csane_policy_add_regex(&policy->excludes, first, NULL, NULL, 0);
     } else if (!strcmp(key, "no-column-limit") && first && !second) {
-        ok = csane_policy_add_regex(&policy->no_columns, first, NULL, 0);
+        ok = csane_policy_add_regex(&policy->no_columns, first, NULL, NULL, 0);
     } else if (!strcmp(key, "column-limit") && first && !second
                && csane_number(first, &columns)) {
         policy->default_columns = columns;
@@ -577,10 +648,15 @@ csane_config_line(CsanePolicy *policy, char *line, char *filename,
     } else if (!strcmp(key, "columns") && first && second && !extra
                && csane_number(second, &columns)) {
         ok = csane_policy_add_regex(&policy->column_overrides, first, NULL,
-                                    columns);
+                                    NULL, columns);
     } else if (!strcmp(key, "allow-rule") && first && second && !extra
                && csane_known_rule(first)) {
-        ok = csane_policy_add_regex(&policy->rule_exemptions, second, first, 0);
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second, first,
+                                    NULL, 0);
+    } else if (!strcmp(key, "allow-function-rule") && first && second
+               && extra && !fourth && csane_known_rule(first)) {
+        ok = csane_policy_add_regex(&policy->rule_exemptions, second, first,
+                                    extra, 0);
     } else if (!strcmp(key, "never-use") && csane_identifier(first)
                && !second) {
         ok = csane_paths_add(&policy->never_names, first);

@@ -29,7 +29,7 @@ csane_fixture_path(char *path) {
 void
 csane_rule_issue(CsaneFile *file, int32 offset, char *code, char *message) {
     SourceLocation loc;
-    if (csane_policy_rule_allowed(file->policy, file->path, code)) {
+    if (csane_policy_rule_allowed(file->policy, file->path, code, NULL)) {
         return;
     }
     if (offset < 0) {

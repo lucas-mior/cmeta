@@ -31,11 +31,15 @@ class DeclarationStyleTests(unittest.TestCase):
         self.path = self.root / "style.c"
         self.assertTrue(CHECKER.is_file(), "build csanecheck first")
 
-    def check(self, source, expected, name="style.c"):
+    def check(self, source, expected, name="style.c", config=None):
         self.path = self.root / name
         self.path.write_text(source, encoding="utf-8")
+        command = [str(CHECKER)]
+        if config is not None:
+            command.extend(["--config", str(config)])
+        command.extend(["--file", str(self.path)])
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path)],
+            command,
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         found = [rule for rule in DIAGNOSTIC.findall(result.stdout)
@@ -51,6 +55,26 @@ int32 defined(int32 *const pointer) {
     return value;
 }
 """, ["TYPE-CONST-SIGNATURE", "TYPE-CONST-SIGNATURE"])
+
+    def test_external_api_const_exception_is_function_scoped(self):
+        policy = self.root / "policy.conf"
+        policy.write_text(
+            "allow-function-rule TYPE-CONST-SIGNATURE "
+            r"(^|/)fs_windows[.]c$ ^lstat$" "\n",
+            encoding="utf-8",
+        )
+        self.check("""int32 lstat(const char *path) { return path != 0; }
+int32 local(const char *path) { return path != 0; }
+""", ["TYPE-CONST-SIGNATURE"], name="fs_windows.c", config=policy)
+        self.check("""int32 lstat(const char *path) { return path != 0; }
+""", ["TYPE-CONST-SIGNATURE"], name="other.c", config=policy)
+
+        result = subprocess.run(
+            [str(CHECKER), "--file", str(ROOT / "cbase/fs_windows.c")],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertNotIn("TYPE-CONST-SIGNATURE", result.stdout,
+                         result.stdout + result.stderr)
 
     def test_size_types_are_not_checked(self):
         self.check("""void f(void) {
