@@ -1040,8 +1040,7 @@ util_test_qsort_cmp(void *a, void *b) {
         mem_literal_actual = MEM_LITERAL_SHORT(mem_literal_haystack,           \
                                                mem_literal_haystack_len,       \
                                                LITERAL);                       \
-        ASSERT_EQ(                                                     \
-            (void *)mem_literal_actual, (void *)mem_literal_expected);        \
+        ASSERT_EQ((void *)mem_literal_actual, (void *)mem_literal_expected);   \
     } while (0)
 
 #define ASSERT_MEM_LITERAL(HAYSTACK, LITERAL, OFFSET)                          \
@@ -1049,7 +1048,7 @@ util_test_qsort_cmp(void *a, void *b) {
 
 static void
 util_test_mem_literal_short(void) {
-    char binary_haystack[] = {'x', 'a', '\0', 'b', 'y'};
+    char binary_haystack[] = {'x', 'a', '\0', 'b', 'y',};
 
     ASSERT_NULL(MEM_LITERAL_SHORT(NULL, 2, "ab"));
     ASSERT_NULL(MEM_LITERAL_SHORT("", 0, "ab"));
