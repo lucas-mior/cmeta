@@ -57,11 +57,12 @@ csane_wrap_generated(char *path) {
  */
 static bool
 csane_wrap_literal_newline(Token *token) {
+    int32 backslashes = 0;
+
     if (token->len < 3 || token->text[token->len - 1] != '"'
         || token->text[token->len - 2] != 'n') {
         return false;
     }
-    int32 backslashes = 0;
     for (int32 i = token->len - 3; i >= 0 && token->text[i] == '\\';
          i -= 1) {
         backslashes += 1;
@@ -82,6 +83,8 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
     for (int32 i = first; i <= last; i += 1) {
         Token *token = &tokens->tokens[i];
         enum CPreprocessorTokenRole role = C_PP_TOKEN_CODE;
+        int32 quote = -1;
+
         if (file->preprocessor->token_roles != NULL) {
             role = file->preprocessor->token_roles[i];
         }
@@ -93,15 +96,16 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
         if (csane_wrap_token_is(token, ";") && i != last) {
             return false;
         }
-        int32 quote = -1;
         if (token->kind == TOKEN_LITERAL) {
             quote = literal_quote_index(token->text, token->len, 0);
         }
         if (quote >= 0 && token->text[quote] == '"') {
             if (previous_string >= 0) {
                 SourceLocation a;
+                SourceLocation b;
+
                 a = csane_wrap_location(tokens, previous_string);
-                SourceLocation b = csane_wrap_location(tokens, i);
+                b = csane_wrap_location(tokens, i);
                 if (a.line != b.line) {
                     run_count += 1;
                     run_newlines = run_newlines
@@ -239,11 +243,16 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
     CsaneTokenView view = csane_tokens_full(tokens);
     int32 first = csane_tokens_next(&view, range.first - 1);
     int32 last = token_range_last_significant(tokens, range);
+    int32 name;
+    int32 open;
+    int32 close;
+    enum CsaneLocalKind kind;
+
     if (first < 0 || last < first
         || !csane_wrap_token_is(&tokens->tokens[last], ";")) {
         return -1;
     }
-    int32 name = first;
+    name = first;
     if (csane_wrap_token_is(&tokens->tokens[name], "return")) {
         name = csane_tokens_next(&view, name);
     } else {
@@ -255,9 +264,9 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
                 equals = i;
             } else if (csane_wrap_token_is(&tokens->tokens[i], "(")
                        || csane_wrap_token_is(&tokens->tokens[i], "[")) {
-                int32 close = csane_tokens_match(&view, i);
-                if (close > i && close < last) {
-                    i = close;
+                int32 match = csane_tokens_match(&view, i);
+                if (match > i && match < last) {
+                    i = match;
                 }
             }
         }
@@ -271,17 +280,17 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
         || csane_wrap_token_is(&tokens->tokens[name], "assert_error")) {
         return -1;
     }
-    int32 open = csane_tokens_next(&view, name);
+    open = csane_tokens_next(&view, name);
     if (open < 0 || open >= last
         || !csane_wrap_token_is(&tokens->tokens[open], "(")) {
         return -1;
     }
-    int32 close = csane_tokens_match(&view, open);
+    close = csane_tokens_match(&view, open);
     if (close < 0 || close >= last
         || csane_tokens_next(&view, close) != last) {
         return -1;
     }
-    enum CsaneLocalKind kind = csane_classify_invocation(tokens, range, name);
+    kind = csane_classify_invocation(tokens, range, name);
     /* Capitalized function names resemble type names to the heuristic
      * classifier. A complete call statement has no type declarator here.
      */
@@ -299,17 +308,24 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range,
     Tokenization *tokens = file->tokens;
     int32 first = token_range_first_significant(tokens, range);
     int32 last = token_range_last_significant(tokens, range);
+    int32 name;
+    char *text;
+    int32 first_offset;
+    int32 line_start;
+    int32 close;
+    int32 line_end;
+
     if (first < 0 || last < first) {
         return false;
     }
-    int32 name = csane_wrap_local_call(file, range);
+    name = csane_wrap_local_call(file, range);
     if (name < 0 || csane_wrap_location(tokens, name).line
         != csane_wrap_location(tokens, first).line) {
         return false;
     }
-    char *text = tokens->text;
-    int32 first_offset = tokens->tokens[first].offset;
-    int32 line_start = csane_wrap_line_start(text, first_offset);
+    text = tokens->text;
+    first_offset = tokens->tokens[first].offset;
+    line_start = csane_wrap_line_start(text, first_offset);
     if (line_start == first_offset) {
         return false;
     }
@@ -327,12 +343,12 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range,
      * semicolon to be on the same line as its closing parenthesis. A second
      * statement or trailing comment also makes the candidate ineligible.
      */
-    int32 close = tokenization_previous_significant(tokens, last);
+    close = tokenization_previous_significant(tokens, last);
     if (close < 0 || csane_wrap_location(tokens, close).line
         != span->end_line) {
         return false;
     }
-    int32 line_end = span->end;
+    line_end = span->end;
     while (line_end < tokens->text_len && text[line_end] != '\n') {
         if (text[line_end] != ' ' && text[line_end] != '\t'
             && text[line_end] != '\r') {
@@ -422,6 +438,9 @@ csane_wrap_call_group(CsaneFile *file, CsaneWrapSpan *items,
 void
 csane_wrap_call_check(CsaneFile *file) {
     int32 capacity = 0;
+    CsaneWrapSpan *items;
+    int32 count;
+    int32 unique = 0;
 
     if (csane_wrap_generated(file->path)) {
         return;
@@ -435,10 +454,9 @@ csane_wrap_call_check(CsaneFile *file) {
     if (capacity == 0) {
         return;
     }
-    CsaneWrapSpan *items = malloc2((int64)capacity*SIZEOF(*items));
-    int32 count = csane_wrap_collect_calls(file, items);
+    items = malloc2((int64)capacity*SIZEOF(*items));
+    count = csane_wrap_collect_calls(file, items);
     qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
-    int32 unique = 0;
     for (int32 i = 0; i < count; i += 1) {
         if (unique > 0 && items[i].start == items[unique - 1].start) {
             continue;
@@ -467,16 +485,19 @@ static int32
 csane_wrap_local_assignment(CsaneFile *file, TokenRange range) {
     Tokenization *tokens = file->tokens;
     CsaneTokenView view;
+    int32 first;
+    int32 last;
+    int32 equals = -1;
+
     if (!csane_tokens_view(&view, tokens, range)) {
         return -1;
     }
-    int32 first = token_range_first_significant(tokens, range);
-    int32 last = token_range_last_significant(tokens, range);
+    first = token_range_first_significant(tokens, range);
+    last = token_range_last_significant(tokens, range);
     if (first < 0 || last <= first
         || !csane_wrap_token_is(&tokens->tokens[last], ";")) {
         return -1;
     }
-    int32 equals = -1;
     for (int32 i = first; i < last; i += 1) {
         Token *token = &tokens->tokens[i];
         if (csane_wrap_token_is(token, "=")) {
@@ -503,12 +524,21 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     int32 first = token_range_first_significant(tokens, range);
     int32 last = token_range_last_significant(tokens, range);
     int32 op = csane_wrap_local_assignment(file, range);
+    char *text;
+    int32 offset;
+    int32 start;
+    int32 end;
+    int32 line_end;
+    bool trailing_comment = false;
+    bool braced = false;
+    int32 after;
+
     if (op < 0 || first < 0 || last < first) {
         return false;
     }
-    char *text = tokens->text;
-    int32 offset = tokens->tokens[first].offset;
-    int32 start = csane_wrap_line_start(text, offset);
+    text = tokens->text;
+    offset = tokens->tokens[first].offset;
+    start = csane_wrap_line_start(text, offset);
     if (require_indent && start == offset) {
         return false;
     }
@@ -520,18 +550,18 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     /* Perl considers only assignments starting on a physical line and
      * ending with its sole semicolon. A later statement on the same line
      * cannot be an independent assignment-wrap candidate. */
-    int32 end = tokens->tokens[last].offset + tokens->tokens[last].len;
-    int32 line_end = end;
+    end = tokens->tokens[last].offset + tokens->tokens[last].len;
+    line_end = end;
     while (line_end < tokens->text_len && text[line_end] != '\n') {
         line_end += 1;
     }
-    bool trailing_comment = false;
     for (int32 i = end; i < line_end;) {
+        bool comment = false;
+
         if (text[i] == ' ' || text[i] == '\t' || text[i] == '\r') {
             i += 1;
             continue;
         }
-        bool comment = false;
         for (int32 j = last + 1; j < tokens->token_count; j += 1) {
             Token *token = &tokens->tokens[j];
             if (token->offset > i) {
@@ -550,7 +580,6 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
             return false;
         }
     }
-    bool braced = false;
     for (int32 i = first; i <= last; i += 1) {
         if (csane_wrap_token_is(&tokens->tokens[i], "{")
             || csane_wrap_token_is(&tokens->tokens[i], "}")) {
@@ -568,7 +597,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     span->indent = offset - start;
     span->start_line = csane_wrap_location(tokens, first).line;
     span->end_line = csane_wrap_location(tokens, last).line;
-    int32 after = tokens->tokens[op].offset + tokens->tokens[op].len;
+    after = tokens->tokens[op].offset + tokens->tokens[op].len;
     while (after < tokens->text_len
            && (text[after] == ' ' || text[after] == '\t'
                || text[after] == '\r')) {
@@ -653,6 +682,12 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
                                    int32 used) {
     Tokenization *tokens = file->tokens;
     for (int32 op = 0; op < tokens->token_count; op += 1) {
+        int32 start;
+        int32 first;
+        int32 end;
+        CsaneWrapSpan span;
+        TokenRange range;
+
         if (!csane_wrap_token_is(&tokens->tokens[op], "=")) {
             continue;
         }
@@ -660,13 +695,12 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
             && file->preprocessor->token_roles[op] != C_PP_TOKEN_CODE) {
             continue;
         }
-        int32 start = csane_wrap_line_start(tokens->text,
-                                            tokens->tokens[op].offset);
-        int32 first = op;
+        start = csane_wrap_line_start(tokens->text, tokens->tokens[op].offset);
+        first = op;
         while (first > 0 && tokens->tokens[first - 1].offset >= start) {
             first -= 1;
         }
-        int32 end = op + 1;
+        end = op + 1;
         while (end < tokens->token_count) {
             Token *token = &tokens->tokens[end];
             if (csane_wrap_token_is(token, "}")
@@ -683,8 +717,7 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
             || !csane_wrap_token_is(&tokens->tokens[end - 1], ";")) {
             continue;
         }
-        CsaneWrapSpan span;
-        TokenRange range = {first, end};
+        range = (TokenRange){first, end};
         if (csane_wrap_local_assignment_span(file, range, &span, false)) {
             items[used] = span;
             used += 1;
@@ -695,10 +728,15 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
 
 void
 csane_wrap_check(CsaneFile *file) {
+    int32 capacity;
+    CsaneWrapSpan *items;
+    int32 count;
+    int32 unique = 0;
+
     if (file->is_ryu || csane_wrap_generated(file->path)) {
         return;
     }
-    int32 capacity = file->tokens->token_count;
+    capacity = file->tokens->token_count;
     if (file->statements != NULL) {
         capacity += file->statements->count;
     }
@@ -708,11 +746,10 @@ csane_wrap_check(CsaneFile *file) {
     if (capacity == 0) {
         return;
     }
-    CsaneWrapSpan *items = malloc2((int64)capacity*SIZEOF(*items));
-    int32 count = csane_wrap_collect_assignments(file, items);
+    items = malloc2((int64)capacity*SIZEOF(*items));
+    count = csane_wrap_collect_assignments(file, items);
     count = csane_wrap_collect_assignment_gaps(file, items, count);
     qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
-    int32 unique = 0;
     for (int32 i = 0; i < count; i += 1) {
         if (unique > 0 && items[i].start == items[unique - 1].start) {
             continue;

@@ -5,3 +5,4 @@ compile_commands.json
 tags
 *.tar.gz
 cbase_check.txt
+cbase/csanecheck

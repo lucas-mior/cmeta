@@ -85,7 +85,7 @@ csane_style_conversion(Token *token) {
         return false;
     }
     while (i < token->len - 1) {
-        char c = token->text[i];
+        c = token->text[i];
         if (c != '-' && c != '+' && c != ' ' && c != '#'
             && c != '0') {
             break;
@@ -122,7 +122,7 @@ csane_style_conversion(Token *token) {
             i += 1;
         }
     } else if (i + 2 < token->len) {
-        char c = token->text[i];
+        c = token->text[i];
         if (c == 'j' || c == 'z' || c == 't' || c == 'L') {
             i += 1;
         }
