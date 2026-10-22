@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "bin/csanecheck"
 DIAGNOSTIC = re.compile(r"error\[([A-Z][A-Z0-9-]+)\]")
 RULES = frozenset({
-    "DECL-AFTER-STMT",
     "TYPE-CONST-SIGNATURE",
     "TYPE-ENUM-TYPEDEF",
     "TYPE-POINTER-TYPEDEF",
@@ -148,59 +147,6 @@ main(int argc, char **argv) {
     return argc == 0 || argv == 0;
 }
 """, [])
-
-    def test_declaration_after_statement_is_scope_local(self):
-        self.check("""void use(int32 value);
-void f(void) {
-    int32 first;
-    int32 second;
-    use(first);
-    int32 late;
-    {
-        int32 nested;
-        use(nested);
-        int32 nested_late;
-    }
-    use(second);
-    {
-        int32 fresh_scope;
-        use(fresh_scope);
-    }
-}
-""", ["DECL-AFTER-STMT", "DECL-AFTER-STMT"])
-
-    def test_for_counter_and_top_of_loop_body_are_allowed(self):
-        self.check("""void use(int32 value);
-void f(void) {
-    for (int32 i = 0; i < 4; i += 1) {
-        int32 value;
-        use(value);
-    }
-}
-""", [])
-
-    def test_opaque_predecessor_does_not_force_mixed_declaration_diagnostic(self):
-        self.check("""void f(void) {
-    mystery_type *broken
-    int32 value;
-}
-""", [])
-
-    def test_unknown_type_declaration_does_not_count_as_code(self):
-        self.check("""void f(void) {
-    external_type *external;
-    int32 value;
-    use(external, value);
-}
-""", [])
-
-    def test_pascal_case_call_counts_as_code_not_declaration(self):
-        self.check("""void f(char *path) {
-    DeleteFileA(path);
-    int32 value;
-    use(value);
-}
-""", ["DECL-AFTER-STMT"])
 
     def test_step18_rules_are_valid_policy_exemptions(self):
         self.path.write_text("void f(void) {\n    int value;\n}\n",

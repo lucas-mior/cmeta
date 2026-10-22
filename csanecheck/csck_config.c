@@ -583,7 +583,7 @@ csane_known_rule(char *id) {
         "FMT-TRAILING-COMMA", "STYLE-INCDEC",
         "TYPE-CONST-SIGNATURE", "TYPE-STDINT-T", "TYPE-VLA",
         "TYPE-ENUM-TYPEDEF", "TYPE-UNION-TYPEDEF",
-        "TYPE-POINTER-TYPEDEF", "DECL-AFTER-STMT",
+        "TYPE-POINTER-TYPEDEF",
     };
     for (int32 i = 0; i < (int32)(SIZEOF(known)/SIZEOF(known[0]));
          i += 1) {
