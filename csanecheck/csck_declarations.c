@@ -481,9 +481,23 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
                          "TYPE-UNION-TYPEDEF", "do not typedef unions");
     }
     if (csane_decl_pointer_typedef(file, range)) {
-        csane_rule_issue(file, file->tokens->tokens[first].offset,
-                         "TYPE-POINTER-TYPEDEF",
-                         "do not typedef pointers except function pointers");
+        CsaneTokenView view;
+        int32 end = range.end;
+        int32 alias = -1;
+
+        if (csane_tokens_view(&view, file->tokens, range)) {
+            end = csane_tokens_previous(&view, range.end);
+            alias = csane_tokens_previous(&view, end);
+        }
+        if (alias < range.first
+            || !csane_policy_typedef_allowed(file->policy, file->path,
+                                             file->path_len,
+                                             "TYPE-POINTER-TYPEDEF",
+                                             &file->tokens->tokens[alias])) {
+            csane_rule_issue(file, file->tokens->tokens[first].offset,
+                             "TYPE-POINTER-TYPEDEF",
+                             "do not typedef pointers except function pointers");
+        }
     }
 }
 

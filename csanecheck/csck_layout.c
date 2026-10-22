@@ -130,7 +130,11 @@ csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     }
     previous = csane_tokens_previous(view, open);
     if (previous >= view->range.first
-        && (csane_layout_operand_end(&tokens->tokens[previous])
+        && (TOKEN_IS(&tokens->tokens[previous], "if")
+            || TOKEN_IS(&tokens->tokens[previous], "while")
+            || TOKEN_IS(&tokens->tokens[previous], "for")
+            || TOKEN_IS(&tokens->tokens[previous], "switch")
+            || csane_layout_operand_end(&tokens->tokens[previous])
             || TOKEN_IS(&tokens->tokens[previous], "sizeof")
             || TOKEN_IS(&tokens->tokens[previous], "_Alignof")
             || TOKEN_IS(&tokens->tokens[previous], "_Atomic")
@@ -599,6 +603,10 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     Token *tail;
 
     if (csane_layout_in_cast(file, view, index)) {
+        return CSANE_LAYOUT_DECLARATOR;
+    }
+    if (TOKEN_IS(&tokens->tokens[before], ")")
+        && csane_type_hints_macro_typedef(file->type_hints, view, before)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
     if (TOKEN_IS(name, ")")

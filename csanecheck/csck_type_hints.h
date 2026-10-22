@@ -5,6 +5,7 @@
 #define CSANECHECK_TYPE_HINTS_H
 
 #include "csck_regions.h"
+#include "csck_tokens.h"
 
 enum CsaneTypeHintKind {
     CSANE_TYPE_HINT_TYPEDEF = 1,
@@ -13,6 +14,7 @@ enum CsaneTypeHintKind {
 
 typedef struct CsaneTypeHint {
     int32 token;
+    int32 macro_close;
     enum CsaneTypeHintKind kind;
 } CsaneTypeHint;
 
@@ -28,5 +30,7 @@ void csane_type_hints_free(CsaneTypeHints *);
 bool csane_type_hints_has(CsaneTypeHints *, Token *, enum CsaneTypeHintKind);
 bool csane_type_hints_typedef(CsaneTypeHints *, Token *);
 bool csane_type_hints_tag(CsaneTypeHints *, Token *);
+bool csane_type_hints_macro_typedef(CsaneTypeHints *, CsaneTokenView *,
+                                    int32);
 
 #endif /* CSANECHECK_TYPE_HINTS_H */

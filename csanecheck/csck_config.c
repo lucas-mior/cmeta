@@ -207,6 +207,23 @@ csane_policy_macro_allowed(CsanePolicy *policy, char *path, int32 path_len,
     return false;
 }
 
+/* A typedef exception is matched against its alias, not against an
+ * enclosing function or every declaration in the same source file. */
+bool
+csane_policy_typedef_allowed(CsanePolicy *policy, char *path,
+                             int32 path_len, char *rule_id, Token *alias) {
+    for (int32 i = 0; i < policy->typedef_exemptions.count; i += 1) {
+        CsanePattern *pattern = &policy->typedef_exemptions.items[i];
+        if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
+                     rule_id, strlen32(rule_id))
+            && csane_match(pattern, path, path_len)
+            && csane_pattern_name_matches(pattern, alias)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int32
 csane_policy_columns(CsanePolicy *policy, char *path, int32 path_len) {
     char resolved[PATH_MAX];
@@ -619,6 +636,7 @@ csane_policy_free(CsanePolicy *policy) {
     csane_patterns_free(&policy->column_overrides);
     csane_patterns_free(&policy->rule_exemptions);
     csane_patterns_free(&policy->macro_exemptions);
+    csane_patterns_free(&policy->typedef_exemptions);
     *policy = (CsanePolicy){0};
     return;
 }
@@ -812,6 +830,13 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
                && first && second && extra && !fourth
                && csane_known_rule(first, first_len)) {
         ok = csane_policy_add_regex(&policy->rule_exemptions,
+                                    second, second_len,
+                                    first, first_len,
+                                    extra, extra_len, 0);
+    } else if (STREQUAL(key, key_len, "allow-typedef-rule")
+               && first && second && extra && !fourth
+               && STREQUAL(first, first_len, "TYPE-POINTER-TYPEDEF")) {
+        ok = csane_policy_add_regex(&policy->typedef_exemptions,
                                     second, second_len,
                                     first, first_len,
                                     extra, extra_len, 0);

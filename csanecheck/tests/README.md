@@ -283,3 +283,6 @@ typedef policy. The tests also verify documented typedef exceptions and that
 all step-18 diagnostics are valid `allow-rule` policy IDs. Exact
 externally imposed API signatures can use `allow-function-rule` with path and
 function regular expressions without suppressing the rule for an entire file.
+For externally imposed pointer aliases, `allow-typedef-rule
+TYPE-POINTER-TYPEDEF FILE_REGEX ALIAS_REGEX` permits only the named typedef
+in matching files; unrelated pointer typedefs continue to be checked.

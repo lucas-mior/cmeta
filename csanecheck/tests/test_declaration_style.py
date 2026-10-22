@@ -121,6 +121,25 @@ typedef int32 (*ArrayPointer)[4];
 """, ["TYPE-ENUM-TYPEDEF", "TYPE-UNION-TYPEDEF",
        "TYPE-POINTER-TYPEDEF", "TYPE-POINTER-TYPEDEF"])
 
+    def test_external_abi_pointer_typedef_exception_is_alias_scoped(self):
+        policy = self.root / "policy.conf"
+        policy.write_text(
+            "allow-typedef-rule TYPE-POINTER-TYPEDEF "
+            r"(^|/)cy_input[.]c$ ^magic_t$" "\n",
+            encoding="utf-8",
+        )
+        source = """#if !defined(CY_HAVE_MAGIC_H)
+typedef struct magic_set *magic_t;
+typedef struct private_set *private_t;
+#endif
+"""
+        self.check(source, ["TYPE-POINTER-TYPEDEF"],
+                   name="cy_input.c", config=policy)
+        self.check(source, ["TYPE-POINTER-TYPEDEF"]*2,
+                   name="other.c", config=policy)
+        self.check(source, ["TYPE-POINTER-TYPEDEF"]*2,
+                   name="cy_input.c")
+
     def test_xenums_template_enum_typedef_exception(self):
         self.check("""typedef enum ENUM_NAME ENUM_PREFIX_;
 """, [], name="xenums.c")
