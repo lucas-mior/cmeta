@@ -189,6 +189,29 @@ csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     return base && !tag && (!unknown || pointer);
 }
 
+static bool
+csane_layout_in_cast(CsaneFile *file, CsaneTokenView *view, int32 index) {
+    Tokenization *tokens = view->tokens;
+    for (int32 i = csane_tokens_previous(view, index);
+         i >= view->range.first; i = csane_tokens_previous(view, i)) {
+        if (TOKEN_IS(&tokens->tokens[i], ")")
+            || TOKEN_IS(&tokens->tokens[i], "]")
+            || TOKEN_IS(&tokens->tokens[i], "}")) {
+            return false;
+        }
+        if (TOKEN_IS(&tokens->tokens[i], "(")) {
+            int32 close = csane_tokens_match(view, i);
+            return close > index && csane_layout_cast(file, view, close);
+        }
+        if (TOKEN_IS(&tokens->tokens[i], ";")
+            || TOKEN_IS(&tokens->tokens[i], "{")
+            || TOKEN_IS(&tokens->tokens[i], ",")) {
+            return false;
+        }
+    }
+    return false;
+}
+
 /* Recognize the prefix of a declaration without guessing typedef names.
  * The enclosing statement or function header supplies the boundary. */
 static bool
@@ -563,6 +586,9 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                      int32 before, int32 after) {
     Tokenization *tokens = view->tokens;
     Token *name = &tokens->tokens[after];
+    if (csane_layout_in_cast(file, view, index)) {
+        return CSANE_LAYOUT_DECLARATOR;
+    }
     if (TOKEN_IS(name, ")")
         && csane_layout_is(tokens, csane_tokens_previous(view, before), "(")) {
         return CSANE_LAYOUT_DECLARATOR;
@@ -1031,29 +1057,6 @@ csane_layout_cast_spacing_check(CsaneFile *file, int32 close) {
                          "FMT-CAST-SPACING",
                          "no whitespace after cast");
     }
-}
-
-static bool
-csane_layout_in_cast(CsaneFile *file, CsaneTokenView *view, int32 index) {
-    Tokenization *tokens = view->tokens;
-    for (int32 i = csane_tokens_previous(view, index);
-         i >= view->range.first; i = csane_tokens_previous(view, i)) {
-        if (TOKEN_IS(&tokens->tokens[i], ")")
-            || TOKEN_IS(&tokens->tokens[i], "]")
-            || TOKEN_IS(&tokens->tokens[i], "}")) {
-            return false;
-        }
-        if (TOKEN_IS(&tokens->tokens[i], "(")) {
-            int32 close = csane_tokens_match(view, i);
-            return close > index && csane_layout_cast(file, view, close);
-        }
-        if (TOKEN_IS(&tokens->tokens[i], ";")
-            || TOKEN_IS(&tokens->tokens[i], "{")
-            || TOKEN_IS(&tokens->tokens[i], ",")) {
-            return false;
-        }
-    }
-    return false;
 }
 
 static bool
