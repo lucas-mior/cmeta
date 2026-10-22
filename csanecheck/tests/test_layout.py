@@ -46,6 +46,12 @@ class OperatorLayoutTests(unittest.TestCase):
 
     def test_multiplication_and_pointer_declarators(self):
         self.check("""typedef int32 MyType;
+typedef struct NcScreen NcScreen;
+typedef struct NcWindow NcWindow;
+typedef struct Callbacks {
+    NcWindow *(*active_window)(NcScreen *);
+    char *(*title)(NcScreen *);
+} Callbacks;
 int32 *f(int32 *p, MyType *q) {
     int32 (*function)(int32) = 0;
     MyType *result = q;
@@ -57,6 +63,11 @@ int32 *f(int32 *p, MyType *q) {
     return a* b;
 }
 """, ["FMT-MULTIPLY", "FMT-MULTIPLY"])
+        self.check("""typedef int32 Result;
+int32 f(Result callback, int32 value) {
+    return callback *(*function)(value);
+}
+""", ["FMT-MULTIPLY"])
 
     def test_pointer_declaration_in_for_initializer(self):
         self.check("""void f(Arena *arena) {
