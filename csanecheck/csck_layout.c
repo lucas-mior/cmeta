@@ -210,15 +210,44 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
     if (statements != NULL) {
         for (int32 i = 0; i < statements->count; i += 1) {
             CsaneStatement *stmt = &statements->items[i];
-            if (stmt->kind != CSANE_STMT_SIMPLE
-                || index < stmt->tokens.first
+            if (index < stmt->tokens.first
                 || index >= stmt->tokens.end) {
                 continue;
             }
-            int32 first = csane_tokens_next(view, stmt->tokens.first - 1);
-            if (first <= before
-                && csane_layout_type_prefix(view, first, before)) {
-                return true;
+            if (stmt->kind == CSANE_STMT_SIMPLE) {
+                int32 first = csane_tokens_next(view, stmt->tokens.first - 1);
+                if (first <= before
+                    && csane_layout_type_prefix(view, first, before)) {
+                    return true;
+                }
+            } else if (stmt->kind == CSANE_STMT_FOR
+                       && index < stmt->header.end) {
+                int32 keyword = csane_tokens_next(view, stmt->header.first - 1);
+                int32 open = csane_tokens_next(view, keyword);
+                int32 close = csane_tokens_match(view, open);
+                TokenRange initializer;
+                CsaneTokenView init_view;
+                int32 semicolon;
+                int32 first;
+
+                if (!csane_layout_is(tokens, keyword, "for")
+                    || !csane_layout_is(tokens, open, "(")
+                    || close < 0) {
+                    continue;
+                }
+                initializer = (TokenRange){open + 1, close};
+                if (!csane_tokens_subview(&init_view, view, initializer)) {
+                    continue;
+                }
+                semicolon = csane_tokens_top_level(&init_view,
+                                                   initializer.first - 1,
+                                                   ";", 1);
+                first = csane_tokens_next(&init_view,
+                                          initializer.first - 1);
+                if (index < semicolon && first <= before
+                    && csane_layout_type_prefix(&init_view, first, before)) {
+                    return true;
+                }
             }
         }
     }

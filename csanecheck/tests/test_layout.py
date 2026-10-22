@@ -58,6 +58,20 @@ int32 *f(int32 *p, MyType *q) {
 }
 """, ["FMT-MULTIPLY", "FMT-MULTIPLY"])
 
+    def test_pointer_declaration_in_for_initializer(self):
+        self.check("""void f(Arena *arena) {
+    for (Arena *item = arena; item; item = item->next) {
+        use(item);
+    }
+}
+""", [])
+        self.check("""void f(int32 x, int32 y) {
+    for (int32 product = x * y; product > 0; product -= 1) {
+        use(product);
+    }
+}
+""", ["FMT-MULTIPLY"])
+
     def test_lowercase_typedef_pointer_and_same_named_variable(self):
         self.check("""typedef int32 custom_t;
 custom_t *pointer;

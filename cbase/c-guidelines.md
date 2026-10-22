@@ -1028,8 +1028,10 @@ if (enum & ENUM_BITFLAG) {
 
   // bad
   ASSERT(access(path, F_OK) == 0);
-  // good
+  // good, if we don't care about the specific non-zero error code
   ASSERT(!access(path, F_OK));
+  // good, if we care about the specific negative error code.
+  ASSERT_EQ(access(path, F_OK), 0);
   ```
 - Prefer `ASSERT_ZERO(value);` instead of `ASSERT(value == 0)`.
   * Note: if zero means "function succeded", use
