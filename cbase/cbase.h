@@ -441,21 +441,21 @@ typedef struct FmtPlan {
 // bytes and may contain UTF-8. Locale format strings may use fmt_strftime
 // directives but must not form recursive %c/%x/%X/%r expansion cycles.
 typedef struct FmtLocale {
-    const char *weekday_abbr[7];
-    const char *weekday[7];
-    const char *month_abbr[12];
-    const char *month[12];
-    const char *am;
-    const char *pm;
-    const char *am_lower;
-    const char *pm_lower;
-    const char *date_time_fmt;
-    const char *date_fmt;
-    const char *time_fmt;
-    const char *time_12_fmt;
+    char *weekday_abbr[7];
+    char *weekday[7];
+    char *month_abbr[12];
+    char *month[12];
+    char *am;
+    char *pm;
+    char *am_lower;
+    char *pm_lower;
+    char *date_time_fmt;
+    char *date_fmt;
+    char *time_fmt;
+    char *time_12_fmt;
 } FmtLocale;
 
-extern const FmtLocale fmt_locale_c;
+extern FmtLocale fmt_locale_c;
 
 // cbase fmt_printf-compatible formatter. It returns the byte count that would
 // have been written, excluding the terminating '\0'. It writes a terminating
@@ -483,7 +483,7 @@ int32 fmt_vsnprintf_planned(FmtPlan *, char *, int64, va_list);
 // remain valid and unmodified during the call. On Unix, %z and %Z use only
 // tm_gmtoff/tm_zone already present in struct tm.
 int32 fmt_strftime(char *, int64, char *, struct tm *);
-int32 fmt_strftime_l(char *, int64, char *, struct tm *, const FmtLocale *);
+int32 fmt_strftime_l(char *, int64, char *, struct tm *, FmtLocale *);
 
 String *string_array_append(StringArray *);
 int32 string_array_append_copy(StringArray *array, String *item);
