@@ -128,7 +128,7 @@ csane_decl_comma(CsaneFile *file, TokenRange range) {
     if (!csane_tokens_view(&view, file->tokens, range)) {
         return -1;
     }
-    return csane_tokens_top_level(&view, range.first, ",", 1);
+    return csane_tokens_top_level(&view, range.first, STRLIT(","));
 }
 
 static int32
@@ -156,7 +156,7 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
         /* An initializer's call is not a function declarator. */
         if (!csane_tokens_view(&prefix, file->tokens, before)
             || csane_tokens_top_level(&prefix, before.first - 1,
-                                      "=", 1) != before.end) {
+                                      STRLIT("=")) != before.end) {
             continue;
         }
         if (!csane_tokens_view(&view, file->tokens, range)) {
@@ -471,12 +471,8 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
 
 static bool
 csane_decl_xenums(CsaneFile *file) {
-    int32 length;
-
-    length = strlen32(file->path);
-    return (length == 8 && !memcmp64(file->path, "xenums.c", 8))
-           || (length > 8 && file->path[length - 9] == '/'
-               && !memcmp64(file->path + length - 8, "xenums.c", 8));
+    return STREQUAL(file->path, file->path_len, "xenums.c")
+           || ENDS_WITH(file->path, file->path_len, "/xenums.c");
 }
 
 static void
@@ -538,7 +534,7 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args) {
         int32 comma;
         TokenRange parameter;
 
-        comma = csane_tokens_top_level(&view, first - 1, ",", 1);
+        comma = csane_tokens_top_level(&view, first - 1, STRLIT(","));
         parameter = (TokenRange){first, args.end};
         if (comma >= first && comma < args.end) {
             parameter.end = comma;
@@ -681,7 +677,8 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                         header = (TokenRange){open + 1, close};
                         (void)csane_tokens_view(&inner, file->tokens, header);
                         begin = open + 1;
-                        semi = csane_tokens_top_level(&inner, begin, ";", 1);
+                        semi = csane_tokens_top_level(&inner, begin,
+                                                      STRLIT(";"));
                         if (semi >= 0 && semi < close) {
                             header.end = semi;
                             csane_decl_one(file, header, lines, line_count);

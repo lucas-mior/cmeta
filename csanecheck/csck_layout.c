@@ -33,17 +33,25 @@ csane_layout_is(Tokenization *tokens, int32 i,
            && TOKEN_IS(&tokens->tokens[i], name, name_len);
 }
 
+static StrFlex *csane_layout_keywords[] = {
+    SFLIT("if"), SFLIT("else"), SFLIT("for"), SFLIT("while"),
+    SFLIT("do"), SFLIT("switch"), SFLIT("return"), SFLIT("case"),
+    SFLIT("default"), SFLIT("goto"), SFLIT("break"),
+    SFLIT("continue"), SFLIT("typedef"), SFLIT("struct"),
+    SFLIT("union"), SFLIT("enum"), SFLIT("const"),
+    SFLIT("volatile"), SFLIT("static"), SFLIT("extern"),
+    SFLIT("register"), SFLIT("restrict"), SFLIT("inline"),
+    SFLIT("sizeof"), SFLIT("_Alignof"), SFLIT("_Atomic"),
+    SFLIT("_Generic"), SFLIT("_Static_assert"),
+};
+
 static bool
 csane_layout_keyword(Token *token) {
-    static char *names[] = {
-        "if", "else", "for", "while", "do", "switch", "return",
-        "case", "default", "goto", "break", "continue", "typedef",
-        "struct", "union", "enum", "const", "volatile", "static",
-        "extern", "register", "restrict", "inline", "sizeof",
-        "_Alignof", "_Atomic", "_Generic", "_Static_assert",
-    };
-    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
-        if (TOKEN_IS(token, names[i])) {
+    int32 count = SIZEOF(csane_layout_keywords)
+                  /SIZEOF(csane_layout_keywords[0]);
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *word = csane_layout_keywords[i];
+        if (TOKEN_IS(token, word->data, word->len)) {
             return true;
         }
     }
@@ -74,14 +82,19 @@ csane_layout_operand_start(Token *token) {
            || TOKEN_IS(token, "--");
 }
 
+static StrFlex *csane_layout_assignments[] = {
+    SFLIT("="), SFLIT("+="), SFLIT("-="), SFLIT("*="),
+    SFLIT("/="), SFLIT("%="), SFLIT("&="), SFLIT("|="),
+    SFLIT("^="), SFLIT("<<="), SFLIT(">>="),
+};
+
 static bool
 csane_layout_assignment(Token *op) {
-    static char *names[] = {
-        "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
-        "<<=", ">>=",
-    };
-    for (int32 i = 0; i < SIZEOF(names)/SIZEOF(names[0]); i += 1) {
-        if (TOKEN_IS(op, names[i])) {
+    int32 count = SIZEOF(csane_layout_assignments)
+                  /SIZEOF(csane_layout_assignments[0]);
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *word = csane_layout_assignments[i];
+        if (TOKEN_IS(op, word->data, word->len)) {
             return true;
         }
     }
@@ -281,7 +294,7 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
                 }
                 semicolon = csane_tokens_top_level(&init_view,
                                                    initializer.first - 1,
-                                                   ";", 1);
+                                                   STRLIT(";"));
                 first = csane_tokens_next(&init_view,
                                           initializer.first - 1);
                 if (index < semicolon && first <= before

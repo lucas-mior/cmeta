@@ -216,7 +216,7 @@ csane_control_after_endif(CsaneFile *file, CsaneStatement *stmt) {
                           || source[line] == '\t')) {
         line += 1;
     }
-    if (pos - line < 6 || memcmp64(source + line, "#endif", 6)) {
+    if (!BEGINS_WITH(source + line, pos - line, "#endif")) {
         return false;
     }
     for (int32 i = first - 1; i >= 0; i -= 1) {
@@ -270,9 +270,8 @@ csane_control_header_before(CsaneFile *file, CsaneStatement *stmt) {
             line_start += 1;
         }
         length = token->offset + token->len - line_start;
-        if ((length >= 5 && !memcmp64(source + line_start, "case ", 5))
-            || (length >= 8
-                && !memcmp64(source + line_start, "default:", 8))) {
+        if (BEGINS_WITH(source + line_start, length, "case ")
+            || BEGINS_WITH(source + line_start, length, "default:")) {
             return true;
         }
     }
