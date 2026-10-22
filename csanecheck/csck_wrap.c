@@ -387,7 +387,7 @@ csane_wrap_collect_calls(CsaneFile *file, CsaneWrapSpan *items) {
 }
 
 static int
-csane_wrap_compare_calls(const void *left, const void *right) {
+csane_wrap_compare_calls(void *left, void *right) {
     const CsaneWrapSpan *a = left;
     const CsaneWrapSpan *b = right;
     if (a->start < b->start) {
@@ -421,10 +421,11 @@ csane_wrap_call_group(CsaneFile *file, CsaneWrapSpan *items,
 
 void
 csane_wrap_call_check(CsaneFile *file) {
+    int32 capacity = 0;
+
     if (csane_wrap_generated(file->path)) {
         return;
     }
-    int32 capacity = 0;
     if (file->statements != NULL) {
         capacity += file->statements->count;
     }
@@ -436,8 +437,7 @@ csane_wrap_call_check(CsaneFile *file) {
     }
     CsaneWrapSpan *items = malloc2((int64)capacity*SIZEOF(*items));
     int32 count = csane_wrap_collect_calls(file, items);
-    qsort(items, (size_t)count, (size_t)SIZEOF(*items),
-          csane_wrap_compare_calls);
+    qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
     int32 unique = 0;
     for (int32 i = 0; i < count; i += 1) {
         if (unique > 0 && items[i].start == items[unique - 1].start) {
