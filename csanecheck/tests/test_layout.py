@@ -84,6 +84,7 @@ int32 f(int32 custom_t, int32 p) {
         self.check("""int32 f(int32 x, int32 y) {
     int32 *p = &x;
     int32 r = (int32)-x + (int32)*p;
+    ldouble real = (ldouble)-1.25 + (ldouble)-0.0L;
     return r + y;
 }
 """, [])
