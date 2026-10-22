@@ -711,8 +711,7 @@ csane_wrap_check(CsaneFile *file) {
     CsaneWrapSpan *items = malloc2((int64)capacity*SIZEOF(*items));
     int32 count = csane_wrap_collect_assignments(file, items);
     count = csane_wrap_collect_assignment_gaps(file, items, count);
-    qsort(items, (size_t)count, (size_t)SIZEOF(*items),
-          csane_wrap_compare_calls);
+    qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
     int32 unique = 0;
     for (int32 i = 0; i < count; i += 1) {
         if (unique > 0 && items[i].start == items[unique - 1].start) {
