@@ -16,7 +16,7 @@ static bool
 csane_primitive(Token *token) {
     static char *names[] = {
         "void", "bool", "char", "short", "int", "long", "float", "double",
-        "signed", "unsigned", "int8", "int16", "int32", "int64",
+        "signed", "unsigned", "ldouble", "int8", "int16", "int32", "int64",
         "uint8", "uint16", "uint32", "uint64", "size_t", "ssize_t",
         "intptr_t", "uintptr_t", "ptrdiff_t", "wchar_t", "char8_t",
         "char16_t", "char32_t", "_Bool", "_Complex", "_Atomic",
