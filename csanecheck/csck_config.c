@@ -199,12 +199,12 @@ csane_policy_columns(CsanePolicy *policy, char *path) {
 }
 
 static bool
-csane_path_prefix(char *path, char *prefix) {
-    int32 len = strlen32(prefix);
-    if (strlen32(path) < len || memcmp64(path, prefix, len) != 0) {
+csane_path_prefix(char *path, int32 path_len, char *prefix,
+                  int32 prefix_len) {
+    if (!BEGINS_WITH(path, path_len, prefix, prefix_len)) {
         return false;
     }
-    return path[len] == '/' || path[len] == '\0';
+    return path_len == prefix_len || path[prefix_len] == '/';
 }
 
 bool
@@ -238,7 +238,9 @@ csane_policy_in_cbase(CsanePolicy *policy, char *path) {
         return false;
     }
     for (int32 i = 0; i < strflex_list_len(&policy->cbase_roots.strings); i += 1) {
-        if (csane_path_prefix(resolved, policy->cbase_roots.strings.items[i]->data)) {
+        if (csane_path_prefix(resolved, strlen32(resolved),
+                              policy->cbase_roots.strings.items[i]->data,
+                              policy->cbase_roots.strings.items[i]->len)) {
             return true;
         }
     }
@@ -253,10 +255,11 @@ csane_policy_in_ryu(CsanePolicy *policy, char *path) {
     }
     for (int32 i = 0; i < strflex_list_len(&policy->cbase_roots.strings); i += 1) {
         char *root = policy->cbase_roots.strings.items[i]->data;
-        int32 length = strlen32(root);
-        if (strlen32(resolved) <= length + 5
-            || memcmp64(resolved, root, length)
-               || memcmp64(resolved + length, "/ryu/", 5)) {
+        int32 length = policy->cbase_roots.strings.items[i]->len;
+        int32 resolved_len = strlen32(resolved);
+        if (resolved_len <= length + 5
+            || !BEGINS_WITH(resolved, resolved_len, root, length)
+            || !BEGINS_WITH(resolved + length, resolved_len - length, "/ryu/")) {
             continue;
         }
         for (char *p = resolved + length + 5; *p; p += 1) {
@@ -285,13 +288,13 @@ csane_policy_in_ryu(CsanePolicy *policy, char *path) {
 }
 
 static char *
-csane_join_path(char *root, char *name) {
-    int32 a = strlen32(root);
-    int32 b = strlen32(name);
+csane_join_path(char *root, int32 a, char *name, int32 b,
+                int32 *path_len) {
     char *path = malloc2((int64)a + b + 2);
     memcpy64(path, root, a);
     path[a] = '/';
     memcpy64(path + a + 1, name, (int64)b + 1);
+    *path_len = a + b + 1;
     return path;
 }
 
@@ -351,19 +354,28 @@ csane_policy_project(CsanePolicy *policy, char *project) {
     char *cbase;
     char *root;
     char *names;
+    int32 cbase_len;
+    int32 names_len;
+    int32 project_len = strlen32(project);
+    int32 root_len;
 
     if (realpath(project, resolved) == NULL
         || !csane_paths_add(&policy->project_roots, resolved, strlen32(resolved))) {
         fprintf(stderr, "%s: cannot resolve project directory\n", project);
         return false;
     }
-    cbase = csane_join_path(project, "cbase");
+    cbase = csane_join_path(project, project_len, STRLIT("cbase"),
+                            &cbase_len);
     root = cbase;
-    names = csane_join_path(root, "functions_never_use.txt");
+    root_len = cbase_len;
+    names = csane_join_path(root, root_len, STRLIT("functions_never_use.txt"),
+                            &names_len);
     if (!csane_exists(names)) {
-        free2(names, (int64)strlen32(names) + 1);
+        free2(names, (int64)names_len + 1);
         root = project;
-        names = csane_join_path(root, "functions_never_use.txt");
+        root_len = project_len;
+        names = csane_join_path(root, root_len, STRLIT("functions_never_use.txt"),
+                            &names_len);
     }
     if (csane_exists(names)) {
         ok = csane_load_names(&policy->never_names, names) && ok;
@@ -375,24 +387,29 @@ csane_policy_project(CsanePolicy *policy, char *project) {
     } else if (csane_exists(cbase)) {
         ok = csane_policy_add_root(policy, cbase) && ok;
     }
-    free2(names, (int64)strlen32(names) + 1);
-    names = csane_join_path(root, "functions_allowed_cbase_only.txt");
+    free2(names, (int64)names_len + 1);
+    names = csane_join_path(root, root_len, STRLIT("functions_allowed_cbase_only.txt"),
+                            &names_len);
     if (csane_exists(names)) {
         ok = csane_load_names(&policy->cbase_names, names) && ok;
     }
-    free2(names, (int64)strlen32(names) + 1);
-    names = csane_join_path(project, "piscou.1");
+    free2(names, (int64)names_len + 1);
+    names = csane_join_path(project, project_len, STRLIT("piscou.1"),
+                            &names_len);
     if (csane_exists(names)) {
-        char *config = csane_join_path(project, "config.h");
+        int32 config_len;
+        char *config = csane_join_path(project, project_len, STRLIT("config.h"),
+                                       &config_len);
         if (csane_exists(config)) {
             ok = csane_policy_add_regex(&policy->no_columns,
                                         STRLIT("(^|/)config\\.h$"), NULL, 0, NULL, 0, 0)
                  && ok;
         }
-        free2(config, (int64)strlen32(config) + 1);
+        free2(config, (int64)config_len + 1);
     }
-    free2(names, (int64)strlen32(names) + 1);
-    names = csane_join_path(root, "csanecheck.conf");
+    free2(names, (int64)names_len + 1);
+    names = csane_join_path(root, root_len, STRLIT("csanecheck.conf"),
+                            &names_len);
     if (csane_exists(names)) {
         char resolved_config[PATH_MAX];
         bool loaded = false;
@@ -401,7 +418,9 @@ csane_policy_project(CsanePolicy *policy, char *project) {
             ok = false;
         } else {
             for (int32 i = 0; i < strflex_list_len(&policy->configs.strings); i += 1) {
-                if (!strcmp(policy->configs.strings.items[i]->data, resolved_config)) {
+                if (STREQUAL(policy->configs.strings.items[i]->data,
+                             policy->configs.strings.items[i]->len,
+                             resolved_config, strlen32(resolved_config))) {
                     loaded = true;
                     break;
                 }
@@ -416,8 +435,8 @@ csane_policy_project(CsanePolicy *policy, char *project) {
             }
         }
     }
-    free2(names, (int64)strlen32(names) + 1);
-    free2(cbase, (int64)strlen32(cbase) + 1);
+    free2(names, (int64)names_len + 1);
+    free2(cbase, (int64)cbase_len + 1);
     return ok;
 }
 
@@ -450,6 +469,9 @@ csane_policy_source(CsanePolicy *policy, char *source) {
     for (;;) {
         char *names;
         char *cbase;
+        int32 names_len;
+        int32 cbase_len;
+        int32 resolved_len = strlen32(resolved);
         bool found;
 
         /* An explicit source inside a conventional source directory still
@@ -477,11 +499,14 @@ csane_policy_source(CsanePolicy *policy, char *source) {
                 }
             }
         }
-        names = csane_join_path(resolved, "functions_never_use.txt");
-        cbase = csane_join_path(resolved, "cbase/functions_never_use.txt");
+        names = csane_join_path(resolved, resolved_len,
+                                STRLIT("functions_never_use.txt"), &names_len);
+        cbase = csane_join_path(resolved, resolved_len,
+                                STRLIT("cbase/functions_never_use.txt"),
+                                &cbase_len);
         found = csane_exists(names) || csane_exists(cbase);
-        free2(names, (int64)strlen32(names) + 1);
-        free2(cbase, (int64)strlen32(cbase) + 1);
+        free2(names, (int64)names_len + 1);
+        free2(cbase, (int64)cbase_len + 1);
         if (found) {
             return csane_policy_project(policy, resolved);
         }
@@ -801,17 +826,14 @@ csane_policy_config(CsanePolicy *policy, char *filename) {
 }
 
 static bool
-csane_ryu_filter(char *filter) {
-    int32 len;
-
+csane_ryu_filter(char *filter, int32 len) {
     if (filter == NULL) {
         return false;
     }
-    len = strlen32(filter);
-    if (len >= 3 && !strcmp(filter + len - 3, "ryu")) {
+    if (ENDS_WITH(filter, len, "ryu")) {
         return len == 3 || filter[len - 4] == '/';
     }
-    if (len >= 5 && !strcmp(filter + len - 5, "ryu.c")) {
+    if (ENDS_WITH(filter, len, "ryu.c")) {
         return len == 5 || filter[len - 6] == '/';
     }
     return false;
@@ -821,51 +843,55 @@ bool
 csane_policy_filter(char *path, char *filter) {
     char *basename = path;
     char *filter_base = filter;
+    int32 path_len;
+    int32 filter_len;
     int32 n;
     int32 m;
 
     if (filter == NULL || filter[0] == '\0') {
         return true;
     }
-    for (char *p = path; *p; p += 1) {
-        if (*p == '/') {
-            basename = p + 1;
+    path_len = strlen32(path);
+    filter_len = strlen32(filter);
+    for (int32 i = 0; i < path_len; i += 1) {
+        if (path[i] == '/') {
+            basename = path + i + 1;
         }
     }
-    for (char *p = filter; *p; p += 1) {
-        if (*p == '/') {
-            filter_base = p + 1;
+    for (int32 i = 0; i < filter_len; i += 1) {
+        if (filter[i] == '/') {
+            filter_base = filter + i + 1;
         }
     }
-    if (!strcmp(path, filter) || !strcmp(basename, filter_base)) {
+    n = path_len - (int32)(basename - path);
+    m = filter_len - (int32)(filter_base - filter);
+    if (STREQUAL(path, path_len, filter, filter_len)
+        || STREQUAL(basename, n, filter_base, m)) {
         return true;
     }
-    n = strlen32(basename);
-    m = strlen32(filter_base);
-    if (n >= 2 && (!strcmp(basename + n - 2, ".h")
-                   || !strcmp(basename + n - 2, ".H")
-                   || !strcmp(basename + n - 2, ".C"))) {
+    if (ENDS_WITH(basename, n, ".h") || ENDS_WITH(basename, n, ".H")
+        || ENDS_WITH(basename, n, ".C")) {
         return true;
     }
-    if (n >= 2 && !strcmp(basename + n - 2, ".c")) {
+    if (ENDS_WITH(basename, n, ".c")) {
         n -= 2;
     }
-    if (m >= 2 && !strcmp(filter_base + m - 2, ".c")) {
+    if (ENDS_WITH(filter_base, m, ".c")) {
         m -= 2;
     }
-    if (n == m && !memcmp64(basename, filter_base, n)) {
+    if (STREQUAL(basename, n, filter_base, m)) {
         return true;
     }
-    if (csane_ryu_filter(filter) && n >= 2
-        && !strcmp(basename + n, ".c")) {
+    if (csane_ryu_filter(filter, filter_len)
+        && ENDS_WITH(basename, path_len - (int32)(basename - path), ".c")) {
         char *ryu = NULL;
-        if (!memcmp64(path, "ryu/", 4)) {
+        if (BEGINS_WITH(path, path_len, "ryu/")) {
             ryu = path + 4;
         } else {
-            for (char *p = path; *p; p += 1) {
-                if (p[0] == '/' && p[1] == 'r' && p[2] == 'y'
-                    && p[3] == 'u' && p[4] == '/') {
-                    ryu = p + 5;
+            for (int32 i = 0; i + 5 <= path_len; i += 1) {
+                if (path[i] == '/' && BEGINS_WITH(path + i + 1,
+                                                   path_len - i - 1, "ryu/")) {
+                    ryu = path + i + 5;
                     break;
                 }
             }
@@ -879,7 +905,6 @@ csane_policy_filter(char *path, char *filter) {
             return true;
         }
     }
-    /* A selected .c module keeps all headers, as the legacy shell does. */
     return false;
 }
 
@@ -905,8 +930,8 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
     }
     for (int32 i = 0; i < strflex_list_len(&policy->project_roots.strings); i += 1) {
         char *root = policy->project_roots.strings.items[i]->data;
-        int32 length = strlen32(root);
-        if (length > longest && csane_path_prefix(path, root)
+        int32 length = policy->project_roots.strings.items[i]->len;
+        if (length > longest && csane_path_prefix(path, strlen32(path), root, length)
             && path[length] == '/') {
             selected = path + length + 1;
             longest = length;
@@ -941,8 +966,9 @@ csane_policy_selection_path(CsanePolicy *policy, char *path,
     memcpy64(resolved + dir_len + 1, basename, (int64)base_len + 1);
     for (int32 i = 0; i < strflex_list_len(&policy->project_roots.strings); i += 1) {
         char *root = policy->project_roots.strings.items[i]->data;
-        int32 length = strlen32(root);
-        if (length > longest && csane_path_prefix(resolved, root)
+        int32 length = policy->project_roots.strings.items[i]->len;
+        if (length > longest && csane_path_prefix(resolved,
+                                                   dir_len + base_len + 1, root, length)
             && resolved[length] == '/') {
             selected = resolved + length + 1;
             longest = length;
@@ -955,7 +981,7 @@ bool
 csane_policy_selected(CsanePolicy *policy, char *path, char *filter) {
     char resolved[PATH_MAX];
     char *source = csane_policy_selection_path(policy, path, resolved);
-    if (!csane_source_allowed(source)
+    if (!csane_source_allowed(source, strlen32(source))
         || csane_policy_match(&policy->excludes, source)) {
         return false;
     }

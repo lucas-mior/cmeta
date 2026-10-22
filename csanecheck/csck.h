@@ -215,11 +215,11 @@ void csane_rule_issue(CsaneFile *, int32, char *, char *);
 bool csane_paths_add(CsanePaths *, char *, int32);
 void csane_paths_sort_unique(CsanePaths *);
 void csane_paths_free(CsanePaths *);
-bool csane_source_allowed(char *);
+bool csane_source_allowed(char *, int32);
 bool csane_discovery_defaults(CsanePaths *, CsanePaths *);
-bool csane_collect_root(CsanePaths *, char *, int32, CsanePaths *,
+bool csane_collect_root(CsanePaths *, char *, int32, int32, CsanePaths *,
                         CsanePaths *);
-bool csane_collect_explicit(CsanePaths *, char *);
+bool csane_collect_explicit(CsanePaths *, char *, int32);
 bool csane_collect_file_list(CsanePaths *, char *);
 int32 csane_run(int32, char **);
 
