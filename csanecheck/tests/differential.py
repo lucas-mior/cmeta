@@ -191,6 +191,7 @@ def normalize_perl(output, cwd, rules):
 def normalize_csane(output, cwd, rules):
     records, extras, unknown = [], [], []
     by_id = {rule.csane_id: rule.category for rule in rules.values()}
+    by_id["FMT-CALL-FIRST-TOPLEVEL"] = rules["P12"].category
     for text in output.splitlines():
         if text in CSANE_GUIDANCE:
             continue

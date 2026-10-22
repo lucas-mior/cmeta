@@ -17,7 +17,7 @@ FMT015	cbase/c-format.md	47	48	Operators	Prefer += 1 and -= 1 over ++ and --, ex
 FMT016	cbase/c-format.md	52	56	Casts	Do not put whitespace between a cast and its operand.	implemented	FMT-CAST-SPACING	-
 FMT017	cbase/c-format.md	60	63	Pointers	Format pointer declarators with a space after the type and no space between * and the name.	implemented	FMT-POINTER-SPACING	-
 FMT018	cbase/c-format.md	67	67	Function calls	Do not put whitespace before a function-call opening parenthesis.	implemented	FMT-CALL-SPACING	-
-FMT019	cbase/c-format.md	69	104	Function calls	Do not wrap a call before its first argument; align continuation arguments to the first argument, except generated .meta.h files.	implemented	FMT-CALL-FIRST;FMT-ARG-ALIGN	-
+FMT019	cbase/c-format.md	69	104	Function calls	Do not wrap a call before its first argument; align continuation arguments to the first argument, except generated .meta.h files.	implemented	FMT-CALL-FIRST;FMT-CALL-FIRST-TOPLEVEL;FMT-ARG-ALIGN	-
 FMT020	cbase/c-format.md	75	117	Function calls	Prefer single-line calls, then break after the first argument, then after assignment = when required by width.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Mechanical unnecessary-wrap cases are implemented.
 FMT021	cbase/c-format.md	139	156	Long lines	Use the documented line-breaking priorities for arithmetic, assignments, macros, nesting, declarations, and strings.	manual	-	Several subcases require readability/judgment; line length itself is enforced.
 FMT022	cbase/c-format.md	158	173	Indentation	Align wrapped long expressions for readability as shown.	csanecheck_candidate	-	-

@@ -155,6 +155,21 @@ csane_policy_match(CsanePatterns *patterns, char *path, int32 path_len) {
     return false;
 }
 
+/* The name pattern is a POSIX regex and therefore needs a terminated copy
+ * of the borrowed token text. Its length is already known. */
+static bool
+csane_pattern_name_matches(CsanePattern *pattern, Token *name) {
+    char *text = xstrndup(name->text, name->len);
+    bool matches;
+#if OS_UNIX
+    matches = regexec(&pattern->function_compiled, text, 0, NULL, 0) == 0;
+#else
+    matches = false;
+#endif
+    free2(text, (int64)name->len + 1);
+    return matches;
+}
+
 bool
 csane_policy_rule_allowed(CsanePolicy *policy, char *path, int32 path_len,
                           char *rule_id, Token *function) {
@@ -166,23 +181,27 @@ csane_policy_rule_allowed(CsanePolicy *policy, char *path, int32 path_len,
             if (!pattern->has_function) {
                 return true;
             }
-            if (function != NULL) {
-                char *name = malloc2((int64)function->len + 1);
-                bool matches;
-
-                memcpy64(name, function->text, function->len);
-                name[function->len] = '\0';
-#if OS_UNIX
-                matches = regexec(&pattern->function_compiled, name,
-                                  0, NULL, 0) == 0;
-#else
-                matches = false;
-#endif
-                free2(name, (int64)function->len + 1);
-                if (matches) {
-                    return true;
-                }
+            if (function != NULL
+                && csane_pattern_name_matches(pattern, function)) {
+                return true;
             }
+        }
+    }
+    return false;
+}
+
+/* Unlike allow-function-rule, allow-macro-rule matches the invoked macro
+ * name at file scope, not an enclosing function declaration. */
+bool
+csane_policy_macro_allowed(CsanePolicy *policy, char *path, int32 path_len,
+                           char *rule_id, int32 rule_len, Token *macro) {
+    for (int32 i = 0; i < policy->macro_exemptions.count; i += 1) {
+        CsanePattern *pattern = &policy->macro_exemptions.items[i];
+        if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
+                     rule_id, rule_len)
+            && csane_match(pattern, path, path_len)
+            && csane_pattern_name_matches(pattern, macro)) {
+            return true;
         }
     }
     return false;
@@ -593,6 +612,7 @@ csane_policy_free(CsanePolicy *policy) {
     csane_patterns_free(&policy->no_columns);
     csane_patterns_free(&policy->column_overrides);
     csane_patterns_free(&policy->rule_exemptions);
+    csane_patterns_free(&policy->macro_exemptions);
     *policy = (CsanePolicy){0};
     return;
 }
@@ -674,6 +694,7 @@ csane_known_rule(char *id, int32 id_len) {
         CSANE_RULE("FMT-ASSIGN-SPACING"),
         CSANE_RULE("FMT-ASSIGN-EQ"),
         CSANE_RULE("FMT-CALL-FIRST"),
+        CSANE_RULE("FMT-CALL-FIRST-TOPLEVEL"),
         CSANE_RULE("FMT-FUNC-ALIGN"),
         CSANE_RULE("FMT-LITERAL-ALIGN"),
         CSANE_RULE("FMT-ARG-ALIGN"),
@@ -785,6 +806,12 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
                && first && second && extra && !fourth
                && csane_known_rule(first, first_len)) {
         ok = csane_policy_add_regex(&policy->rule_exemptions, second,
+                                    second_len, first, first_len,
+                                    extra, extra_len, 0);
+    } else if (STREQUAL(key, key_len, "allow-macro-rule")
+               && first && second && extra && !fourth
+               && STREQUAL(first, first_len, "FMT-CALL-FIRST-TOPLEVEL")) {
+        ok = csane_policy_add_regex(&policy->macro_exemptions, second,
                                     second_len, first, first_len,
                                     extra, extra_len, 0);
     } else if (STREQUAL(key, key_len, "never-use")
