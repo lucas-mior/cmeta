@@ -78,7 +78,7 @@ csane_structure_add(CsaneStructuralUnresolved *items, int32 *count,
 }
 
 static int
-csane_structure_compare(const void *a_, const void *b_) {
+csane_structure_compare(void *a_, void *b_) {
     const CsaneStructuralUnresolved *a = a_;
     const CsaneStructuralUnresolved *b = b_;
     int result;
@@ -129,8 +129,7 @@ csane_coverage_report_structural(char *path, Tokenization *tokens,
         csane_structure_add(items, &count, item->tokens.first,
                             "statement", reason);
     }
-    qsort(items, (size_t)count, (size_t)SIZEOF(*items),
-          csane_structure_compare);
+    qsort64(items, count, SIZEOF(*items), csane_structure_compare);
     for (int32 i = 0; i < count; i += 1) {
         SourceLocation location = tokenization_token_location(tokens,
                                                               items[i].token);
