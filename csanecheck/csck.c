@@ -295,8 +295,8 @@ csane_run(int32 argc, char **argv) {
         value_len = strlen32(value);
     }
     if (value != NULL && value[0] != '\0'
-        && !csane_policy_add_regex(&options.policy.excludes, value,
-                                   value_len, NULL, 0, NULL, 0, 0)) {
+        && !csane_policy_add_regex(&options.policy.excludes, value, value_len,
+                                   NULL, 0, NULL, 0, 0)) {
         exit_status = 2;
         goto cleanup;
     }
