@@ -216,6 +216,7 @@ int32 f(int32 a, int32 b) {
         self.check("""void f(va_list args, int32 value) {
     int32 *pointer = va_arg(args, int32 *);
     const int32 *other = (const int32 *)pointer;
+    char *character = *(char **)pointer;
     int32 product = value * 2;
 }
 """, ["FMT-MULTIPLY"])
