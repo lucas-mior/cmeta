@@ -263,7 +263,8 @@ fmt_time_elapsed(char *buffer, double elapsed) {
     }
 
     if (negative) {
-        buffer[n++] = '-';
+        buffer[n] = '-';
+        n += 1;
     }
 
     if (elapsed <= 3600.0) {
