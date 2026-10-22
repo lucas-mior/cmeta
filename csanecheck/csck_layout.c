@@ -273,10 +273,22 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
             if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
                  || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
                 && index < item->header.end) {
-                int32 first = csane_tokens_previous(view, before);
-                if (first >= view->range.first
-                    && (TOKEN_IS(&tokens->tokens[first], "(")
-                        || TOKEN_IS(&tokens->tokens[first], ","))) {
+                int32 first = before;
+                int32 previous = csane_tokens_previous(view, first);
+                while (previous >= view->range.first
+                       && (csane_layout_qualifier(
+                               &tokens->tokens[previous])
+                           || TOKEN_IS(&tokens->tokens[previous], "signed")
+                           || TOKEN_IS(&tokens->tokens[previous], "unsigned")
+                           || TOKEN_IS(&tokens->tokens[previous], "long")
+                           || TOKEN_IS(&tokens->tokens[previous], "short"))) {
+                    first = previous;
+                    previous = csane_tokens_previous(view, first);
+                }
+                if (csane_layout_type_prefix(view, first, before)
+                    && (previous < view->range.first
+                        || TOKEN_IS(&tokens->tokens[previous], "(")
+                        || TOKEN_IS(&tokens->tokens[previous], ","))) {
                     return true;
                 }
             }
