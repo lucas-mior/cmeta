@@ -418,10 +418,10 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
                                : "FMT-CALL-FIRST";
 
         if (!top_macro
-            || !csane_policy_macro_allowed(
-                   file->policy, file->path, file->path_len,
-                   STRLIT("FMT-CALL-FIRST-TOPLEVEL"),
-                   &tokens->tokens[name])) {
+            || !csane_policy_macro_allowed(file->policy,
+                                           file->path, file->path_len,
+                                           STRLIT("FMT-CALL-FIRST-TOPLEVEL"),
+                                           &tokens->tokens[name])) {
             csane_rule_issue(file, tokens->tokens[open].offset, rule,
                              "call breaks before the first argument");
         }
