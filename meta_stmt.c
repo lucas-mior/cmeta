@@ -1039,7 +1039,7 @@ stmt_test_malformed_headers(void) {
 
 static void
 stmt_test_unresolved_pointer_declarations(void) {
-    char *src = "{ Arena *arena; GenericArrayHeader **headers; "
+    char *src = "{ Arena *arena; union GenericArrayHeader **headers; "
                 "int a = 2; int b = 3; a * b; "
                 "for (Arena *item = arena; item; item = item->next) {} }";
     Tokenization t = tokenize(src, strlen32(src));

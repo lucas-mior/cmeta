@@ -986,13 +986,13 @@ int32 cmd_wait(Command *);
 #pragma warning(push)
 #pragma warning(disable: 4324)
 #endif
-typedef union GenericArrayHeader {
+union GenericArrayHeader {
     struct {
         int32 count;
         int32 cap;
     };
     CbaseMaxAlign alignment;
-} GenericArrayHeader;
+};
 #if CBASE_CRT_MSVC
 #pragma warning(pop)
 #endif
@@ -1004,7 +1004,7 @@ bool generic_array_reserve(void **array, int32 needed_count,
 int32 generic_array_capacity(void *array);
 void generic_array_set_count(void *array, int32 count);
 
-#define ARRAY_HEADER(ARRAY)   ((GenericArrayHeader *)((void *)(ARRAY)) - 1)
+#define ARRAY_HEADER(ARRAY)   ((union GenericArrayHeader *)((void *)(ARRAY)) - 1)
 #define ARRAY_LEN(ARRAY)      ((ARRAY) ? ARRAY_HEADER(ARRAY)->count : 0)
 #define ARRAY_CAPACITY(ARRAY) generic_array_capacity(ARRAY)
 
@@ -1026,7 +1026,7 @@ void generic_array_set_count(void *array, int32 count);
 } while (0)
 #define ARRAY_FREE(ARRAY) do {                                   \
     if (ARRAY) {                                                 \
-        GenericArrayHeader *array_header_ = ARRAY_HEADER(ARRAY); \
+        union GenericArrayHeader *array_header_ = ARRAY_HEADER(ARRAY); \
         free2(array_header_, SIZEOF(*array_header_)              \
               + array_header_->cap*SIZEOF(*(ARRAY)));            \
         (ARRAY) = NULL;                                          \
