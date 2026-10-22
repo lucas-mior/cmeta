@@ -45,6 +45,7 @@ typedef struct CsanePolicy {
     CsanePatterns no_columns;
     CsanePatterns column_overrides;
     CsanePatterns rule_exemptions;
+    CsanePatterns macro_exemptions;
     int32 default_columns;
 } CsanePolicy;
 
@@ -171,6 +172,8 @@ bool csane_policy_in_ryu(CsanePolicy *, char *, int32);
 bool csane_policy_match(CsanePatterns *, char *, int32);
 bool csane_policy_rule_allowed(CsanePolicy *, char *, int32, char *,
                                Token *);
+bool csane_policy_macro_allowed(CsanePolicy *, char *, int32, char *,
+                                int32, Token *);
 int32 csane_policy_columns(CsanePolicy *, char *, int32);
 bool csane_policy_filter(char *, int32, char *, int32);
 bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);

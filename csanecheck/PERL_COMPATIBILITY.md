@@ -433,3 +433,24 @@ rules from `c-format.md` and `c-guidelines.md`.  `perl_compatibility.tsv`
 remains the exact P01-P25 differential specification; the unified inventory
 classifies where each broader guide rule belongs (`implemented`,
 `csanecheck_candidate`, `compiler`, or `manual`).
+
+## File-scope macro first-argument layout
+
+`FMT-CALL-FIRST` reports calls that break directly after `(`. Recognized
+file-scope macro invocations instead use `FMT-CALL-FIRST-TOPLEVEL`. Both
+correspond to the legacy P12 first-argument category in differential reports.
+
+To exempt one macro name only for the top-level rule, put this in
+`csanecheck.conf` (or a file provided by `--config`):
+
+```text
+allow-macro-rule FMT-CALL-FIRST-TOPLEVEL .* ^NC_SCREEN_COLUMN_CAPABILITY_CALLBACKS$
+```
+
+The arguments are the rule ID, a POSIX extended regular expression for the
+source filename, and a POSIX extended regular expression for the macro name.
+The macro-name match is performed against the entire borrowed identifier
+through a temporary NUL-terminated copy, so anchors such as `^...$` are
+recommended. This directive does not exempt calls inside functions. Existing
+`allow-rule FMT-CALL-FIRST-TOPLEVEL <path-regex>` remains available for
+file-wide exemptions.

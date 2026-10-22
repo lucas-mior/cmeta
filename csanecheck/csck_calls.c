@@ -356,9 +356,28 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
     }
 }
 
+/* Recognized file-scope macro invocations have their own first-argument
+ * rule; arbitrary file-scope expressions are not classified as macros. */
+static bool
+csane_call_top_macro(CsaneFile *file, int32 name) {
+    CsaneTopLevels *top = file->toplevel;
+
+    if (top == NULL) {
+        return false;
+    }
+    for (int32 i = 0; i < top->count; i += 1) {
+        CsaneTopItem *item = &top->items[i];
+        if (item->kind == CSANE_TOP_MACRO_INVOCATION
+            && item->name_token == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void
-csane_call_token_one(CsaneFile *file, int32 open, int32 close,
-                     bool macro) {
+csane_call_token_one(CsaneFile *file, int32 name, int32 open,
+                     int32 close, bool macro) {
     Tokenization *tokens = file->tokens;
     TokenRange content = {open + 1, close};
     CsaneTokenView view;
@@ -393,9 +412,18 @@ csane_call_token_one(CsaneFile *file, int32 open, int32 close,
         }
     }
     if (newline && plain) {
-        csane_rule_issue(file, tokens->tokens[open].offset,
-                         "FMT-CALL-FIRST",
-                         "call breaks before the first argument");
+        bool top_macro = !macro && csane_call_top_macro(file, name);
+        char *rule = top_macro ? "FMT-CALL-FIRST-TOPLEVEL"
+                               : "FMT-CALL-FIRST";
+
+        if (!top_macro
+            || !csane_policy_macro_allowed(
+                   file->policy, file->path, file->path_len,
+                   STRLIT("FMT-CALL-FIRST-TOPLEVEL"),
+                   &tokens->tokens[name])) {
+            csane_rule_issue(file, tokens->tokens[open].offset, rule,
+                             "call breaks before the first argument");
+        }
     }
     if (!csane_calls_line_break(file, open, close)) {
         return;
@@ -604,7 +632,7 @@ csane_calls_token_check(CsaneFile *file) {
         macro = file->preprocessor->token_roles != NULL
                 && file->preprocessor->token_roles[i]
                    == C_PP_TOKEN_MACRO_REPLACEMENT;
-        csane_call_token_one(file, i, close, macro);
+        csane_call_token_one(file, name, i, close, macro);
     }
 }
 
