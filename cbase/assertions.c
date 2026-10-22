@@ -1172,7 +1172,7 @@ a_double_##MODE(char *file, int32 line, char *func,                            \
                 char *name1, char *name2,                                      \
                 char *type1, char *type2,                                      \
                 int32 bits1, int32 bits2,                                      \
-                int32 kind1, int32 kind2,                                          \
+                int32 kind1, int32 kind2,                                      \
                 double var1, double var2) {                                    \
     double diff;                                                               \
     ullong ulps;                                                               \
