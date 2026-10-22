@@ -60,11 +60,13 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
     if (result != 0) {
         char description[256];
         regerror(result, &pattern.compiled, description, SIZEOF(description));
-        error2("invalid regex '%.*s': %s\n", text_len, text, description);
+        error2("invalid regex '%.*s': %s\n",
+               text_len, text, description);
         return false;
     }
 #else
-    error2("POSIX regular expressions are unavailable: %.*s\n", text_len, text);
+    error2("POSIX regular expressions are unavailable: %.*s\n",
+           text_len, text);
     return false;
 #endif
     if (function != NULL) {
@@ -207,9 +209,19 @@ csane_policy_macro_allowed(CsanePolicy *policy, char *path, int32 path_len,
 
 int32
 csane_policy_columns(CsanePolicy *policy, char *path, int32 path_len) {
+    char resolved[PATH_MAX];
     int32 columns = policy->default_columns;
+
     if (csane_policy_match(&policy->no_columns, path, path_len)) {
         return 0;
+    }
+    /* Match the legacy Perl checker's canonical cecup/src path, not the
+     * diagnostic spelling (which may be just ./src/file.c).
+     */
+    if (realpath(path, resolved) != NULL
+        && memmem64(resolved, strlen32(resolved),
+                    STRLIT("/cecup/src/")) != NULL) {
+        columns = 100;
     }
     for (int32 i = 0; i < policy->column_overrides.count; i += 1) {
         CsanePattern *item = &policy->column_overrides.items[i];
@@ -591,12 +603,6 @@ csane_policy_init(CsanePolicy *policy) {
             csane_policy_free(policy);
             return false;
         }
-    }
-    if (!csane_policy_add_regex(&policy->column_overrides,
-                                STRLIT("(^|/)cecup/src/"),
-                                NULL, 0, NULL, 0, 100)) {
-        csane_policy_free(policy);
-        return false;
     }
     return true;
 }

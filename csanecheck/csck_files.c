@@ -73,6 +73,7 @@ bool
 csane_source_allowed(char *path, int32 path_len) {
     char *name = path;
     int32 len;
+    int32 start = 0;
 
     for (int32 i = 0; i < path_len; i += 1) {
         if (path[i] == '/') {
@@ -80,6 +81,19 @@ csane_source_allowed(char *path, int32 path_len) {
         }
     }
     len = path_len - (int32)(name - path);
+    /* Ignore hidden path components, but not the . and .. prefixes used
+     * in relative paths. This also covers explicitly selected sources.
+     */
+    for (int32 i = 0; i <= path_len; i += 1) {
+        if (i < path_len && path[i] != '/') {
+            continue;
+        }
+        if (i > start + 1 && path[start] == '.'
+            && !(i == start + 2 && path[start + 1] == '.')) {
+            return false;
+        }
+        start = i + 1;
+    }
     if (ENDS_WITH(name, len, ".meta.h")) {
         return false;
     }
@@ -175,8 +189,7 @@ csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
         int32 path_len;
         struct stat st;
 
-        if (STREQUAL(name, name_len, ".")
-            || STREQUAL(name, name_len, "..")) {
+        if (name[0] == '.') {
             continue;
         }
         path = csane_join(directory, directory_len, name, name_len, &path_len);

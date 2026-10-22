@@ -66,6 +66,48 @@ class DiscoveryTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertNotIn(path.resolve(), found)
 
+    def test_hidden_sources_are_not_discovered(self):
+        visible = self.write_source("src/visible.c")
+        hidden = [
+            self.write_source(".root.c"),
+            self.write_source("src/.welcome.h"),
+            self.write_source("src/.internal/hidden.c"),
+            self.write_source("cbase/ryu/.hidden.c"),
+            self.write_source("cbase/ryu/.internal/hidden.c"),
+        ]
+        found = self.discovered()
+        self.assertIn(visible.resolve(), found)
+        for path in hidden:
+            with self.subTest(path=path):
+                self.assertNotIn(path.resolve(), found)
+
+    def test_hidden_sources_are_skipped_even_when_explicit(self):
+        visible = self.write_source("src/visible.c")
+        hidden = [
+            self.write_source("src/.welcome.h"),
+            self.write_source("src/.internal/hidden.c"),
+        ]
+        file_list = self.root / "files.txt"
+        file_list.write_text("\n".join(str(path) for path in hidden)
+                             + "\n", encoding="utf-8")
+        commands = [
+            [str(CHECKER), "--file", str(hidden[0])],
+            [str(CHECKER), str(hidden[1])],
+            [str(CHECKER), "--file-list", str(file_list)],
+            [str(CHECKER), "--root", str(self.root)],
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                result = subprocess.run(command + ["--coverage"], cwd=ROOT,
+                                        capture_output=True, text=True,
+                                        check=False)
+                self.assertIn(result.returncode, (0, 1), result.stderr)
+                self.assertNotIn("coverage file=" + str(hidden[0]),
+                                 result.stdout)
+                self.assertNotIn("coverage file=" + str(hidden[1]),
+                                 result.stdout)
+        self.assertIn(visible.resolve(), self.discovered())
+
     def test_source_root_adds_project_tree(self):
         custom = self.write_source("engine/custom.c")
         self.assertNotIn(custom.resolve(), self.discovered())
