@@ -645,111 +645,6 @@ csane_decl_style_check(CsaneFile *file, TokenRange range) {
     csane_decl_typedef_check(file, range);
 }
 
-static bool
-csane_decl_statement(CsaneFile *file, CsaneStatement *statement) {
-    return statement->kind == CSANE_STMT_SIMPLE
-           && csane_decl_candidate(file, statement->tokens);
-}
-
-static bool
-csane_decl_unknown_type_shape(CsaneFile *file, TokenRange range) {
-    int32 type;
-    int32 next;
-
-    if (csane_classify_statement(file->tokens, range)
-        == CSANE_LOCAL_DECLARATION) {
-        return true;
-    }
-    type = csane_decl_next(file, range, range.first - 1);
-    while (type < range.end
-           && (csane_decl_storage(file, type)
-               || csane_decl_cv_qualifier(file, type))) {
-        type = csane_decl_next(file, range, type);
-    }
-    if (type >= range.end
-        || file->tokens->tokens[type].kind != TOKEN_IDENT
-        || csane_decl_known_type(file, type)) {
-        return false;
-    }
-    next = csane_decl_next(file, range, type);
-    if (next >= range.end) {
-        return false;
-    }
-    if (file->tokens->tokens[next].kind == TOKEN_IDENT
-        || csane_decl_is(file, next, "*")) {
-        return true;
-    }
-    if (csane_decl_is(file, next, "(")) {
-        int32 inside;
-
-        inside = csane_decl_next(file, range, next);
-        return inside < range.end && csane_decl_is(file, inside, "*");
-    }
-    return false;
-}
-
-static void
-csane_decl_after_statement_check(CsaneFile *file) {
-    uint8 *reported;
-    int32 bytes;
-    int32 i;
-
-    bytes = file->tokens->token_count*SIZEOF(*reported);
-    reported = malloc2(bytes);
-    memset64(reported, 0, bytes);
-    for (i = 0; i < file->statements->count; i += 1) {
-        CsaneStatement *statement = &file->statements->items[i];
-        int32 first;
-        bool code = false;
-        bool ambiguous = false;
-        int32 j;
-
-        if (!csane_decl_statement(file, statement)) {
-            continue;
-        }
-        first = csane_decl_next(file, statement->tokens,
-                                statement->tokens.first - 1);
-        if (first < 0 || first >= file->tokens->token_count
-            || reported[first]) {
-            continue;
-        }
-        for (j = 0; j < i; j += 1) {
-            CsaneStatement *previous = &file->statements->items[j];
-
-            if (previous->function != statement->function
-                || previous->owner_region != statement->owner_region
-                || previous->parent != statement->parent
-                || previous->source.start >= statement->source.start) {
-                continue;
-            }
-            if (csane_decl_statement(file, previous)) {
-                continue;
-            }
-            if (previous->kind == CSANE_STMT_OPAQUE
-                || (previous->kind == CSANE_STMT_SIMPLE
-                    && csane_decl_unknown_type_shape(file,
-                                                     previous->tokens))) {
-                ambiguous = true;
-                continue;
-            }
-            if (previous->kind == CSANE_STMT_CASE
-                || previous->kind == CSANE_STMT_DEFAULT
-                || previous->kind == CSANE_STMT_LABEL) {
-                continue;
-            }
-            code = true;
-        }
-        if (code && !ambiguous) {
-            csane_rule_issue(file, file->tokens->tokens[first].offset,
-                             "DECL-AFTER-STMT",
-                             "declare variables before statements in the "
-                             "same block");
-            reported[first] = 1;
-        }
-    }
-    free2(reported, bytes);
-}
-
 static int32
 csane_local_decl_line(CsaneFile *file, int32 token) {
     return tokenization_token_location(file->tokens, token).line;
@@ -998,7 +893,6 @@ csane_declarations_check(CsaneFile *file) {
             }
         }
     }
-    csane_decl_after_statement_check(file);
     free2(lines, line_count*SIZEOF(*lines));
 }
 
