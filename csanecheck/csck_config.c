@@ -486,8 +486,7 @@ csane_policy_source(CsanePolicy *policy, char *source) {
             }
         }
         names = csane_join_path(resolved, "functions_never_use.txt");
-        cbase = csane_join_path(resolved,
-                                "cbase/functions_never_use.txt");
+        cbase = csane_join_path(resolved, "cbase/functions_never_use.txt");
         found = csane_exists(names) || csane_exists(cbase);
         free2(names, (int64)strlen32(names) + 1);
         free2(cbase, (int64)strlen32(cbase) + 1);
