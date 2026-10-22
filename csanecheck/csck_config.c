@@ -64,8 +64,7 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
         return false;
     }
 #else
-    error2("POSIX regular expressions are unavailable: %.*s\n",
-           text_len, text);
+    error2("POSIX regular expressions are unavailable: %.*s\n", text_len, text);
     return false;
 #endif
     if (function != NULL) {
