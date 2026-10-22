@@ -114,6 +114,7 @@ static bool
 csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     Tokenization *tokens = view->tokens;
     int32 open;
+    int32 previous;
     int32 first;
     bool base = false;
     bool named = false;
@@ -125,6 +126,15 @@ csane_layout_cast(CsaneFile *file, CsaneTokenView *view, int32 close) {
     }
     open = csane_tokens_match(view, close);
     if (open < 0) {
+        return false;
+    }
+    previous = csane_tokens_previous(view, open);
+    if (previous >= view->range.first
+        && (csane_layout_operand_end(&tokens->tokens[previous])
+            || TOKEN_IS(&tokens->tokens[previous], "sizeof")
+            || TOKEN_IS(&tokens->tokens[previous], "_Alignof")
+            || TOKEN_IS(&tokens->tokens[previous], "_Atomic")
+            || TOKEN_IS(&tokens->tokens[previous], "_Generic"))) {
         return false;
     }
     first = csane_tokens_next(view, open);
