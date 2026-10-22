@@ -258,8 +258,13 @@ test_assignments(void) {
         CHECK(rhs.first == op + 1);
         free_tokenization(&tokens);
     }
-    char *invalid[] = {"left == right", "f(x = 1, y)",
-                       "x = (y", "= x", "x = "};
+    char *invalid[] = {
+        "left == right",
+        "f(x = 1, y)",
+        "x = (y",
+        "= x",
+        "x = ",
+    };
     for (int32 i = 0; i < SIZEOF(invalid)/SIZEOF(invalid[0]); i += 1) {
         Tokenization tokens = tokenize_copy(invalid[i], strlen32(invalid[i]),
                                             TOKENIZE_DEFAULT);
