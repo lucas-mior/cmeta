@@ -70,6 +70,10 @@ int32 f(S *s) {
     return !value + (int32)value + *pointer;
 }
 """, [])
+        self.check("""int64 f(int64 count) {
+    return SIZEOF(TestFlex) + (count*SIZEOF(int64));
+}
+""", [])
 
     def test_pointer_declarator_spacing(self):
         self.check("""void f(int32* a, int32 * b) {
