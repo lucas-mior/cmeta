@@ -374,13 +374,14 @@ csane_load_names(CsanePaths *names, char *path, int32 path_len) {
     }
     csane_paths_free(names);
     for (int32 i = 0; i <= len; i += 1) {
-        char *word;
+        int32 begin;
+        int32 end;
 
         if (i < len && text[i] != '\n') {
             continue;
         }
-        int32 begin = start;
-        int32 end = i;
+        begin = start;
+        end = i;
         while (begin < end && (text[begin] == ' ' || text[begin] == '\t')) {
             begin += 1;
         }
