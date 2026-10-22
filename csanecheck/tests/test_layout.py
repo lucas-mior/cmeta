@@ -76,7 +76,7 @@ static void (*status_playlist_update_observer)(void *user);
 typedef struct Callbacks {
     void (*notify)(void *user);
 } Callbacks;
-int32 result = 3*4;
+int32 result = 3 * 4;
 """, ["FMT-MULTIPLY"])
 
     def test_pointer_declaration_in_for_initializer(self):
