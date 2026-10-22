@@ -635,7 +635,7 @@ test_preprocessor_object_and_function_spacing(void) {
     Tokenization tokenization;
     TokenRange all;
     int32 cursor;
-    bool expected[] = {false, true, true, false};
+    bool expected[] = {false, true, true, false,};
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, tokenization.token_count};
