@@ -208,6 +208,22 @@ class SourcePolicyTests(unittest.TestCase):
                                       file_list=True,
                                       no_column_limit=path))
 
+    def test_empty_no_column_limit_is_ignored(self):
+        path = self.root / "src/limit.c"
+        path.parent.mkdir(parents=True)
+        path.write_text("x" * 81 + "\n", encoding="utf-8")
+        command = [str(CSANE), "--file", str(path)]
+        normal = subprocess.run(command, cwd=self.root, capture_output=True,
+                                text=True, check=False)
+        empty = subprocess.run([str(CSANE), "--no-column-limit", "",
+                                *command[1:]], cwd=self.root,
+                               capture_output=True, text=True, check=False)
+        self.assertEqual(normal.returncode, 1, normal.stderr)
+        self.assertIn("error[SRC-COLUMNS]", normal.stdout)
+        self.assertEqual(empty.returncode, normal.returncode, empty.stderr)
+        self.assertEqual(empty.stdout, normal.stdout)
+        self.assertEqual(empty.stderr, normal.stderr)
+
     def test_root_discovery_skips_generated_headers_and_stc(self):
         source = "#ifdef BAD\n#endif\n"
         for relative in ("src/visible.c", "stc/hidden.c",
