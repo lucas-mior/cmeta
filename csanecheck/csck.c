@@ -639,7 +639,7 @@ cleanup:
         fmt_printf("In order to understand and learn how to fix the problems "
                    "above, read cbase/c-guidelines.md and cbase/c-format.md\n");
         fmt_printf("If you think any of them are a false positive"
-                   ", put them in a file called false-positives.txt",
+                   ", put them in a file called false-positives.txt"
                    ", and add an exception for it in cbase/csanecheck.conf.\n");
     }
     csane_paths_free(&options.files);
