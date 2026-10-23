@@ -103,7 +103,7 @@ csane_coverage_report_structural(char *path, int32 path_len,
     if (capacity <= 0) {
         return;
     }
-    items = malloc2((int64)capacity*SIZEOF(*items));
+    items = malloc2(capacity*SIZEOF(*items));
     for (int32 i = 0; i < toplevel->count; i += 1) {
         CsaneTopItem *item = &toplevel->items[i];
         char *reason;
@@ -139,7 +139,7 @@ csane_coverage_report_structural(char *path, int32 path_len,
                    path_len, path, location.line, location.column + 1,
                    items[i].target, items[i].reason);
     }
-    free2(items, (int64)capacity*SIZEOF(*items));
+    free2(items, capacity*SIZEOF(*items));
     return;
 }
 

@@ -94,7 +94,7 @@ csane_status_function(CsaneFile *file, CsaneTopItem *top) {
     if (count < 3 || !(count & 1)) {
         return;
     }
-    refs = malloc2((int64)count*SIZEOF(*refs));
+    refs = malloc2(count*SIZEOF(*refs));
     if (refs == NULL) {
         return;
     }
@@ -116,7 +116,7 @@ csane_status_function(CsaneFile *file, CsaneTopItem *top) {
                          STRLIT("STYLE-STATUS-TEMP"),
                          "inline int32 status assignment/use pairs");
     }
-    free2(refs, (int64)count*SIZEOF(*refs));
+    free2(refs, count*SIZEOF(*refs));
 }
 
 void

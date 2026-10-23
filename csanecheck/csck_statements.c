@@ -213,8 +213,8 @@ csane_stmt_branch_owns_close(CsaneStatementStream *stream, int32 outer_pos,
 static void
 csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
     int32 allocated = stream->count;
-    int32 *kept = malloc2((int64)allocated*SIZEOF(*kept));
-    int32 *stack = malloc2((int64)allocated*SIZEOF(*stack));
+    int32 *kept = malloc2(allocated*SIZEOF(*kept));
+    int32 *stack = malloc2(allocated*SIZEOF(*stack));
     int32 kept_count = 0;
     int32 depth = 0;
 
@@ -250,19 +250,19 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
             kept_count += 1;
         }
     }
-    memcpy64(stream->indices, kept, (int64)kept_count*SIZEOF(*stream->indices));
+    memcpy64(stream->indices, kept, kept_count*SIZEOF(*stream->indices));
     stream->count = kept_count;
-    free2(stack, (int64)allocated*SIZEOF(*stack));
-    free2(kept, (int64)allocated*SIZEOF(*kept));
+    free2(stack, allocated*SIZEOF(*stack));
+    free2(kept, allocated*SIZEOF(*kept));
     return;
 }
 
 static void
 csane_stmt_match(CsaneStatementStream *stream) {
-    int32 *stack = malloc2((int64)stream->count*SIZEOF(*stack));
+    int32 *stack = malloc2(stream->count*SIZEOF(*stack));
     int32 depth = 0;
 
-    stream->matches = malloc2((int64)stream->count*SIZEOF(*stream->matches));
+    stream->matches = malloc2(stream->count*SIZEOF(*stream->matches));
     for (int32 i = 0; i < stream->count; i += 1) {
         stream->matches[i] = -1;
         if (csane_stmt_open(stream, i)) {
@@ -285,7 +285,7 @@ csane_stmt_match(CsaneStatementStream *stream) {
             depth = found;
         }
     }
-    free2(stack, (int64)stream->count*SIZEOF(*stack));
+    free2(stack, stream->count*SIZEOF(*stack));
     return;
 }
 
@@ -696,8 +696,8 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
         }
         csane_stmt_children(&stream, first, end, -1, 0);
     }
-    free2(stream.indices, (int64)stream.capacity*SIZEOF(*stream.indices));
-    free2(stream.matches, (int64)stream.count*SIZEOF(*stream.matches));
+    free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
+    free2(stream.matches, stream.count*SIZEOF(*stream.matches));
 }
 
 bool
@@ -741,7 +741,7 @@ csane_statements_free(CsaneStatements *statements) {
         return;
     }
     free2(statements->items,
-          (int64)statements->capacity*SIZEOF(*statements->items));
+          statements->capacity*SIZEOF(*statements->items));
     *statements = (CsaneStatements){0};
 }
 

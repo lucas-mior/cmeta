@@ -282,7 +282,7 @@ csane_run(int32 argc, char **argv) {
         csane_policy_free(&options.policy);
         return 2;
     }
-    arg_lens = malloc2((int64)argc*SIZEOF(*arg_lens));
+    arg_lens = malloc2(argc*SIZEOF(*arg_lens));
     if (arg_lens == NULL) {
         exit_status = 2;
         goto cleanup;

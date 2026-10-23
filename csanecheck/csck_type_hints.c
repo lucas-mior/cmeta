@@ -112,7 +112,7 @@ csane_hint_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
         int32 previous = hints->capacity;
         int32 next = previous ? previous*2 : 32;
         if (previous == 0) {
-            hints->items = malloc2((int64)next*SIZEOF(*hints->items));
+            hints->items = malloc2(next*SIZEOF(*hints->items));
         } else {
             hints->items = realloc2(hints->items, previous, next,
                                     SIZEOF(*hints->items));
@@ -269,7 +269,7 @@ csane_type_hints_free(CsaneTypeHints *hints) {
     if (hints == NULL) {
         return;
     }
-    free2(hints->items, (int64)hints->capacity*SIZEOF(*hints->items));
+    free2(hints->items, hints->capacity*SIZEOF(*hints->items));
     *hints = (CsaneTypeHints){0};
     return;
 }

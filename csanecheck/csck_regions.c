@@ -390,7 +390,7 @@ csane_regions_free(CsaneRegions *regions) {
     if (regions == NULL) {
         return;
     }
-    free2(regions->items, (int64)regions->capacity*SIZEOF(*regions->items));
+    free2(regions->items, regions->capacity*SIZEOF(*regions->items));
     if (regions->tokens != NULL) {
         free2(regions->token_regions,
               regions->tokens->token_count*SIZEOF(*regions->token_regions));
