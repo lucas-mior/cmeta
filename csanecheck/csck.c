@@ -639,8 +639,8 @@ cleanup:
     if (stats.violations > 0) {
         fmt_printf("In order to understand and learn how to fix the problems "
                    "above, read cbase/c-guidelines.md and cbase/c-format.md\n"
-                   "if you think any of them are a false positive, stop "
-                   "what you are doing and report.\n");
+                   "if you think any of them are a false positive"
+                   ", put them in a file called false-positives.txt");
     }
     csane_paths_free(&options.files);
     csane_paths_free(&options.source_roots);
