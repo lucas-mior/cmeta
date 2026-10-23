@@ -4,69 +4,58 @@ TOP FUNCTIONS BY INCLUSIVE TIME (Cycle-Aware)
 ======================================================================
       Cost (Ir)       %         Calls  Function
 ---------------  ------  ------------  ---------------------------------------------
- 10,788,069,790  100.00%             0  0x00000000000217e0
- 10,787,814,177  100.00%             2  (below main)
- 10,787,814,177  100.00%             1  __libc_start_main@@GLIBC_2.34
- 10,787,812,222  100.00%             1  main
- 10,787,812,221  100.00%             1  csane_run
-  4,922,961,535  45.63%           109  csane_toplevel_init
-  4,715,472,983  43.71%         3,776  csane_top_branch_path
-  1,920,695,088  17.80%           109  csane_calls_token_check
-  1,834,241,716  17.00%        25,233  csane_classify_invocation
-  1,772,982,064  16.43%           109  csane_rules_incomplete
-  1,772,649,910  16.43%         1,635  csane_coverage_rule
-    620,418,392   5.75%    17,637,349  token_is_ptr
-    599,508,633   5.56%     2,445,764  csane_tokens_match
-    489,041,400   4.53%     1,047,458  csane_layout_classify
-    482,595,325   4.47%           109  csane_layout_assignment_check
-    412,807,642   3.83%           109  csane_layout_check
-    363,302,166   3.37%       341,723  token_range_matching_delimiter_forward
-    332,833,205   3.09%           109  csane_statements_init
-    331,139,261   3.07%         2,038  csane_stmt_stream
-    318,610,751   2.95%           109  csane_wrap_check
-    256,407,667   2.38%     7,961,425  token_delimiter_stack_consume_forward
-    246,936,474   2.29%    17,638,051  __strlen_avx2
-    236,426,331   2.19%           109  csane_declarations_check
-    186,627,081   1.73%         1,715  csane_decl_scope
-    159,569,215   1.48%         6,814  csane_decl_scope'2
-    120,633,724   1.12%       373,271  csane_decl_next
-    120,089,263   1.11%     1,493,986  csane_tokens_next
-    119,622,839   1.11%        21,698  csane_decl_one
+  8,541,221,943  100.00%             0  0x00000000000217e0
+  8,540,966,122  100.00%             1  __libc_start_main@@GLIBC_2.34
+  8,540,966,122  100.00%             2  (below main)
+  8,540,964,167  100.00%             1  main
+  8,540,964,166  100.00%             1  csane_run
+  4,923,004,700  57.64%           109  csane_toplevel_init
+  4,715,505,315  55.21%         3,776  csane_top_branch_path
+  1,920,979,745  22.49%           109  csane_calls_token_check
+  1,834,521,650  21.48%        25,235  csane_classify_invocation
+    412,834,435   4.83%           109  csane_layout_check
+    332,841,955   3.90%           109  csane_statements_init
+    331,148,011   3.88%         2,038  csane_stmt_stream
+    318,772,596   3.73%           109  csane_wrap_check
+    236,810,127   2.77%       487,232  csane_layout_classify
+    236,417,100   2.77%           109  csane_declarations_check
+    186,617,055   2.18%         1,715  csane_decl_scope
+    162,463,574   1.90%       157,853  csane_tokens_match
+    159,557,825   1.87%         6,814  csane_decl_scope'2
+    148,736,863   1.74%     4,057,771  token_is_ptr
+    120,631,050   1.41%       373,257  csane_decl_next
+    119,616,057   1.40%        21,699  csane_decl_one
+    114,450,794   1.34%     1,391,091  csane_tokens_next
+    102,968,256   1.21%       129,115  token_range_matching_delimiter_forward
+     89,933,354   1.05%           109  tokenize_with_flags
+     89,181,162   1.04%     2,800,181  token_delimiter_stack_consume_forward
 
 ======================================================================
 TOP FUNCTIONS BY EXCLUSIVE TIME (Self Cost)
 ======================================================================
       Cost (Ir)       %         Calls  Function
 ---------------  ------  ------------  ---------------------------------------------
-  4,714,792,954  43.70%         3,776  csane_top_branch_path
-  1,824,403,839  16.91%        25,233  csane_classify_invocation
-    713,645,986   6.62%         1,635  csane_coverage_rule
-    482,595,325   4.47%           109  csane_layout_assignment_check
-    337,201,817   3.13%    17,637,349  token_is_ptr
-    286,648,847   2.66%         2,038  csane_stmt_stream
-    273,240,955   2.53%           109  csane_wrap_check
-    256,407,667   2.38%     7,961,425  token_delimiter_stack_consume_forward
-    246,936,474   2.29%    17,638,051  __strlen_avx2
-    154,060,875   1.43%     1,047,458  csane_layout_classify
-    132,094,581   1.22%       341,723  token_range_matching_delimiter_forward
-    120,633,724   1.12%       373,271  csane_decl_next
-    120,089,263   1.11%     1,493,986  csane_tokens_next
+  4,714,825,286  55.20%         3,776  csane_top_branch_path
+  1,824,683,111  21.36%        25,235  csane_classify_invocation
+    286,655,353   3.36%         2,038  csane_stmt_stream
+    273,395,463   3.20%           109  csane_wrap_check
+    120,631,050   1.41%       373,257  csane_decl_next
+    114,450,794   1.34%     1,391,091  csane_tokens_next
+    103,203,297   1.21%           109  csane_toplevel_init
+     90,104,942   1.05%           109  csane_layout_check
+     89,181,162   1.04%     2,800,181  token_delimiter_stack_consume_forward
 
 ======================================================================
 TOP FUNCTIONS BY NUMBER OF CALLS
 ======================================================================
       Cost (Ir)       %         Calls  Function
 ---------------  ------  ------------  ---------------------------------------------
-    246,936,474   2.29%    17,638,051  __strlen_avx2
-    337,201,817   3.13%    17,637,349  token_is_ptr
-    256,407,667   2.38%     7,961,425  token_delimiter_stack_consume_forward
-    120,089,263   1.11%     1,493,986  csane_tokens_next
-    154,060,875   1.43%     1,047,458  csane_layout_classify
-    120,633,724   1.12%       373,271  csane_decl_next
-    132,094,581   1.22%       341,723  token_range_matching_delimiter_forward
-  1,824,403,839  16.91%        25,233  csane_classify_invocation
-  4,714,792,954  43.70%         3,776  csane_top_branch_path
-    286,648,847   2.66%         2,038  csane_stmt_stream
-    713,645,986   6.62%         1,635  csane_coverage_rule
-    273,240,955   2.53%           109  csane_wrap_check
-    482,595,325   4.47%           109  csane_layout_assignment_check
+     89,181,162   1.04%     2,800,181  token_delimiter_stack_consume_forward
+    114,450,794   1.34%     1,391,091  csane_tokens_next
+    120,631,050   1.41%       373,257  csane_decl_next
+  1,824,683,111  21.36%        25,235  csane_classify_invocation
+  4,714,825,286  55.20%         3,776  csane_top_branch_path
+    286,655,353   3.36%         2,038  csane_stmt_stream
+    273,395,463   3.20%           109  csane_wrap_check
+     90,104,942   1.05%           109  csane_layout_check
+    103,203,297   1.21%           109  csane_toplevel_init
