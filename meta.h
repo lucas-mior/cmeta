@@ -597,11 +597,8 @@ void emit_lens_init(String *, char *, char **, int32 *, int32, char *);
 void emit_string_array_init(String *, char *, char **, int32 *, int32, char *);
 void emit_u64_array_init(String *, char *, uint64 *, int32);
 
-#define token_is_2(TOKEN, WHAT)                \
-_Generic((TOKEN),                              \
-    Token: token_is_val,                       \
-    Token *: token_is_ptr                      \
-)((TOKEN), (WHAT))
+#define token_is_2(TOKEN, WHAT) \
+    token_is_3(TOKEN, WHAT, STRLIT_LEN(WHAT))
 
 #define token_is_3(TOKEN, WHAT, WHAT_LEN)      \
 _Generic((TOKEN),                              \

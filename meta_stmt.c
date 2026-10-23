@@ -35,7 +35,8 @@ stmt_sig(StmtCursor *c, int32 start) {
 static bool
 stmt_at(StmtCursor *c, int32 i, char *text) {
     return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text);
+           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
+                       strlen32(text));
 }
 
 static int32
@@ -145,9 +146,9 @@ stmt_match(StmtCursor *c, int32 open) {
             }
             continue;
         }
-        if (TOKEN_IS(&c->ast->tokenization->tokens[i], left)) {
+        if (TOKEN_IS(&c->ast->tokenization->tokens[i], left, 1)) {
             depth += 1;
-        } else if (TOKEN_IS(&c->ast->tokenization->tokens[i], right)) {
+        } else if (TOKEN_IS(&c->ast->tokenization->tokens[i], right, 1)) {
             depth -= 1;
             if (depth == 0) {
                 return i;
