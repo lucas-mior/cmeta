@@ -116,6 +116,14 @@ class DifferentialTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].category, self.rules["P25"].category)
 
+    def test_csane_prose_is_not_a_diagnostic(self):
+        records, extras, unknown = normalize_csane(
+            "Guidance for the user may change independently.\n",
+            self.root, self.rules)
+        self.assertEqual(records, [])
+        self.assertEqual(extras, [])
+        self.assertEqual(unknown, [])
+
     def test_comparison_preserves_duplicate_count(self):
         problem = Finding("src/a.c", 4, "sample", "example")
         comparison = Comparison([problem], [problem, problem], [], [], [])
