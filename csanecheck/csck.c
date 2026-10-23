@@ -436,9 +436,10 @@ csane_run(int32 argc, char **argv) {
             } else if (STREQUAL(arg, arg_len, "--cbase-root")) {
                 good = csane_policy_add_root(&options.policy, value, value_len);
             } else if (STREQUAL(arg, arg_len, "--no-column-limit")) {
-                good = csane_policy_add_regex(&options.policy.no_columns,
-                                              value, value_len, NULL, 0,
-                                              NULL, 0, 0);
+                good = (value_len <= 0)
+                       || csane_policy_add_regex(&options.policy.no_columns,
+                                                 value, value_len, NULL, 0,
+                                                 NULL, 0, 0);
             } else if (STREQUAL(arg, arg_len, "--root")
                        || STREQUAL(arg, arg_len, "--file")
                        || STREQUAL(arg, arg_len, "--file-list")) {
