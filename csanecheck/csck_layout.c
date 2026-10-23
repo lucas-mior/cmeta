@@ -935,8 +935,7 @@ csane_layout_horizontal_gap(CsaneFile *file, Token *left, Token *right) {
 
 static bool
 csane_layout_closing(Token *token) {
-    return TOKEN_IS(token, ")") || TOKEN_IS(token, "]")
-           || TOKEN_IS(token, "}");
+    return TOKEN_IS(token, ")") || TOKEN_IS(token, "]") || TOKEN_IS(token, "}");
 }
 
 static void
