@@ -26,6 +26,7 @@
 #include "csck_wrap.c"
 #include "csck_coverage.c"
 #include "csck_rules.c"
+#include "csck_cache.c"
 #include "csck.c"
 
 #if CC_CLANG
