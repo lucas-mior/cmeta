@@ -371,7 +371,7 @@ csane_load_names(CsanePaths *names, char *path, int32 path_len) {
     int32 start = 0;
 
     if (len < 0) {
-        fprintf(stderr, "%.*s: unable to read policy names\n", path_len, path);
+        error2("%.*s: unable to read policy names\n", path_len, path);
         return false;
     }
     csane_paths_free(names);
@@ -888,8 +888,8 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
         free2(path, (int64)path_len + 1);
     }
     if (!ok) {
-        fprintf(stderr, "%s:%d: invalid csanecheck policy directive: %s\n",
-                        filename, lineno, key);
+        error2("%.*s:%d: invalid csanecheck policy directive: %.*s\n",
+               filename_len, filename, lineno, key_len, key);
     }
     return ok;
 }
@@ -904,7 +904,8 @@ csane_policy_config(CsanePolicy *policy, char *filename,
     int32 lineno = 1;
 
     if (len < 0) {
-        fprintf(stderr, "%s: unable to read csanecheck policy\n", filename);
+        error2("%.*s: unable to read csanecheck policy\n",
+               filename_len, filename);
         return false;
     }
     for (int32 i = 0; i <= len; i += 1) {
