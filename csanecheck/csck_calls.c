@@ -23,9 +23,8 @@ csane_calls_code(CsaneFile *file, int32 index) {
 }
 
 static bool
-csane_calls_generated(char *path) {
-    int32 len = strlen32(path);
-    return len >= 7 && !memcmp64(path + len - 7, ".meta.h", 7);
+csane_calls_generated(char *path, int32 path_len) {
+    return ENDS_WITH(path, path_len, ".meta.h");
 }
 
 static SourceLocation
@@ -574,7 +573,7 @@ csane_calls_token_check(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
     CsaneTokenView view = csane_tokens_full(tokens);
 
-    if (csane_calls_generated(file->path)) {
+    if (csane_calls_generated(file->path, file->path_len)) {
         return;
     }
     for (int32 i = 0; i < tokens->token_count; i += 1) {

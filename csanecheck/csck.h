@@ -183,7 +183,7 @@ bool csane_policy_filter(char *, int32, char *, int32);
 bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);
 CsaneCoverage csane_coverage_collect(CsaneTopLevels *,
                                      CsaneStatements *);
-void csane_coverage_report_structural(char *, Tokenization *,
+void csane_coverage_report_structural(char *, int32, Tokenization *,
                                       CsaneTopLevels *, CsaneStatements *);
 void csane_declarations_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
@@ -230,7 +230,7 @@ bool csane_discovery_defaults(CsanePaths *, CsanePaths *);
 bool csane_collect_root(CsanePaths *, char *, int32, int32, CsanePaths *,
                         CsanePaths *);
 bool csane_collect_explicit(CsanePaths *, char *, int32);
-bool csane_collect_file_list(CsanePaths *, char *);
+bool csane_collect_file_list(CsanePaths *, char *, int32);
 int32 csane_run(int32, char **);
 
 #endif /* CSANECHECK_H */
