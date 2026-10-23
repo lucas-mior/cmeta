@@ -534,8 +534,7 @@ csane_run(int32 argc, char **argv) {
         path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
                                      path, entry->len);
         snprintf(cache_name, SIZEOF(cache_name),
-                 ".cache/csanecheck/%016llx.bin",
-                 (unsigned long long)path_hash);
+                 ".cache/csanecheck/%016llx.bin", path_hash);
         cacheable = csane_cache_signature(path, &record);
         if (cacheable && csane_cache_read(cache_name, &record, &stats,
                                           &status)) {
