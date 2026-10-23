@@ -78,7 +78,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     int32 structural_issues;
     int32 issues;
     CsaneRuleCounts totals = {0};
-    int32 incomplete;
+    int32 incomplete = 0;
 
     if (len < 0) {
         return 2;
@@ -160,9 +160,13 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
         csane_coverage_report_structural(path, path_len, &tokens,
                                          &toplevel, &statements);
     }
-    incomplete = csane_rules_incomplete(&file, options->rule_coverage,
-                                        options->rule_coverage
-                                        || options->require_coverage, &totals);
+    if (options->coverage || options->rule_coverage
+        || options->require_coverage) {
+        incomplete = csane_rules_incomplete(&file, options->rule_coverage,
+                                            options->rule_coverage
+                                            || options->require_coverage,
+                                            &totals);
+    }
     if (options->coverage) {
         fmt_printf("coverage_layers file=%.*s eligible=%d checked=%d "
                    "excluded=%d unresolved=%d\n",
