@@ -271,6 +271,9 @@ csane_run(int32 argc, char **argv) {
     char *value;
     int32 value_len = 0;
     int32 *arg_lens = NULL;
+#if OS_UNIX
+    uint64 cache_fingerprint;
+#endif
 
     if (!csane_policy_init(&options.policy)
         || !csane_discovery_defaults(&options.source_roots,
@@ -503,8 +506,7 @@ csane_run(int32 argc, char **argv) {
     csane_paths_sort_unique(&options.policy.cbase_roots);
     csane_paths_sort_unique(&options.policy.project_roots);
 #if OS_UNIX
-    uint64 cache_fingerprint = csane_cache_fingerprint(argc, argv,
-                                                       &options.policy);
+    cache_fingerprint = csane_cache_fingerprint(argc, argv, &options.policy);
     (void)mkdir(".cache", 0700);
     (void)mkdir(".cache/csanecheck", 0700);
 #endif
@@ -512,22 +514,30 @@ csane_run(int32 argc, char **argv) {
         StrFlex *entry = options.files.strings.items[i];
         char *path = entry->data;
         int32 status;
-        if (!csane_policy_selected(&options.policy, path, entry->len,
-                                   options.filter, options.filter_len)) {
-            continue;
-        }
 #if OS_UNIX
         CsaneCacheRecord record = {
             .magic = UINT64_C(0x4353414e45434132),
             .fingerprint = cache_fingerprint,
         };
-        uint64 path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
-                                              path, entry->len);
+        uint64 path_hash;
         char cache_name[128];
+        bool cacheable;
+        FILE *capture = NULL;
+        int saved_stdout = -1;
+        CsaneStats before;
+#endif
+
+        if (!csane_policy_selected(&options.policy, path, entry->len,
+                                   options.filter, options.filter_len)) {
+            continue;
+        }
+#if OS_UNIX
+        path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
+                                    path, entry->len);
         snprintf(cache_name, SIZEOF(cache_name),
                  ".cache/csanecheck/%016llx.bin",
                  (unsigned long long)path_hash);
-        bool cacheable = csane_cache_signature(path, &record);
+        cacheable = csane_cache_signature(path, &record);
         if (cacheable && csane_cache_read(cache_name, &record, &stats,
                                           &status)) {
             if (status > exit_status) {
@@ -535,9 +545,8 @@ csane_run(int32 argc, char **argv) {
             }
             continue;
         }
-        FILE *capture = cacheable ? tmpfile() : NULL;
-        int saved_stdout = -1;
-        CsaneStats before = stats;
+        capture = cacheable ? tmpfile() : NULL;
+        before = stats;
         if (capture != NULL) {
             fflush(stdout);
             saved_stdout = dup(STDOUT_FILENO);
@@ -554,17 +563,19 @@ csane_run(int32 argc, char **argv) {
         status = csane_analyze(path, entry->len, &options, &stats);
 #if OS_UNIX
         if (capture != NULL) {
+            long output_len;
+            char buffer[4096];
+            size_t count;
+            CsaneCacheRecord after = {0};
+
             fflush(stdout);
             dup2(saved_stdout, STDOUT_FILENO);
             close(saved_stdout);
-            long output_len = ftell(capture);
+            output_len = ftell(capture);
             rewind(capture);
-            char buffer[4096];
-            size_t count;
             while ((count = fread(buffer, 1, SIZEOF(buffer), capture)) > 0) {
                 fwrite(buffer, 1, count, stdout);
             }
-            CsaneCacheRecord after = {0};
             if (status != 2 && output_len >= 0
                 && output_len <= 16*1024*1024
                 && csane_cache_signature(path, &after)

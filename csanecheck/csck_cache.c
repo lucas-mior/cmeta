@@ -38,7 +38,7 @@ static uint64
 csane_cache_stat(uint64 hash, char *path) {
     struct stat st;
     if (stat(path, &st) != 0) {
-        return csane_cache_hash(hash, path, strlen(path));
+        return csane_cache_hash(hash, path, strlen32(path));
     }
     hash = csane_cache_hash(hash, (char *)&st.st_dev, SIZEOF(st.st_dev));
     hash = csane_cache_hash(hash, (char *)&st.st_ino, SIZEOF(st.st_ino));
@@ -51,7 +51,7 @@ static uint64
 csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
     uint64 hash = UINT64_C(14695981039346656037);
     for (int32 i = 0; i < argc; i += 1) {
-        hash = csane_cache_hash(hash, argv[i], strlen(argv[i]) + 1);
+        hash = csane_cache_hash(hash, argv[i], strlen32(argv[i]) + 1);
     }
     hash = csane_cache_stat(hash, "/proc/self/exe");
     for (int32 i = 0; i < strflex_list_len(&policy->configs.strings);
@@ -97,18 +97,20 @@ static bool
 csane_cache_read(char *name, CsaneCacheRecord *expected,
                  CsaneStats *stats, int32 *status) {
     CsaneCacheRecord saved;
+    bool valid;
+    char *output = NULL;
     FILE *file = fopen(name, "rb");
+
     if (file == NULL) {
         return false;
     }
-    bool valid = fread(&saved, SIZEOF(saved), 1, file) == 1
-                 && saved.magic == expected->magic
-                 && saved.fingerprint == expected->fingerprint
-                 && saved.source_size == expected->source_size
-                 && saved.source_mtime == expected->source_mtime
-                 && saved.source_ctime == expected->source_ctime
-                 && saved.output_len <= 16*1024*1024;
-    char *output = NULL;
+    valid = fread(&saved, SIZEOF(saved), 1, file) == 1
+            && saved.magic == expected->magic
+            && saved.fingerprint == expected->fingerprint
+            && saved.source_size == expected->source_size
+            && saved.source_mtime == expected->source_mtime
+            && saved.source_ctime == expected->source_ctime
+            && saved.output_len <= 16*1024*1024;
     if (valid) {
         output = malloc(saved.output_len + 1);
         valid = output != NULL
@@ -139,18 +141,22 @@ csane_cache_read(char *name, CsaneCacheRecord *expected,
 static void
 csane_cache_write(char *name, CsaneCacheRecord *record, FILE *output) {
     char temporary[256];
+    bool good;
+    char buffer[4096];
+    uint32 remaining;
+    FILE *file = NULL;
     int32 n = snprintf(temporary, SIZEOF(temporary), "%s.%ld.tmp",
                        name, (long)getpid());
+
     if (n <= 0 || n >= SIZEOF(temporary)) {
         return;
     }
-    FILE *file = fopen(temporary, "wb");
+    file = fopen(temporary, "wb");
     if (file == NULL) {
         return;
     }
-    bool good = fwrite(record, SIZEOF(*record), 1, file) == 1;
-    char buffer[4096];
-    uint32 remaining = record->output_len;
+    good = fwrite(record, SIZEOF(*record), 1, file) == 1;
+    remaining = record->output_len;
     rewind(output);
     while (good && remaining > 0) {
         uint32 count = remaining < SIZEOF(buffer) ? remaining : SIZEOF(buffer);
