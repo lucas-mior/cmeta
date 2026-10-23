@@ -612,23 +612,22 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (options.statistics) {
-        fmt_printf("files=%d tokens=%lld externals=%lld "
-                   "structural_issues=%lld preprocessor_issues=%lld "
-                   "violations=%lld declarations=%lld "
-                   "function_declarations=%lld function_definitions=%lld "
-                   "statements=%lld opaque_statements=%lld "
-                   "opaque_externals=%lld\n",
-                   stats.files, stats.tokens,
-                   stats.externals,
-                   stats.structural_issues,
-                   stats.preprocessor_issues,
-                   stats.violations,
-                   stats.declarations,
-                   stats.function_declarations,
-                   stats.function_definitions,
-                   stats.statements,
-                   stats.opaque_statements,
-                   stats.opaque_externals);
+        fmt_printf("statistics={\n");
+        fmt_printf("    files=%d\n", stats.files);
+        fmt_printf("    tokens=%lld\n", stats.tokens);
+        fmt_printf("    externals=%lld\n", stats.externals);
+        fmt_printf("    structural_issues=%lld\n", stats.structural_issues);
+        fmt_printf("    preprocessor_issues=%lld\n", stats.preprocessor_issues);
+        fmt_printf("    violations=%lld\n", stats.violations);
+        fmt_printf("    declarations=%lld\n", stats.declarations);
+        fmt_printf("    function_declarations=%lld\n",
+                   stats.function_declarations);
+        fmt_printf("    function_definitions=%lld\n",
+                   stats.function_definitions);
+        fmt_printf("    statements=%lld\n", stats.statements);
+        fmt_printf("    opaque_statements=%lld\n", stats.opaque_statements);
+        fmt_printf("    opaque_externals=%lld\n", stats.opaque_externals);
+        fmt_printf("}\n");
     }
 cleanup:
     free2(arg_lens, argc*SIZEOF(*arg_lens));
