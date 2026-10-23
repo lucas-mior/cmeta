@@ -132,11 +132,9 @@ csane_classify_statement(Tokenization *tokens, TokenRange range) {
 }
 
 enum CsaneLocalKind
-csane_classify_invocation(Tokenization *tokens, TokenRange range,
-                          int32 name) {
+csane_classify_invocation(Tokenization *tokens, TokenRange range, int32 name) {
     int32 next;
     enum CsaneNameKind kind;
-    int32 first;
 
     if (!tokens || range.first < 0 || range.end > tokens->token_count
         || name < range.first || name >= range.end
@@ -155,19 +153,16 @@ csane_classify_invocation(Tokenization *tokens, TokenRange range,
         return CSANE_LOCAL_UNKNOWN;
     }
     /* A declaration header is not a call expression. */
-    first = csane_significant(tokens, range, range.first);
-    if (first < name) {
-        int32 preceding = first;
-        while (preceding < name) {
-            int32 after = csane_significant(tokens, range, preceding + 1);
-            if (after == name && csane_type_name(&tokens->tokens[preceding])) {
-                return CSANE_LOCAL_UNKNOWN;
-            }
-            if (after >= name) {
-                break;
-            }
-            preceding = after;
+    for (int32 i = name - 1; i >= range.first; i -= 1) {
+        Token *previous = &tokens->tokens[i];
+
+        if (token_is_trivia(previous) || previous->kind == TOKEN_PREPROC) {
+            continue;
         }
+        if (csane_type_name(previous)) {
+            return CSANE_LOCAL_UNKNOWN;
+        }
+        break;
     }
     return CSANE_LOCAL_CALL;
 }
