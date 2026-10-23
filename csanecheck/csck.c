@@ -142,6 +142,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     stats->statements += coverage.statements;
     stats->opaque_statements += coverage.opaque_statements;
     stats->opaque_externals += coverage.opaque_externals;
+
     if (options->coverage) {
         fmt_printf("coverage file=%.*s declarations=%d "
                    "function_declarations=%d "
@@ -178,11 +179,13 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
                    "%d required rule groups have unresolved targets\n",
                    path_len, path, incomplete);
     }
+
     stats->files += 1;
     stats->tokens += tokens.token_count;
     stats->externals += toplevel.count;
     stats->structural_issues += structural_issues;
     stats->preprocessor_issues += pp.issue_count;
+
     if (!pp_ok && pp.issue_count == 0) {
         stats->preprocessor_issues += 1;
     }
@@ -217,6 +220,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
             }
         }
     }
+
     csane_type_hints_free(&type_hints);
     csane_statements_free(&statements);
     csane_toplevel_free(&toplevel);
@@ -224,6 +228,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
     free2(source, (int64)len + 1);
+
     if (violations > 0 || (options->strict_parse && issues > 0)
         || (options->require_coverage && incomplete > 0)) {
         return 1;
