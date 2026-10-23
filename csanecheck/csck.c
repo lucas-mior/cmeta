@@ -137,21 +137,21 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     }
     stats->violations += violations;
     stats->declarations += coverage.declarations;
-    stats->function_declarations += coverage.function_declarations;
-    stats->function_definitions += coverage.function_definitions;
+    stats->function_decls += coverage.function_decls;
+    stats->function_defs += coverage.function_defs;
     stats->statements += coverage.statements;
     stats->opaque_statements += coverage.opaque_statements;
     stats->opaque_externals += coverage.opaque_externals;
 
     if (options->coverage) {
         fmt_printf("coverage file=%.*s declarations=%d "
-                   "function_declarations=%d "
-                   "function_definitions=%d statements=%d "
+                   "function_decls=%d "
+                   "function_defs=%d statements=%d "
                    "opaque_statements=%d opaque_externals=%d "
                    "structural_issues=%d preprocessor_issues=%d\n",
                    path_len, path, coverage.declarations,
-                   coverage.function_declarations,
-                   coverage.function_definitions, coverage.statements,
+                   coverage.function_decls,
+                   coverage.function_defs, coverage.statements,
                    coverage.opaque_statements, coverage.opaque_externals,
                    structural_issues, pp.issue_count);
     }
@@ -597,10 +597,10 @@ csane_run(int32 argc, char **argv) {
                                            - before.preprocessor_issues,
                     .violations = stats.violations - before.violations,
                     .declarations = stats.declarations - before.declarations,
-                    .function_declarations = stats.function_declarations
-                                             - before.function_declarations,
-                    .function_definitions = stats.function_definitions
-                                            - before.function_definitions,
+                    .function_decls = stats.function_decls
+                                             - before.function_decls,
+                    .function_defs = stats.function_defs
+                                            - before.function_defs,
                     .statements = stats.statements - before.statements,
                     .opaque_statements = stats.opaque_statements
                                          - before.opaque_statements,
@@ -625,10 +625,10 @@ csane_run(int32 argc, char **argv) {
         fmt_printf("    preprocessor_issues=%lld\n", stats.preprocessor_issues);
         fmt_printf("    violations=%lld\n", stats.violations);
         fmt_printf("    declarations=%lld\n", stats.declarations);
-        fmt_printf("    function_declarations=%lld\n",
-                   stats.function_declarations);
-        fmt_printf("    function_definitions=%lld\n",
-                   stats.function_definitions);
+        fmt_printf("    function_decls=%lld\n",
+                   stats.function_decls);
+        fmt_printf("    function_defs=%lld\n",
+                   stats.function_defs);
         fmt_printf("    statements=%lld\n", stats.statements);
         fmt_printf("    opaque_statements=%lld\n", stats.opaque_statements);
         fmt_printf("    opaque_externals=%lld\n", stats.opaque_externals);

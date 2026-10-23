@@ -15,10 +15,10 @@ csane_coverage_collect(CsaneTopLevels *toplevel,
         CsaneTopItem *item = &toplevel->items[i];
         switch (item->kind) {
         case CSANE_TOP_FUNCTION_DEFINITION:
-            result.function_definitions += 1;
+            result.function_defs += 1;
             break;
         case CSANE_TOP_FUNCTION_DECLARATION:
-            result.function_declarations += 1;
+            result.function_decls += 1;
             break;
         case CSANE_TOP_TYPE_DECLARATION:
         case CSANE_TOP_DECLARATION:
