@@ -259,7 +259,7 @@ test_empty_source(void) {
 
 static void
 test_bounded_fragments(void) {
-    char source[] = {'a', 'b', 'c', 'd', 'a', 'b', 'c'};
+    char source[] = {'a', 'b', 'c', 'd', 'a', 'b', 'c',};
     char fragment[] = {'b', 'c', 'X'};
     CHECK(test_offset(source, SIZEOF(source), fragment, 2) == 1);
     CHECK(test_offset(source, SIZEOF(source), fragment, 3) == -1);

@@ -720,7 +720,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                         while (cursor < i) {
                             if (csane_decl_is(file, cursor, STRLIT("struct"))
                                 || csane_decl_is(file, cursor,
-                                                    STRLIT("union"))) {
+                                                 STRLIT("union"))) {
                                 aggregate_type = true;
                             }
                             if (csane_decl_is(file, cursor, STRLIT("="))) {

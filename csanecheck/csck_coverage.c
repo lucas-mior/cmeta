@@ -502,11 +502,11 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
     } else if (kind == CSANE_TARGET_STYLE_STATUS) {
         csane_coverage_status(file, &counts, group, group_len, report);
     } else if (kind == CSANE_TARGET_CALL_WRAP) {
-        csane_coverage_wrap_statements(file, &counts, group,
-                                       group_len, report, true);
+        csane_coverage_wrap_statements(file, &counts, group, group_len,
+                                       report, true);
     } else if (kind == CSANE_TARGET_ASSIGN_WRAP) {
-        csane_coverage_wrap_statements(file, &counts, group,
-                                       group_len, report, false);
+        csane_coverage_wrap_statements(file, &counts, group, group_len,
+                                       report, false);
     } else if (kind == CSANE_TARGET_LINES) {
         for (int32 i = 0; i < tokens->text_len; i += 1) {
             if (i == 0 || tokens->text[i - 1] == '\n') {

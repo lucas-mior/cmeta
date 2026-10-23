@@ -115,7 +115,7 @@ csane_hint_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
             hints->items = malloc2((int64)next*SIZEOF(*hints->items));
         } else {
             hints->items = realloc2(hints->items, previous, next,
-                                     SIZEOF(*hints->items));
+                                    SIZEOF(*hints->items));
         }
         hints->capacity = next;
     }
@@ -129,7 +129,7 @@ csane_hint_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
 
 bool
 csane_type_hints_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
-                                int32 close) {
+                               int32 close) {
     Tokenization *tokens = view->tokens;
     int32 open = csane_tokens_match(view, close);
     int32 name;
@@ -152,8 +152,8 @@ csane_type_hints_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
         if (hint->kind != CSANE_TYPE_HINT_TYPEDEF
             || hint->macro_close < 0
             || !csane_tokens_view(&alias, tokens,
-                                   (TokenRange){hint->token,
-                                                hint->macro_close + 1})) {
+                                  (TokenRange){hint->token,
+                                               hint->macro_close + 1})) {
             continue;
         }
         a = hint->token;

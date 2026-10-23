@@ -626,7 +626,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     }
     if (TOKEN_IS(name, ")")
         && csane_layout_is(tokens, csane_tokens_previous(view, before),
-                            STRLIT("("))) {
+                           STRLIT("("))) {
         return CSANE_LAYOUT_DECLARATOR;
     }
     if (csane_layout_parameter_pointer(file, view, index)

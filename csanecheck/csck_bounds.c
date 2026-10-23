@@ -248,7 +248,7 @@ csane_bounds_at(CsaneFile *file, int32 first) {
         || token_range_first_significant(tokens, upper_args[1])
            >= upper_args[1].end
         || !csane_bounds_token(file,
-                                csane_tokens_next(&view, close), STRLIT(";"))) {
+                               csane_tokens_next(&view, close), STRLIT(";"))) {
         return;
     }
     semicolon = csane_tokens_next(&view, close);

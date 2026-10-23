@@ -67,10 +67,11 @@ csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
                          "cbase/functions_allowed_cbase_only.txt",
                          "functions_never_use.txt",
                          "functions_allowed_cbase_only.txt",
-                         "cbase/csanecheck.conf", "csanecheck.conf"};
+                         "cbase/csanecheck.conf", "csanecheck.conf",};
         for (int32 j = 0; j < 6; j += 1) {
             int32 n = snprintf(buffer, SIZEOF(buffer), "%.*s/%s",
-                               root->len, root->data, names[j]);
+                                                       root->len, root->data,
+                                                       names[j]);
             if (n > 0 && n < SIZEOF(buffer)) {
                 hash = csane_cache_stat(hash, buffer);
             }
@@ -146,7 +147,7 @@ csane_cache_write(char *name, CsaneCacheRecord *record, FILE *output) {
     uint32 remaining;
     FILE *file = NULL;
     int32 n = snprintf(temporary, SIZEOF(temporary), "%s.%ld.tmp",
-                       name, (long)getpid());
+                                                     name, (long)getpid());
 
     if (n <= 0 || n >= SIZEOF(temporary)) {
         return;

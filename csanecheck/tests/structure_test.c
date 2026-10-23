@@ -80,8 +80,8 @@ test_statement(TestStructure *test, int32 function,
         SourceRange span = item->source;
         int32 size = span.end - span.start;
         if (size >= fragment_len
-            && memmem64(test->tokens.text + span.start, size, fragment,
-                        fragment_len) != NULL) {
+            && memmem64(test->tokens.text + span.start, size,
+                        fragment, fragment_len) != NULL) {
             return i;
         }
     }
@@ -101,8 +101,8 @@ test_top_item(TestStructure *test,
         span = item->source;
         size = span.end - span.start;
         if (size >= fragment_len
-            && memmem64(test->tokens.text + span.start, size, fragment,
-                        fragment_len) != NULL) {
+            && memmem64(test->tokens.text + span.start, size,
+                        fragment, fragment_len) != NULL) {
             return i;
         }
     }
@@ -699,8 +699,8 @@ test_unguarded_linkage_stays_opaque(void) {
 static void
 test_bounded_names_and_fragments(void) {
     TestStructure test;
-    char name[] = {'a', 'l', 'p', 'h', 'a', 'X'};
-    char fragment[] = {'a', 'c', 't', 'i', 'o', 'n', '(', ')', 'X'};
+    char name[] = {'a', 'l', 'p', 'h', 'a', 'X',};
+    char fragment[] = {'a', 'c', 't', 'i', 'o', 'n', '(', ')', 'X',};
     test_init(&test, STRLIT("void alpha(void) { action(); }"));
     int32 function = test_function(&test, name, 5);
     CHECK(function >= 0);

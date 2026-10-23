@@ -96,8 +96,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     csane_rules_run(&file, CSANE_PASS_SOURCE);
     pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
     if (!csane_regions_init(&regions, &tokens, &pp)) {
-        error2("%.*s: unable to initialize source regions\n",
-               path_len, path);
+        error2("%.*s: unable to initialize source regions\n", path_len, path);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
         free2(source, (int64)len + 1);
@@ -533,7 +532,7 @@ csane_run(int32 argc, char **argv) {
         }
 #if OS_UNIX
         path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
-                                    path, entry->len);
+                                     path, entry->len);
         snprintf(cache_name, SIZEOF(cache_name),
                  ".cache/csanecheck/%016llx.bin",
                  (unsigned long long)path_hash);
