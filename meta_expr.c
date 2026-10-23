@@ -49,7 +49,8 @@ expr_next(ExprCursor *c) {
 static bool
 expr_at(ExprCursor *c, int32 i, char *text) {
     return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text);
+           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
+                       strlen32(text));
 }
 
 static void

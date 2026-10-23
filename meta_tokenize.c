@@ -1616,7 +1616,7 @@ tokenization_find_matching(Tokenization *tokenization, int32 open_index) {
         token = &tokenization->tokens[i];
         if (TOKEN_IS(token, open->text, open->len)) {
             depth += 1;
-        } else if (TOKEN_IS(token, close)) {
+        } else if (TOKEN_IS(token, close, 1)) {
             depth -= 1;
             if (depth == 0) {
                 return i;
@@ -1721,7 +1721,7 @@ meta_tokenize_sink(void) {
 static void
 test_assert_token(Token *token, enum TokenKind kind, char *text, int32 column) {
     ASSERT(token->kind == kind);
-    ASSERT(TOKEN_IS(token, text));
+    ASSERT(TOKEN_IS(token, text, strlen32(text)));
     ASSERT_EQ(token->len, strlen32(text));
     ASSERT_EQ(token->column, column);
     ASSERT_EQ(token->offset, column);
@@ -1731,7 +1731,7 @@ test_assert_token(Token *token, enum TokenKind kind, char *text, int32 column) {
 static int32
 test_find_token(Tokenization *tokenization, char *text) {
     for (int32 i = 0; i < tokenization->token_count; i += 1) {
-        if (TOKEN_IS(&tokenization->tokens[i], text)) {
+        if (TOKEN_IS(&tokenization->tokens[i], text, strlen32(text))) {
             return i;
         }
     }
