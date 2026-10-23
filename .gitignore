@@ -7,3 +7,4 @@ tags
 cbase_check.txt
 cbase/csanecheck
 cbase/csanecheck
+*.callgrind
