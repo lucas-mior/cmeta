@@ -1,11 +1,8 @@
 I have profiled a run of csanecheck.
-Read csanecheck.callgrind.txt. I have listed the functions that took most time,
-functions that included most time, and the most called. I only included
-functions that added at least 1% cost.
+Read all the profile*.txt files.
 
-I want you to investigate those functions and their code paths, and see if you
-find optimization oportunities, but don't implement anything yet. Then report me
-6 possible optimizations in the following way:
+Investigate and find optimization oportunities, but don't implement anything
+yet. Then report me 6 possible optimizations in the following way:
 
 1) Two optimizations that are very easy to make, but not necessarly will make a
 huge impact in performance
