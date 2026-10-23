@@ -69,8 +69,8 @@ typedef struct CsaneOptions {
 /* Counts describe local source structures, never translation-unit AST nodes. */
 typedef struct CsaneCoverage {
     int32 declarations;
-    int32 function_declarations;
-    int32 function_definitions;
+    int32 function_decls;
+    int32 function_defs;
     int32 statements;
     int32 opaque_statements;
     int32 opaque_externals;
@@ -125,8 +125,8 @@ typedef struct CsaneStats {
     int64 preprocessor_issues;
     int64 violations;
     int64 declarations;
-    int64 function_declarations;
-    int64 function_definitions;
+    int64 function_decls;
+    int64 function_defs;
     int64 statements;
     int64 opaque_statements;
     int64 opaque_externals;

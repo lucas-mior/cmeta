@@ -115,8 +115,8 @@ csane_cache_read(char *name, CsaneCacheRecord *expected,
         stats->preprocessor_issues += saved.delta.preprocessor_issues;
         stats->violations += saved.delta.violations;
         stats->declarations += saved.delta.declarations;
-        stats->function_declarations += saved.delta.function_declarations;
-        stats->function_definitions += saved.delta.function_definitions;
+        stats->function_decls += saved.delta.function_decls;
+        stats->function_defs += saved.delta.function_defs;
         stats->statements += saved.delta.statements;
         stats->opaque_statements += saved.delta.opaque_statements;
         stats->opaque_externals += saved.delta.opaque_externals;
