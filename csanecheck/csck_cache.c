@@ -11,21 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-/* Cache entries are private to one invocation's checker and policy state.
- * A failed cache operation simply falls back to normal analysis.
- */
-typedef struct CsaneCacheRecord {
-    uint64 magic;
-    uint64 fingerprint;
-    uint64 source_size;
-    uint64 source_mtime;
-    uint64 source_ctime;
-    CsaneStats delta;
-    int32 status;
-    uint32 output_len;
-} CsaneCacheRecord;
-
-static uint64
+uint64
 csane_cache_hash(uint64 hash, char *data, int64 len) {
     for (int64 i = 0; i < len; i += 1) {
         hash ^= (uint8)data[i];
@@ -47,7 +33,7 @@ csane_cache_stat(uint64 hash, char *path) {
     return csane_cache_hash(hash, (char *)&st.st_ctim, SIZEOF(st.st_ctim));
 }
 
-static uint64
+uint64
 csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
     uint64 hash = UINT64_C(14695981039346656037);
     for (int32 i = 0; i < argc; i += 1) {
@@ -80,7 +66,7 @@ csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
     return hash;
 }
 
-static bool
+bool
 csane_cache_signature(char *path, CsaneCacheRecord *record) {
     struct stat st;
     if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) {
@@ -94,7 +80,7 @@ csane_cache_signature(char *path, CsaneCacheRecord *record) {
     return true;
 }
 
-static bool
+bool
 csane_cache_read(char *name, CsaneCacheRecord *expected,
                  CsaneStats *stats, int32 *status) {
     CsaneCacheRecord saved;
@@ -139,7 +125,7 @@ csane_cache_read(char *name, CsaneCacheRecord *expected,
     return valid;
 }
 
-static void
+void
 csane_cache_write(char *name, CsaneCacheRecord *record, FILE *output) {
     char temporary[256];
     bool good;

@@ -11,7 +11,7 @@
 
 /* All offsets refer to the original tokenization. Neither argument text nor
  * whitespace is reconstructed, and unparsed regions produce no AST claims. */
-static bool
+bool
 csane_calls_code(CsaneFile *file, int32 index) {
     if (index < 0 || index >= file->tokens->token_count) {
         return false;
@@ -22,12 +22,12 @@ csane_calls_code(CsaneFile *file, int32 index) {
               == C_PP_TOKEN_MACRO_REPLACEMENT;
 }
 
-static bool
+bool
 csane_calls_generated(char *path, int32 path_len) {
     return ENDS_WITH(path, path_len, ".meta.h");
 }
 
-static SourceLocation
+SourceLocation
 csane_calls_location(CsaneFile *file, int32 index) {
     return tokenization_source_location(file->tokens,
                                         file->tokens->tokens[index].offset);

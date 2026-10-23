@@ -132,6 +132,22 @@ typedef struct CsaneStats {
     int64 opaque_externals;
 } CsaneStats;
 
+/* Cache entries are private to one invocation's checker and policy state.
+ * A failed cache operation simply falls back to normal analysis.
+ */
+#if OS_UNIX
+typedef struct CsaneCacheRecord {
+    uint64 magic;
+    uint64 fingerprint;
+    uint64 source_size;
+    uint64 source_mtime;
+    uint64 source_ctime;
+    CsaneStats delta;
+    int32 status;
+    uint32 output_len;
+} CsaneCacheRecord;
+#endif
+
 /* A rule can examine any layer independently of successful AST parsing.
  * Every reference is borrowed and valid only during its source-file check.
  */
@@ -211,6 +227,9 @@ enum CsaneApiUse csane_api_classify(CsaneFile *, int32);
 enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
 void csane_layout_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
+bool csane_calls_code(CsaneFile *, int32);
+bool csane_calls_generated(char *, int32);
+SourceLocation csane_calls_location(CsaneFile *, int32);
 void csane_calls_token_check(CsaneFile *);
 void csane_wrap_check(CsaneFile *);
 void csane_wrap_call_check(CsaneFile *);
@@ -231,6 +250,13 @@ bool csane_collect_root(CsanePaths *, char *, int32, int32, CsanePaths *,
                         CsanePaths *);
 bool csane_collect_explicit(CsanePaths *, char *, int32);
 bool csane_collect_file_list(CsanePaths *, char *, int32);
+#if OS_UNIX
+uint64 csane_cache_hash(uint64, char *, int64);
+uint64 csane_cache_fingerprint(int32, char **, CsanePolicy *);
+bool csane_cache_signature(char *, CsaneCacheRecord *);
+bool csane_cache_read(char *, CsaneCacheRecord *, CsaneStats *, int32 *);
+void csane_cache_write(char *, CsaneCacheRecord *, FILE *);
+#endif
 int32 csane_run(int32, char **);
 
 #endif /* CSANECHECK_H */
