@@ -739,9 +739,7 @@ static StrFlex *csane_known_rules[] = {
 
 static bool
 csane_known_rule(char *id, int32 id_len) {
-    int32 count =
-        (int32)(SIZEOF(csane_known_rules)/SIZEOF(csane_known_rules[0]));
-    for (int32 i = 0; i < count; i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_known_rules); i += 1) {
         StrFlex *known = csane_known_rules[i];
         if (STREQUAL(id, id_len, known->data, known->len)) {
             return true;
