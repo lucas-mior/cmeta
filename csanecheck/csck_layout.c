@@ -876,6 +876,7 @@ csane_layout_leading_assignment(CsaneFile *file) {
     for (int32 i = 0; i < tokens->token_count; i += 1) {
         Token *token = &tokens->tokens[i];
         int32 start;
+        int32 part_index;
         if (!TOKEN_IS(token, "=") || !csane_layout_code(file, i)) {
             continue;
         }
@@ -883,30 +884,30 @@ csane_layout_leading_assignment(CsaneFile *file) {
         while (start > 0 && text[start - 1] != '\n') {
             start -= 1;
         }
+        part_index = tokenization_token_at_or_after_offset(tokens, start);
         for (int32 j = start; j < token->offset;) {
-            bool comment = false;
+            Token *part;
 
             if (text[j] == ' ' || text[j] == '\t' || text[j] == '\r') {
                 j += 1;
                 continue;
             }
-            for (int32 k = 0; k < tokens->token_count; k += 1) {
-                Token *part = &tokens->tokens[k];
-                if (part->offset > j) {
-                    break;
-                }
-                if (part->kind == TOKEN_COMMENT && part->offset <= j
-                    && part->offset + part->len > j
-                    && part->offset + part->len <= token->offset) {
-                    j = part->offset + part->len;
-                    comment = true;
-                    break;
-                }
+            while (part_index < tokens->token_count
+                   && tokens->tokens[part_index].offset
+                      + tokens->tokens[part_index].len <= j) {
+                part_index += 1;
             }
-            if (!comment) {
+            if (part_index >= tokens->token_count) {
                 start = -1;
                 break;
             }
+            part = &tokens->tokens[part_index];
+            if (part->kind != TOKEN_COMMENT || part->offset > j
+                || part->offset + part->len > token->offset) {
+                start = -1;
+                break;
+            }
+            j = part->offset + part->len;
         }
         if (start >= 0 && start < token->offset + 1) {
             csane_rule_issue(file, token->offset, STRLIT("FMT-ASSIGN-EQ"),
