@@ -620,16 +620,16 @@ csane_run(int32 argc, char **argv) {
                    "statements=%lld opaque_statements=%lld "
                    "opaque_externals=%lld\n",
                    stats.files, (long long)stats.tokens,
-                   (long long)stats.externals,
-                   (long long)stats.structural_issues,
-                   (long long)stats.preprocessor_issues,
-                   (long long)stats.violations,
-                   (long long)stats.declarations,
-                   (long long)stats.function_declarations,
-                   (long long)stats.function_definitions,
-                   (long long)stats.statements,
-                   (long long)stats.opaque_statements,
-                   (long long)stats.opaque_externals);
+                   stats.externals,
+                   stats.structural_issues,
+                   stats.preprocessor_issues,
+                   stats.violations,
+                   stats.declarations,
+                   stats.function_declarations,
+                   stats.function_definitions,
+                   stats.statements,
+                   stats.opaque_statements,
+                   stats.opaque_externals);
     }
 cleanup:
     free2(arg_lens, argc*SIZEOF(*arg_lens));
