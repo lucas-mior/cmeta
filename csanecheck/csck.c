@@ -633,6 +633,7 @@ csane_run(int32 argc, char **argv) {
     }
 cleanup:
     free2(arg_lens, argc*SIZEOF(*arg_lens));
+
     if (stats.violations > 0) {
         fmt_printf("In order to understand and learn how to fix the problems "
                    "above, read cbase/c-guidelines.md and cbase/c-format.md\n");
@@ -640,10 +641,12 @@ cleanup:
                    ", put them in a file called false-positives.txt"
                    ", and add an exception for it in cbase/csanecheck.conf.\n");
     }
+
     csane_paths_free(&options.files);
     csane_paths_free(&options.source_roots);
     csane_paths_free(&options.skip_dirs);
     csane_policy_free(&options.policy);
+
     return exit_status;
 }
 
