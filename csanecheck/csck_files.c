@@ -199,8 +199,7 @@ csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
 #else
         if (lstat(path, &st) != 0) {
 #endif
-            error2("%.*s: cannot stat: %s\n",
-                   path_len, path, strerror(errno));
+            error2("%.*s: cannot stat: %s\n", path_len, path, strerror(errno));
             ok = false;
         } else if (S_ISDIR(st.st_mode)) {
             if (!csane_path_has(skip_dirs, name, name_len)
@@ -224,8 +223,7 @@ bool
 csane_collect_explicit(CsanePaths *paths, char *path, int32 path_len) {
     struct stat st;
     if (stat(path, &st) != 0) {
-        error2("%.*s: cannot stat: %s\n",
-               path_len, path, strerror(errno));
+        error2("%.*s: cannot stat: %s\n", path_len, path, strerror(errno));
         return false;
     }
     if (!S_ISREG(st.st_mode)) {

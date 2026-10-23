@@ -263,7 +263,7 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
                 equals = i;
             } else if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("("))
                        || csane_wrap_token_is(&tokens->tokens[i],
-                                                 STRLIT("["))) {
+                                              STRLIT("["))) {
                 int32 match = csane_tokens_match(&view, i);
                 if (match > i && match < last) {
                     i = match;

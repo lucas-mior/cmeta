@@ -288,7 +288,7 @@ test_bounded_expected_strings(void) {
     Tokenization tokens =
         tokenize_copy(STRLIT("alpha beta alpha"), TOKENIZE_DEFAULT);
     CsaneTokenView view = csane_tokens_full(&tokens);
-    char expected[] = {'a', 'l', 'p', 'h', 'a', 'X'};
+    char expected[] = {'a', 'l', 'p', 'h', 'a', 'X',};
     CHECK(test_find_token(&tokens, expected, 5, 0) == 0);
     CHECK(test_find_token(&tokens, expected, 5, 1) >= 0);
     CHECK(test_find_token(&tokens, expected, 3, 0) == -1);
@@ -299,7 +299,7 @@ test_bounded_expected_strings(void) {
     CHECK(!test_range_text(&tokens, (TokenRange){0, 1}, expected, 6));
     free_tokenization(&tokens);
 
-    char source[] = {'o', 'n', 'e', ' ', 't', 'w', 'o', 'X'};
+    char source[] = {'o', 'n', 'e', ' ', 't', 'w', 'o', 'X',};
     Tokenization bounded = tokenize_copy(source, 7, TOKENIZE_DEFAULT);
     CHECK(test_find_token(&bounded, STRLIT("one"), 0) >= 0);
     CHECK(test_find_token(&bounded, STRLIT("two"), 0) >= 0);
