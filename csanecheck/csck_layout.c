@@ -895,17 +895,17 @@ csane_layout_leading_assignment(CsaneFile *file) {
                       + tokens->tokens[part_index].len <= j) {
                 part_index += 1;
             }
-            if (part_index >= tokens->token_count) {
-                start = -1;
-                break;
+            if (part_index < tokens->token_count) {
+                Token *part = &tokens->tokens[part_index];
+
+                if (part->kind == TOKEN_COMMENT && part->offset <= j
+                    && part->offset + part->len <= token->offset) {
+                    j = part->offset + part->len;
+                    continue;
+                }
             }
-            Token *part = &tokens->tokens[part_index];
-            if (part->kind != TOKEN_COMMENT || part->offset > j
-                || part->offset + part->len > token->offset) {
-                start = -1;
-                break;
-            }
-            j = part->offset + part->len;
+            start = -1;
+            break;
         }
         if (start >= 0 && start < token->offset + 1) {
             csane_rule_issue(file, token->offset, STRLIT("FMT-ASSIGN-EQ"),
