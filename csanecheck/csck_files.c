@@ -179,8 +179,8 @@ csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
     bool ok = true;
 
     if (count < 0) {
-        fprintf(stderr, "%s: cannot read directory: %s\n",
-                        directory, strerror(errno));
+        error2("%.*s: cannot read directory: %s\n",
+               directory_len, directory, strerror(errno));
         return false;
     }
     for (int32 i = 0; i < count; i += 1) {
@@ -199,7 +199,8 @@ csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
 #else
         if (lstat(path, &st) != 0) {
 #endif
-            fprintf(stderr, "%s: cannot stat: %s\n", path, strerror(errno));
+            error2("%.*s: cannot stat: %s\n",
+                   path_len, path, strerror(errno));
             ok = false;
         } else if (S_ISDIR(st.st_mode)) {
             if (!csane_path_has(skip_dirs, name, name_len)
@@ -223,11 +224,12 @@ bool
 csane_collect_explicit(CsanePaths *paths, char *path, int32 path_len) {
     struct stat st;
     if (stat(path, &st) != 0) {
-        fprintf(stderr, "%s: cannot stat: %s\n", path, strerror(errno));
+        error2("%.*s: cannot stat: %s\n",
+               path_len, path, strerror(errno));
         return false;
     }
     if (!S_ISREG(st.st_mode)) {
-        fprintf(stderr, "%s: not a regular file\n", path);
+        error2("%.*s: not a regular file\n", path_len, path);
         return false;
     }
     return csane_paths_add(paths, path, path_len);
@@ -246,7 +248,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
     int32 standalone_len;
 
     if ((stat(root, &st) != 0) || !S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "%s: not a directory\n", root);
+        error2("%.*s: not a directory\n", root_len, root);
         return false;
     }
     /* Ordinary files directly in the project root. */

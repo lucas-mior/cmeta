@@ -8,25 +8,26 @@
 #include "csck.h"
 
 static void
-csane_usage(FILE *output) {
-    fprintf(output,
-            "usage: csanecheck [--root DIR] [--file PATH] [--file-list PATH]\n"
-            "                  [--max-depth N] [--report-parse-issues]\n"
-            "                  [--strict-parse] [--require-coverage]\n"
-            "                  [--stats] [--coverage]\n"
-            "                  [--rule-coverage]\n"
-            "                  [--config FILE]\n"
-            "                  [--source-root DIR] [--skip-dir NAME]\n"
-            "                  [--clear-source-roots]\n"
-            "                  [--exclude REGEX] [--filter MODULE]\n"
-            "                  [--cbase-root DIR] [--no-column-limit REGEX]\n"
-            "                  [--help]\n"
-            "       csanecheck PATH [PATH ...]\n"
-            "\n"
-            "Token-local source, structural, and contextual checks.\n"
-            "Without paths, search the current project directory.\n"
-            "Exit: 0 clean, 1 violations/required-coverage failure,\n"
-            "      2 usage/I/O error.\n");
+csane_usage(void) {
+    fmt_printf("usage: csanecheck [--root DIR] [--file PATH] "
+               "[--file-list PATH]\n"
+               "                  [--max-depth N] [--report-parse-issues]\n"
+               "                  [--strict-parse] [--require-coverage]\n"
+               "                  [--stats] [--coverage]\n"
+               "                  [--rule-coverage]\n"
+               "                  [--config FILE]\n"
+               "                  [--source-root DIR] [--skip-dir NAME]\n"
+               "                  [--clear-source-roots]\n"
+               "                  [--exclude REGEX] [--filter MODULE]\n"
+               "                  [--cbase-root DIR] "
+               "[--no-column-limit REGEX]\n"
+               "                  [--help]\n"
+               "       csanecheck PATH [PATH ...]\n"
+               "\n"
+               "Token-local source, structural, and contextual checks.\n"
+               "Without paths, search the current project directory.\n"
+               "Exit: 0 clean, 1 violations/required-coverage failure,\n"
+               "      2 usage/I/O error.\n");
     return;
 }
 
@@ -54,8 +55,8 @@ csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
     if (index < 0 || index >= tokens->token_count) {
         loc = tokenization_source_location(tokens, tokens->text_len);
     }
-    fprintf(stdout, "%.*s:%d:%d: note[%s]: %s\n",
-            path_len, path, loc.line, loc.column + 1, code, message);
+    fmt_printf("%.*s:%d:%d: note[%s]: %s\n",
+               path_len, path, loc.line, loc.column + 1, code, message);
     return;
 }
 
@@ -95,14 +96,16 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     csane_rules_run(&file, CSANE_PASS_SOURCE);
     pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
     if (!csane_regions_init(&regions, &tokens, &pp)) {
-        fprintf(stderr, "%s: unable to initialize source regions\n", path);
+        error2("%.*s: unable to initialize source regions\n",
+               path_len, path);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
         free2(source, (int64)len + 1);
         return 2;
     }
     if (!csane_toplevel_init(&toplevel, &regions)) {
-        fprintf(stderr, "%s: unable to initialize top-level regions\n", path);
+        error2("%.*s: unable to initialize top-level regions\n",
+               path_len, path);
         csane_regions_free(&regions);
         c_preprocessor_analysis_free(&pp);
         free_tokenization(&tokens);
@@ -110,7 +113,8 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
         return 2;
     }
     if (!csane_statements_init(&statements, &toplevel)) {
-        fprintf(stderr, "%s: unable to initialize function statements\n", path);
+        error2("%.*s: unable to initialize function statements\n",
+               path_len, path);
         csane_toplevel_free(&toplevel);
         csane_regions_free(&regions);
         c_preprocessor_analysis_free(&pp);
@@ -140,14 +144,16 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     stats->opaque_statements += coverage.opaque_statements;
     stats->opaque_externals += coverage.opaque_externals;
     if (options->coverage) {
-        printf("coverage file=%s declarations=%d function_declarations=%d "
-               "function_definitions=%d statements=%d "
-               "opaque_statements=%d opaque_externals=%d "
-               "structural_issues=%d preprocessor_issues=%d\n",
-               path, coverage.declarations, coverage.function_declarations,
-               coverage.function_definitions, coverage.statements,
-               coverage.opaque_statements, coverage.opaque_externals,
-               structural_issues, pp.issue_count);
+        fmt_printf("coverage file=%.*s declarations=%d "
+                   "function_declarations=%d "
+                   "function_definitions=%d statements=%d "
+                   "opaque_statements=%d opaque_externals=%d "
+                   "structural_issues=%d preprocessor_issues=%d\n",
+                   path_len, path, coverage.declarations,
+                   coverage.function_declarations,
+                   coverage.function_definitions, coverage.statements,
+                   coverage.opaque_statements, coverage.opaque_externals,
+                   structural_issues, pp.issue_count);
     }
     if ((options->coverage || options->require_coverage)
         && structural_issues > 0) {
@@ -158,15 +164,16 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
                                         options->rule_coverage
                                         || options->require_coverage, &totals);
     if (options->coverage) {
-        printf("coverage_layers file=%s eligible=%d checked=%d "
-               "excluded=%d unresolved=%d\n",
-               path, totals.eligible, totals.checked, totals.excluded,
-               totals.unresolved);
+        fmt_printf("coverage_layers file=%.*s eligible=%d checked=%d "
+                   "excluded=%d unresolved=%d\n",
+                   path_len, path, totals.eligible, totals.checked,
+                   totals.excluded,
+                   totals.unresolved);
     }
     if (options->require_coverage && incomplete > 0) {
-        printf("%s:1:1: error[COVERAGE-INCOMPLETE]: "
-               "%d required rule groups have unresolved targets\n",
-               path, incomplete);
+        fmt_printf("%.*s:1:1: error[COVERAGE-INCOMPLETE]: "
+                   "%d required rule groups have unresolved targets\n",
+                   path_len, path, incomplete);
     }
     stats->files += 1;
     stats->tokens += tokens.token_count;
@@ -287,7 +294,7 @@ csane_run(int32 argc, char **argv) {
     }
     if (value != NULL && value_len > 0
         && !csane_depth(value, value_len, &options.max_depth)) {
-        fprintf(stderr, "invalid TEST_MAXDEPTH: %s\n", value);
+        error2("invalid TEST_MAXDEPTH: %.*s\n", value_len, value);
         exit_status = 2;
         goto cleanup;
     }
@@ -362,11 +369,11 @@ csane_run(int32 argc, char **argv) {
         char *arg = argv[i];
         int32 arg_len = arg_lens[i];
         if (STREQUAL(arg, arg_len, "--help") || STREQUAL(arg, arg_len, "-h")) {
-            csane_usage(stdout);
+            csane_usage();
             goto cleanup;
         }
         if (STREQUAL(arg, arg_len, "--version")) {
-            puts("csanecheck token-local");
+            fmt_printf("csanecheck token-local\n");
             goto cleanup;
         }
         if (STREQUAL(arg, arg_len, "--stats")) {
@@ -399,7 +406,7 @@ csane_run(int32 argc, char **argv) {
         }
         if (csane_value_option(arg, arg_len)) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s requires a value\n", arg);
+                error2("%.*s requires a value\n", arg_len, arg);
                 exit_status = 2;
                 goto cleanup;
             }
@@ -432,7 +439,8 @@ csane_run(int32 argc, char **argv) {
                 had_inputs = true;
             }
             if (!good) {
-                fprintf(stderr, "invalid value for %s: %s\n", arg, value);
+                error2("invalid value for %.*s: %.*s\n",
+                       arg_len, arg, value_len, value);
                 exit_status = 2;
                 goto cleanup;
             }
@@ -440,7 +448,7 @@ csane_run(int32 argc, char **argv) {
             continue;
         }
         if (arg[0] == '-') {
-            fprintf(stderr, "unknown option: %s\n", arg);
+            error2("unknown option: %.*s\n", arg_len, arg);
             exit_status = 2;
             goto cleanup;
         }
@@ -504,33 +512,33 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (options.statistics) {
-        printf("files=%d tokens=%lld externals=%lld "
-               "structural_issues=%lld preprocessor_issues=%lld "
-               "violations=%lld declarations=%lld "
-               "function_declarations=%lld function_definitions=%lld "
-               "statements=%lld opaque_statements=%lld "
-               "opaque_externals=%lld\n",
-               stats.files, (long long)stats.tokens,
-               (long long)stats.externals,
-               (long long)stats.structural_issues,
-               (long long)stats.preprocessor_issues,
-               (long long)stats.violations,
-               (long long)stats.declarations,
-               (long long)stats.function_declarations,
-               (long long)stats.function_definitions,
-               (long long)stats.statements,
-               (long long)stats.opaque_statements,
-               (long long)stats.opaque_externals);
+        fmt_printf("files=%d tokens=%lld externals=%lld "
+                   "structural_issues=%lld preprocessor_issues=%lld "
+                   "violations=%lld declarations=%lld "
+                   "function_declarations=%lld function_definitions=%lld "
+                   "statements=%lld opaque_statements=%lld "
+                   "opaque_externals=%lld\n",
+                   stats.files, (long long)stats.tokens,
+                   (long long)stats.externals,
+                   (long long)stats.structural_issues,
+                   (long long)stats.preprocessor_issues,
+                   (long long)stats.violations,
+                   (long long)stats.declarations,
+                   (long long)stats.function_declarations,
+                   (long long)stats.function_definitions,
+                   (long long)stats.statements,
+                   (long long)stats.opaque_statements,
+                   (long long)stats.opaque_externals);
     }
 cleanup:
     if (arg_lens != NULL) {
         free2(arg_lens, argc*SIZEOF(*arg_lens));
     }
     if (stats.violations > 0) {
-        printf("In order to understand and learn how to fix the problems "
-               "above, read cbase/c-guidelines.md and cbase/c-format.md\n"
-               "if you think any of them are a false positive, stop "
-               "what you are doing and report.\n");
+        fmt_printf("In order to understand and learn how to fix the problems "
+                   "above, read cbase/c-guidelines.md and cbase/c-format.md\n"
+                   "if you think any of them are a false positive, stop "
+                   "what you are doing and report.\n");
     }
     csane_paths_free(&options.files);
     csane_paths_free(&options.source_roots);

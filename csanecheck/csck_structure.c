@@ -134,10 +134,10 @@ csane_coverage_report_structural(char *path, int32 path_len,
     for (int32 i = 0; i < count; i += 1) {
         SourceLocation location = tokenization_token_location(tokens,
                                                               items[i].token);
-        printf("coverage_unresolved file=%.*s line=%d column=%d "
-               "target=%s reason=\"%s\"\n",
-               path_len, path, location.line, location.column + 1,
-               items[i].target, items[i].reason);
+        fmt_printf("coverage_unresolved file=%.*s line=%d column=%d "
+                   "target=%s reason=\"%s\"\n",
+                   path_len, path, location.line, location.column + 1,
+                   items[i].target, items[i].reason);
     }
     free2(items, (int64)capacity*SIZEOF(*items));
     return;

@@ -51,10 +51,11 @@ csane_coverage_unresolved(CsaneFile *file, CsaneRuleCounts *counts,
         return;
     }
     location = tokenization_token_location(file->tokens, token);
-    printf("rule_coverage_unresolved file=%s group=%.*s line=%d column=%d "
-           "reason=%s\n",
-           file->path, group_len, group, location.line, location.column + 1,
-           reason);
+    fmt_printf("rule_coverage_unresolved file=%.*s group=%.*s "
+               "line=%d column=%d reason=%s\n",
+               file->path_len, file->path, group_len, group,
+               location.line, location.column + 1,
+               reason);
 }
 
 static bool

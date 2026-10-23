@@ -40,8 +40,9 @@ csane_rule_issue(CsaneFile *file, int32 offset,
         offset = file->tokens->text_len;
     }
     loc = tokenization_source_location(file->tokens, offset);
-    printf("%s:%d:%d: error[%.*s]: %s\n",
-           file->path, loc.line, loc.column + 1, code_len, code, message);
+    fmt_printf("%.*s:%d:%d: error[%.*s]: %s\n",
+               file->path_len, file->path, loc.line, loc.column + 1,
+               code_len, code, message);
     file->violations += 1;
     return;
 }
@@ -564,12 +565,13 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
             incomplete += 1;
         }
         if (report) {
-            printf("rule_coverage file=%s group=%.*s status=%s pass=%d "
-                   "eligible=%d checked=%d excluded=%d unresolved=%d\n",
-                   file->path, rule->id_len, rule->id, status,
-                   (int32)rule->pass,
-                   counts.eligible, counts.checked, counts.excluded,
-                   counts.unresolved);
+            fmt_printf("rule_coverage file=%.*s group=%.*s "
+                       "status=%s pass=%d "
+                       "eligible=%d checked=%d excluded=%d unresolved=%d\n",
+                       file->path_len, file->path, rule->id_len,
+                       rule->id, status, (int32)rule->pass,
+                       counts.eligible, counts.checked, counts.excluded,
+                       counts.unresolved);
         }
     }
     if (totals != NULL) {
