@@ -46,9 +46,7 @@ static StrFlex *csane_layout_keywords[] = {
 
 static bool
 csane_layout_keyword(Token *token) {
-    int32 count = SIZEOF(csane_layout_keywords)
-                  /SIZEOF(csane_layout_keywords[0]);
-    for (int32 i = 0; i < count; i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_layout_keywords); i += 1) {
         StrFlex *word = csane_layout_keywords[i];
         if (TOKEN_IS(token, word->data, word->len)) {
             return true;
