@@ -298,6 +298,37 @@ csane_regions_content(CsaneRegions *regions, int32 parent,
     return;
 }
 
+/* Visit siblings in source order, assigning each token only once.
+ * Use token starts, not region token ranges: tokens may cross boundaries. */
+static void
+csane_regions_index_tokens(CsaneRegions *regions, int32 region,
+                           int32 *cursor) {
+    Tokenization *tokens = regions->tokens;
+    CsaneSourceRegion *item = &regions->items[region];
+    int32 child = item->first_child;
+
+    while (child >= 0) {
+        SourceRange source = regions->items[child].source;
+        while (*cursor < tokens->token_count
+               && tokens->tokens[*cursor].offset < source.start) {
+            if (tokens->tokens[*cursor].offset >= item->source.start) {
+                regions->token_regions[*cursor] = region;
+            }
+            *cursor += 1;
+        }
+        csane_regions_index_tokens(regions, child, cursor);
+        child = regions->items[child].next_sibling;
+    }
+    while (*cursor < tokens->token_count
+           && tokens->tokens[*cursor].offset < item->source.end) {
+        if (tokens->tokens[*cursor].offset >= item->source.start) {
+            regions->token_regions[*cursor] = region;
+        }
+        *cursor += 1;
+    }
+    return;
+}
+
 bool
 csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
                    CPreprocessorAnalysis *pp) {
@@ -342,6 +373,15 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
                           opening_groups, -1);
     free2(opening_groups, (int64)pp->directive_count
                           *SIZEOF(*opening_groups));
+    if (tokens->token_count > 0) {
+        int32 cursor = 0;
+        regions->token_regions =
+            malloc2(tokens->token_count*SIZEOF(*regions->token_regions));
+        for (int32 i = 0; i < tokens->token_count; i += 1) {
+            regions->token_regions[i] = -1;
+        }
+        csane_regions_index_tokens(regions, root, &cursor);
+    }
     return true;
 }
 
@@ -351,6 +391,10 @@ csane_regions_free(CsaneRegions *regions) {
         return;
     }
     free2(regions->items, (int64)regions->capacity*SIZEOF(*regions->items));
+    if (regions->tokens != NULL) {
+        free2(regions->token_regions,
+              regions->tokens->token_count*SIZEOF(*regions->token_regions));
+    }
     *regions = (CsaneRegions){0};
     return;
 }
@@ -386,8 +430,7 @@ csane_regions_at_token(CsaneRegions *regions, int32 token) {
         || token >= regions->tokens->token_count) {
         return -1;
     }
-    return csane_regions_at_offset(regions,
-                                   regions->tokens->tokens[token].offset);
+    return regions->token_regions[token];
 }
 
 int32
