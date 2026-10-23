@@ -886,8 +886,6 @@ csane_layout_leading_assignment(CsaneFile *file) {
         }
         part_index = tokenization_token_at_or_after_offset(tokens, start);
         for (int32 j = start; j < token->offset;) {
-            Token *part;
-
             if (text[j] == ' ' || text[j] == '\t' || text[j] == '\r') {
                 j += 1;
                 continue;
@@ -901,7 +899,7 @@ csane_layout_leading_assignment(CsaneFile *file) {
                 start = -1;
                 break;
             }
-            part = &tokens->tokens[part_index];
+            Token *part = &tokens->tokens[part_index];
             if (part->kind != TOKEN_COMMENT || part->offset > j
                 || part->offset + part->len > token->offset) {
                 start = -1;
