@@ -740,8 +740,7 @@ csane_statements_free(CsaneStatements *statements) {
     if (statements == NULL) {
         return;
     }
-    free2(statements->items,
-          statements->capacity*SIZEOF(*statements->items));
+    free2(statements->items, statements->capacity*SIZEOF(*statements->items));
     *statements = (CsaneStatements){0};
 }
 
