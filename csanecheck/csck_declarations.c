@@ -434,9 +434,8 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
 
         if (csane_decl_is(file, token, STRLIT("{"))
             || csane_decl_is(file, token, STRLIT("["))) {
-            int32 close;
+            int32 close = csane_tokens_match(&view, token);
 
-            close = csane_tokens_match(&view, token);
             if (close < 0) {
                 return false;
             }
