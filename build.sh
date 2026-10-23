@@ -12,6 +12,8 @@ cd "$dir" || exit
 script=$(basename "$0")
 common_build_parse_args "$@"
 
+common_build_tags
+
 case "$mode" in
 build|callgrind|check|debug|debug-fast|fast_feedback|install|test)
     ;;
