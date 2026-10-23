@@ -619,7 +619,7 @@ csane_run(int32 argc, char **argv) {
                    "function_declarations=%lld function_definitions=%lld "
                    "statements=%lld opaque_statements=%lld "
                    "opaque_externals=%lld\n",
-                   stats.files, (long long)stats.tokens,
+                   stats.files, stats.tokens,
                    stats.externals,
                    stats.structural_issues,
                    stats.preprocessor_issues,
