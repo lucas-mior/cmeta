@@ -93,7 +93,8 @@ csane_structure_compare(void *a_, void *b_) {
 }
 
 void
-csane_coverage_report_structural(char *path, Tokenization *tokens,
+csane_coverage_report_structural(char *path, int32 path_len,
+                                 Tokenization *tokens,
                                  CsaneTopLevels *toplevel,
                                  CsaneStatements *statements) {
     int32 capacity = toplevel->opaque_count + statements->opaque_count;
@@ -133,10 +134,10 @@ csane_coverage_report_structural(char *path, Tokenization *tokens,
     for (int32 i = 0; i < count; i += 1) {
         SourceLocation location = tokenization_token_location(tokens,
                                                               items[i].token);
-        printf("coverage_unresolved file=%s line=%d column=%d "
+        printf("coverage_unresolved file=%.*s line=%d column=%d "
                "target=%s reason=\"%s\"\n",
-               path, location.line, location.column + 1, items[i].target,
-               items[i].reason);
+               path_len, path, location.line, location.column + 1,
+               items[i].target, items[i].reason);
     }
     free2(items, (int64)capacity*SIZEOF(*items));
     return;

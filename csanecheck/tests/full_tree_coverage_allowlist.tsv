@@ -65,8 +65,8 @@ csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_coverage.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	CsaneRegions *r;	1
 csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
-csanecheck/csck_files.c	RULE:CONTROL	control-structure-unrecognized	csane_discovered_directory(char *path) {	1
-csanecheck/csck_files.c	STRUCTURE:statement	conditional construct could not be merged	csane_discovered_directory(char *path) {	1
+csanecheck/csck_files.c	RULE:CONTROL	control-structure-unrecognized	csane_discovered_directory(char *path, int32 path_len) {	1
+csanecheck/csck_files.c	STRUCTURE:statement	conditional construct could not be merged	csane_discovered_directory(char *path, int32 path_len) {	1
 csanecheck/csck_files.c	STRUCTURE:top-level	conditional construct could not be merged	}	2
 csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *left;	2
 csanecheck/csck_layout.c	RULE:LAYOUT	ambiguous-operator-context	Token *op;	2

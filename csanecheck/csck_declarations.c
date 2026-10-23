@@ -807,7 +807,7 @@ csane_declarations_check(CsaneFile *file) {
     uint8 *lines;
     int32 i;
 
-    if (file->is_ryu || csane_calls_generated(file->path)) {
+    if (file->is_ryu || csane_calls_generated(file->path, file->path_len)) {
         return;
     }
     for (i = 0; i < file->tokens->text_len; i += 1) {
@@ -861,7 +861,7 @@ csane_declarations_check(CsaneFile *file) {
 
 void
 csane_declarations_headers(CsaneFile *file) {
-    if (csane_calls_generated(file->path)) {
+    if (csane_calls_generated(file->path, file->path_len)) {
         return;
     }
     for (int32 i = 0; i < file->toplevel->count; i += 1) {

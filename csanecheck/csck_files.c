@@ -155,8 +155,9 @@ csane_discovery_defaults(CsanePaths *roots, CsanePaths *skip_dirs) {
  * discovered subdirectories must not follow symlinks (like find without -L).
  */
 static bool
-csane_discovered_directory(char *path) {
+csane_discovered_directory(char *path, int32 path_len) {
     struct stat st;
+    ASSERT(path[path_len] == '\0');
 #if OS_WINDOWS
     if (stat(path, &st) != 0) {
 #else
@@ -256,7 +257,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
         StrFlex *entry = source_roots->strings.items[i];
         char *path = csane_join(root, root_len, entry->data, entry->len,
                                 &path_len);
-        if ((max_depth != 0) && csane_discovered_directory(path)) {
+        if ((max_depth != 0) && csane_discovered_directory(path, path_len)) {
             if (!csane_walk(paths, path, path_len, 0,
                             max_depth - (max_depth > 0), skip_dirs)) {
                 ok = false;
@@ -266,7 +267,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
     ryu = csane_join(root, root_len, STRLIT("cbase/ryu"), &ryu_len);
-    if (csane_discovered_directory(ryu)) {
+    if (csane_discovered_directory(ryu, ryu_len)) {
         if (!csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;
         }
@@ -279,7 +280,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
                             &standalone_len);
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
         ryu = csane_join(root, root_len, STRLIT("ryu"), &ryu_len);
-        if (csane_discovered_directory(ryu)
+        if (csane_discovered_directory(ryu, ryu_len)
             && !csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;
         }
@@ -290,11 +291,15 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
 }
 
 bool
-csane_collect_file_list(CsanePaths *paths, char *filename) {
+csane_collect_file_list(CsanePaths *paths, char *filename,
+                        int32 filename_len) {
     char *text = NULL;
-    int32 len = read_entire_file(filename, &text);
+    int32 len;
     bool ok = true;
     int32 start = 0;
+
+    ASSERT(filename[filename_len] == '\0');
+    len = read_entire_file(filename, &text);
 
     if (len < 0) {
         return false;

@@ -13,9 +13,8 @@
  * keeps adjacent tokens in mutually exclusive #if branches from becoming
  * fake operands. The same classifier is used for rule coverage. */
 static bool
-csane_layout_generated(char *path) {
-    int32 len = strlen32(path);
-    return len >= 7 && !memcmp64(path + len - 7, ".meta.h", 7);
+csane_layout_generated(char *path, int32 path_len) {
+    return ENDS_WITH(path, path_len, ".meta.h");
 }
 
 static bool
@@ -1370,7 +1369,7 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
 
 void
 csane_layout_check(CsaneFile *file) {
-    if (file->is_ryu || csane_layout_generated(file->path)) {
+    if (file->is_ryu || csane_layout_generated(file->path, file->path_len)) {
         return;
     }
     for (int32 i = 0; i < file->tokens->token_count; i += 1) {
@@ -1398,7 +1397,7 @@ csane_layout_check(CsaneFile *file) {
 
 void
 csane_layout_assignment_check(CsaneFile *file) {
-    if (!file->is_ryu && !csane_layout_generated(file->path)) {
+    if (!file->is_ryu && !csane_layout_generated(file->path, file->path_len)) {
         csane_layout_leading_assignment(file);
     }
 }

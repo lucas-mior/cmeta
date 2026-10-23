@@ -46,9 +46,8 @@ csane_wrap_location(Tokenization *tokens, int32 index) {
 }
 
 static bool
-csane_wrap_generated(char *path) {
-    int32 len = strlen32(path);
-    return len >= 7 && !memcmp64(path + len - 7, ".meta.h", 7);
+csane_wrap_generated(char *path, int32 path_len) {
+    return ENDS_WITH(path, path_len, ".meta.h");
 }
 
 /* A run of adjacent string fragments remains deliberately split when
@@ -443,7 +442,7 @@ csane_wrap_call_check(CsaneFile *file) {
     int32 count;
     int32 unique = 0;
 
-    if (csane_wrap_generated(file->path)) {
+    if (csane_wrap_generated(file->path, file->path_len)) {
         return;
     }
     if (file->statements != NULL) {
@@ -734,7 +733,7 @@ csane_wrap_check(CsaneFile *file) {
     int32 count;
     int32 unique = 0;
 
-    if (file->is_ryu || csane_wrap_generated(file->path)) {
+    if (file->is_ryu || csane_wrap_generated(file->path, file->path_len)) {
         return;
     }
     capacity = file->tokens->token_count;

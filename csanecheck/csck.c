@@ -48,14 +48,14 @@ csane_depth(char *text, int32 text_len, int32 *value) {
 }
 
 static void
-csane_issue(char *path, Tokenization *tokens, int32 index,
+csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
             char *code, char *message) {
     SourceLocation loc = tokenization_token_location(tokens, index);
     if (index < 0 || index >= tokens->token_count) {
         loc = tokenization_source_location(tokens, tokens->text_len);
     }
-    fprintf(stdout, "%s:%d:%d: note[%s]: %s\n",
-                    path, loc.line, loc.column + 1, code, message);
+    fprintf(stdout, "%.*s:%d:%d: note[%s]: %s\n",
+            path_len, path, loc.line, loc.column + 1, code, message);
     return;
 }
 
@@ -151,7 +151,8 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     }
     if ((options->coverage || options->require_coverage)
         && structural_issues > 0) {
-        csane_coverage_report_structural(path, &tokens, &toplevel, &statements);
+        csane_coverage_report_structural(path, path_len, &tokens,
+                                         &toplevel, &statements);
     }
     incomplete = csane_rules_incomplete(&file, options->rule_coverage,
                                         options->rule_coverage
@@ -182,17 +183,17 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
             if ((directive >= 0) && (directive < pp.directive_count)) {
                 token = pp.directives[directive].hash_token;
             }
-            csane_issue(path, &tokens, token, "PP-STRUCTURE",
+            csane_issue(path, path_len, &tokens, token, "PP-STRUCTURE",
                         "invalid preprocessor structure");
         }
         if (!pp_ok && pp.issue_count == 0) {
-            csane_issue(path, &tokens, -1, "PP-STRUCTURE",
+            csane_issue(path, path_len, &tokens, -1, "PP-STRUCTURE",
                         "preprocessor analysis failed");
         }
         for (int32 i = 0; i < toplevel.count; i += 1) {
             CsaneTopItem *item = &toplevel.items[i];
             if (item->kind == CSANE_TOP_OPAQUE) {
-                csane_issue(path, &tokens, item->tokens.first,
+                csane_issue(path, path_len, &tokens, item->tokens.first,
                             "STRUCTURE-OPAQUE",
                             "unrecognized top-level construct");
             }
@@ -200,7 +201,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
         for (int32 i = 0; i < statements.count; i += 1) {
             CsaneStatement *stmt = &statements.items[i];
             if (stmt->kind == CSANE_STMT_OPAQUE) {
-                csane_issue(path, &tokens, stmt->tokens.first,
+                csane_issue(path, path_len, &tokens, stmt->tokens.first,
                             "STRUCTURE-OPAQUE",
                             "unrecognized statement");
             }
@@ -226,9 +227,9 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
 static bool
 csane_policy_candidate(char *path, int32 path_len) {
     char *name = path;
-    for (char *p = path; *p; p += 1) {
-        if (*p == '/') {
-            name = p + 1;
+    for (int32 i = 0; i < path_len; i += 1) {
+        if (path[i] == '/') {
+            name = path + i + 1;
         }
     }
     return csane_source_allowed(name, path_len - (int32)(name - path));
@@ -324,7 +325,8 @@ csane_run(int32 argc, char **argv) {
                     }
                 } else if (STREQUAL(arg, arg_len, "--file-list")) {
                     CsanePaths sources = {0};
-                    good = csane_collect_file_list(&sources, argv[i + 1]);
+                    good = csane_collect_file_list(&sources, argv[i + 1],
+                                                   arg_lens[i + 1]);
                     for (int32 j = 0; good && j <
                          strflex_list_len(&sources.strings); j += 1) {
                         StrFlex *source = sources.strings.items[j];
@@ -458,7 +460,8 @@ csane_run(int32 argc, char **argv) {
                 good = csane_collect_explicit(&options.files, path,
                                               arg_lens[i + 1]);
             } else if (STREQUAL(arg, arg_len, "--file-list")) {
-                good = csane_collect_file_list(&options.files, path);
+                good = csane_collect_file_list(&options.files, path,
+                                               arg_lens[i + 1]);
             }
             i += 1;
         } else if (arg[0] != '-') {
