@@ -101,10 +101,11 @@ if [ "$mode" = callgrind ]; then
         exit 1
     fi
 
-    callgrind_out=${CALLGRIND_OUT:-csanecheck.callgrind}
+    callgrind_out=${CALLGRIND_OUT:-profile.callgrind}
     rm -f "$callgrind_out" "${callgrind_out}.txt"
 
     trace_on
+
     set +e
     valgrind --tool=callgrind --smc-check=none \
         --callgrind-out-file="$callgrind_out" \
@@ -116,9 +117,10 @@ if [ "$mode" = callgrind ]; then
     if [ "$csanecheck_status" -gt 1 ]; then
         exit "$csanecheck_status"
     fi
-    python3 cbase/callgrind-parse.py "$callgrind_out" \
-        > "${callgrind_out}.txt"
+    python3 cbase/callgrind-parse.py "$callgrind_out" > "${callgrind_out}.txt"
+
     trace_off
+
     echo "$callgrind_out"
     exit
 fi
