@@ -691,63 +691,61 @@ csane_identifier(char *name, int32 len) {
     return true;
 }
 
+static StrFlex *csane_known_rules[] = {
+    SFLIT("API-NEVER"),
+    SFLIT("API-CBASE-ONLY"),
+    SFLIT("PP-DEFINED"),
+    SFLIT("PP-SIZEOF"),
+    SFLIT("SRC-TABS"),
+    SFLIT("SRC-TRAILING"),
+    SFLIT("SRC-COLUMNS"),
+    SFLIT("RYU-ENDIF-COMMENT"),
+    SFLIT("RYU-FINAL-NEWLINE"),
+    SFLIT("AST-DECL-ONE"),
+    SFLIT("AST-BRACES"),
+    SFLIT("AST-SWITCH-ALIGN"),
+    SFLIT("AST-ARTIFICIAL-BLOCK"),
+    SFLIT("STYLE-ASSERT-REL"),
+    SFLIT("STYLE-ASSERT-BOUNDS"),
+    SFLIT("STYLE-STRLIT-LEN"),
+    SFLIT("STYLE-STREQUAL"),
+    SFLIT("STYLE-PRINTF"),
+    SFLIT("STYLE-STATUS-TEMP"),
+    SFLIT("FMT-MULTIPLY"),
+    SFLIT("FMT-BINARY-SPACING"),
+    SFLIT("FMT-ASSIGN-SPACING"),
+    SFLIT("FMT-ASSIGN-EQ"),
+    SFLIT("FMT-CALL-FIRST"),
+    SFLIT("FMT-CALL-FIRST-TOPLEVEL"),
+    SFLIT("FMT-FUNC-ALIGN"),
+    SFLIT("FMT-LITERAL-ALIGN"),
+    SFLIT("FMT-ARG-ALIGN"),
+    SFLIT("FMT-FORMAT-LINE"),
+    SFLIT("FMT-RELATED-ARGS"),
+    SFLIT("FMT-CALL-WRAP"),
+    SFLIT("FMT-ASSIGN-WRAP"),
+    SFLIT("FMT-COMMA-SPACING"),
+    SFLIT("FMT-MEMBER-SPACING"),
+    SFLIT("FMT-UNARY-SPACING"),
+    SFLIT("FMT-CAST-SPACING"),
+    SFLIT("FMT-POINTER-SPACING"),
+    SFLIT("FMT-CALL-SPACING"),
+    SFLIT("FMT-TRAILING-COMMA"),
+    SFLIT("STYLE-INCDEC"),
+    SFLIT("TYPE-CONST-SIGNATURE"),
+    SFLIT("TYPE-STDINT-T"),
+    SFLIT("TYPE-ENUM-TYPEDEF"),
+    SFLIT("TYPE-UNION-TYPEDEF"),
+    SFLIT("TYPE-POINTER-TYPEDEF"),
+};
+
 static bool
 csane_known_rule(char *id, int32 id_len) {
-    static struct {
-        char *data;
-        int32 len;
-    } known[] = {
-#define CSANE_RULE(NAME) {STRLIT(NAME)}
-        CSANE_RULE("API-NEVER"),
-        CSANE_RULE("API-CBASE-ONLY"),
-        CSANE_RULE("PP-DEFINED"),
-        CSANE_RULE("PP-SIZEOF"),
-        CSANE_RULE("SRC-TABS"),
-        CSANE_RULE("SRC-TRAILING"),
-        CSANE_RULE("SRC-COLUMNS"),
-        CSANE_RULE("RYU-ENDIF-COMMENT"),
-        CSANE_RULE("RYU-FINAL-NEWLINE"),
-        CSANE_RULE("AST-DECL-ONE"),
-        CSANE_RULE("AST-BRACES"),
-        CSANE_RULE("AST-SWITCH-ALIGN"),
-        CSANE_RULE("AST-ARTIFICIAL-BLOCK"),
-        CSANE_RULE("STYLE-ASSERT-REL"),
-        CSANE_RULE("STYLE-ASSERT-BOUNDS"),
-        CSANE_RULE("STYLE-STRLIT-LEN"),
-        CSANE_RULE("STYLE-STREQUAL"),
-        CSANE_RULE("STYLE-PRINTF"),
-        CSANE_RULE("STYLE-STATUS-TEMP"),
-        CSANE_RULE("FMT-MULTIPLY"),
-        CSANE_RULE("FMT-BINARY-SPACING"),
-        CSANE_RULE("FMT-ASSIGN-SPACING"),
-        CSANE_RULE("FMT-ASSIGN-EQ"),
-        CSANE_RULE("FMT-CALL-FIRST"),
-        CSANE_RULE("FMT-CALL-FIRST-TOPLEVEL"),
-        CSANE_RULE("FMT-FUNC-ALIGN"),
-        CSANE_RULE("FMT-LITERAL-ALIGN"),
-        CSANE_RULE("FMT-ARG-ALIGN"),
-        CSANE_RULE("FMT-FORMAT-LINE"),
-        CSANE_RULE("FMT-RELATED-ARGS"),
-        CSANE_RULE("FMT-CALL-WRAP"),
-        CSANE_RULE("FMT-ASSIGN-WRAP"),
-        CSANE_RULE("FMT-COMMA-SPACING"),
-        CSANE_RULE("FMT-MEMBER-SPACING"),
-        CSANE_RULE("FMT-UNARY-SPACING"),
-        CSANE_RULE("FMT-CAST-SPACING"),
-        CSANE_RULE("FMT-POINTER-SPACING"),
-        CSANE_RULE("FMT-CALL-SPACING"),
-        CSANE_RULE("FMT-TRAILING-COMMA"),
-        CSANE_RULE("STYLE-INCDEC"),
-        CSANE_RULE("TYPE-CONST-SIGNATURE"),
-        CSANE_RULE("TYPE-STDINT-T"),
-        CSANE_RULE("TYPE-ENUM-TYPEDEF"),
-        CSANE_RULE("TYPE-UNION-TYPEDEF"),
-        CSANE_RULE("TYPE-POINTER-TYPEDEF"),
-#undef CSANE_RULE
-    };
-    for (int32 i = 0; i < (int32)(SIZEOF(known)/SIZEOF(known[0]));
-         i += 1) {
-        if (STREQUAL(id, id_len, known[i].data, known[i].len)) {
+    int32 count =
+        (int32)(SIZEOF(csane_known_rules)/SIZEOF(csane_known_rules[0]));
+    for (int32 i = 0; i < count; i += 1) {
+        StrFlex *known = csane_known_rules[i];
+        if (STREQUAL(id, id_len, known->data, known->len)) {
             return true;
         }
     }

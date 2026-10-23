@@ -71,6 +71,32 @@ class FirstArgumentScopeTests(unittest.TestCase):
         self.assertEqual(self.check(source, config),
                          ["FMT-CALL-FIRST-TOPLEVEL"])
 
+    def test_rule_id_policy_matches_exact_length(self):
+        source = "NC_SCREEN_COLUMN_CAPABILITY_CALLBACKS(\n    x, y)\n"
+        for rule_id in ("FMT-CALL-FIRST-TOPLEVEL",
+                        "FMT-CALL-FIRST-TOPLEVE",
+                        "FMT-CALL-FIRST-TOPLEVELX"):
+            with self.subTest(rule_id=rule_id):
+                config = "allow-rule " + rule_id + " .*\n"
+                path = self.root / "src" / "scope.c"
+                conf = self.root / "cbase" / "csanecheck.conf"
+                path.write_text(source, encoding="utf-8")
+                conf.write_text(config, encoding="utf-8")
+                result = subprocess.run(
+                    [str(CHECKER), "--config", str(conf), "--file", str(path)],
+                    cwd=self.root, capture_output=True, text=True,
+                    check=False,
+                )
+                if rule_id != "FMT-CALL-FIRST-TOPLEVEL":
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn("invalid csanecheck policy directive",
+                                  result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0,
+                                     result.stdout + result.stderr)
+                    self.assertNotIn("FMT-CALL-FIRST-TOPLEVEL",
+                                     result.stdout)
+
     def test_allow_rule_can_exempt_all_toplevel_macro_calls(self):
         source = "NC_SCREEN_COLUMN_CAPABILITY_CALLBACKS(\n    x, y)\n"
         self.assertEqual(self.check(source,
