@@ -502,6 +502,12 @@ csane_run(int32 argc, char **argv) {
     csane_paths_sort_unique(&options.files);
     csane_paths_sort_unique(&options.policy.cbase_roots);
     csane_paths_sort_unique(&options.policy.project_roots);
+#if OS_UNIX
+    uint64 cache_fingerprint = csane_cache_fingerprint(argc, argv,
+                                                       &options.policy);
+    (void)mkdir(".cache", 0700);
+    (void)mkdir(".cache/csanecheck", 0700);
+#endif
     for (int32 i = 0; i < strflex_list_len(&options.files.strings); i += 1) {
         StrFlex *entry = options.files.strings.items[i];
         char *path = entry->data;
@@ -510,7 +516,88 @@ csane_run(int32 argc, char **argv) {
                                    options.filter, options.filter_len)) {
             continue;
         }
+#if OS_UNIX
+        CsaneCacheRecord record = {
+            .magic = UINT64_C(0x4353414e45434132),
+            .fingerprint = cache_fingerprint,
+        };
+        uint64 path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
+                                              path, entry->len);
+        char cache_name[128];
+        snprintf(cache_name, SIZEOF(cache_name),
+                 ".cache/csanecheck/%016llx.bin",
+                 (unsigned long long)path_hash);
+        bool cacheable = csane_cache_signature(path, &record);
+        if (cacheable && csane_cache_read(cache_name, &record, &stats,
+                                          &status)) {
+            if (status > exit_status) {
+                exit_status = status;
+            }
+            continue;
+        }
+        FILE *capture = cacheable ? tmpfile() : NULL;
+        int saved_stdout = -1;
+        CsaneStats before = stats;
+        if (capture != NULL) {
+            fflush(stdout);
+            saved_stdout = dup(STDOUT_FILENO);
+            if (saved_stdout < 0
+                || dup2(fileno(capture), STDOUT_FILENO) < 0) {
+                if (saved_stdout >= 0) {
+                    close(saved_stdout);
+                }
+                fclose(capture);
+                capture = NULL;
+            }
+        }
+#endif
         status = csane_analyze(path, entry->len, &options, &stats);
+#if OS_UNIX
+        if (capture != NULL) {
+            fflush(stdout);
+            dup2(saved_stdout, STDOUT_FILENO);
+            close(saved_stdout);
+            long output_len = ftell(capture);
+            rewind(capture);
+            char buffer[4096];
+            size_t count;
+            while ((count = fread(buffer, 1, SIZEOF(buffer), capture)) > 0) {
+                fwrite(buffer, 1, count, stdout);
+            }
+            CsaneCacheRecord after = {0};
+            if (status != 2 && output_len >= 0
+                && output_len <= 16*1024*1024
+                && csane_cache_signature(path, &after)
+                && after.source_size == record.source_size
+                && after.source_mtime == record.source_mtime
+                && after.source_ctime == record.source_ctime) {
+                record.status = status;
+                record.output_len = (uint32)output_len;
+                record.delta = (CsaneStats){
+                    .files = stats.files - before.files,
+                    .tokens = stats.tokens - before.tokens,
+                    .externals = stats.externals - before.externals,
+                    .structural_issues = stats.structural_issues
+                                         - before.structural_issues,
+                    .preprocessor_issues = stats.preprocessor_issues
+                                           - before.preprocessor_issues,
+                    .violations = stats.violations - before.violations,
+                    .declarations = stats.declarations - before.declarations,
+                    .function_declarations = stats.function_declarations
+                                             - before.function_declarations,
+                    .function_definitions = stats.function_definitions
+                                            - before.function_definitions,
+                    .statements = stats.statements - before.statements,
+                    .opaque_statements = stats.opaque_statements
+                                         - before.opaque_statements,
+                    .opaque_externals = stats.opaque_externals
+                                        - before.opaque_externals,
+                };
+                csane_cache_write(cache_name, &record, capture);
+            }
+            fclose(capture);
+        }
+#endif
         if (status > exit_status) {
             exit_status = status;
         }
