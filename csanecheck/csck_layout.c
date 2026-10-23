@@ -1008,15 +1008,18 @@ csane_layout_function_pointer(CsaneTokenView *view, int32 index) {
     int32 name = csane_tokens_next(view, index);
     int32 close;
     int32 after;
+
     if (before < view->range.first || name >= view->range.end
         || !TOKEN_IS(&tokens->tokens[before], "(")
         || tokens->tokens[name].kind != TOKEN_IDENT) {
         return false;
     }
+
     close = csane_tokens_next(view, name);
     if (close >= view->range.end || !TOKEN_IS(&tokens->tokens[close], ")")) {
         return false;
     }
+
     after = csane_tokens_next(view, close);
     return after < view->range.end && TOKEN_IS(&tokens->tokens[after], "(");
 }
