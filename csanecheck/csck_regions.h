@@ -41,6 +41,7 @@ typedef struct CsaneRegions {
     Tokenization *tokens; /* Borrowed; outlives the regions. */
     CPreprocessorAnalysis *preprocessor; /* Borrowed; outlives regions. */
     CsaneSourceRegion *items;
+    int32 *token_regions; /* Innermost region for each token offset. */
     int32 count;
     int32 capacity;
     bool complete; /* False when any preprocessor issue exists. */

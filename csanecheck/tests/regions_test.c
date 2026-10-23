@@ -50,6 +50,21 @@ test_partition(CsaneRegions *regions, int32 parent) {
     return;
 }
 
+/* The index must match source-offset traversal at every token start. */
+static void
+test_token_index(CsaneRegions *regions) {
+    Tokenization *tokens = regions->tokens;
+    CHECK(csane_regions_at_token(NULL, 0) == -1);
+    CHECK(csane_regions_at_token(regions, -1) == -1);
+    CHECK(csane_regions_at_token(regions, tokens->token_count) == -1);
+    for (int32 i = 0; i < tokens->token_count; i += 1) {
+        int32 expected = csane_regions_at_offset(regions,
+                                                 tokens->tokens[i].offset);
+        CHECK(csane_regions_at_token(regions, i) == expected);
+    }
+    return;
+}
+
 static int32
 test_enclosing(CsaneRegions *regions,
                char *text, int32 text_len,
@@ -94,6 +109,7 @@ test_complete_groups(void) {
     CHECK(regions.complete);
     CHECK(pp.group_count == 2);
     test_partition(&regions, 0);
+    test_token_index(&regions);
     int32 first = test_enclosing(&regions, text, text_len,
                                  STRLIT("call_first()"),
                                  CSANE_REGION_CONDITIONAL_BRANCH);
@@ -155,6 +171,7 @@ test_recovery(void) {
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     CHECK(!regions.complete);
     test_partition(&regions, 0);
+    test_token_index(&regions);
     int32 good = test_enclosing(&regions, text, text_len,
                                 STRLIT("good_branch()"),
                                 CSANE_REGION_CONDITIONAL_BRANCH);
@@ -208,6 +225,7 @@ test_duplicate_branch_directives(void) {
     CHECK(!c_preprocessor_analysis_init(&pp, &tokens));
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     test_partition(&regions, 0);
+    test_token_index(&regions);
     int32 first = test_enclosing(&regions, text, text_len, STRLIT("first()"),
                                  CSANE_REGION_CONDITIONAL_BRANCH);
     int32 next = test_enclosing(&regions, text, text_len, STRLIT("next()"),
@@ -217,6 +235,22 @@ test_duplicate_branch_directives(void) {
                                      STRLIT("#elif BAD"),
                                      CSANE_REGION_DIRECTIVE);
     CHECK(malformed >= 0 && !regions.items[malformed].complete);
+    csane_regions_free(&regions);
+    c_preprocessor_analysis_free(&pp);
+    free_tokenization(&tokens);
+    return;
+}
+
+static void
+test_empty_source(void) {
+    Tokenization tokens = tokenize_copy(NULL, 0, TOKENIZE_DEFAULT);
+    CPreprocessorAnalysis pp = {0};
+    CsaneRegions regions = {0};
+    CHECK(c_preprocessor_analysis_init(&pp, &tokens));
+    CHECK(csane_regions_init(&regions, &tokens, &pp));
+    CHECK(regions.token_regions == NULL);
+    CHECK(csane_regions_at_token(&regions, 0) == -1);
+    test_token_index(&regions);
     csane_regions_free(&regions);
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
@@ -237,6 +271,7 @@ test_bounded_fragments(void) {
 int
 main(void) {
     test_bounded_fragments();
+    test_empty_source();
     test_complete_groups();
     test_recovery();
     test_duplicate_branch_directives();
