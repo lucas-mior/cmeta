@@ -32,7 +32,7 @@ class AstIndependenceTests(unittest.TestCase):
             "#endif\n",
             "--strict-parse", "--coverage", "--stats")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("function_definitions=2", result.stdout)
+        self.assertIn("function_defs=2", result.stdout)
         self.assertIn("structural_issues=0", result.stdout)
         self.assertIn("preprocessor_issues=0", result.stdout)
         self.assertNotIn("projected_tokens=", result.stdout)
@@ -49,7 +49,7 @@ class AstIndependenceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("note[STRUCTURE-OPAQUE]", result.stdout)
         self.assertIn("error[PP-SIZEOF]", result.stdout)
-        self.assertIn("function_definitions=3", result.stdout)
+        self.assertIn("function_defs=3", result.stdout)
         self.assertIn("structural_issues=1", result.stdout)
         self.assertRegex(result.stdout, r"group=SRC status=checked")
 
@@ -60,7 +60,7 @@ class AstIndependenceTests(unittest.TestCase):
                             "--stats")
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("note[PP-STRUCTURE]", result.stdout)
-        self.assertIn("function_definitions=1", result.stdout)
+        self.assertIn("function_defs=1", result.stdout)
         self.assertIn("structural_issues=0", result.stdout)
         self.assertRegex(result.stdout, r"preprocessor_issues=[1-9]")
 

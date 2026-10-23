@@ -216,7 +216,7 @@ class StructureTests(unittest.TestCase):
         self.assertIn("opaque_statements=0", result.stdout)
         self.assertNotIn("STRUCTURE-OPAQUE", result.stdout)
         self.assertNotIn("COVERAGE-INCOMPLETE", result.stdout)
-        self.assertIn("function_definitions=1", result.stdout)
+        self.assertIn("function_defs=1", result.stdout)
 
     def test_guarded_member_rules_remain_active(self):
         source = ("struct Box {\n#if FIRST\n"
