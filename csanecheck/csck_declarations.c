@@ -449,11 +449,9 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
         }
         previous = csane_tokens_previous(&view, token);
         if (csane_decl_is(file, previous, STRLIT("("))) {
-            int32 close;
-            int32 after;
+            int32 close = csane_tokens_match(&view, previous);
+            int32 after = -1;
 
-            close = csane_tokens_match(&view, previous);
-            after = -1;
             if (close >= 0) {
                 after = csane_tokens_next(&view, close);
             }
