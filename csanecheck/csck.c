@@ -625,10 +625,8 @@ csane_run(int32 argc, char **argv) {
         fmt_printf("    preprocessor_issues=%lld\n", stats.preprocessor_issues);
         fmt_printf("    violations=%lld\n", stats.violations);
         fmt_printf("    declarations=%lld\n", stats.declarations);
-        fmt_printf("    function_decls=%lld\n",
-                   stats.function_decls);
-        fmt_printf("    function_defs=%lld\n",
-                   stats.function_defs);
+        fmt_printf("    function_decls=%lld\n", stats.function_decls);
+        fmt_printf("    function_defs=%lld\n", stats.function_defs);
         fmt_printf("    statements=%lld\n", stats.statements);
         fmt_printf("    opaque_statements=%lld\n", stats.opaque_statements);
         fmt_printf("    opaque_externals=%lld\n", stats.opaque_externals);
