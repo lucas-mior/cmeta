@@ -637,9 +637,12 @@ cleanup:
     }
     if (stats.violations > 0) {
         fmt_printf("In order to understand and learn how to fix the problems "
-                   "above, read cbase/c-guidelines.md and cbase/c-format.md\n"
-                   "if you think any of them are a false positive"
-                   ", put them in a file called false-positives.txt\n");
+                   "above, read cbase/c-guidelines.md and cbase/c-format.md\n");
+        fmt_printf("If you think any of them are a false positive"
+                   ", but you are not sure, put them in a file"
+                   " called false-positives-maybe.txt\n");
+        fmt_printf("If you are sure about a false positive"
+                   ", add an exception for it in cbase/csanecheck.conf.\n");
     }
     csane_paths_free(&options.files);
     csane_paths_free(&options.source_roots);
