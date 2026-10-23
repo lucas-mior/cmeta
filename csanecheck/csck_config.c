@@ -605,8 +605,7 @@ csane_policy_source(CsanePolicy *policy, char *source, int32 source_len) {
 bool
 csane_policy_init(CsanePolicy *policy) {
     *policy = (CsanePolicy){.default_columns = 80};
-    for (int32 i = 0; i < (int32)(SIZEOF(csane_default_never)
-                                /SIZEOF(csane_default_never[0])); i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_default_never); i += 1) {
         if (!csane_paths_add(&policy->never_names,
                              csane_default_never[i]->data,
                              csane_default_never[i]->len)) {
