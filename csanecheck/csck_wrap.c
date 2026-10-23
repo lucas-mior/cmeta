@@ -454,7 +454,7 @@ csane_wrap_call_check(CsaneFile *file) {
     if (capacity == 0) {
         return;
     }
-    items = malloc2((int64)capacity*SIZEOF(*items));
+    items = malloc2(capacity*SIZEOF(*items));
     count = csane_wrap_collect_calls(file, items);
     qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
     for (int32 i = 0; i < count; i += 1) {
@@ -474,7 +474,7 @@ csane_wrap_call_check(CsaneFile *file) {
         csane_wrap_call_group(file, items, first, end);
         first = end;
     }
-    free2(items, (int64)capacity*SIZEOF(*items));
+    free2(items, capacity*SIZEOF(*items));
     return;
 }
 
@@ -746,7 +746,7 @@ csane_wrap_check(CsaneFile *file) {
     if (capacity == 0) {
         return;
     }
-    items = malloc2((int64)capacity*SIZEOF(*items));
+    items = malloc2(capacity*SIZEOF(*items));
     count = csane_wrap_collect_assignments(file, items);
     count = csane_wrap_collect_assignment_gaps(file, items, count);
     qsort64(items, count, SIZEOF(*items), csane_wrap_compare_calls);
@@ -767,7 +767,7 @@ csane_wrap_check(CsaneFile *file) {
         csane_wrap_assignment_group(file, &items[first], end - first);
         first = end;
     }
-    free2(items, (int64)capacity*SIZEOF(*items));
+    free2(items, capacity*SIZEOF(*items));
     return;
 }
 

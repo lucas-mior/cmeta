@@ -841,10 +841,10 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
     } else {
         csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count, -1, -1);
     }
-    free2(stream.stack, (int64)stream.count*SIZEOF(*stream.stack));
-    free2(stream.matches, (int64)stream.count*SIZEOF(*stream.matches));
-    free2(stream.indices, (int64)stream.capacity*SIZEOF(*stream.indices));
-    free2(stream.leaf, (int64)stream.capacity*SIZEOF(*stream.leaf));
+    free2(stream.stack, stream.count*SIZEOF(*stream.stack));
+    free2(stream.matches, stream.count*SIZEOF(*stream.matches));
+    free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
+    free2(stream.leaf, stream.capacity*SIZEOF(*stream.leaf));
     return;
 }
 
@@ -1167,9 +1167,9 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
                                  : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
                                  0, 1, -1, -1);
                 free2(stream.indices,
-                      (int64)stream.capacity*SIZEOF(*stream.indices));
+                      stream.capacity*SIZEOF(*stream.indices));
                 free2(stream.leaf,
-                      (int64)stream.capacity*SIZEOF(*stream.leaf));
+                      stream.capacity*SIZEOF(*stream.leaf));
             }
         }
     }
@@ -1206,7 +1206,7 @@ csane_toplevel_free(CsaneTopLevels *top) {
     if (top == NULL) {
         return;
     }
-    free2(top->items, (int64)top->capacity*SIZEOF(*top->items));
+    free2(top->items, top->capacity*SIZEOF(*top->items));
     *top = (CsaneTopLevels){0};
     return;
 }

@@ -215,7 +215,7 @@ csane_walk(CsanePaths *paths, char *directory, int32 directory_len,
         }
         free2(path, (int64)path_len + 1);
     }
-    free2(entries, (int64)count*SIZEOF(*entries));
+    free2(entries, count*SIZEOF(*entries));
     return ok;
 }
 

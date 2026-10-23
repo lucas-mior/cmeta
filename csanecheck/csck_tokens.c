@@ -77,7 +77,7 @@ csane_token_path_free(CsaneTokenPath *path) {
     if (path == NULL) {
         return;
     }
-    free2(path->parts, (int64)path->capacity*SIZEOF(*path->parts));
+    free2(path->parts, path->capacity*SIZEOF(*path->parts));
     *path = (CsaneTokenPath){0};
     return;
 }
