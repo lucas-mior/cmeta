@@ -12,7 +12,7 @@ static int32 failures = 0;
 static void
 test_check(bool condition, int32 line) {
     if (!condition) {
-        fprintf(stderr, "regions_test.c:%d: failed\n", line);
+        error2("regions_test.c:%d: failed\n", line);
         failures += 1;
     }
     return;
@@ -21,15 +21,10 @@ test_check(bool condition, int32 line) {
 #define CHECK(CONDITION) test_check((CONDITION), __LINE__)
 
 static int32
-test_offset(char *source, char *fragment) {
-    int32 source_len = strlen32(source);
-    int32 len = strlen32(fragment);
-    for (int32 i = 0; i + len <= source_len; i += 1) {
-        if (!memcmp64(source + i, fragment, len)) {
-            return i;
-        }
-    }
-    return -1;
+test_offset(char *source, int32 source_len,
+            char *fragment, int32 fragment_len) {
+    char *found = memmem64(source, source_len, fragment, fragment_len);
+    return found ? (int32)(found - source) : -1;
 }
 
 /* Every source byte belongs to exactly one child at each tree level. */
@@ -56,9 +51,11 @@ test_partition(CsaneRegions *regions, int32 parent) {
 }
 
 static int32
-test_enclosing(CsaneRegions *regions, char *text, char *fragment,
+test_enclosing(CsaneRegions *regions,
+               char *text, int32 text_len,
+               char *fragment, int32 fragment_len,
                enum CsaneRegionKind kind) {
-    int32 offset = test_offset(text, fragment);
+    int32 offset = test_offset(text, text_len, fragment, fragment_len);
     CHECK(offset >= 0);
     if (offset < 0) {
         return -1;
@@ -88,7 +85,8 @@ test_complete_groups(void) {
         "#define WRAP(x, y) ((x) + \\\n"
         "                    (y))\n"
         "#define ID(x) (x)\n";
-    Tokenization tokens = tokenize_copy(text, strlen32(text), TOKENIZE_DEFAULT);
+    int32 text_len = strlen32(text);
+    Tokenization tokens = tokenize_copy(text, text_len, TOKENIZE_DEFAULT);
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
     CHECK(c_preprocessor_analysis_init(&pp, &tokens));
@@ -96,27 +94,31 @@ test_complete_groups(void) {
     CHECK(regions.complete);
     CHECK(pp.group_count == 2);
     test_partition(&regions, 0);
-    int32 first = test_enclosing(&regions, text, "call_first()",
+    int32 first = test_enclosing(&regions, text, text_len,
+                                 STRLIT("call_first()"),
                                  CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 second = test_enclosing(&regions, text, "call_second()",
+    int32 second = test_enclosing(&regions, text, text_len,
+                                  STRLIT("call_second()"),
                                   CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 nested = test_enclosing(&regions, text, "call_nested()",
+    int32 nested = test_enclosing(&regions, text, text_len,
+                                  STRLIT("call_nested()"),
                                   CSANE_REGION_CONDITIONAL_BRANCH);
     CHECK(first >= 0 && second >= 0 && nested >= 0);
     CHECK(first != second && first != nested && second != nested);
     CHECK(regions.items[nested].parent
-          == test_enclosing(&regions, text, "call_nested()",
+          == test_enclosing(&regions, text, text_len, STRLIT("call_nested()"),
                             CSANE_REGION_CONDITIONAL_GROUP));
-    CHECK(test_enclosing(&regions, text, "AFTER()",
+    CHECK(test_enclosing(&regions, text, text_len, STRLIT("AFTER()"),
                          CSANE_REGION_CONDITIONAL_BRANCH) == -1);
-    int32 parameters = test_enclosing(&regions, text, "x, y",
+    int32 parameters = test_enclosing(&regions, text, text_len, STRLIT("x, y"),
                                       CSANE_REGION_MACRO_PARAMETERS);
-    int32 replacement = test_enclosing(&regions, text, "((x) +",
+    int32 replacement = test_enclosing(&regions, text, text_len,
+                                       STRLIT("((x) +"),
                                        CSANE_REGION_MACRO_REPLACEMENT);
     CHECK(parameters >= 0 && replacement >= 0);
     CHECK(regions.items[parameters].source.end
           <= regions.items[replacement].source.start);
-    CHECK(test_enclosing(&regions, text, "(x)\n",
+    CHECK(test_enclosing(&regions, text, text_len, STRLIT("(x)\n"),
                          CSANE_REGION_MACRO_REPLACEMENT) >= 0);
     csane_regions_free(&regions);
     c_preprocessor_analysis_free(&pp);
@@ -144,7 +146,8 @@ test_recovery(void) {
         "#if NESTED\n"
         "nested_branch();\n"
         "#endif\n";
-    Tokenization tokens = tokenize_copy(text, strlen32(text), TOKENIZE_DEFAULT);
+    int32 text_len = strlen32(text);
+    Tokenization tokens = tokenize_copy(text, text_len, TOKENIZE_DEFAULT);
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
     CHECK(!c_preprocessor_analysis_init(&pp, &tokens));
@@ -152,25 +155,29 @@ test_recovery(void) {
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     CHECK(!regions.complete);
     test_partition(&regions, 0);
-    int32 good = test_enclosing(&regions, text, "good_branch()",
+    int32 good = test_enclosing(&regions, text, text_len,
+                                STRLIT("good_branch()"),
                                 CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 alternative = test_enclosing(&regions, text,
-                                       "good_alternative()",
+    int32 alternative = test_enclosing(&regions, text, text_len,
+                                       STRLIT("good_alternative()"),
                                        CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 other = test_enclosing(&regions, text, "other_branch()",
+    int32 other = test_enclosing(&regions, text, text_len,
+                                 STRLIT("other_branch()"),
                                  CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 nested = test_enclosing(&regions, text, "nested_branch()",
+    int32 nested = test_enclosing(&regions, text, text_len,
+                                  STRLIT("nested_branch()"),
                                   CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 open = test_enclosing(&regions, text, "unclosed_branch()",
+    int32 open = test_enclosing(&regions, text, text_len,
+                                STRLIT("unclosed_branch()"),
                                 CSANE_REGION_CONDITIONAL_GROUP);
     CHECK(good >= 0 && alternative >= 0 && good != alternative);
     CHECK(other >= 0 && other != good);
     CHECK(nested >= 0 && open >= 0 && regions.items[nested].complete);
     CHECK(!regions.items[open].complete);
-    int32 broken = test_enclosing(&regions, text, "BROKEN(x",
+    int32 broken = test_enclosing(&regions, text, text_len, STRLIT("BROKEN(x"),
                                   CSANE_REGION_MACRO_DEFINE);
     CHECK(broken >= 0 && !regions.items[broken].complete);
-    CHECK(test_enclosing(&regions, text, "BROKEN(x",
+    CHECK(test_enclosing(&regions, text, text_len, STRLIT("BROKEN(x"),
                          CSANE_REGION_MACRO_REPLACEMENT) == -1);
     CHECK(!regions.items[csane_regions_at_offset(&regions, 0)].complete);
     csane_regions_free(&regions);
@@ -194,18 +201,20 @@ test_duplicate_branch_directives(void) {
         "#if NEXT\n"
         "next();\n"
         "#endif\n";
-    Tokenization tokens = tokenize_copy(text, strlen32(text), TOKENIZE_DEFAULT);
+    int32 text_len = strlen32(text);
+    Tokenization tokens = tokenize_copy(text, text_len, TOKENIZE_DEFAULT);
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
     CHECK(!c_preprocessor_analysis_init(&pp, &tokens));
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     test_partition(&regions, 0);
-    int32 first = test_enclosing(&regions, text, "first()",
+    int32 first = test_enclosing(&regions, text, text_len, STRLIT("first()"),
                                  CSANE_REGION_CONDITIONAL_BRANCH);
-    int32 next = test_enclosing(&regions, text, "next()",
+    int32 next = test_enclosing(&regions, text, text_len, STRLIT("next()"),
                                 CSANE_REGION_CONDITIONAL_BRANCH);
     CHECK(first >= 0 && next >= 0 && first != next);
-    int32 malformed = test_enclosing(&regions, text, "#elif BAD",
+    int32 malformed = test_enclosing(&regions, text, text_len,
+                                     STRLIT("#elif BAD"),
                                      CSANE_REGION_DIRECTIVE);
     CHECK(malformed >= 0 && !regions.items[malformed].complete);
     csane_regions_free(&regions);
@@ -214,8 +223,20 @@ test_duplicate_branch_directives(void) {
     return;
 }
 
+static void
+test_bounded_fragments(void) {
+    char source[] = {'a', 'b', 'c', 'd', 'a', 'b', 'c'};
+    char fragment[] = {'b', 'c', 'X'};
+    CHECK(test_offset(source, SIZEOF(source), fragment, 2) == 1);
+    CHECK(test_offset(source, SIZEOF(source), fragment, 3) == -1);
+    CHECK(test_offset(source, 2, fragment, 2) == -1);
+    CHECK(test_offset(source, SIZEOF(source), STRLIT("dabc")) == 3);
+    return;
+}
+
 int
 main(void) {
+    test_bounded_fragments();
     test_complete_groups();
     test_recovery();
     test_duplicate_branch_directives();
