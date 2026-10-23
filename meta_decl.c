@@ -37,8 +37,7 @@ decl_sig(DeclCursor *c, int32 pos) {
 static bool
 decl_at(DeclCursor *c, int32 i, char *text) {
     return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
-                       strlen32(text));
+           && TOKEN_IS(&c->ast->tokenization->tokens[i], text);
 }
 
 static int32
