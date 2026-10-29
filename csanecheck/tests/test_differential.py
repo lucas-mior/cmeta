@@ -109,10 +109,12 @@ class DifferentialTests(unittest.TestCase):
     def test_csane_only_rules_are_not_false_parity_additions(self):
         records, extras, unknown = normalize_csane(
             "src/a.c:2:9: error[FMT-MULTIPLY]: multiplication spaces\n"
+            "src/a.c:3:8: error[STYLE-ROUND64]: rounding cast\n"
+            "src/a.c:4:8: error[STYLE-LITERAL-INT-CAST]: literal cast\n"
             "src/a.c:2:8: error[STYLE-PRINTF]: format\n",
             self.root, self.rules)
         self.assertEqual(unknown, [])
-        self.assertEqual(len(extras), 1)
+        self.assertEqual(len(extras), 3)
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].category, self.rules["P25"].category)
 
