@@ -320,7 +320,7 @@ util_filename_from(char *buffer, int64 size, int fd) {
         if ((len = readlink(linkpath, buffer, (size_t)(size - 1))) < 0) {
             return -errno;
         }
-        if (len > MAXOF((int32)0)) {
+        if (len >= size) {
             return -ENAMETOOLONG;
         }
         buffer[len] = '\0';
