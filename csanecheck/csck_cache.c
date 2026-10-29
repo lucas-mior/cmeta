@@ -131,8 +131,7 @@ csane_cache_write(char *name, CsaneCacheRecord *record, FILE *output) {
     char buffer[4096];
     uint32 remaining;
     FILE *file = NULL;
-    int32 n = snprintf(temporary, SIZEOF(temporary), "%s.%ld.tmp",
-                                                     name, (long)getpid());
+    int32 n = SNPRINTF(temporary, "%s.%ld.tmp", name, (long)getpid());
 
     if (n <= 0 || n >= SIZEOF(temporary)) {
         return;
