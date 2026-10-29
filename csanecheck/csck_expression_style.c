@@ -236,6 +236,41 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     }
 }
 
+/* A cast immediately before a rounding call discards the checked
+ * conversion provided by the project's int64 rounding wrappers. */
+static void
+csane_style_round64(CsaneFile *file, CsaneTokenView *view, int32 name) {
+    Tokenization *tokens = file->tokens;
+    int32 cast_close = csane_tokens_previous(view, name);
+    int32 type;
+    int32 cast_open;
+
+    if (cast_close < view->range.first
+        || !TOKEN_IS(&tokens->tokens[cast_close], ")")) {
+        return;
+    }
+    type = csane_tokens_previous(view, cast_close);
+    if (type < view->range.first
+        || !TOKEN_IS(&tokens->tokens[type], "int64")) {
+        return;
+    }
+    cast_open = csane_tokens_previous(view, type);
+    if (cast_open < view->range.first
+        || !TOKEN_IS(&tokens->tokens[cast_open], "(")
+        || csane_tokens_match(view, cast_open) != cast_close) {
+        return;
+    }
+    if (TOKEN_IS(&tokens->tokens[name], "floor")) {
+        csane_rule_issue(file, tokens->tokens[cast_open].offset,
+                         STRLIT("STYLE-ROUND64"),
+                         "use floor64(x) instead of (int64)floor(x)");
+    } else {
+        csane_rule_issue(file, tokens->tokens[cast_open].offset,
+                         STRLIT("STYLE-ROUND64"),
+                         "use ceil64(x) instead of (int64)ceil(x)");
+    }
+}
+
 void
 csane_expression_style_check(CsaneFile *file) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
@@ -258,7 +293,9 @@ csane_expression_style_check(CsaneFile *file) {
             || (!TOKEN_IS(token, "ASSERT")
                 && !TOKEN_IS(token, "STRLIT_LEN")
                 && !TOKEN_IS(token, "STREQUAL")
-                && !TOKEN_IS(token, "str_printf"))) {
+                && !TOKEN_IS(token, "str_printf")
+                && !TOKEN_IS(token, "floor")
+                && !TOKEN_IS(token, "ceil"))) {
             continue;
         }
         next = csane_tokens_next(&view, i);
@@ -329,7 +366,11 @@ csane_expression_style_check(CsaneFile *file) {
         kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
-            csane_style_one(file, i, next, close);
+            if (TOKEN_IS(token, "floor") || TOKEN_IS(token, "ceil")) {
+                csane_style_round64(file, &local, i);
+            } else {
+                csane_style_one(file, i, next, close);
+            }
         }
     }
 }
