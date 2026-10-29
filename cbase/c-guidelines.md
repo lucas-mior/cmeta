@@ -1393,5 +1393,6 @@ still do not know, use common sense.
 
 - Use `floor64(x)` instead of `(int64)floor(x)`.
 - Use `ceil64(x)` instead of `(int64)ceil(x)`.
+- Use `round64(x)` instead of `(int64)round(x)`.
   These wrappers check whether the rounded result fits in `int64` when
   debugging is enabled.
