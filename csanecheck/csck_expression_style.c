@@ -264,10 +264,14 @@ csane_style_round64(CsaneFile *file, CsaneTokenView *view, int32 name) {
         csane_rule_issue(file, tokens->tokens[cast_open].offset,
                          STRLIT("STYLE-ROUND64"),
                          "use floor64(x) instead of (int64)floor(x)");
-    } else {
+    } else if (TOKEN_IS(&tokens->tokens[name], "ceil")) {
         csane_rule_issue(file, tokens->tokens[cast_open].offset,
                          STRLIT("STYLE-ROUND64"),
                          "use ceil64(x) instead of (int64)ceil(x)");
+    } else {
+        csane_rule_issue(file, tokens->tokens[cast_open].offset,
+                         STRLIT("STYLE-ROUND64"),
+                         "use round64(x) instead of (int64)round(x)");
     }
 }
 
@@ -295,7 +299,8 @@ csane_expression_style_check(CsaneFile *file) {
                 && !TOKEN_IS(token, "STREQUAL")
                 && !TOKEN_IS(token, "str_printf")
                 && !TOKEN_IS(token, "floor")
-                && !TOKEN_IS(token, "ceil"))) {
+                && !TOKEN_IS(token, "ceil")
+                && !TOKEN_IS(token, "round"))) {
             continue;
         }
         next = csane_tokens_next(&view, i);
@@ -366,7 +371,8 @@ csane_expression_style_check(CsaneFile *file) {
         kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
-            if (TOKEN_IS(token, "floor") || TOKEN_IS(token, "ceil")) {
+            if (TOKEN_IS(token, "floor") || TOKEN_IS(token, "ceil")
+                || TOKEN_IS(token, "round")) {
                 csane_style_round64(file, &local, i);
             } else {
                 csane_style_one(file, i, next, close);
