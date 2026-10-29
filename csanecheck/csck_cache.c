@@ -55,9 +55,8 @@ csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
                          "functions_allowed_cbase_only.txt",
                          "cbase/csanecheck.conf", "csanecheck.conf",};
         for (int32 j = 0; j < 6; j += 1) {
-            int32 n = snprintf(buffer, SIZEOF(buffer), "%.*s/%s",
-                                                       root->len, root->data,
-                                                       names[j]);
+            int32 n = SNPRINTF(buffer, "%.*s/%s",
+                                       root->len, root->data, names[j]);
             if (n > 0 && n < SIZEOF(buffer)) {
                 hash = csane_cache_stat(hash, buffer);
             }
