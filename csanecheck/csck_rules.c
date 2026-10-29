@@ -418,6 +418,23 @@ csane_api_classify(CsaneFile *file, int32 index) {
     return csane_api_declarator(file, index);
 }
 
+/* CG039: libc's printf-family calls belong in cbase wrappers, not in
+ * project code. This includes ISO C, POSIX/GNU, and wide-character forms.
+ * Match exact identifiers so project formatters such as fmt_printf and
+ * str_printf are unaffected. */
+static bool
+csane_libc_printf(Token *token) {
+    return TOKEN_IS(token, "printf") || TOKEN_IS(token, "fprintf")
+           || TOKEN_IS(token, "sprintf") || TOKEN_IS(token, "snprintf")
+           || TOKEN_IS(token, "vprintf") || TOKEN_IS(token, "vfprintf")
+           || TOKEN_IS(token, "vsprintf") || TOKEN_IS(token, "vsnprintf")
+           || TOKEN_IS(token, "dprintf") || TOKEN_IS(token, "vdprintf")
+           || TOKEN_IS(token, "asprintf") || TOKEN_IS(token, "vasprintf")
+           || TOKEN_IS(token, "wprintf") || TOKEN_IS(token, "fwprintf")
+           || TOKEN_IS(token, "swprintf") || TOKEN_IS(token, "vwprintf")
+           || TOKEN_IS(token, "vfwprintf") || TOKEN_IS(token, "vswprintf");
+}
+
 static void
 csane_rule_calls(CsaneFile *file) {
     for (int32 i = 0; i < file->tokens->token_count; i += 1) {
@@ -426,16 +443,21 @@ csane_rule_calls(CsaneFile *file) {
         CsanePaths *names = &file->policy->cbase_names;
         bool restricted = !file->in_cbase
                           && csane_token_name_in(token, names);
-        if ((!never && !restricted)
+        bool libc_printf = !file->in_cbase && csane_libc_printf(token);
+        if ((!never && !restricted && !libc_printf)
             || csane_api_classify(file, i) != CSANE_API_DIRECT_CALL) {
             continue;
         }
         if (never) {
             csane_rule_issue(file, token->offset, STRLIT("API-NEVER"),
                              "function must never be used");
-        } else {
+        } else if (restricted) {
             csane_rule_issue(file, token->offset, STRLIT("API-CBASE-ONLY"),
                              "function is allowed only inside cbase");
+        } else {
+            csane_rule_issue(file, token->offset,
+                             STRLIT("API-LIBC-PRINTF"),
+                             "use cbase formatting instead of libc printf");
         }
     }
 }

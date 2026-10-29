@@ -691,6 +691,7 @@ csane_identifier(char *name, int32 len) {
 static StrFlex *csane_known_rules[] = {
     SFLIT("API-NEVER"),
     SFLIT("API-CBASE-ONLY"),
+    SFLIT("API-LIBC-PRINTF"),
     SFLIT("PP-DEFINED"),
     SFLIT("PP-SIZEOF"),
     SFLIT("SRC-TABS"),
