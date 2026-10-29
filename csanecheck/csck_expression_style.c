@@ -302,39 +302,15 @@ csane_style_integer_literal(Token *token) {
     return true;
 }
 
-/* A cast is redundant here only when the complete argument is a cast of a
- * single integer literal, possibly signed and/or parenthesized. In
- * particular, leave compound expressions and casts of identifiers alone. */
+/* Return the integer literal when the complete expression consists only
+ * of a possibly signed/parenthesized integer constant. */
 static int32
-csane_style_literal_cast(CsaneTokenView *view, TokenRange range) {
+csane_style_integer_operand(CsaneTokenView *view, TokenRange range) {
     CsaneTokenView local;
     Tokenization *tokens = view->tokens;
-    int32 open;
-    int32 type;
-    int32 close;
     int32 literal;
 
     range = csane_tokens_unwrap(view, range);
-    if (!csane_tokens_subview(&local, view, range)) {
-        return -1;
-    }
-    open = csane_tokens_next(&local, range.first - 1);
-    if (open >= range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
-        return -1;
-    }
-    type = csane_tokens_next(&local, open);
-    if (type >= range.end
-        || (!TOKEN_IS(&tokens->tokens[type], "int32")
-            && !TOKEN_IS(&tokens->tokens[type], "int64"))) {
-        return -1;
-    }
-    close = csane_tokens_next(&local, type);
-    if (close >= range.end || !TOKEN_IS(&tokens->tokens[close], ")")
-        || csane_tokens_match(&local, open) != close) {
-        return -1;
-    }
-    range = csane_tokens_unwrap(&local,
-                                (TokenRange){close + 1, range.end});
     if (!csane_tokens_subview(&local, view, range)) {
         return -1;
     }
@@ -349,7 +325,80 @@ csane_style_literal_cast(CsaneTokenView *view, TokenRange range) {
         || csane_tokens_next(&local, literal) < range.end) {
         return -1;
     }
+    return literal;
+}
+
+/* A cast is redundant for ordinary call arguments only when int32/int64
+ * casts a single integer literal. MAXOF/MINOF reject any integer-literal
+ * cast, including other numeric types and typedefs. */
+static int32
+csane_style_literal_cast(CsaneTokenView *view, TokenRange range,
+                         bool restrict_type) {
+    CsaneTokenView local;
+    Tokenization *tokens = view->tokens;
+    int32 open;
+    int32 type;
+    int32 after_type;
+    int32 close;
+
+    range = csane_tokens_unwrap(view, range);
+    if (!csane_tokens_subview(&local, view, range)) {
+        return -1;
+    }
+    open = csane_tokens_next(&local, range.first - 1);
+    if (open >= range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    type = csane_tokens_next(&local, open);
+    if (type >= range.end || tokens->tokens[type].kind != TOKEN_IDENT) {
+        return -1;
+    }
+    if (restrict_type
+        && !TOKEN_IS(&tokens->tokens[type], "int32")
+        && !TOKEN_IS(&tokens->tokens[type], "int64")) {
+        return -1;
+    }
+    after_type = csane_tokens_next(&local, type);
+    if (!restrict_type) {
+        while (after_type < range.end
+               && tokens->tokens[after_type].kind == TOKEN_IDENT) {
+            after_type = csane_tokens_next(&local, after_type);
+        }
+    }
+    close = after_type;
+    if (close >= range.end || !TOKEN_IS(&tokens->tokens[close], ")")
+        || csane_tokens_match(&local, open) != close) {
+        return -1;
+    }
+    if (csane_style_integer_operand(&local,
+                                    (TokenRange){close + 1, range.end}) < 0) {
+        return -1;
+    }
     return open;
+}
+
+/* Literal arguments defeat the purpose of type-derived limits. A typed
+ * constant already has an explicitly chosen type; use its named bound. */
+static void
+csane_style_minmax_literal(CsaneFile *file, CsaneTokenView *view,
+                           int32 name, int32 open) {
+    TokenRange args[2];
+    int32 count = csane_tokens_arguments(view, open, args, 2);
+    int32 literal;
+
+    if (count != 1) {
+        return;
+    }
+    literal = csane_style_integer_operand(view, args[0]);
+    if (literal < 0) {
+        literal = csane_style_literal_cast(view, args[0], false);
+    }
+    if (literal >= 0) {
+        csane_rule_issue(file, file->tokens->tokens[name].offset,
+                         STRLIT("STYLE-MINMAX-LITERAL"),
+                         "use a named type limit instead of MAXOF/MINOF "
+                         "on an integer literal");
+    }
 }
 
 static void
@@ -361,7 +410,7 @@ csane_style_literal_cast_arguments(CsaneFile *file, CsaneTokenView *view,
         return;
     }
     for (int32 i = 0; i < count; i += 1) {
-        int32 cast = csane_style_literal_cast(view, args[i]);
+        int32 cast = csane_style_literal_cast(view, args[i], true);
         if (cast >= 0) {
             csane_rule_issue(file, file->tokens->tokens[cast].offset,
                              STRLIT("STYLE-LITERAL-INT-CAST"),
@@ -516,7 +565,11 @@ csane_expression_style_check(CsaneFile *file) {
         kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
-            csane_style_literal_cast_arguments(file, &local, next);
+            if (TOKEN_IS(token, "MAXOF") || TOKEN_IS(token, "MINOF")) {
+                csane_style_minmax_literal(file, &local, i, next);
+            } else {
+                csane_style_literal_cast_arguments(file, &local, next);
+            }
             if (previous >= 0
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
