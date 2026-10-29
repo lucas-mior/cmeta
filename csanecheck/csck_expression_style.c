@@ -236,6 +236,151 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     }
 }
 
+/* Accept plain C integer tokens, including octal/hex/binary forms and
+ * the standard U/L/LL suffixes. Decimal and hexadecimal floating-point
+ * literals must not be treated as integer arguments. */
+static bool
+csane_style_integer_literal(Token *token) {
+    int32 radix = 10;
+    int32 i = 0;
+    int32 digits = 0;
+    int32 unsigned_count = 0;
+    int32 long_count = 0;
+    char long_case = 0;
+
+    if (token->kind != TOKEN_LITERAL || token->len == 0
+        || token->text[0] < '0' || token->text[0] > '9') {
+        return false;
+    }
+    if (token->text[0] == '0' && token->len >= 2) {
+        if (token->text[1] == 'x' || token->text[1] == 'X') {
+            radix = 16;
+            i = 2;
+        } else if (token->text[1] == 'b' || token->text[1] == 'B') {
+            radix = 2;
+            i = 2;
+        } else {
+            radix = 8;
+        }
+    }
+    for (; i < token->len; i += 1) {
+        char c = token->text[i];
+        int32 digit = -1;
+        if (c >= '0' && c <= '9') {
+            digit = c - '0';
+        } else if (radix == 16 && c >= 'a' && c <= 'f') {
+            digit = c - 'a' + 10;
+        } else if (radix == 16 && c >= 'A' && c <= 'F') {
+            digit = c - 'A' + 10;
+        }
+        if (digit < 0 || digit >= radix) {
+            break;
+        }
+        digits += 1;
+    }
+    if (digits == 0) {
+        return false;
+    }
+    for (; i < token->len; i += 1) {
+        char c = token->text[i];
+        if (c == 'u' || c == 'U') {
+            unsigned_count += 1;
+            if (unsigned_count > 1) {
+                return false;
+            }
+        } else if (c == 'l' || c == 'L') {
+            long_count += 1;
+            if (long_count > 2
+                || (long_case != 0 && c != long_case)) {
+                return false;
+            }
+            long_case = c;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* A cast is redundant here only when the complete argument is a cast of a
+ * single integer literal, possibly signed and/or parenthesized. In
+ * particular, leave compound expressions and casts of identifiers alone. */
+static int32
+csane_style_literal_cast(CsaneTokenView *view, TokenRange range) {
+    CsaneTokenView local;
+    Tokenization *tokens = view->tokens;
+    int32 open;
+    int32 type;
+    int32 close;
+    int32 literal;
+
+    range = csane_tokens_unwrap(view, range);
+    if (!csane_tokens_subview(&local, view, range)) {
+        return -1;
+    }
+    open = csane_tokens_next(&local, range.first - 1);
+    if (open >= range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    type = csane_tokens_next(&local, open);
+    if (type >= range.end
+        || (!TOKEN_IS(&tokens->tokens[type], "int32")
+            && !TOKEN_IS(&tokens->tokens[type], "int64"))) {
+        return -1;
+    }
+    close = csane_tokens_next(&local, type);
+    if (close >= range.end || !TOKEN_IS(&tokens->tokens[close], ")")
+        || csane_tokens_match(&local, open) != close) {
+        return -1;
+    }
+    range = csane_tokens_unwrap(&local,
+                                (TokenRange){close + 1, range.end});
+    if (!csane_tokens_subview(&local, view, range)) {
+        return -1;
+    }
+    literal = csane_tokens_next(&local, range.first - 1);
+    if (literal < range.end
+        && (TOKEN_IS(&tokens->tokens[literal], "+")
+            || TOKEN_IS(&tokens->tokens[literal], "-"))) {
+        literal = csane_tokens_next(&local, literal);
+    }
+    if (literal >= range.end
+        || !csane_style_integer_literal(&tokens->tokens[literal])
+        || csane_tokens_next(&local, literal) < range.end) {
+        return -1;
+    }
+    return open;
+}
+
+static void
+csane_style_literal_cast_arguments(CsaneFile *file, CsaneTokenView *view,
+                                   int32 open) {
+    TokenRange args[256];
+    int32 count = csane_tokens_arguments(view, open, args, 256);
+    if (count < 0) {
+        return;
+    }
+    for (int32 i = 0; i < count; i += 1) {
+        int32 cast = csane_style_literal_cast(view, args[i]);
+        if (cast >= 0) {
+            csane_rule_issue(file, file->tokens->tokens[cast].offset,
+                             STRLIT("STYLE-LITERAL-INT-CAST"),
+                             "pass integer literals without int32/int64 casts");
+        }
+    }
+}
+
+static bool
+csane_style_call_keyword(Token *token) {
+    return TOKEN_IS(token, "if") || TOKEN_IS(token, "for")
+           || TOKEN_IS(token, "while") || TOKEN_IS(token, "switch")
+           || TOKEN_IS(token, "sizeof") || TOKEN_IS(token, "_Alignof")
+           || TOKEN_IS(token, "_Generic")
+           || TOKEN_IS(token, "_Static_assert")
+           || TOKEN_IS(token, "typeof")
+           || TOKEN_IS(token, "__typeof__");
+}
+
 /* A cast immediately before a rounding call discards the checked
  * conversion provided by the project's int64 rounding wrappers. */
 static void
@@ -294,13 +439,7 @@ csane_expression_style_check(CsaneFile *file) {
         enum CsaneLocalKind kind;
 
         if (token->kind != TOKEN_IDENT
-            || (!TOKEN_IS(token, "ASSERT")
-                && !TOKEN_IS(token, "STRLIT_LEN")
-                && !TOKEN_IS(token, "STREQUAL")
-                && !TOKEN_IS(token, "str_printf")
-                && !TOKEN_IS(token, "floor")
-                && !TOKEN_IS(token, "ceil")
-                && !TOKEN_IS(token, "round"))) {
+            || csane_style_call_keyword(token)) {
             continue;
         }
         next = csane_tokens_next(&view, i);
@@ -310,9 +449,7 @@ csane_expression_style_check(CsaneFile *file) {
         }
         previous = csane_tokens_previous(&view, i);
         if (previous >= 0
-            && (TOKEN_IS(&tokens->tokens[previous], ".")
-                || TOKEN_IS(&tokens->tokens[previous], "->")
-                || csane_type_name(&tokens->tokens[previous]))) {
+            && csane_type_name(&tokens->tokens[previous])) {
             continue;
         }
         if (file->preprocessor->token_roles != NULL
@@ -346,10 +483,18 @@ csane_expression_style_check(CsaneFile *file) {
                     local = candidate;
                 }
             }
-            /* Keep the legacy safeguard for malformed ordinary code.
-             * Inside a conditional alternative, an incomplete surrounding
-             * block does not invalidate an independently matched call. */
-            if (branch < 0) {
+            /* Keep the existing malformed-block safeguard for the older
+             * rules. Do not scan all earlier braces for each new call:
+             * that would make whole-file checking quadratic. Conditional
+             * alternatives still use their independently matched calls. */
+            if (branch < 0
+                && (TOKEN_IS(token, "ASSERT")
+                    || TOKEN_IS(token, "STRLIT_LEN")
+                    || TOKEN_IS(token, "STREQUAL")
+                    || TOKEN_IS(token, "str_printf")
+                    || TOKEN_IS(token, "floor")
+                    || TOKEN_IS(token, "ceil")
+                    || TOKEN_IS(token, "round"))) {
                 bool unclosed = false;
                 for (int32 j = i - 1; j >= local.range.first; j -= 1) {
                     if (TOKEN_IS(&tokens->tokens[j], "{")
@@ -371,10 +516,19 @@ csane_expression_style_check(CsaneFile *file) {
         kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
+            csane_style_literal_cast_arguments(file, &local, next);
+            if (previous >= 0
+                && (TOKEN_IS(&tokens->tokens[previous], ".")
+                    || TOKEN_IS(&tokens->tokens[previous], "->"))) {
+                continue;
+            }
             if (TOKEN_IS(token, "floor") || TOKEN_IS(token, "ceil")
                 || TOKEN_IS(token, "round")) {
                 csane_style_round64(file, &local, i);
-            } else {
+            } else if (TOKEN_IS(token, "ASSERT")
+                       || TOKEN_IS(token, "STRLIT_LEN")
+                       || TOKEN_IS(token, "STREQUAL")
+                       || TOKEN_IS(token, "str_printf")) {
                 csane_style_one(file, i, next, close);
             }
         }
