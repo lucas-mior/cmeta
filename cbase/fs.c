@@ -228,7 +228,7 @@ cbase_getcwd(char *buffer, int64 size) {
     {
         DWORD len;
 
-        if (size > MAXOF((DWORD)0)) {
+        if (size >= INT16_MAX) {
             errno = EINVAL;
             return NULL;
         }
