@@ -1095,7 +1095,7 @@ read_entire_file(char *path, char **file_bytes) {
         XFCLOSE(file, path);
         return -err;
     }
-    if (len > INT32_MAX) {
+    if (len >= INT32_MAX) {
         error("Only files up to 2GB are supported.\n");
         XFCLOSE(file, path);
         return -EFBIG;
