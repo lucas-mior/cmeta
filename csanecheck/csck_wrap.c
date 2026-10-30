@@ -199,8 +199,7 @@ csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a,
         return false;
     }
     position += 1;
-    for (int32 line = a->end_line + 1; line < b->start_line;
-         line += 1) {
+    for (int32 line = a->end_line + 1; line < b->start_line; line += 1) {
         int32 end = position;
         bool found_comment = false;
         int32 first;
