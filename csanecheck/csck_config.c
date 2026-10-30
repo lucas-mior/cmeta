@@ -719,6 +719,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("FMT-LITERAL-ALIGN"),
     SFLIT("FMT-ARG-ALIGN"),
     SFLIT("FMT-FORMAT-LINE"),
+    SFLIT("FMT-FORMAT-ARGS-WRAP"),
     SFLIT("FMT-RELATED-ARGS"),
     SFLIT("FMT-CALL-WRAP"),
     SFLIT("FMT-ASSIGN-WRAP"),
