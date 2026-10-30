@@ -326,11 +326,6 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
         if (!on_line && format + 2 < count) {
             SourceLocation first_location =
                 csane_calls_location(file, args[format + 1].first);
-            int32 start = tokens->tokens[args[format + 1].first].offset;
-            int32 close = view->range.end;
-            int32 end = tokens->tokens[close].offset
-                        + tokens->tokens[close].len;
-            int32 width;
             bool split = false;
             bool safe = true;
 
@@ -342,34 +337,65 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
 
                 if (first_location_i.line != last_location_i.line) {
                     safe = false;
+                    break;
                 }
                 if (first_location_i.line != first_location.line) {
                     split = true;
                 }
             }
-            for (int32 i = args[format + 1].first; i <= close; i += 1) {
-                if (tokens->tokens[i].kind == TOKEN_COMMENT) {
-                    safe = false;
+            if (safe && split) {
+                int32 start =
+                    tokens->tokens[args[format + 1].first].offset;
+                int32 close = view->range.end;
+                int32 close_end = tokens->tokens[close].offset
+                                  + tokens->tokens[close].len;
+                SourceLocation close_location =
+                    csane_calls_location(file, close);
+                int32 end =
+                    tokenization_physical_line_end_offset(tokens,
+                                                          close_location.line);
+                int32 max_width = file->column_limit;
+
+                if (end > close_end && tokens->text[end - 1] == '\n') {
+                    end -= 1;
                 }
-            }
-            while (end < tokens->text_len && tokens->text[end] != '\n') {
-                end += 1;
-            }
-            while (end > start
-                   && (tokens->text[end - 1] == ' '
-                       || tokens->text[end - 1] == '\t'
-                       || tokens->text[end - 1] == '\r')) {
-                end -= 1;
-            }
-            width = csane_wrap_flat_length(tokens->text, start, end);
-            safe = safe && width >= 0;
-            width += first_location.column;
-            if (safe && split
-                && (file->column_limit <= 0
-                    || width <= file->column_limit)) {
-                csane_rule_issue(file, start, STRLIT("FMT-FORMAT-ARGS-WRAP"),
-                                 "format arguments fit on one line but are "
-                                 "split across multiple lines");
+                while (end > close_end
+                       && (tokens->text[end - 1] == ' '
+                           || tokens->text[end - 1] == '\t'
+                           || tokens->text[end - 1] == '\r')) {
+                    end -= 1;
+                }
+                if (max_width > 0) {
+                    max_width -= first_location.column + end - close_end;
+                    safe = max_width > 0;
+                }
+                if (safe) {
+                    int32 width;
+
+                    width = csane_wrap_flat_length(tokens->text, start,
+                                                   close_end, max_width);
+
+                    if (width >= 0
+                        && (max_width <= 0 || width <= max_width)) {
+                        for (int32 i = args[format + 1].first;
+                             i <= close; i += 1) {
+                            if (tokens->tokens[i].kind == TOKEN_COMMENT) {
+                                safe = false;
+                                break;
+                            }
+                        }
+                        if (safe) {
+                            StrFlex *rule =
+                                SFLIT("FMT-FORMAT-ARGS-WRAP");
+                            char *message =
+                                "format arguments fit on one line but "
+                                "are split across multiple lines";
+
+                            csane_rule_issue(file, start, rule->data,
+                                             rule->len, message);
+                        }
+                    }
+                }
             }
         }
     }
