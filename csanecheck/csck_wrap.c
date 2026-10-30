@@ -137,7 +137,7 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
 /* Compute the width of joining the original lines, preserving their actual
  * spelling. A break before a closing delimiter needs no added space.
  */
-static int32
+int32
 csane_wrap_flat_length(char *text, int32 start, int32 end) {
     int32 width = 0;
     for (int32 i = start; i < end;) {

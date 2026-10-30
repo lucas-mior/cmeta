@@ -155,6 +155,43 @@ class CallLayoutTests(unittest.TestCase):
             "} while (0)\n"
         ), {})
 
+    def test_format_arguments_unnecessarily_wrap(self):
+        path = self.root / "src" / "format_args_wrap.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "void f(void) {\n"
+            "            error2(\"missing option '%.*s.%.*s'\\n\",\n"
+            "                   spec->group_len, spec->group,\n"
+            "                   spec->name_len, spec->name);\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        findings = re.findall(
+            r":(\d+):\d+: error\[(FMT-FORMAT-ARGS-WRAP)\]",
+            result.stdout,
+        )
+        self.assertEqual(findings, [("3", "FMT-FORMAT-ARGS-WRAP")],
+                         result.stdout)
+
+    def test_format_arguments_wrap_only_when_they_fit(self):
+        path = self.root / "src" / "format_args_long.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "void f(void) {\n"
+            "    log(\"values: %d %d %d\",\n"
+            "        first_argument_with_a_very_long_descriptive_name,\n"
+            "        second_argument_with_a_very_long_descriptive_name,\n"
+            "        third_argument_with_a_very_long_descriptive_name);\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        self.assertNotIn("FMT-FORMAT-ARGS-WRAP", result.stdout)
+
     def test_related_arguments_must_occupy_single_argument_lines(self):
         self.compare("related.c", (
             "void f(void) {\n"
