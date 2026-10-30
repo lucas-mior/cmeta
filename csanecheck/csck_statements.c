@@ -623,8 +623,7 @@ csane_stmt_branch_needs_context(CsaneRegions *regions, int32 owner) {
 }
 
 static void
-csane_stmt_stream(CsaneStatements *statements, int32 function,
-                  int32 owner) {
+csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
     CsaneTopItem *top = &statements->toplevel->items[function];
     CsaneRegions *regions = statements->toplevel->regions;
     Tokenization *tokens = regions->tokens;
@@ -635,11 +634,9 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
     };
     CsaneTokenPath path;
     CsaneTokenView view;
-    int32 part_first = -1;
-    int32 region;
     int32 i;
+    int32 first_region;
     bool branch_owner;
-    bool selected;
 
     branch_owner = csane_stmt_branch_needs_context(regions, owner);
     if (branch_owner) {
@@ -649,24 +646,44 @@ csane_stmt_stream(CsaneStatements *statements, int32 function,
     if (!csane_token_path_init(&path, tokens, top->body)) {
         return;
     }
-    for (i = top->body.first; i < top->body.end; i += 1) {
-        region = csane_regions_at_token(regions, i);
-        selected = region >= 0
-                        && regions->items[region].kind == CSANE_REGION_CODE
-                        && (branch_owner
-                            ? csane_stmt_region_selected(regions, region, owner)
-                            : csane_stmt_owner(regions, region) == owner);
-        if (selected && part_first < 0) {
-            part_first = i;
-        } else if (!selected && part_first >= 0) {
-            (void)csane_token_path_append(&path,
-                                          (TokenRange){part_first, i});
-            part_first = -1;
-        }
+    /* Code regions are leaves with contiguous token ranges. Start at the
+     * region owning the first body token, not at the start of the file. */
+    first_region = csane_regions_at_token(regions, top->body.first);
+    if (first_region < 0) {
+        first_region = 0;
     }
-    if (part_first >= 0) {
-        (void)csane_token_path_append(&path,
-                                      (TokenRange){part_first, top->body.end});
+    for (int32 r = first_region; r < regions->count; r += 1) {
+        CsaneSourceRegion *region = &regions->items[r];
+        TokenRange part = region->tokens;
+
+        if (part.first >= top->body.end) {
+            break;
+        }
+        if (region->kind != CSANE_REGION_CODE
+            || part.end <= top->body.first
+            || part.first >= top->body.end
+            || !(branch_owner
+                 ? csane_stmt_region_selected(regions, r, owner)
+                 : csane_stmt_owner(regions, r) == owner)) {
+            continue;
+        }
+        /* Region token bounds include tokens overlapping their source
+         * edges. The stream owns tokens by their starting offset. */
+        if (part.first < tokens->token_count
+            && tokens->tokens[part.first].offset < region->source.start) {
+            part.first += 1;
+        }
+        if (part.end < tokens->token_count
+            && tokens->tokens[part.end].offset < region->source.end) {
+            part.end += 1;
+        }
+        if (part.first < top->body.first) {
+            part.first = top->body.first;
+        }
+        if (part.end > top->body.end) {
+            part.end = top->body.end;
+        }
+        (void)csane_token_path_append(&path, part);
     }
     if (csane_tokens_path_view(&view, &path)) {
         i = csane_tokens_next(&view, view.range.first - 1);
