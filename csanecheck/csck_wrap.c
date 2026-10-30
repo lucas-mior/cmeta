@@ -135,10 +135,12 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
 }
 
 /* Compute the width of joining the original lines, preserving their actual
- * spelling. A break before a closing delimiter needs no added space.
+ * spelling. A break before a closing delimiter needs no added space. A
+ * positive maximum permits an early result once the text cannot fit.
  */
 int32
-csane_wrap_flat_length(char *text, int32 start, int32 end) {
+csane_wrap_flat_length(char *text, int32 start, int32 end,
+                       int32 max_width) {
     int32 width = 0;
     for (int32 i = start; i < end;) {
         if (text[i] == '\\') {
@@ -167,11 +169,19 @@ csane_wrap_flat_length(char *text, int32 start, int32 end) {
             }
             width += text[j] == ')' || text[j] == ']' || text[j] == ','
                      || text[j] == ';' ? 0 : 1;
+            if (max_width > 0 && width > max_width) {
+                return width;
+            }
             i = j;
             continue;
         }
         width += 1;
         i += 1;
+        if (max_width > 0 && width > max_width
+            && text[i - 1] != ' ' && text[i - 1] != '\t'
+            && text[i - 1] != '\r') {
+            return width;
+        }
     }
     return width;
 }
@@ -360,7 +370,8 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range,
     span->wrapped = span->end_line > span->start_line;
     span->fits = false;
     if (csane_wrap_safe(file, first, last)) {
-        int32 width = csane_wrap_flat_length(text, span->start, span->end);
+        int32 width = csane_wrap_flat_length(text, span->start, span->end,
+                                             file->column_limit);
         span->fits = width >= 0 && (file->column_limit <= 0
                                     || width <= file->column_limit);
     }
@@ -611,7 +622,8 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         return true;
     }
     if (!braced && !trailing_comment && csane_wrap_safe(file, first, last)) {
-        int32 width = csane_wrap_flat_length(text, start, span->end);
+        int32 width = csane_wrap_flat_length(text, start, span->end,
+                                             file->column_limit);
         span->fits = width >= 0 && (file->column_limit <= 0
                                     || width <= file->column_limit);
     }
