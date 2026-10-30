@@ -209,7 +209,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
                >= args[2].end) {
             csane_rule_issue(file, token->offset,
                              STRLIT("STYLE-ASSERT-CLOSE-ZERO"),
-                             "use ASSERT_EQUAL instead of ASSERT_CLOSE "
+                             "use ASSERT_EQ instead of ASSERT_CLOSE "
                              "with zero tolerance");
         }
     }
