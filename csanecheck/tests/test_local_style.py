@@ -180,7 +180,7 @@ int32 f(int32 x) {
     ASSERT_CLOSE(a, b);
     ASSERT_CLOSE(a, b, 0.01);
     ASSERT_CLOSE(a, b, tolerance);
-    ASSERT_EQUAL(a, b);
+    ASSERT_EQ(a, b);
 }
 """, [])
 
