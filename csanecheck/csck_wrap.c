@@ -203,11 +203,11 @@ csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a,
          line += 1) {
         int32 end = position;
         bool found_comment = false;
+        int32 first;
         while (end < b->start && text[end] != '\n') {
             end += 1;
         }
-        int32 first =
-            tokenization_token_at_or_after_offset(tokens, position);
+        first = tokenization_token_at_or_after_offset(tokens, position);
         for (int32 i = first; i < tokens->token_count; i += 1) {
             Token *token = &tokens->tokens[i];
             if (token->offset >= end) {
