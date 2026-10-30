@@ -201,6 +201,18 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
             }
         }
     }
+    if (TOKEN_IS(token, "ASSERT_CLOSE") && count == 3) {
+        int32 tolerance = csane_style_first(file, args[2]);
+        if (tolerance < args[2].end
+            && TOKEN_IS(&tokens->tokens[tolerance], "0.0")
+            && tokenization_next_significant(tokens, tolerance)
+               >= args[2].end) {
+            csane_rule_issue(file, token->offset,
+                             STRLIT("STYLE-ASSERT-CLOSE-ZERO"),
+                             "use ASSERT_EQUAL instead of ASSERT_CLOSE "
+                             "with zero tolerance");
+        }
+    }
     if (TOKEN_IS(token, "STRLIT_LEN") && count >= 1
         && csane_style_string_start(file, args[0])) {
         csane_rule_issue(file, token->offset, STRLIT("STYLE-STRLIT-LEN"),
@@ -538,6 +550,7 @@ csane_expression_style_check(CsaneFile *file) {
              * alternatives still use their independently matched calls. */
             if (branch < 0
                 && (TOKEN_IS(token, "ASSERT")
+                    || TOKEN_IS(token, "ASSERT_CLOSE")
                     || TOKEN_IS(token, "STRLIT_LEN")
                     || TOKEN_IS(token, "STREQUAL")
                     || TOKEN_IS(token, "str_printf")
@@ -579,6 +592,7 @@ csane_expression_style_check(CsaneFile *file) {
                 || TOKEN_IS(token, "round")) {
                 csane_style_round64(file, &local, i);
             } else if (TOKEN_IS(token, "ASSERT")
+                       || TOKEN_IS(token, "ASSERT_CLOSE")
                        || TOKEN_IS(token, "STRLIT_LEN")
                        || TOKEN_IS(token, "STREQUAL")
                        || TOKEN_IS(token, "str_printf")) {

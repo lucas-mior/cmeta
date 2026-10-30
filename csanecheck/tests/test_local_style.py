@@ -170,6 +170,20 @@ int32 f(int32 x) {
 }
 """, [])
 
+    def test_zero_tolerance_uses_equal_assertion(self):
+        self.check("""void f(double a, double b) {
+    ASSERT_CLOSE(a, b, 0.0);
+    ASSERT_CLOSE(a, b, /* exact */ 0.0);
+}
+""", ["STYLE-ASSERT-CLOSE-ZERO", "STYLE-ASSERT-CLOSE-ZERO"])
+        self.check("""void f(double a, double b, double tolerance) {
+    ASSERT_CLOSE(a, b);
+    ASSERT_CLOSE(a, b, 0.01);
+    ASSERT_CLOSE(a, b, tolerance);
+    ASSERT_EQUAL(a, b);
+}
+""", [])
+
     def test_initializer_trailing_comma_rules(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
 int32 short_array[] = {1, 2, 3};
