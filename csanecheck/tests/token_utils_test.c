@@ -369,9 +369,10 @@ test_path_contains_reference(CsaneTokenView *view, int32 index) {
 
 static void
 test_path_navigation(void) {
-    Tokenization tokens = tokenize_copy(
-        STRLIT("a /* comment */ b + c // ignore\n"
-               "d (e, f) + g /* block */ h + i;"), TOKENIZE_DEFAULT);
+    Tokenization tokens =
+        tokenize_copy(STRLIT("a /* comment */ b + c // ignore\n"
+                             "d (e, f) + g /* block */ h + i;"),
+                      TOKENIZE_DEFAULT);
     for (int32 stride = 0; stride <= 8; stride += 1) {
         CsaneTokenPath path;
         CsaneTokenView view;
