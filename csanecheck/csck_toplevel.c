@@ -898,31 +898,33 @@ csane_top_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
     return true;
 }
 
+/* A code region is a leaf of the source partition. Its token range is
+ * contiguous, so branch selection is needed only once per region. */
 static bool
 csane_top_branch_path(CsaneTopLevels *top, int32 owner, TokenRange bounds,
                       CsaneTokenPath *path) {
     CsaneRegions *regions = top->regions;
-    int32 part_first = -1;
 
     if (!csane_token_path_init(path, regions->tokens, bounds)) {
         return false;
     }
-    for (int32 i = bounds.first; i < bounds.end; i += 1) {
-        int32 region = csane_regions_at_token(regions, i);
-        bool selected = region >= 0
-                        && regions->items[region].kind == CSANE_REGION_CODE
-                        && csane_top_path_selects(regions, region, owner);
-        if (selected && part_first < 0) {
-            part_first = i;
-        } else if (!selected && part_first >= 0) {
-            (void)csane_token_path_append(path,
-                                          (TokenRange){part_first, i});
-            part_first = -1;
+    for (int32 i = 0; i < regions->count; i += 1) {
+        CsaneSourceRegion *region = &regions->items[i];
+        TokenRange part = region->tokens;
+
+        if (region->kind != CSANE_REGION_CODE
+            || (part.end <= bounds.first)
+            || (part.first >= bounds.end)
+            || !csane_top_path_selects(regions, i, owner)) {
+            continue;
         }
-    }
-    if (part_first >= 0) {
-        (void)csane_token_path_append(path,
-                                      (TokenRange){part_first, bounds.end});
+        if (part.first < bounds.first) {
+            part.first = bounds.first;
+        }
+        if (part.end > bounds.end) {
+            part.end = bounds.end;
+        }
+        (void)csane_token_path_append(path, part);
     }
     return true;
 }
