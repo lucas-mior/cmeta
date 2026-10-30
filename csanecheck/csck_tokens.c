@@ -161,7 +161,8 @@ csane_tokens_part(CsaneTokenView *view, int32 part, TokenRange *result) {
 
 static bool
 csane_tokens_contains(CsaneTokenView *view, int32 index) {
-    TokenRange part;
+    int32 first = 0;
+    int32 end;
     if (view == NULL || view->tokens == NULL || index < view->range.first
         || index >= view->range.end) {
         return false;
@@ -169,26 +170,53 @@ csane_tokens_contains(CsaneTokenView *view, int32 index) {
     if (view->path == NULL) {
         return true;
     }
-    for (int32 i = 0; i < view->path->count; i += 1) {
-        if (csane_tokens_part(view, i, &part)
-            && index >= part.first && index < part.end) {
-            return true;
+    if (view->path->count == 1) {
+        return index >= view->path->parts[0].first
+               && index < view->path->parts[0].end;
+    }
+    end = view->path->count;
+    while (first < end) {
+        int32 middle = first + (end - first)/2;
+        if (view->path->parts[middle].end <= index) {
+            first = middle + 1;
+        } else {
+            end = middle;
         }
     }
-    return false;
+    return first < view->path->count && view->path->parts[first].first <= index;
 }
 
 int32
 csane_tokens_next(CsaneTokenView *view, int32 cursor) {
     TokenRange part;
     int32 next;
+    int32 first = 0;
+    int32 end;
     if (view == NULL || view->tokens == NULL) {
         return -1;
     }
     if (view->path == NULL) {
         return token_range_next_significant(view->tokens, view->range, cursor);
     }
-    for (int32 i = 0; i < view->path->count; i += 1) {
+    if (cursor >= view->range.end) {
+        return view->range.end;
+    }
+    if (view->path->count == 2) {
+        if (view->path->parts[0].end <= cursor) {
+            first = 1;
+        }
+    } else if (view->path->count > 2) {
+        end = view->path->count;
+        while (first < end) {
+            int32 middle = first + (end - first)/2;
+            if (view->path->parts[middle].end <= cursor) {
+                first = middle + 1;
+            } else {
+                end = middle;
+            }
+        }
+    }
+    for (int32 i = first; i < view->path->count; i += 1) {
         if (!csane_tokens_part(view, i, &part) || cursor >= part.end) {
             continue;
         }
@@ -204,6 +232,7 @@ int32
 csane_tokens_previous(CsaneTokenView *view, int32 cursor) {
     TokenRange part;
     int32 previous;
+    int32 last;
     if (view == NULL || view->tokens == NULL) {
         return -1;
     }
@@ -211,7 +240,28 @@ csane_tokens_previous(CsaneTokenView *view, int32 cursor) {
         return token_range_previous_significant(view->tokens, view->range,
                                                 cursor);
     }
-    for (int32 i = view->path->count - 1; i >= 0; i -= 1) {
+    if (cursor <= view->range.first) {
+        return view->range.first - 1;
+    }
+    last = view->path->count - 1;
+    if (view->path->count == 2) {
+        if (cursor <= view->path->parts[1].first) {
+            last = 0;
+        }
+    } else if (view->path->count > 2) {
+        int32 first = 0;
+        int32 end = view->path->count;
+        while (first < end) {
+            int32 middle = first + (end - first)/2;
+            if (view->path->parts[middle].first < cursor) {
+                first = middle + 1;
+            } else {
+                end = middle;
+            }
+        }
+        last = first - 1;
+    }
+    for (int32 i = last; i >= 0; i -= 1) {
         if (!csane_tokens_part(view, i, &part) || cursor <= part.first) {
             continue;
         }

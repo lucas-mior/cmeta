@@ -308,6 +308,104 @@ test_bounded_expected_strings(void) {
     return;
 }
 
+/* Reference navigation intentionally scans every segment, including segments
+ * outside the subview. Compare cursors at and beyond all boundaries. */
+static int32
+test_path_next_reference(CsaneTokenView *view, int32 cursor) {
+    for (int32 i = 0; i < view->path->count; i += 1) {
+        TokenRange part = view->path->parts[i];
+        if (part.first < view->range.first) {
+            part.first = view->range.first;
+        }
+        if (part.end > view->range.end) {
+            part.end = view->range.end;
+        }
+        if (part.first >= part.end || cursor >= part.end) {
+            continue;
+        }
+        int32 index = token_range_next_significant(view->tokens, part, cursor);
+        if (index < part.end) {
+            return index;
+        }
+    }
+    return view->range.end;
+}
+
+static int32
+test_path_previous_reference(CsaneTokenView *view, int32 cursor) {
+    for (int32 i = view->path->count - 1; i >= 0; i -= 1) {
+        TokenRange part = view->path->parts[i];
+        if (part.first < view->range.first) {
+            part.first = view->range.first;
+        }
+        if (part.end > view->range.end) {
+            part.end = view->range.end;
+        }
+        if (part.first >= part.end || cursor <= part.first) {
+            continue;
+        }
+        int32 index =
+            token_range_previous_significant(view->tokens, part, cursor);
+        if (index >= part.first) {
+            return index;
+        }
+    }
+    return view->range.first - 1;
+}
+
+static bool
+test_path_contains_reference(CsaneTokenView *view, int32 index) {
+    if (index < view->range.first || index >= view->range.end) {
+        return false;
+    }
+    for (int32 i = 0; i < view->path->count; i += 1) {
+        TokenRange part = view->path->parts[i];
+        if (index >= part.first && index < part.end) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+test_path_navigation(void) {
+    Tokenization tokens = tokenize_copy(
+        STRLIT("a /* comment */ b + c // ignore\n"
+               "d (e, f) + g /* block */ h + i;"), TOKENIZE_DEFAULT);
+    for (int32 stride = 0; stride <= 8; stride += 1) {
+        CsaneTokenPath path;
+        CsaneTokenView view;
+        CHECK(csane_token_path_init(&path, &tokens,
+                                    (TokenRange){0, tokens.token_count}));
+        if (stride > 0) {
+            int32 start = stride > 2 ? stride/2 : 0;
+            for (int32 i = start; i < tokens.token_count; i += stride) {
+                CHECK(csane_token_path_append(&path, (TokenRange){i, i + 1}));
+            }
+        }
+        CHECK(csane_tokens_path_view(&view, &path));
+        for (int32 first = 0; first <= tokens.token_count; first += 1) {
+            for (int32 end = first; end <= tokens.token_count; end += 1) {
+                CsaneTokenView subview;
+                CHECK(csane_tokens_subview(&subview, &view,
+                                           (TokenRange){first, end}));
+                for (int32 cursor = first - 2; cursor <= end + 2;
+                     cursor += 1) {
+                    CHECK(csane_tokens_next(&subview, cursor)
+                          == test_path_next_reference(&subview, cursor));
+                    CHECK(csane_tokens_previous(&subview, cursor)
+                          == test_path_previous_reference(&subview, cursor));
+                    CHECK(csane_tokens_contains(&subview, cursor)
+                          == test_path_contains_reference(&subview, cursor));
+                }
+            }
+        }
+        csane_token_path_free(&path);
+    }
+    free_tokenization(&tokens);
+    return;
+}
+
 int
 main(void) {
     test_bounded_expected_strings();
@@ -317,5 +415,6 @@ main(void) {
     test_assignments();
     test_conditional_path();
     test_nested_conditional_path();
+    test_path_navigation();
     return failures > 0;
 }
