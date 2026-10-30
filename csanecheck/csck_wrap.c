@@ -206,11 +206,12 @@ csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a,
         while (end < b->start && text[end] != '\n') {
             end += 1;
         }
-        for (int32 i = 0; i < tokens->token_count; i += 1) {
+        int32 first =
+            tokenization_token_at_or_after_offset(tokens, position);
+        for (int32 i = first; i < tokens->token_count; i += 1) {
             Token *token = &tokens->tokens[i];
-            if (token->offset >= end
-                || token->offset + token->len <= position) {
-                continue;
+            if (token->offset >= end) {
+                break;
             }
             if (token->kind == TOKEN_COMMENT) {
                 found_comment = true;
