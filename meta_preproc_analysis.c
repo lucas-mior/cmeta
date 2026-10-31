@@ -255,12 +255,11 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
     analysis->tokenization = tokenization;
     count = tokenization->token_count;
     if (count > 0) {
-        analysis->token_roles = malloc2((int64)count
-                                        *SIZEOF(*analysis->token_roles));
+        analysis->token_roles = malloc2(count*SIZEOF(*analysis->token_roles));
         analysis->token_directives =
-            malloc2((int64)count*SIZEOF(*analysis->token_directives));
-        analysis->token_branches = malloc2((int64)count
-                                           *SIZEOF(*analysis->token_branches));
+            malloc2(count*SIZEOF(*analysis->token_directives));
+        analysis->token_branches =
+            malloc2(count*SIZEOF(*analysis->token_branches));
     }
     current_branch = -1;
     current_group = -1;
