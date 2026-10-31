@@ -1260,8 +1260,7 @@ fmt_big_uint_add_one(FormatBigUInt *value) {
     if (carry != 0) {
         int32 status;
 
-        status = fmt_big_uint_ensure_word(value, value->len);
-        if (status < 0) {
+        if ((status = fmt_big_uint_ensure_word(value, value->len)) < 0) {
             return status;
         }
         value->words[value->len - 1] = (uint32)carry;
