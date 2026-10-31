@@ -668,8 +668,7 @@ static StrFlex *csane_call_keywords[] = {
 
 static bool
 csane_call_keyword(Token *token) {
-    int32 count = SIZEOF(csane_call_keywords)
-                  /SIZEOF(csane_call_keywords[0]);
+    int32 count = LENGTH(csane_call_keywords);
     for (int32 i = 0; i < count; i += 1) {
         StrFlex *word = csane_call_keywords[i];
         if (TOKEN_IS(token, word->data, word->len)) {

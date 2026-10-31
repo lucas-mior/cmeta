@@ -86,8 +86,7 @@ static StrFlex *csane_layout_assignments[] = {
 
 static bool
 csane_layout_assignment(Token *op) {
-    int32 count = SIZEOF(csane_layout_assignments)
-                  /SIZEOF(csane_layout_assignments[0]);
+    int32 count = LENGTH(csane_layout_assignments);
     for (int32 i = 0; i < count; i += 1) {
         StrFlex *word = csane_layout_assignments[i];
         if (TOKEN_IS(op, word->data, word->len)) {

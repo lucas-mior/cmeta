@@ -54,8 +54,7 @@ csane_decl_is(CsaneFile *file, int32 i, char *name, int32 name_len) {
 
 static bool
 csane_decl_qualifier(CsaneFile *file, int32 i) {
-    int32 count = SIZEOF(csane_decl_qualifiers)
-                  /SIZEOF(csane_decl_qualifiers[0]);
+    int32 count = LENGTH(csane_decl_qualifiers);
     for (int32 j = 0; j < count; j += 1) {
         StrFlex *word = csane_decl_qualifiers[j];
         if (csane_decl_is(file, i, word->data, word->len)) {
@@ -71,8 +70,7 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
     int32 type;
     int32 second;
     int32 j;
-    int32 count = SIZEOF(csane_decl_statements)
-                  /SIZEOF(csane_decl_statements[0]);
+    int32 count = LENGTH(csane_decl_statements);
 
     first = csane_decl_next(file, range, range.first - 1);
     if (first >= range.end || csane_decl_is(file, first, STRLIT("typedef"))) {
@@ -185,8 +183,7 @@ csane_decl_word(CsaneFile *file, int32 token, char *word, int32 word_len) {
 static bool
 csane_decl_storage(CsaneFile *file, int32 token) {
     int32 i;
-    int32 count = SIZEOF(csane_decl_storage_words)
-                  /SIZEOF(csane_decl_storage_words[0]);
+    int32 count = LENGTH(csane_decl_storage_words);
 
     for (i = 0; i < count; i += 1) {
         StrFlex *word = csane_decl_storage_words[i];
@@ -279,8 +276,7 @@ csane_decl_candidate(CsaneFile *file, TokenRange range) {
 static bool
 csane_decl_stdint_type(CsaneFile *file, int32 token) {
     int32 i;
-    int32 count = SIZEOF(csane_decl_stdint_words)
-                  /SIZEOF(csane_decl_stdint_words[0]);
+    int32 count = LENGTH(csane_decl_stdint_words);
 
     for (i = 0; i < count; i += 1) {
         StrFlex *word = csane_decl_stdint_words[i];

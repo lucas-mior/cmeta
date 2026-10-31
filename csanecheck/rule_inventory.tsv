@@ -69,7 +69,7 @@ CG016	cbase/c-guidelines.md	151	152	Expressions and control flow	End void functi
 CG017	cbase/c-guidelines.md	153	156	Expressions and control flow	Avoid the ternary operator.	manual	-	Preference; intentionally not enforced by csanecheck.
 CG080	cbase/c-guidelines.md	157	158	Expressions and control flow	Allow postfix decrement as a complete while condition and postfix pointer increment when consuming a dereferenced pointer.	implemented	STYLE-INCDEC	-
 CG018	cbase/c-guidelines.md	159	159	Expressions and control flow	Avoid helper functions that exit the program; call fatal at the failure site.	manual	-	-
-CG019	cbase/c-guidelines.md	161	165	sizeof	Never use builtin sizeof; use SIZEOF.	implemented	PP-SIZEOF	-
+CG019	cbase/c-guidelines.md	161	165	sizeof	Use SIZEOF instead of sizeof and LENGTH for fixed-array element counts.	implemented	PP-SIZEOF;STYLE-SIZEOF-LENGTH	-
 CG020	cbase/c-guidelines.md	177	188	Memory allocation	Avoid raw malloc/calloc/realloc/free; use cbase wrappers and do not NULL-guard free2 solely for NULL.	csanecheck_candidate	-	Raw malloc/calloc/realloc/free are not currently in the configured legacy API lists; free2 NULL-guard is also not implemented.
 CG021	cbase/c-guidelines.md	189	208	Memory allocation	Choose arena, heap wrappers, stack, and generic arrays according to lifetime/flexibility needs.	manual	-	-
 CG022	cbase/c-guidelines.md	194	194	Memory allocation	Never use VLAs.	compiler	-	Compiler diagnostics are the preferred enforcement mechanism.

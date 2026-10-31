@@ -33,8 +33,7 @@ csane_class_word(Token *token, char *word, int32 word_len) {
 
 static bool
 csane_primitive(Token *token) {
-    int32 count =
-        SIZEOF(csane_class_primitives)/SIZEOF(csane_class_primitives[0]);
+    int32 count = LENGTH(csane_class_primitives);
     for (int32 i = 0; i < count; i += 1) {
         StrFlex *word = csane_class_primitives[i];
         if (csane_class_word(token, word->data, word->len)) {
@@ -95,8 +94,7 @@ csane_significant(Tokenization *tokens, TokenRange range, int32 from) {
 
 static bool
 csane_qualifier(Token *token) {
-    int32 count =
-        SIZEOF(csane_class_qualifiers)/SIZEOF(csane_class_qualifiers[0]);
+    int32 count = LENGTH(csane_class_qualifiers);
     for (int32 i = 0; i < count; i += 1) {
         StrFlex *word = csane_class_qualifiers[i];
         if (csane_class_word(token, word->data, word->len)) {

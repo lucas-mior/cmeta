@@ -134,15 +134,13 @@ csane_discovery_defaults(CsanePaths *roots, CsanePaths *skip_dirs) {
         SFLIT(".git"), SFLIT("bin"), SFLIT("build"), SFLIT("generated"),
         SFLIT("stc"), SFLIT("third_party"), SFLIT("vendor"),
     };
-    for (int32 i = 0; i < (int32)(SIZEOF(default_roots)
-                                /SIZEOF(default_roots[0])); i += 1) {
+    for (int32 i = 0; i < LENGTH(default_roots); i += 1) {
         if (!csane_paths_add(roots, default_roots[i]->data,
                              default_roots[i]->len)) {
             return false;
         }
     }
-    for (int32 i = 0; i < (int32)(SIZEOF(default_skips)
-                                /SIZEOF(default_skips[0])); i += 1) {
+    for (int32 i = 0; i < LENGTH(default_skips); i += 1) {
         if (!csane_paths_add(skip_dirs, default_skips[i]->data,
                              default_skips[i]->len)) {
             return false;

@@ -610,8 +610,7 @@ csane_policy_init(CsanePolicy *policy) {
             return false;
         }
     }
-    for (int32 i = 0; i < (int32)(SIZEOF(csane_default_cbase)
-                                /SIZEOF(csane_default_cbase[0])); i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_default_cbase); i += 1) {
         if (!csane_paths_add(&policy->cbase_names,
                              csane_default_cbase[i]->data,
                              csane_default_cbase[i]->len)) {
@@ -732,6 +731,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("FMT-CALL-SPACING"),
     SFLIT("FMT-TRAILING-COMMA"),
     SFLIT("STYLE-INCDEC"),
+    SFLIT("STYLE-SIZEOF-LENGTH"),
     SFLIT("TYPE-CONST-SIGNATURE"),
     SFLIT("TYPE-STDINT-T"),
     SFLIT("TYPE-ENUM-TYPEDEF"),
