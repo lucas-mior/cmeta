@@ -797,7 +797,7 @@ static void
 csane_top_owner(CsaneTopLevels *top, int32 owner) {
     CsaneTopStream stream = {
         .top = top,
-        .owner = owner
+        .owner = owner,
     };
     CsaneTopItem *enclosing;
 
