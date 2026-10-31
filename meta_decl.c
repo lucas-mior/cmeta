@@ -889,9 +889,16 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
         || !token_range_is_valid(ast->tokenization, range)) {
         return false;
     }
-    c = (DeclCursor){.ast = ast, .range = range, .pos = range.first,
-                     .issue = -1, .inferred_type = -1,
-                     .status = C_DECL_PARSE_OK};
+
+    c = (DeclCursor){
+        .ast = ast,
+        .range = range,
+        .pos = range.first,
+        .issue = -1,
+        .inferred_type = -1,
+        .status = C_DECL_PARSE_OK
+    };
+
     declaration_count = ast->declaration_count;
     declarator_count = ast->declarator_count;
     record_count = ast->record_count;
