@@ -1284,6 +1284,127 @@ csane_layout_trailing_comma_check(CsaneFile *file, int32 open) {
     }
 }
 
+/* Only direct .field = designators are subject to this rule. A dot
+ * after an array designator, as in [0].field, does not make the outer
+ * array initializer a struct initializer. */
+static bool
+csane_layout_struct_designator(CsaneTokenView *view, int32 open, int32 close) {
+    Tokenization *tokens = view->tokens;
+    for (int32 i = csane_tokens_next(view, open); i < close;
+         i = csane_tokens_next(view, i)) {
+        if (TOKEN_IS(&tokens->tokens[i], ".")) {
+            int32 before = csane_tokens_previous(view, i);
+            int32 field = csane_tokens_next(view, i);
+            int32 equal = csane_tokens_next(view, field);
+            if ((before == open || TOKEN_IS(&tokens->tokens[before], ","))
+                && field < close && equal < close
+                && tokens->tokens[field].kind == TOKEN_IDENT
+                && TOKEN_IS(&tokens->tokens[equal], "=")) {
+                return true;
+            }
+        }
+        if (TOKEN_IS(&tokens->tokens[i], "(")
+            || TOKEN_IS(&tokens->tokens[i], "[")
+            || TOKEN_IS(&tokens->tokens[i], "{")) {
+            int32 match = csane_tokens_match(view, i);
+            if (match < 0 || match >= close) {
+                return false;
+            }
+            i = match;
+        }
+    }
+    return false;
+}
+
+static void
+csane_layout_struct_initializer_check(CsaneFile *file, int32 open) {
+    Tokenization *tokens = file->tokens;
+    int32 region = csane_regions_at_token(file->regions, open);
+    CsaneTokenView view;
+    int32 close;
+
+    if (region < 0 || !csane_layout_code(file, open)
+        || file->regions->items[region].kind != CSANE_REGION_CODE
+        || !csane_tokens_view(&view, tokens,
+                              file->regions->items[region].tokens)) {
+        return;
+    }
+    close = csane_tokens_match(&view, open);
+    if (close < 0
+        || csane_layout_zero_initializer(tokens, &view, open, close)) {
+        return;
+    }
+    if (csane_layout_struct_designator(&view, open, close)) {
+        int32 first = csane_tokens_next(&view, open);
+        int32 last = csane_tokens_previous(&view, close);
+        SourceLocation start = tokenization_token_location(tokens, open);
+        SourceLocation end = tokenization_token_location(tokens, close);
+        SourceLocation member = tokenization_token_location(tokens, first);
+        SourceLocation previous = tokenization_token_location(tokens, last);
+
+        if (start.line == member.line || end.line == previous.line) {
+            csane_rule_issue(file, tokens->tokens[open].offset,
+                             STRLIT("FMT-STRUCT-INITIALIZER"),
+                             "put designated struct initializer members "
+                             "and braces on separate lines");
+        }
+    }
+}
+
+/* Braces separated only by horizontal whitespace or comments still need
+ * distinct lines. Token positions avoid matching braces in literals or
+ * comments, and preprocessor roles keep unrelated directives apart. */
+static void
+csane_layout_nested_braces_check(CsaneFile *file, int32 index) {
+    Tokenization *tokens = file->tokens;
+    Token *first = &tokens->tokens[index];
+    int32 next;
+    enum CPreprocessorTokenRole role = C_PP_TOKEN_CODE;
+    SourceLocation a;
+    SourceLocation b;
+
+    if (!TOKEN_IS(first, "{") && !TOKEN_IS(first, "}")) {
+        return;
+    }
+    if (file->preprocessor->token_roles != NULL) {
+        role = file->preprocessor->token_roles[index];
+        if (role != C_PP_TOKEN_CODE
+            && role != C_PP_TOKEN_MACRO_REPLACEMENT) {
+            return;
+        }
+    }
+    next = tokenization_next_significant(tokens, index);
+    if (next >= tokens->token_count) {
+        return;
+    }
+    if (TOKEN_IS(first, "{")) {
+        if (!TOKEN_IS(&tokens->tokens[next], "{")) {
+            return;
+        }
+    } else if (!TOKEN_IS(&tokens->tokens[next], "}")) {
+        return;
+    }
+    if (file->preprocessor->token_roles != NULL) {
+        if (file->preprocessor->token_roles[next] != role) {
+            return;
+        }
+        if (role == C_PP_TOKEN_MACRO_REPLACEMENT) {
+            if (file->preprocessor->token_directives[index]
+                != file->preprocessor->token_directives[next]) {
+                return;
+            }
+        }
+    }
+    a = tokenization_token_location(tokens, index);
+    b = tokenization_token_location(tokens, next);
+    if (a.line == b.line) {
+        csane_rule_issue(file, tokens->tokens[next].offset,
+                         STRLIT("FMT-NESTED-BRACES"),
+                         "put consecutive braces on separate lines "
+                         "with nesting indentation");
+    }
+}
+
 static void
 csane_layout_local_style_check(CsaneFile *file, int32 index,
                                enum CsaneLayoutOperator kind) {
@@ -1360,6 +1481,7 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
     }
     if (TOKEN_IS(token, "{")) {
         csane_layout_trailing_comma_check(file, index);
+        csane_layout_struct_initializer_check(file, index);
     }
 }
 
@@ -1371,6 +1493,7 @@ csane_layout_check(CsaneFile *file) {
     for (int32 i = 0; i < file->tokens->token_count; i += 1) {
         enum CsaneLayoutOperator kind = csane_layout_classify(file, i);
         Token *op = &file->tokens->tokens[i];
+        csane_layout_nested_braces_check(file, i);
         csane_layout_local_style_check(file, i, kind);
         if (kind == CSANE_LAYOUT_MULTIPLY) {
             if (csane_layout_spacing(file, i, true)) {

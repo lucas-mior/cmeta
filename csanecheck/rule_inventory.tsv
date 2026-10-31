@@ -29,26 +29,27 @@ FMT026	cbase/c-format.md	370	383	Switch formatting	Align case/default labels wit
 FMT027	cbase/c-format.md	385	395	Declaration formatting	Declare at most one variable per line.	implemented	AST-DECL-ONE	-
 FMT028	cbase/c-format.md	396	411	Initialization formatting	Require trailing commas in array initializers with at least four elements and multiline struct initializers, except {0}.	implemented	FMT-TRAILING-COMMA	-
 FMT029	cbase/c-format.md	413	426	Curly braces	Require braces for all control-flow bodies.	implemented	AST-BRACES	-
-FMT030	cbase/c-format.md	427	439	If expressions	Parenthesize binary-expression operands of && and ||.	csanecheck_candidate	-	-
-FMT031	cbase/c-format.md	440	466	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-
-FMT032	cbase/c-format.md	467	479	Confusing precedence	Use parentheses to make mixed &&/|| precedence explicit.	csanecheck_candidate	-	-
-FMT033	cbase/c-format.md	480	493	Confusing precedence	Put chains of three or more &&/|| operators on multiple lines.	csanecheck_candidate	-	-
-FMT034	cbase/c-format.md	505	544	Function declaration and definition	Keep function headers on one line when they fit; otherwise align wrapped parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN;FMT-FUNC-WRAP	Parameter alignment and unnecessary wrapping are implemented.
-FMT035	cbase/c-format.md	546	559	Function declaration and definition	Group related parameters by type/intent when wrapping.	implemented	FMT-RELATED-ARGS	Only recognized related-argument patterns are mechanical.
-FMT036	cbase/c-format.md	561	609	Function declaration and definition	Keep object and corresponding _len arguments together when possible.	implemented	FMT-RELATED-ARGS	-
-FMT037	cbase/c-format.md	611	623	Function declaration and definition	In prototypes, add parameter names only when two or more parameters share that type.	csanecheck_candidate	-	-
-FMT038	cbase/c-format.md	624	641	Function declaration and definition	Prefer breaking calls after an argument before breaking an assignment before =.	implemented	FMT-ASSIGN-EQ;FMT-CALL-WRAP;FMT-ASSIGN-WRAP	-
-FMT039	cbase/c-format.md	643	645	Preprocessor directives	Indent macro continuation lines using 0, 2, or 4 spaces.	csanecheck_candidate	-	-
-FMT040	cbase/c-format.md	646	646	Preprocessor directives	Do not use #ifdef/#ifndef; use #if defined()/!defined().	implemented	PP-DEFINED	-
-FMT041	cbase/c-format.md	655	659	Preprocessor directives	Keep macro definition lines within the configured column limit.	implemented	SRC-COLUMNS	The 80-column limit is implemented.
-FMT042	cbase/c-format.md	661	695	Initialization	Use multiline indentation for nonzero struct initializers; keep {0} compact.	csanecheck_candidate	-	-
-FMT043	cbase/c-format.md	697	714	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
+FMT051	cbase/c-format.md	427	459	Curly braces	Separate consecutive opening or closing braces on the same line with newlines and nesting indentation.	implemented	FMT-NESTED-BRACES	Checks source and macro replacement tokens; ignores strings and comments.
+FMT030	cbase/c-format.md	460	472	If expressions	Parenthesize binary-expression operands of && and ||.	csanecheck_candidate	-	-
+FMT031	cbase/c-format.md	473	499	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-
+FMT032	cbase/c-format.md	500	512	Confusing precedence	Use parentheses to make mixed &&/|| precedence explicit.	csanecheck_candidate	-	-
+FMT033	cbase/c-format.md	513	526	Confusing precedence	Put chains of three or more &&/|| operators on multiple lines.	csanecheck_candidate	-	-
+FMT034	cbase/c-format.md	538	577	Function declaration and definition	Keep function headers on one line when they fit; otherwise align wrapped parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN;FMT-FUNC-WRAP	Parameter alignment and unnecessary wrapping are implemented.
+FMT035	cbase/c-format.md	579	592	Function declaration and definition	Group related parameters by type/intent when wrapping.	implemented	FMT-RELATED-ARGS	Only recognized related-argument patterns are mechanical.
+FMT036	cbase/c-format.md	594	642	Function declaration and definition	Keep object and corresponding _len arguments together when possible.	implemented	FMT-RELATED-ARGS	-
+FMT037	cbase/c-format.md	644	656	Function declaration and definition	In prototypes, add parameter names only when two or more parameters share that type.	csanecheck_candidate	-	-
+FMT038	cbase/c-format.md	657	674	Function declaration and definition	Prefer breaking calls after an argument before breaking an assignment before =.	implemented	FMT-ASSIGN-EQ;FMT-CALL-WRAP;FMT-ASSIGN-WRAP	-
+FMT039	cbase/c-format.md	676	678	Preprocessor directives	Indent macro continuation lines using 0, 2, or 4 spaces.	csanecheck_candidate	-	-
+FMT040	cbase/c-format.md	679	679	Preprocessor directives	Do not use #ifdef/#ifndef; use #if defined()/!defined().	implemented	PP-DEFINED	-
+FMT041	cbase/c-format.md	688	692	Preprocessor directives	Keep macro definition lines within the configured column limit.	implemented	SRC-COLUMNS	The 80-column limit is implemented.
+FMT042	cbase/c-format.md	694	740	Initialization	Use multiline indentation for designated struct initializers, including compound literals; positional initializers are exempt.	implemented	FMT-STRUCT-INITIALIZER	-
+FMT043	cbase/c-format.md	742	759	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
 FMT044	cbase/c-format.md	12	13	Whitespace and indentation	Use four spaces per indentation level; macro continuations may use 0, 2, or 4 spaces.	csanecheck_candidate	-	-
 FMT045	cbase/c-format.md	118	137	Function calls	If wrapping still cannot fit, use aliases, shorter names, or an external-library wrapper in the documented priority order.	manual	-	Requires naming/readability judgment.
 FMT046	cbase/c-format.md	182	191	Function headers	Put qualifiers/return type on one line and the function name/arguments on the next.	csanecheck_candidate	-	-
-FMT047	cbase/c-format.md	494	503	Function declaration and definition	In function definitions, put a newline before the function name and parameters.	csanecheck_candidate	-	-
-FMT048	cbase/c-format.md	647	653	Preprocessor directives	Prefer macros explicitly defined as 0/1 and test their value directly rather than definedness.	manual	-	Preference rather than a strict local anti-pattern.
-FMT049	cbase/c-format.md	655	659	Preprocessor directives	When a macro definition must wrap, use backslash continuation as documented.	csanecheck_candidate	-	-
+FMT047	cbase/c-format.md	527	536	Function declaration and definition	In function definitions, put a newline before the function name and parameters.	csanecheck_candidate	-	-
+FMT048	cbase/c-format.md	680	686	Preprocessor directives	Prefer macros explicitly defined as 0/1 and test their value directly rather than definedness.	manual	-	Preference rather than a strict local anti-pattern.
+FMT049	cbase/c-format.md	688	692	Preprocessor directives	When a macro definition must wrap, use backslash continuation as documented.	csanecheck_candidate	-	-
 CG001	cbase/c-guidelines.md	15	20	Standard	Use ISO C11; compiler extensions only behind portable macros as described; code must compile with tcc.	compiler	-	Compilation/toolchain responsibility.
 CG002	cbase/c-guidelines.md	22	36	Files and organization	Use a common-denominator header and include cbase.h/common.h before other project includes.	csanecheck_candidate	-	-
 CG003	cbase/c-guidelines.md	38	44	APIs and error handling	User-facing APIs validate inputs/errors; internal functions assert programmer-controlled preconditions and handle remaining errors.	manual	-	-

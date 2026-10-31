@@ -49,14 +49,14 @@ int32 f(S *s) {
     S local = { . x = 1 };
     return s -> x + local .x;
 }
-""", ["FMT-MEMBER-SPACING", "FMT-MEMBER-SPACING",
-       "FMT-MEMBER-SPACING"])
+""", ["FMT-STRUCT-INITIALIZER", "FMT-MEMBER-SPACING",
+       "FMT-MEMBER-SPACING", "FMT-MEMBER-SPACING"])
         self.check("""typedef struct S { int32 x; } S;
 int32 f(S *s) {
     S local = { .x = 1 };
     return s->x + local.x;
 }
-""", [])
+""", ["FMT-STRUCT-INITIALIZER"])
 
     def test_unary_and_cast_spacing(self):
         self.check("""int32 f(int32 value) {
@@ -187,7 +187,11 @@ int32 f(int32 x) {
     def test_initializer_trailing_comma_rules(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
 int32 short_array[] = {1, 2, 3};
-int32 nested_short[][2] = {{1, 2}, {3, 4}, {5, 6}};
+int32 nested_short[][2] = {
+    {1, 2},
+    {3, 4},
+    {5, 6},
+};
 int32 multiline_short[] = {
     1,
     2,

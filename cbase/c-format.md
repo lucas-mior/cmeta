@@ -424,6 +424,39 @@ default:
       do_only_one_thing();
   ```
 
+- Never put two consecutive opening braces (`{{` or `{ {`) or two consecutive
+  closing braces (`}}` or `} }`) on the same line. Put nested braces on
+  separate lines and indent each nested level by four spaces; dedent closing
+  braces to match their openings. This applies to blocks, array and struct
+  initializers, and compound literals. Braces in string/character literals
+  and comments do not count.
+  ```c
+  // bad
+  int32 matrix[][2] = {{1, 2}, {3, 4}};
+
+  // good
+  int32 matrix[][2] = {
+      {
+          1, 2,
+      },
+      {
+          3, 4,
+      },
+  };
+
+  // bad
+  if (condition) {{
+      do_something();
+  }}
+
+  // good
+  if (condition) {
+      {
+          do_something();
+      }
+  }
+  ```
+
 ## If expressions
 when an operand of `&&` or `||` is itself a binary expression,
 parenthesize that operand:
@@ -659,8 +692,9 @@ Break lines longer than 80 characters with the backslash. Example:
 ```
 
 ## Initialization
-Use line breaks indentation for struct initialization,
-except when initializing to zero:
+Use line breaks and indentation for designated struct initialization,
+including compound struct literals. Positional struct initialization may remain
+on one line. Zero initialization with `{0}` is also exempt:
 
 ```c
 typedef struct MyStruct {
@@ -692,6 +726,17 @@ MyStruct my_struct = {
 
 // good
 MyStruct my_struct = {0};
+
+// good: positional initialization
+MyStruct my_struct2 = {"string", "other"};
+
+// bad: designated compound literal
+my_struct = (MyStruct){.string = "string"};
+
+// good: designated compound literal
+my_struct = (MyStruct){
+    .string = "string",
+};
 ```
 
 Also indent structs inside structs.

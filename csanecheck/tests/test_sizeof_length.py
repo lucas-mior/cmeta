@@ -43,6 +43,44 @@ class SizeofLengthTests(unittest.TestCase):
 }
 """, [(3, 15), (4, 15), (5, 15), (7, 15)])
 
+    def test_dereferenced_array_pattern(self):
+        self.check("""int32 f(void) {
+    int32 names[] = {1, 2, 3};
+    int32 a = SIZEOF(names)/SIZEOF(*names);
+    int32 b = SIZEOF( names ) / SIZEOF( * names );
+    int32 c = SIZEOF(names)
+              / SIZEOF(
+                    *names);
+    int32 d = SIZEOF(names) /* lhs */ / /* rhs */ SIZEOF(/* gap */*names);
+    return a + b + c + d;
+}
+""", [(3, 15), (4, 15), (5, 15), (8, 15)])
+
+    def test_dereferenced_array_nonmatches(self):
+        self.check("""int32 f(void) {
+    int32 names[] = {1, 2, 3};
+    int32 other[] = {1, 2};
+    int32 a = SIZEOF(names) / SIZEOF(*other);
+    int32 b = SIZEOF(names) / SIZEOF(**names);
+    int32 c = SIZEOF(names) / SIZEOF(*names + 1);
+    int32 d = SIZEOF(*names) / SIZEOF(*names);
+    int32 e = SIZEOF(names) * SIZEOF(*names);
+    // SIZEOF(names) / SIZEOF(*names)
+    char *text = "SIZEOF(names) / SIZEOF(*names)";
+    return a + b + c + d + e;
+}
+""", [])
+
+    def test_dereferenced_array_macro_replacements_and_branches(self):
+        self.check("""#define BAD_COUNT(x) (SIZEOF(x) / SIZEOF(*x))
+#define GOOD_COUNT(x) LENGTH(x)
+#if defined(USE_FIRST)
+int32 a = SIZEOF(first) / SIZEOF(*first);
+#else
+int32 b = SIZEOF(second) / SIZEOF(*second);
+#endif
+""", [(1, 23), (4, 11), (6, 11)])
+
     def test_valid_and_dissimilar_expressions(self):
         self.check("""int32 f(void) {
     int32 methods[] = {1, 2, 3};
