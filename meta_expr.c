@@ -744,8 +744,7 @@ expr_test_calls_and_initializers(void) {
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_initializer(&ast, (TokenRange){0, t.token_count});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
-    ASSERT_EQ(ast.expressions[result.expression].kind,
-              C_EXPR_INITIALIZER_LIST);
+    ASSERT_EQ(ast.expressions[result.expression].kind, C_EXPR_INITIALIZER_LIST);
     ASSERT_EQ(ast.expressions[result.expression].argument_count, 3);
     first = ast.expressions[result.expression].first_argument;
     designator = ast.arguments[first].designator;
