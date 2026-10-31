@@ -15,15 +15,13 @@ typedef struct CsaneTopStream {
     int32 *leaf;
     int32 *matches;
     int32 *stack;
-    int32 count;
-    int32 capacity;
 } CsaneTopStream;
 
 static bool
 csane_top_is(CsaneTopStream *stream, int32 pos, char *name, int32 name_len) {
     Token *token;
 
-    if (pos < 0 || pos >= stream->count) {
+    if (pos < 0 || pos >= ARRAY_LEN(stream->indices)) {
         return false;
     }
     token = &stream->top->regions->tokens->tokens[stream->indices[pos]];
@@ -78,17 +76,12 @@ csane_top_append(CsaneTopStream *stream, enum CsaneTopKind kind,
 
 static void
 csane_top_push(CsaneTopStream *stream, int32 token, int32 leaf) {
-    if (stream->count == stream->capacity) {
-        int32 next = stream->capacity ? stream->capacity*2 : 64;
-        stream->indices = realloc2(stream->indices, stream->capacity,
-                                   next, SIZEOF(*stream->indices));
-        stream->leaf = realloc2(stream->leaf, stream->capacity, next,
-                                SIZEOF(*stream->leaf));
-        stream->capacity = next;
+    if (stream->indices == NULL) {
+        ARRAY_INIT(stream->indices, 64);
+        ARRAY_INIT(stream->leaf, 64);
     }
-    stream->indices[stream->count] = token;
-    stream->leaf[stream->count] = leaf;
-    stream->count += 1;
+    ARRAY_PUSH(stream->indices, token);
+    ARRAY_PUSH(stream->leaf, leaf);
     return;
 }
 
@@ -163,13 +156,13 @@ csane_top_match(CsaneTopStream *stream) {
     int32 size;
     int32 depth = 0;
 
-    if (stream->count == 0) {
+    if (ARRAY_LEN(stream->indices) == 0) {
         return;
     }
-    size = stream->count*SIZEOF(int32);
+    size = ARRAY_LEN(stream->indices)*SIZEOF(int32);
     stream->matches = malloc2(size);
     stream->stack = malloc2(size);
-    for (int32 i = 0; i < stream->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(stream->indices); i += 1) {
         stream->matches[i] = -1;
         if (csane_top_open(stream, i)) {
             stream->stack[depth] = i;
@@ -213,7 +206,7 @@ static bool
 csane_top_attribute(CsaneTopStream *stream, int32 pos) {
     Token *token;
 
-    if (pos < 0 || pos >= stream->count) {
+    if (pos < 0 || pos >= ARRAY_LEN(stream->indices)) {
         return false;
     }
     token = csane_top_token(stream, pos);
@@ -394,7 +387,7 @@ csane_top_macro_boundary(CsaneTopStream *stream, int32 first, int32 close) {
         return false;
     }
     next = close + 1;
-    if (next >= stream->count) {
+    if (next >= ARRAY_LEN(stream->indices)) {
         return true;
     }
     if (csane_top_is(stream, next, STRLIT(";"))
@@ -413,7 +406,7 @@ csane_top_macro_boundary(CsaneTopStream *stream, int32 first, int32 close) {
 static int32
 csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
     int32 leaf_end = broken + 1;
-    while (leaf_end < stream->count
+    while (leaf_end < ARRAY_LEN(stream->indices)
            && stream->leaf[leaf_end] == stream->leaf[broken]) {
         leaf_end += 1;
     }
@@ -427,13 +420,13 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
             }
         }
     }
-    for (int32 i = broken + 1; i < stream->count; i += 1) {
+    for (int32 i = broken + 1; i < ARRAY_LEN(stream->indices); i += 1) {
         int32 offset = csane_top_token(stream, i)->offset;
         Tokenization *tokens = stream->top->regions->tokens;
         if (offset > 0 && tokens->text[offset - 1] != '\n') {
             continue;
         }
-        for (int32 j = i + 1; j < stream->count; j += 1) {
+        for (int32 j = i + 1; j < ARRAY_LEN(stream->indices); j += 1) {
             if (csane_top_is(stream, j, STRLIT(";"))) {
                 break;
             }
@@ -456,10 +449,10 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
 static void
 csane_top_scan(CsaneTopStream *stream) {
     int32 first = 0;
-    while (first < stream->count) {
+    while (first < ARRAY_LEN(stream->indices)) {
         int32 name = -1;
         bool emitted = false;
-        for (int32 i = first; i < stream->count; i += 1) {
+        for (int32 i = first; i < ARRAY_LEN(stream->indices); i += 1) {
             if (i == first + 2 && csane_top_is(stream, first, STRLIT("extern"))
                 && csane_top_is(stream, first + 1, STRLIT("\"C\""))
                 && csane_top_is(stream, i, STRLIT("{"))
@@ -527,7 +520,7 @@ csane_top_scan(CsaneTopStream *stream) {
                 break;
             } else if (i == first
                        && csane_token_macro_name(csane_top_token(stream, i))
-                       && (i + 1 == stream->count
+                       && (i + 1 == ARRAY_LEN(stream->indices)
                            || (csane_top_new_line(stream, i, i + 1)
                                && !csane_top_is(stream, i + 1, STRLIT("("))))) {
                 csane_top_append(stream, CSANE_TOP_MACRO_INVOCATION,
@@ -539,7 +532,7 @@ csane_top_scan(CsaneTopStream *stream) {
         }
         if (!emitted) {
             csane_top_append(stream, CSANE_TOP_OPAQUE, first,
-                             stream->count, -1, -1);
+                             ARRAY_LEN(stream->indices), -1, -1);
             break;
         }
     }
@@ -732,9 +725,9 @@ static void
 csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
     char separator = kind == CSANE_TOP_MEMBER_DECLARATION ? ';' : ',';
     int32 first = 0;
-    while (first < stream->count) {
+    while (first < ARRAY_LEN(stream->indices)) {
         int32 begin = first;
-        int32 end = stream->count;
+        int32 end = ARRAY_LEN(stream->indices);
         bool terminated = false;
         int32 scan = first;
         int32 content_first;
@@ -746,7 +739,7 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
             && csane_top_is(stream, scan, STRLIT(","))) {
             scan += 1;
         }
-        for (int32 i = scan; i < stream->count; i += 1) {
+        for (int32 i = scan; i < ARRAY_LEN(stream->indices); i += 1) {
             if (csane_top_open(stream, i)) {
                 if (stream->matches[i] <= i) {
                     end = i + 1;
@@ -793,9 +786,11 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
         .owner = owner,
     };
     CsaneTopItem *enclosing;
+    int32 count;
 
     csane_top_collect(&stream);
     csane_top_match(&stream);
+    count = ARRAY_LEN(stream.indices);
     enclosing = csane_top_enclosing(&stream);
     if (enclosing == NULL) {
         csane_top_scan(&stream);
@@ -810,33 +805,33 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
                 csane_top_fragments(&stream, CSANE_TOP_PARAMETER_FRAGMENT);
             } else {
                 csane_top_append(&stream, CSANE_TOP_OPAQUE,
-                                 0, stream.count, -1, -1);
+                                 0, count, -1, -1);
             }
         }
         /* Complete body alternatives belong to the statement scanner. */
     } else if (enclosing->kind == CSANE_TOP_TYPE_DECLARATION) {
         enum CsaneTopKind kind = csane_top_aggregate(&stream, enclosing);
         if (kind == CSANE_TOP_OPAQUE) {
-            csane_top_append(&stream, kind, 0, stream.count, -1, -1);
+            csane_top_append(&stream, kind, 0, count, -1, -1);
         } else {
             csane_top_fragments(&stream, kind);
         }
     } else if (enclosing->kind == CSANE_TOP_DECLARATION
                && csane_top_macro_fragment(&stream, 0,
-                                           stream.count
+                                           count
                                            - (csane_top_is(&stream,
-                                                           stream.count - 1,
+                                                           count - 1,
                                                            STRLIT(","))
                                               ? 1 : 0))) {
         csane_top_append(&stream, CSANE_TOP_MACRO_INITIALIZER_FRAGMENT,
-                         0, stream.count, -1, -1);
+                         0, count, -1, -1);
     } else {
-        csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, stream.count, -1, -1);
+        csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, count, -1, -1);
     }
-    free2(stream.stack, stream.count*SIZEOF(*stream.stack));
-    free2(stream.matches, stream.count*SIZEOF(*stream.matches));
-    free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
-    free2(stream.leaf, stream.capacity*SIZEOF(*stream.leaf));
+    free2(stream.stack, count*SIZEOF(*stream.stack));
+    free2(stream.matches, count*SIZEOF(*stream.matches));
+    ARRAY_FREE(stream.indices);
+    ARRAY_FREE(stream.leaf);
     return;
 }
 
@@ -1162,8 +1157,8 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
                                  ? CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT
                                  : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
                                  0, 1, -1, -1);
-                free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
-                free2(stream.leaf, stream.capacity*SIZEOF(*stream.leaf));
+                ARRAY_FREE(stream.indices);
+                ARRAY_FREE(stream.leaf);
             }
         }
     }

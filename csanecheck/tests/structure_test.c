@@ -717,8 +717,47 @@ test_bounded_names_and_fragments(void) {
     return;
 }
 
+/* Both stream types must grow without separate count/capacity fields. */
+static void
+test_stream_arrays(void) {
+    CsaneTopStream top = {0};
+    CsaneStatementStream statements = {0};
+
+    for (int32 i = 0; i < 300; i += 1) {
+        csane_top_push(&top, i, i + 1000);
+        csane_stmt_push(&statements, i*2);
+        if (i == 0) {
+            CHECK(ARRAY_CAPACITY(top.indices) == 64);
+            CHECK(ARRAY_CAPACITY(top.leaf) == 64);
+            CHECK(ARRAY_CAPACITY(statements.indices) == 128);
+        }
+    }
+    CHECK(ARRAY_LEN(top.indices) == 300);
+    CHECK(ARRAY_LEN(top.leaf) == ARRAY_LEN(top.indices));
+    CHECK(ARRAY_LEN(statements.indices) == 300);
+    CHECK(ARRAY_CAPACITY(top.indices) >= ARRAY_LEN(top.indices));
+    CHECK(ARRAY_CAPACITY(statements.indices) >= ARRAY_LEN(statements.indices));
+    for (int32 i = 0; i < 300; i += 1) {
+        CHECK(top.indices[i] == i);
+        CHECK(top.leaf[i] == i + 1000);
+        CHECK(statements.indices[i] == i*2);
+    }
+    ARRAY_SET_COUNT(statements.indices, 100);
+    csane_stmt_push(&statements, 777);
+    CHECK(ARRAY_LEN(statements.indices) == 101);
+    CHECK(statements.indices[100] == 777);
+
+    ARRAY_FREE(statements.indices);
+    ARRAY_FREE(top.indices);
+    ARRAY_FREE(top.leaf);
+    CHECK(statements.indices == NULL);
+    CHECK(top.indices == NULL && top.leaf == NULL);
+    return;
+}
+
 int
 main(void) {
+    test_stream_arrays();
     test_bounded_names_and_fragments();
     test_conditional_call_argument_gap();
     test_conditional_if_header_gap();

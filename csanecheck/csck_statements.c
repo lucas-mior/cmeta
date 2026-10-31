@@ -14,8 +14,6 @@ typedef struct CsaneStatementStream {
     int32 owner;
     int32 *indices;
     int32 *matches;
-    int32 count;
-    int32 capacity;
     bool focus_branch;
     SourceRange focus_source;
 } CsaneStatementStream;
@@ -29,7 +27,7 @@ csane_stmt_token(CsaneStatementStream *stream, int32 position) {
 static bool
 csane_stmt_is(CsaneStatementStream *stream, int32 position,
               char *text, int32 text_len) {
-    return position >= 0 && position < stream->count
+    return position >= 0 && position < ARRAY_LEN(stream->indices)
            && TOKEN_IS(csane_stmt_token(stream, position), text, text_len);
 }
 
@@ -202,13 +200,13 @@ csane_stmt_branch_owns_close(CsaneStatementStream *stream, int32 outer_pos,
 
 static void
 csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
-    int32 allocated = stream->count;
+    int32 allocated = ARRAY_LEN(stream->indices);
     int32 *kept = malloc2(allocated*SIZEOF(*kept));
     int32 *stack = malloc2(allocated*SIZEOF(*stack));
     int32 kept_count = 0;
     int32 depth = 0;
 
-    for (int32 read = 0; read < stream->count; read += 1) {
+    for (int32 read = 0; read < ARRAY_LEN(stream->indices); read += 1) {
         int32 token = stream->indices[read];
         bool drop = false;
         if (csane_stmt_open(stream, read)) {
@@ -241,7 +239,7 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
         }
     }
     memcpy64(stream->indices, kept, kept_count*SIZEOF(*stream->indices));
-    stream->count = kept_count;
+    ARRAY_SET_COUNT(stream->indices, kept_count);
     free2(stack, allocated*SIZEOF(*stack));
     free2(kept, allocated*SIZEOF(*kept));
     return;
@@ -249,11 +247,12 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
 
 static void
 csane_stmt_match(CsaneStatementStream *stream) {
-    int32 *stack = malloc2(stream->count*SIZEOF(*stack));
+    int32 *stack = malloc2(ARRAY_LEN(stream->indices)*SIZEOF(*stack));
     int32 depth = 0;
 
-    stream->matches = malloc2(stream->count*SIZEOF(*stream->matches));
-    for (int32 i = 0; i < stream->count; i += 1) {
+    stream->matches = malloc2(ARRAY_LEN(stream->indices)
+                              *SIZEOF(*stream->matches));
+    for (int32 i = 0; i < ARRAY_LEN(stream->indices); i += 1) {
         stream->matches[i] = -1;
         if (csane_stmt_open(stream, i)) {
             stack[depth] = i;
@@ -275,7 +274,7 @@ csane_stmt_match(CsaneStatementStream *stream) {
             depth = found;
         }
     }
-    free2(stack, stream->count*SIZEOF(*stack));
+    free2(stack, ARRAY_LEN(stream->indices)*SIZEOF(*stack));
     return;
 }
 
@@ -532,14 +531,11 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
 
 static void
 csane_stmt_push(CsaneStatementStream *stream, int32 index) {
-    if (stream->count == stream->capacity) {
-        int32 next = stream->capacity ? stream->capacity*2 : 128;
-        stream->indices = realloc2(stream->indices, stream->capacity,
-                                   next, SIZEOF(*stream->indices));
-        stream->capacity = next;
+    if (stream->indices == NULL) {
+        ARRAY_INIT(stream->indices, 128);
     }
-    stream->indices[stream->count] = index;
-    stream->count += 1;
+    ARRAY_PUSH(stream->indices, index);
+    return;
 }
 
 static int32
@@ -685,13 +681,13 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         }
     }
     csane_token_path_free(&path);
-    if (stream.count > 0) {
+    if (ARRAY_LEN(stream.indices) > 0) {
         int32 first = 0;
         int32 end;
         if (owner == top->owner_region) {
             csane_stmt_drop_branch_closers(&stream);
         }
-        end = stream.count;
+        end = ARRAY_LEN(stream.indices);
         csane_stmt_match(&stream);
         /* A function's outermost braces belong to the base stream. Branch
          * streams may contain only fragments of the function body. */
@@ -703,8 +699,9 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         }
         csane_stmt_children(&stream, first, end, -1, 0);
     }
-    free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
-    free2(stream.matches, stream.count*SIZEOF(*stream.matches));
+    free2(stream.matches, ARRAY_LEN(stream.indices)*SIZEOF(*stream.matches));
+    ARRAY_FREE(stream.indices);
+    return;
 }
 
 bool
