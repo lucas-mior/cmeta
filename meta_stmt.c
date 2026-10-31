@@ -472,8 +472,7 @@ stmt_parse_compound(StmtCursor *c, int32 first) {
 }
 
 static int32
-stmt_parse_control(StmtCursor *c, int32 first,
-                   enum CStatementKind kind) {
+stmt_parse_control(StmtCursor *c, int32 first, enum CStatementKind kind) {
     int32 open = stmt_sig(c, first + 1);
     int32 close;
     int32 node;
@@ -859,8 +858,7 @@ stmt_parse_one(StmtCursor *c) {
 }
 
 CStmtParseResult
-c_ast_parse_statement(CAst *ast, TokenRange range,
-                      CPreprocessorAnalysis *pp) {
+c_ast_parse_statement(CAst *ast, TokenRange range, CPreprocessorAnalysis *pp) {
     CStmtParseResult result = {-1, -1, -1, 0};
     CPreprocessorAnalysis local;
     StmtCursor c;

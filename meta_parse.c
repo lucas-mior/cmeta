@@ -61,8 +61,7 @@ unit_boundary(UnitCursor *c, int32 first) {
 }
 
 static void
-unit_append(UnitCursor *c, int32 parent, int32 *head,
-            int32 *tail, int32 node) {
+unit_append(UnitCursor *c, int32 parent, int32 *head, int32 *tail, int32 node) {
     if (*tail >= 0) {
         c->ast->externals[*tail].next = node;
     } else if (parent >= 0) {
@@ -564,8 +563,7 @@ unit_parse_one(UnitCursor *c) {
 }
 
 static void
-unit_parse_region(UnitCursor *c, int32 parent,
-                  int32 *head, int32 *tail) {
+unit_parse_region(UnitCursor *c, int32 parent, int32 *head, int32 *tail) {
     int32 local_head = -1;
     int32 local_tail = -1;
     while (unit_sig(c, c->pos) < c->range.end) {
