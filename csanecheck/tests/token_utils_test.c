@@ -250,7 +250,7 @@ test_assignments(void) {
                         SFLIT("x <<= y + 1"), SFLIT("answer += (p = 2)")};
     StrFlex *operators[] = {SFLIT("="), SFLIT("<<="), SFLIT("+=")};
     StrFlex *left[] = {SFLIT("x"), SFLIT("x"), SFLIT("answer")};
-    for (int32 i = 0; i < SIZEOF(valid)/SIZEOF(valid[0]); i += 1) {
+    for (int32 i = 0; i < LENGTH(valid); i += 1) {
         Tokenization tokens = tokenize_copy(valid[i]->data, valid[i]->len,
                                             TOKENIZE_DEFAULT);
         CsaneTokenView view = csane_tokens_full(&tokens);
