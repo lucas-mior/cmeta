@@ -50,9 +50,9 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
     int result;
 #endif
 
-    if (patterns->count == INT32_MAX
-        || (patterns->count == patterns->capacity
-            && patterns->capacity > INT32_MAX/2)) {
+    if (ARRAY_LEN(patterns->items) == INT32_MAX
+        || (ARRAY_LEN(patterns->items) == ARRAY_CAPACITY(patterns->items)
+            && ARRAY_CAPACITY(patterns->items) > INT32_MAX/2)) {
         return false;
     }
 #if OS_UNIX
@@ -88,28 +88,13 @@ csane_policy_add_regex(CsanePatterns *patterns, char *text, int32 text_len,
         pattern.rule_id_len = id_len;
     }
     pattern.columns = columns;
-    if (patterns->count == patterns->capacity) {
-        int32 previous = patterns->capacity;
-        int32 next = previous ? previous*2 : 8;
-        if (previous > INT32_MAX/2) {
-            return false;
-        }
-        if (previous == 0) {
-            patterns->items = malloc2(next*SIZEOF(pattern));
-        } else {
-            patterns->items = realloc2(patterns->items, previous, next,
-                                       SIZEOF(pattern));
-        }
-        patterns->capacity = next;
-    }
-    patterns->items[patterns->count] = pattern;
-    patterns->count += 1;
+    ARRAY_PUSH(patterns->items, pattern);
     return true;
 }
 
 static void
 csane_patterns_free(CsanePatterns *patterns) {
-    for (int32 i = 0; i < patterns->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(patterns->items); i += 1) {
         CsanePattern *item = &patterns->items[i];
 #if OS_UNIX
         regfree(&item->compiled);
@@ -121,9 +106,7 @@ csane_patterns_free(CsanePatterns *patterns) {
             free2(item->rule_id, item->rule_id_len + 1);
         }
     }
-    if (patterns->items != NULL) {
-        free2(patterns->items, patterns->capacity*SIZEOF(CsanePattern));
-    }
+    ARRAY_FREE(patterns->items);
     *patterns = (CsanePatterns){0};
     return;
 }
@@ -145,7 +128,7 @@ csane_match(CsanePattern *pattern, char *path, int32 path_len) {
 
 bool
 csane_policy_match(CsanePatterns *patterns, char *path, int32 path_len) {
-    for (int32 i = 0; i < patterns->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(patterns->items); i += 1) {
         if (csane_match(&patterns->items[i], path, path_len)) {
             return true;
         }
@@ -171,7 +154,7 @@ csane_pattern_name_matches(CsanePattern *pattern, Token *name) {
 bool
 csane_policy_rule_allowed(CsanePolicy *policy, char *path, int32 path_len,
                           char *rule_id, int32 rule_id_len, Token *function) {
-    for (int32 i = 0; i < policy->rule_exemptions.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(policy->rule_exemptions.items); i += 1) {
         CsanePattern *pattern = &policy->rule_exemptions.items[i];
         if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
                      rule_id, rule_id_len)
@@ -193,7 +176,7 @@ csane_policy_rule_allowed(CsanePolicy *policy, char *path, int32 path_len,
 bool
 csane_policy_macro_allowed(CsanePolicy *policy, char *path, int32 path_len,
                            char *rule_id, int32 rule_len, Token *macro) {
-    for (int32 i = 0; i < policy->macro_exemptions.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(policy->macro_exemptions.items); i += 1) {
         CsanePattern *pattern = &policy->macro_exemptions.items[i];
         if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
                      rule_id, rule_len)
@@ -211,7 +194,7 @@ bool
 csane_policy_typedef_allowed(CsanePolicy *policy, char *path,
                              int32 path_len, char *rule_id, int32 rule_id_len,
                              Token *alias) {
-    for (int32 i = 0; i < policy->typedef_exemptions.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(policy->typedef_exemptions.items); i += 1) {
         CsanePattern *pattern = &policy->typedef_exemptions.items[i];
         if (STREQUAL(pattern->rule_id, pattern->rule_id_len,
                      rule_id, rule_id_len)
@@ -239,7 +222,7 @@ csane_policy_columns(CsanePolicy *policy, char *path, int32 path_len) {
                     STRLIT("/cecup/src/")) != NULL) {
         columns = 100;
     }
-    for (int32 i = 0; i < policy->column_overrides.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(policy->column_overrides.items); i += 1) {
         CsanePattern *item = &policy->column_overrides.items[i];
         if (csane_match(item, path, path_len)) {
             columns = item->columns;

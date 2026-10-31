@@ -53,16 +53,9 @@ csane_top_append(CsaneTopStream *stream, enum CsaneTopKind kind,
         return;
     }
     top = stream->top;
-    if (top->count == top->capacity) {
-        int32 next = top->capacity ? top->capacity*2 : 64;
-        top->items = realloc2(top->items, top->capacity, next,
-                              SIZEOF(*top->items));
-        top->capacity = next;
-    }
     start = csane_top_token(stream, first);
     last = csane_top_token(stream, end - 1);
-    item = &top->items[top->count];
-    *item = (CsaneTopItem){
+    ARRAY_PUSH(top->items, (CsaneTopItem){
         .kind = kind,
         .source = {start->offset, last->offset + last->len},
         .tokens = {stream->indices[first], stream->indices[end - 1] + 1},
@@ -70,7 +63,8 @@ csane_top_append(CsaneTopStream *stream, enum CsaneTopKind kind,
         .body = {0},
         .owner_region = stream->owner,
         .name_token = name >= 0 ? stream->indices[name] : -1,
-    };
+    });
+    item = &top->items[ARRAY_LEN(top->items) - 1];
     if (kind == CSANE_TOP_FUNCTION_DEFINITION) {
         item->header.end = stream->indices[brace];
         item->body = (TokenRange){stream->indices[brace],
@@ -79,7 +73,6 @@ csane_top_append(CsaneTopStream *stream, enum CsaneTopKind kind,
     if (kind == CSANE_TOP_OPAQUE) {
         top->opaque_count += 1;
     }
-    top->count += 1;
     return;
 }
 
@@ -561,7 +554,7 @@ csane_top_enclosing(CsaneTopStream *stream) {
     CsaneRegions *regions = stream->top->regions;
     SourceRange source = regions->items[stream->owner].source;
     CsaneTopItem *best = NULL;
-    for (int32 i = 0; i < stream->top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(stream->top->items); i += 1) {
         CsaneTopItem *item = &stream->top->items[i];
         if (item->kind == CSANE_TOP_OPAQUE
             || item->kind == CSANE_TOP_MACRO_INVOCATION
@@ -907,7 +900,7 @@ csane_top_branch_path(CsaneTopLevels *top, int32 owner, TokenRange bounds,
     if (!csane_token_path_init(path, regions->tokens, bounds)) {
         return false;
     }
-    for (int32 i = 0; i < regions->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(regions->items); i += 1) {
         CsaneSourceRegion *region = &regions->items[i];
         TokenRange part = region->tokens;
 
@@ -939,7 +932,7 @@ csane_top_branch_owning_close(CsaneTopLevels *top, CsaneTopItem *item) {
         || !TOKEN_IS(&tokens->tokens[close], "}")) {
         return -1;
     }
-    for (int32 owner = 0; owner < regions->count; owner += 1) {
+    for (int32 owner = 0; owner < ARRAY_LEN(regions->items); owner += 1) {
         CsaneSourceRegion *branch = &regions->items[owner];
         CsaneTokenPath path;
         CsaneTokenView view;
@@ -996,7 +989,7 @@ csane_top_recovered_function_end(CsaneTopLevels *top, CsaneTopItem *item,
 static void
 csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
     Tokenization *tokens = top->regions->tokens;
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         CsaneTopItem *item = &top->items[i];
         int32 branch;
         int32 close;
@@ -1021,7 +1014,7 @@ csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
         item->source.end = tokens->tokens[close].offset
                            + tokens->tokens[close].len;
         write = 0;
-        for (int32 read = 0; read < top->count; read += 1) {
+        for (int32 read = 0; read < ARRAY_LEN(top->items); read += 1) {
             CsaneTopItem *candidate = &top->items[read];
             bool swallowed = read != i
                              && candidate->owner_region == item->owner_region
@@ -1036,7 +1029,7 @@ csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
             }
             write += 1;
         }
-        top->count = write;
+        ARRAY_SET_COUNT(top->items, write);
         /* The compaction can move the function earlier in the array. */
         i = -1;
     }
@@ -1050,7 +1043,7 @@ csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
 static void
 csane_top_linkage_pairs(CsaneTopLevels *top) {
     int32 pending = -1;
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         CsaneTopItem *item = &top->items[i];
         Token *token;
         bool guarded;
@@ -1113,7 +1106,7 @@ csane_top_token_alone_on_line(Tokenization *tokens, int32 index) {
 static void
 csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
     Tokenization *tokens = top->regions->tokens;
-    int32 original_count = top->count;
+    int32 original_count = ARRAY_LEN(top->items);
     for (int32 item_index = 0; item_index < original_count; item_index += 1) {
         CsaneTopItem *item = &top->items[item_index];
         bool is_enum = false;
@@ -1141,6 +1134,8 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
         if (open < 0 || close <= open || close >= item->tokens.end) {
             continue;
         }
+        /* Appending fragments can relocate top->items. */
+        int32 owner = item->owner_region;
         for (int32 i = open + 1; i < close; i += 1) {
             bool already = false;
             if (!csane_token_macro_name(&tokens->tokens[i])
@@ -1158,7 +1153,7 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
             if (!already) {
                 CsaneTopStream stream = {
                     .top = top,
-                    .owner = item->owner_region,
+                    .owner = owner,
                 };
                 csane_top_push(&stream, i, csane_regions_at_token(top->regions,
                                                                   i));
@@ -1181,13 +1176,14 @@ csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
         return false;
     }
     *top = (CsaneTopLevels){0};
-    if (regions == NULL || regions->tokens == NULL || regions->count <= 0) {
+    if (regions == NULL || regions->tokens == NULL
+        || ARRAY_LEN(regions->items) <= 0) {
         return false;
     }
     top->regions = regions;
     /* Iteration is parent-first because Step 3 appends regions in that order.
      * All conditional alternatives are scanned, never selected. */
-    for (int32 i = 0; i < regions->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(regions->items); i += 1) {
         enum CsaneRegionKind kind = regions->items[i].kind;
         if (kind == CSANE_REGION_FILE
             || kind == CSANE_REGION_CONDITIONAL_BRANCH) {
@@ -1205,7 +1201,7 @@ csane_toplevel_free(CsaneTopLevels *top) {
     if (top == NULL) {
         return;
     }
-    free2(top->items, top->capacity*SIZEOF(*top->items));
+    ARRAY_FREE(top->items);
     *top = (CsaneTopLevels){0};
     return;
 }
@@ -1214,10 +1210,10 @@ int32
 csane_toplevel_at_token(CsaneTopLevels *top, int32 owner, int32 token) {
     if (top == NULL || top->regions == NULL || token < 0
         || token >= top->regions->tokens->token_count || owner < 0
-        || owner >= top->regions->count) {
+        || owner >= ARRAY_LEN(top->regions->items)) {
         return -1;
     }
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         CsaneTopItem *item = &top->items[i];
         if (item->owner_region == owner && token >= item->tokens.first
             && token < item->tokens.end) {

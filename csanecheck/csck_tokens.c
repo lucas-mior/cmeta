@@ -51,8 +51,8 @@ csane_token_path_append(CsaneTokenPath *path, TokenRange range) {
     if (range.first == range.end) {
         return true;
     }
-    if (path->count > 0) {
-        last = &path->parts[path->count - 1];
+    if (ARRAY_LEN(path->parts) > 0) {
+        last = &path->parts[ARRAY_LEN(path->parts) - 1];
         if (range.first < last->end) {
             return false;
         }
@@ -61,14 +61,7 @@ csane_token_path_append(CsaneTokenPath *path, TokenRange range) {
             return true;
         }
     }
-    if (path->count == path->capacity) {
-        int32 next = path->capacity ? path->capacity*2 : 8;
-        path->parts = realloc2(path->parts, path->capacity, next,
-                               SIZEOF(*path->parts));
-        path->capacity = next;
-    }
-    path->parts[path->count] = range;
-    path->count += 1;
+    ARRAY_PUSH(path->parts, range);
     return true;
 }
 
@@ -77,7 +70,7 @@ csane_token_path_free(CsaneTokenPath *path) {
     if (path == NULL) {
         return;
     }
-    free2(path->parts, path->capacity*SIZEOF(*path->parts));
+    ARRAY_FREE(path->parts);
     *path = (CsaneTokenPath){0};
     return;
 }
@@ -142,7 +135,7 @@ static bool
 csane_tokens_part(CsaneTokenView *view, int32 part, TokenRange *result) {
     TokenRange range;
     if (view == NULL || view->path == NULL || result == NULL
-        || part < 0 || part >= view->path->count) {
+        || part < 0 || part >= ARRAY_LEN(view->path->parts)) {
         return false;
     }
     range = view->path->parts[part];
@@ -170,11 +163,11 @@ csane_tokens_contains(CsaneTokenView *view, int32 index) {
     if (view->path == NULL) {
         return true;
     }
-    if (view->path->count == 1) {
+    if (ARRAY_LEN(view->path->parts) == 1) {
         return index >= view->path->parts[0].first
                && index < view->path->parts[0].end;
     }
-    end = view->path->count;
+    end = ARRAY_LEN(view->path->parts);
     while (first < end) {
         int32 middle = first + (end - first)/2;
         if (view->path->parts[middle].end <= index) {
@@ -183,7 +176,8 @@ csane_tokens_contains(CsaneTokenView *view, int32 index) {
             end = middle;
         }
     }
-    return first < view->path->count && view->path->parts[first].first <= index;
+    return first < ARRAY_LEN(view->path->parts)
+           && view->path->parts[first].first <= index;
 }
 
 int32
@@ -201,12 +195,12 @@ csane_tokens_next(CsaneTokenView *view, int32 cursor) {
     if (cursor >= view->range.end) {
         return view->range.end;
     }
-    if (view->path->count == 2) {
+    if (ARRAY_LEN(view->path->parts) == 2) {
         if (view->path->parts[0].end <= cursor) {
             first = 1;
         }
-    } else if (view->path->count > 2) {
-        end = view->path->count;
+    } else if (ARRAY_LEN(view->path->parts) > 2) {
+        end = ARRAY_LEN(view->path->parts);
         while (first < end) {
             int32 middle = first + (end - first)/2;
             if (view->path->parts[middle].end <= cursor) {
@@ -216,7 +210,7 @@ csane_tokens_next(CsaneTokenView *view, int32 cursor) {
             }
         }
     }
-    for (int32 i = first; i < view->path->count; i += 1) {
+    for (int32 i = first; i < ARRAY_LEN(view->path->parts); i += 1) {
         if (!csane_tokens_part(view, i, &part) || cursor >= part.end) {
             continue;
         }
@@ -243,14 +237,14 @@ csane_tokens_previous(CsaneTokenView *view, int32 cursor) {
     if (cursor <= view->range.first) {
         return view->range.first - 1;
     }
-    last = view->path->count - 1;
-    if (view->path->count == 2) {
+    last = ARRAY_LEN(view->path->parts) - 1;
+    if (ARRAY_LEN(view->path->parts) == 2) {
         if (cursor <= view->path->parts[1].first) {
             last = 0;
         }
-    } else if (view->path->count > 2) {
+    } else if (ARRAY_LEN(view->path->parts) > 2) {
         int32 first = 0;
-        int32 end = view->path->count;
+        int32 end = ARRAY_LEN(view->path->parts);
         while (first < end) {
             int32 middle = first + (end - first)/2;
             if (view->path->parts[middle].first < cursor) {

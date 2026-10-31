@@ -33,7 +33,7 @@ csane_control_block(CsaneFile *file, int32 index) {
     CsaneStatement *stmt;
     int32 first;
 
-    if (index < 0 || index >= file->statements->count) {
+    if (index < 0 || index >= ARRAY_LEN(file->statements->items)) {
         return false;
     }
     stmt = &file->statements->items[index];
@@ -52,7 +52,7 @@ csane_control_for_empty(CsaneFile *file, int32 index) {
     CsaneStatement *body;
     int32 first;
 
-    if (index < 0 || index >= file->statements->count) {
+    if (index < 0 || index >= ARRAY_LEN(file->statements->items)) {
         return false;
     }
     body = &file->statements->items[index];
@@ -102,7 +102,7 @@ csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
 static int32
 csane_control_enclosing_switch(CsaneFile *file, CsaneStatement *label) {
     int32 closest = -1;
-    for (int32 i = 0; i < file->statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *candidate = &file->statements->items[i];
         if (candidate->kind != CSANE_STMT_SWITCH
             || candidate->function != label->function
@@ -360,7 +360,7 @@ csane_control_check(CsaneFile *file) {
         || csane_control_generated(file->path, file->path_len)) {
         return;
     }
-    for (int32 i = 0; i < file->statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *stmt = &file->statements->items[i];
         csane_control_braces(file, stmt);
         csane_control_switch(file, stmt);

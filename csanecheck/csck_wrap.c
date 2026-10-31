@@ -453,7 +453,7 @@ csane_wrap_collect_calls(CsaneFile *file, CsaneWrapSpan *items) {
     int32 used = 0;
     if (file->statements != NULL) {
         CsaneStatements *tree = file->statements;
-        for (int32 i = 0; i < tree->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(tree->items); i += 1) {
             CsaneStatement *item = &tree->items[i];
             CsaneWrapSpan span;
             if (item->kind == CSANE_STMT_SIMPLE
@@ -465,7 +465,7 @@ csane_wrap_collect_calls(CsaneFile *file, CsaneWrapSpan *items) {
     }
     if (file->toplevel != NULL) {
         CsaneTopLevels *top = file->toplevel;
-        for (int32 i = 0; i < top->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
             CsaneTopItem *item = &top->items[i];
             CsaneWrapSpan span;
             if ((item->kind == CSANE_TOP_DECLARATION
@@ -556,10 +556,10 @@ csane_wrap_call_check(CsaneFile *file) {
         return;
     }
     if (file->statements != NULL) {
-        capacity += file->statements->count;
+        capacity += ARRAY_LEN(file->statements->items);
     }
     if (file->toplevel != NULL) {
-        capacity += file->toplevel->count;
+        capacity += ARRAY_LEN(file->toplevel->items);
     }
     if (capacity == 0) {
         return;
@@ -590,7 +590,7 @@ csane_wrap_call_check(CsaneFile *file) {
         Tokenization *tokens = file->tokens;
         CsaneTokenView view = csane_tokens_full(tokens);
 
-        for (int32 i = 0; i < file->statements->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
             CsaneStatement *stmt = &file->statements->items[i];
             int32 first;
             int32 last;
@@ -880,7 +880,7 @@ csane_wrap_collect_assignments(CsaneFile *file, CsaneWrapSpan *items) {
     int32 used = 0;
     if (file->toplevel != NULL) {
         CsaneTopLevels *top = file->toplevel;
-        for (int32 i = 0; i < top->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
             CsaneTopItem *item = &top->items[i];
             CsaneWrapSpan span;
             if ((item->kind == CSANE_TOP_DECLARATION
@@ -894,7 +894,7 @@ csane_wrap_collect_assignments(CsaneFile *file, CsaneWrapSpan *items) {
     }
     if (file->statements != NULL) {
         CsaneStatements *tree = file->statements;
-        for (int32 i = 0; i < tree->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(tree->items); i += 1) {
             CsaneStatement *stmt = &tree->items[i];
             CsaneWrapSpan span;
             if (stmt->kind == CSANE_STMT_SIMPLE
@@ -972,10 +972,10 @@ csane_wrap_check(CsaneFile *file) {
     }
     capacity = file->tokens->token_count;
     if (file->statements != NULL) {
-        capacity += file->statements->count;
+        capacity += ARRAY_LEN(file->statements->items);
     }
     if (file->toplevel != NULL) {
-        capacity += file->toplevel->count;
+        capacity += ARRAY_LEN(file->toplevel->items);
     }
     if (capacity == 0) {
         return;

@@ -492,7 +492,7 @@ csane_call_top_macro(CsaneFile *file, int32 name) {
     if (top == NULL) {
         return false;
     }
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         CsaneTopItem *item = &top->items[i];
         if (item->kind == CSANE_TOP_MACRO_INVOCATION
             && item->name_token == name) {
@@ -684,7 +684,7 @@ csane_call_prototype(CsaneFile *file, int32 name) {
     if (top == NULL) {
         return false;
     }
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         CsaneTopItem *item = &top->items[i];
         if (item->name_token == name
             && (item->kind == CSANE_TOP_FUNCTION_DECLARATION

@@ -21,8 +21,6 @@ typedef struct CsaneTypeHint {
 typedef struct CsaneTypeHints {
     Tokenization *tokens;
     CsaneTypeHint *items;
-    int32 count;
-    int32 capacity;
 } CsaneTypeHints;
 
 void csane_type_hints_init(CsaneTypeHints *, CsaneRegions *);

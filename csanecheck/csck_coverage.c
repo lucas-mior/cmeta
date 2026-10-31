@@ -76,7 +76,7 @@ csane_coverage_opaque(CsaneFile *file, TokenRange range) {
     }
     /* An incomplete directive does not poison a disjoint code region.
      * Descendant regions carry their own independent completeness flags. */
-    for (int32 i = 0; i < regions->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(regions->items); i += 1) {
         CsaneSourceRegion *region = &regions->items[i];
         if (region->complete || region->tokens.end <= range.first
             || region->tokens.first >= range.end) {
@@ -93,7 +93,7 @@ csane_coverage_opaque(CsaneFile *file, TokenRange range) {
 static void
 csane_coverage_top(CsaneFile *file, CsaneRuleCounts *counts,
                    enum CsaneTargetKind kind) {
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         bool selected = false;
         if (kind == CSANE_TARGET_DECLARATIONS) {
@@ -121,7 +121,7 @@ csane_coverage_top(CsaneFile *file, CsaneRuleCounts *counts,
 static void
 csane_coverage_statements(CsaneFile *file, CsaneRuleCounts *counts,
                           enum CsaneTargetKind kind) {
-    for (int32 i = 0; i < file->statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *stmt = &file->statements->items[i];
         bool selected = kind == CSANE_TARGET_STATEMENTS
                         || kind == CSANE_TARGET_DECLARATIONS;
@@ -184,7 +184,7 @@ csane_coverage_contains(CsaneFile *file, TokenRange range,
 static void
 csane_coverage_decl_one(CsaneFile *file, CsaneRuleCounts *counts,
                         char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if (item->kind == CSANE_TOP_DECLARATION
             || item->kind == CSANE_TOP_TYPE_DECLARATION
@@ -226,7 +226,7 @@ csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
 static void
 csane_coverage_func_headers(CsaneFile *file, CsaneRuleCounts *counts,
                             char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
             || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {
@@ -264,7 +264,7 @@ csane_coverage_control_start(CsaneFile *file, int32 token) {
 static void
 csane_coverage_control(CsaneFile *file, CsaneRuleCounts *counts,
                        char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < file->statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *stmt = &file->statements->items[i];
         if (csane_coverage_control_kind(stmt->kind)) {
             csane_coverage_target(counts, true);
@@ -282,7 +282,7 @@ csane_coverage_control(CsaneFile *file, CsaneRuleCounts *counts,
 static void
 csane_coverage_status(CsaneFile *file, CsaneRuleCounts *counts,
                       char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if (!csane_coverage_contains(file, item->tokens, STRLIT("status"))) {
             continue;
@@ -391,7 +391,7 @@ static void
 csane_coverage_wrap_statements(CsaneFile *file, CsaneRuleCounts *counts,
                                char *group, int32 group_len,
                                bool report, bool calls) {
-    for (int32 i = 0; i < file->statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *stmt = &file->statements->items[i];
         bool closed = false;
         bool candidate;
@@ -416,7 +416,7 @@ csane_coverage_wrap_statements(CsaneFile *file, CsaneRuleCounts *counts,
                                       first, reason, report);
         }
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         bool closed = false;
         bool candidate;

@@ -257,7 +257,7 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
     Tokenization *tokens = view->tokens;
     CsaneStatements *statements = file->statements;
     if (statements != NULL) {
-        for (int32 i = 0; i < statements->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
             CsaneStatement *stmt = &statements->items[i];
             if (index < stmt->tokens.first
                 || index >= stmt->tokens.end) {
@@ -301,7 +301,7 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
         }
     }
     if (file->toplevel != NULL) {
-        for (int32 i = 0; i < file->toplevel->count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
             CsaneTopItem *item = &file->toplevel->items[i];
             if (index < item->tokens.first || index >= item->tokens.end) {
                 continue;
@@ -397,7 +397,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
     if (file->toplevel == NULL) {
         return false;
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         int32 parameter_open;
         int32 parameter_close;
@@ -684,7 +684,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
             return CSANE_LAYOUT_DECLARATOR;
         }
         if (file->toplevel != NULL) {
-            for (int32 i = 0; i < file->toplevel->count; i += 1) {
+            for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
                 CsaneTopItem *top = &file->toplevel->items[i];
                 if ((top->kind == CSANE_TOP_DECLARATION
                      || top->kind == CSANE_TOP_TYPE_DECLARATION)
@@ -1027,7 +1027,7 @@ csane_layout_return_pointer(CsaneFile *file, int32 index) {
     if (file->toplevel == NULL) {
         return false;
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
              || item->kind == CSANE_TOP_FUNCTION_DECLARATION)
@@ -1114,7 +1114,7 @@ csane_layout_function_header_close(CsaneFile *file, int32 close) {
     if (file->toplevel == NULL) {
         return false;
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if ((item->kind == CSANE_TOP_FUNCTION_DEFINITION
              || item->kind == CSANE_TOP_FUNCTION_DECLARATION)

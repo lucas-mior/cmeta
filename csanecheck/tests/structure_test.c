@@ -55,7 +55,7 @@ test_free(TestStructure *test) {
 
 static int32
 test_function(TestStructure *test, char *name, int32 name_len) {
-    for (int32 i = 0; i < test->top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test->top.items); i += 1) {
         CsaneTopItem *item = &test->top.items[i];
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
             && item->name_token >= 0
@@ -72,7 +72,7 @@ static int32
 test_statement(TestStructure *test, int32 function,
                char *fragment, int32 fragment_len,
                enum CsaneStatementKind kind) {
-    for (int32 i = 0; i < test->statements.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test->statements.items); i += 1) {
         CsaneStatement *item = &test->statements.items[i];
         if (item->function != function || item->kind != kind) {
             continue;
@@ -91,7 +91,7 @@ test_statement(TestStructure *test, int32 function,
 static int32
 test_top_item(TestStructure *test,
               char *fragment, int32 fragment_len, enum CsaneTopKind kind) {
-    for (int32 i = 0; i < test->top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test->top.items); i += 1) {
         CsaneTopItem *item = &test->top.items[i];
         SourceRange span;
         int32 size;
@@ -528,7 +528,7 @@ test_guarded_aggregate_fragments(void) {
     test_init(&test, text, strlen32(text));
     int32 members = 0;
     int32 enumerators = 0;
-    for (int32 i = 0; i < test.top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
         enum CsaneTopKind kind = test.top.items[i].kind;
         members += kind == CSANE_TOP_MEMBER_DECLARATION;
         enumerators += kind == CSANE_TOP_ENUMERATOR;
@@ -557,7 +557,7 @@ test_guarded_function_parameters(void) {
     CHECK(test_function(&test, STRLIT("ordinary")) >= 0);
     CHECK(test.top.opaque_count == 0);
     int32 parameters = 0;
-    for (int32 i = 0; i < test.top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
         parameters += test.top.items[i].kind ==
                       CSANE_TOP_PARAMETER_FRAGMENT;
     }
@@ -580,7 +580,7 @@ test_bad_aggregate_fragment_stays_opaque(void) {
     test_init(&test, text, strlen32(text));
     CHECK(test.top.opaque_count >= 1);
     bool recognized = false;
-    for (int32 i = 0; i < test.top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
         if (test.top.items[i].kind == CSANE_TOP_MEMBER_DECLARATION) {
             recognized = true;
         }
@@ -613,7 +613,7 @@ test_macro_generated_headers(void) {
     test_init(&test, text, strlen32(text));
     int32 functions = 0;
     int32 macro_names = 0;
-    for (int32 i = 0; i < test.top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
         CsaneTopItem *item = &test.top.items[i];
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
             functions += 1;
@@ -655,7 +655,7 @@ test_guarded_cpp_linkage(void) {
     CHECK(test.top.opaque_count == 0);
     int32 linkage = 0;
     int32 functions = 0;
-    for (int32 i = 0; i < test.top.count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
         linkage += test.top.items[i].kind == CSANE_TOP_LINKAGE_FRAGMENT;
         functions += test.top.items[i].kind == CSANE_TOP_FUNCTION_DECLARATION;
     }

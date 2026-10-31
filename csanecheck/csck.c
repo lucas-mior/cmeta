@@ -182,7 +182,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
 
     stats->files += 1;
     stats->tokens += tokens.token_count;
-    stats->externals += toplevel.count;
+    stats->externals += ARRAY_LEN(toplevel.items);
     stats->structural_issues += structural_issues;
     stats->preprocessor_issues += pp.issue_count;
 
@@ -203,7 +203,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
             csane_issue(path, path_len, &tokens, -1,
                         "PP-STRUCTURE", "preprocessor analysis failed");
         }
-        for (int32 i = 0; i < toplevel.count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(toplevel.items); i += 1) {
             CsaneTopItem *item = &toplevel.items[i];
             if (item->kind == CSANE_TOP_OPAQUE) {
                 csane_issue(path, path_len, &tokens, item->tokens.first,
@@ -211,7 +211,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
                             "unrecognized top-level construct");
             }
         }
-        for (int32 i = 0; i < statements.count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(statements.items); i += 1) {
             CsaneStatement *stmt = &statements.items[i];
             if (stmt->kind == CSANE_STMT_OPAQUE) {
                 csane_issue(path, path_len, &tokens, stmt->tokens.first,

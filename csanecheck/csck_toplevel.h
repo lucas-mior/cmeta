@@ -44,8 +44,6 @@ typedef struct CsaneTopItem {
 typedef struct CsaneTopLevels {
     CsaneRegions *regions; /* Borrowed; outlives this object. */
     CsaneTopItem *items;
-    int32 count;
-    int32 capacity;
     int32 opaque_count;
 } CsaneTopLevels;
 

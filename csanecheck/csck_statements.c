@@ -37,13 +37,11 @@ static int32
 csane_stmt_append(CsaneStatementStream *stream, enum CsaneStatementKind kind,
                   int32 first, int32 end, int32 parent, int32 header_end) {
     CsaneStatements *statements;
-    CsaneStatement *item;
     CsaneStatement *owner;
     SourceRange source;
     Token *start;
     Token *last;
     int32 id;
-    int32 next;
     if (first >= end) {
         return -1;
     }
@@ -63,16 +61,8 @@ csane_stmt_append(CsaneStatementStream *stream, enum CsaneStatementKind kind,
             return -1;
         }
     }
-    if (statements->count == statements->capacity) {
-        next = statements->capacity ? statements->capacity*2 : 64;
-        statements->items = realloc2(statements->items, statements->capacity,
-                                     next, SIZEOF(*statements->items));
-        statements->capacity = next;
-    }
-    id = statements->count;
-    statements->count += 1;
-    item = &statements->items[id];
-    *item = (CsaneStatement){
+    id = ARRAY_LEN(statements->items);
+    ARRAY_PUSH(statements->items, (CsaneStatement){
         .kind = kind,
         .source = source,
         .tokens = {stream->indices[first], stream->indices[end - 1] + 1},
@@ -88,7 +78,7 @@ csane_stmt_append(CsaneStatementStream *stream, enum CsaneStatementKind kind,
         .next_sibling = -1,
         .body = -1,
         .alternative = -1,
-    };
+    });
     if (kind == CSANE_STMT_OPAQUE) {
         statements->opaque_count += 1;
     }
@@ -160,7 +150,7 @@ csane_stmt_branch_owns_close(CsaneStatementStream *stream, int32 outer_pos,
     int32 close = stream->indices[close_pos];
     TokenRange bounds = {outer, close + 1};
 
-    for (int32 owner = 0; owner < regions->count; owner += 1) {
+    for (int32 owner = 0; owner < ARRAY_LEN(regions->items); owner += 1) {
         CsaneSourceRegion *branch = &regions->items[owner];
         CsaneTokenPath path;
         CsaneTokenView view;
@@ -478,7 +468,7 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                parent, header_end);
         end = csane_stmt_parse(stream, header_end, limit, id,
                                &body, depth + 1);
-        /* realloc2 during recursive parsing can move the item array. */
+        /* ARRAY_PUSH during recursive parsing can move the item array. */
         if (id >= 0) {
             stream->statements->items[id].body = body;
         }
@@ -652,7 +642,7 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
     if (first_region < 0) {
         first_region = 0;
     }
-    for (int32 r = first_region; r < regions->count; r += 1) {
+    for (int32 r = first_region; r < ARRAY_LEN(regions->items); r += 1) {
         CsaneSourceRegion *region = &regions->items[r];
         TokenRange part = region->tokens;
 
@@ -730,14 +720,14 @@ csane_statements_init(CsaneStatements *statements, CsaneTopLevels *top) {
     }
     statements->toplevel = top;
     regions = top->regions;
-    for (int32 i = 0; i < top->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
         SourceRange body = top->items[i].source;
 
         if (top->items[i].kind != CSANE_TOP_FUNCTION_DEFINITION) {
             continue;
         }
         csane_stmt_stream(statements, i, top->items[i].owner_region);
-        for (int32 r = 0; r < regions->count; r += 1) {
+        for (int32 r = 0; r < ARRAY_LEN(regions->items); r += 1) {
             SourceRange span;
 
             if (regions->items[r].kind != CSANE_REGION_CONDITIONAL_BRANCH) {
@@ -757,7 +747,7 @@ csane_statements_free(CsaneStatements *statements) {
     if (statements == NULL) {
         return;
     }
-    free2(statements->items, statements->capacity*SIZEOF(*statements->items));
+    ARRAY_FREE(statements->items);
     *statements = (CsaneStatements){0};
 }
 
@@ -776,7 +766,7 @@ csane_statements_at_token(CsaneStatements *statements, int32 function,
         return -1;
     }
     offset = tokens->tokens[token].offset;
-    for (int32 i = 0; i < statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
         CsaneStatement *item = &statements->items[i];
         if (item->function != function || offset < item->source.start
             || offset >= item->source.end) {

@@ -311,7 +311,7 @@ test_bounded_expected_strings(void) {
  * outside the subview. Compare cursors at and beyond all boundaries. */
 static int32
 test_path_next_reference(CsaneTokenView *view, int32 cursor) {
-    for (int32 i = 0; i < view->path->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(view->path->parts); i += 1) {
         TokenRange part = view->path->parts[i];
         if (part.first < view->range.first) {
             part.first = view->range.first;
@@ -332,7 +332,7 @@ test_path_next_reference(CsaneTokenView *view, int32 cursor) {
 
 static int32
 test_path_previous_reference(CsaneTokenView *view, int32 cursor) {
-    for (int32 i = view->path->count - 1; i >= 0; i -= 1) {
+    for (int32 i = ARRAY_LEN(view->path->parts) - 1; i >= 0; i -= 1) {
         TokenRange part = view->path->parts[i];
         if (part.first < view->range.first) {
             part.first = view->range.first;
@@ -357,7 +357,7 @@ test_path_contains_reference(CsaneTokenView *view, int32 index) {
     if (index < view->range.first || index >= view->range.end) {
         return false;
     }
-    for (int32 i = 0; i < view->path->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(view->path->parts); i += 1) {
         TokenRange part = view->path->parts[i];
         if (index >= part.first && index < part.end) {
             return true;
@@ -406,8 +406,37 @@ test_path_navigation(void) {
     return;
 }
 
+static void
+test_path_growth(void) {
+    Tokenization tokens =
+        tokenize_copy(STRLIT("a b c d e f g h i j k l m n o p q r s t "
+                             "u v w x y z a b c d e f g h i j k l m n"),
+                      TOKENIZE_DEFAULT);
+    CsaneTokenPath path;
+    int32 count = 0;
+
+    CHECK(csane_token_path_init(&path, &tokens,
+                                (TokenRange){0, tokens.token_count}));
+    for (int32 i = 0; i + 1 < tokens.token_count; i += 2) {
+        CHECK(csane_token_path_append(&path, (TokenRange){i, i + 1}));
+        count += 1;
+        CHECK(ARRAY_LEN(path.parts) == count);
+    }
+    CHECK(ARRAY_LEN(path.parts) > 8);
+    CHECK(ARRAY_CAPACITY(path.parts) >= ARRAY_LEN(path.parts));
+    int32 end = path.parts[count - 1].end;
+    CHECK(csane_token_path_append(&path, (TokenRange){end, end + 1}));
+    CHECK(ARRAY_LEN(path.parts) == count);
+    csane_token_path_free(&path);
+    CHECK(path.parts == NULL);
+    CHECK(ARRAY_LEN(path.parts) == 0);
+    free_tokenization(&tokens);
+    return;
+}
+
 int
 main(void) {
+    test_path_growth();
     test_bounded_expected_strings();
     test_nested_arguments();
     test_empty_malformed_arguments();

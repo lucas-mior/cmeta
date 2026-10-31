@@ -21,7 +21,7 @@ csane_hint_add(CsaneTypeHints *hints, int32 token,
     if (candidate->kind != TOKEN_IDENT) {
         return;
     }
-    for (int32 i = 0; i < hints->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(hints->items); i += 1) {
         CsaneTypeHint *hint = &hints->items[i];
         if (hint->kind == kind && hint->macro_close < 0
             && csane_hint_same(candidate,
@@ -29,18 +29,11 @@ csane_hint_add(CsaneTypeHints *hints, int32 token,
             return;
         }
     }
-    if (hints->count == hints->capacity) {
-        int32 next = hints->capacity ? hints->capacity*2 : 32;
-        hints->items = realloc2(hints->items, hints->capacity, next,
-                                SIZEOF(*hints->items));
-        hints->capacity = next;
-    }
-    hints->items[hints->count] = (CsaneTypeHint){
+    ARRAY_PUSH(hints->items, (CsaneTypeHint){
         .token = token,
         .macro_close = -1,
         .kind = kind,
-    };
-    hints->count += 1;
+    });
     return;
 }
 
@@ -51,7 +44,7 @@ csane_type_hints_has(CsaneTypeHints *hints, Token *token,
         || token->kind != TOKEN_IDENT) {
         return false;
     }
-    for (int32 i = 0; i < hints->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(hints->items); i += 1) {
         CsaneTypeHint *hint = &hints->items[i];
         if (hint->kind == kind && hint->macro_close < 0
             && csane_hint_same(token, &hints->tokens->tokens[hint->token])) {
@@ -102,29 +95,17 @@ csane_hint_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
         || !csane_token_macro_name(&tokens->tokens[name])) {
         return;
     }
-    for (int32 i = 0; i < hints->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(hints->items); i += 1) {
         CsaneTypeHint *hint = &hints->items[i];
         if (hint->token == name && hint->macro_close == close) {
             return;
         }
     }
-    if (hints->count == hints->capacity) {
-        int32 previous = hints->capacity;
-        int32 next = previous ? previous*2 : 32;
-        if (previous == 0) {
-            hints->items = malloc2(next*SIZEOF(*hints->items));
-        } else {
-            hints->items = realloc2(hints->items, previous, next,
-                                    SIZEOF(*hints->items));
-        }
-        hints->capacity = next;
-    }
-    hints->items[hints->count] = (CsaneTypeHint){
+    ARRAY_PUSH(hints->items, (CsaneTypeHint){
         .token = name,
         .macro_close = close,
         .kind = CSANE_TYPE_HINT_TYPEDEF,
-    };
-    hints->count += 1;
+    });
 }
 
 bool
@@ -143,7 +124,7 @@ csane_type_hints_macro_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
         || !csane_token_macro_name(&tokens->tokens[name])) {
         return false;
     }
-    for (int32 i = 0; i < hints->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(hints->items); i += 1) {
         CsaneTypeHint *hint = &hints->items[i];
         CsaneTokenView alias;
         int32 a;
@@ -268,7 +249,7 @@ csane_type_hints_free(CsaneTypeHints *hints) {
     if (hints == NULL) {
         return;
     }
-    free2(hints->items, hints->capacity*SIZEOF(*hints->items));
+    ARRAY_FREE(hints->items);
     *hints = (CsaneTypeHints){0};
     return;
 }

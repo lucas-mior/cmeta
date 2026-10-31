@@ -344,7 +344,7 @@ csane_api_declarator(CsaneFile *file, int32 name) {
             return CSANE_API_NOT_CALL;
         }
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if (item->name_token == name
             && (item->kind == CSANE_TOP_FUNCTION_DEFINITION

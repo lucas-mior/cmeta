@@ -20,14 +20,8 @@ static int32
 csane_regions_append(CsaneRegions *regions, int32 parent,
                      enum CsaneRegionKind kind, SourceRange source,
                      int32 directive, int32 group, int32 branch) {
-    int32 index = regions->count;
-    if (index == regions->capacity) {
-        int32 next = regions->capacity ? regions->capacity*2 : 32;
-        regions->items = realloc2(regions->items, regions->capacity,
-                                  next, SIZEOF(*regions->items));
-        regions->capacity = next;
-    }
-    regions->items[index] = (CsaneSourceRegion){
+    int32 index = ARRAY_LEN(regions->items);
+    ARRAY_PUSH(regions->items, (CsaneSourceRegion){
         .kind = kind,
         .source = source,
         .tokens = csane_regions_token_range(regions, source),
@@ -39,8 +33,7 @@ csane_regions_append(CsaneRegions *regions, int32 parent,
         .group_index = group,
         .branch_index = branch,
         .complete = true,
-    };
-    regions->count += 1;
+    });
     if (parent >= 0) {
         CsaneSourceRegion *ancestor = &regions->items[parent];
         if (ancestor->last_child < 0) {
@@ -388,7 +381,7 @@ csane_regions_free(CsaneRegions *regions) {
     if (regions == NULL) {
         return;
     }
-    free2(regions->items, regions->capacity*SIZEOF(*regions->items));
+    ARRAY_FREE(regions->items);
     if (regions->tokens != NULL) {
         free2(regions->token_regions,
               regions->tokens->token_count*SIZEOF(*regions->token_regions));
@@ -401,7 +394,7 @@ int32
 csane_regions_at_offset(CsaneRegions *regions, int32 offset) {
     int32 region = 0;
 
-    if (regions == NULL || regions->count == 0 || offset < 0
+    if (regions == NULL || ARRAY_LEN(regions->items) == 0 || offset < 0
         || offset >= regions->tokens->text_len) {
         return -1;
     }
@@ -434,7 +427,7 @@ csane_regions_at_token(CsaneRegions *regions, int32 token) {
 int32
 csane_regions_enclosing(CsaneRegions *regions, int32 region,
                         enum CsaneRegionKind kind) {
-    if (regions == NULL || region < 0 || region >= regions->count) {
+    if (regions == NULL || region < 0 || region >= ARRAY_LEN(regions->items)) {
         return -1;
     }
     while (region >= 0) {

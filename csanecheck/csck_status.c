@@ -128,7 +128,7 @@ csane_status_check(CsaneFile *file) {
     if (file->toplevel == NULL || file->regions == NULL) {
         return;
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *top = &file->toplevel->items[i];
         TokenRange body;
 

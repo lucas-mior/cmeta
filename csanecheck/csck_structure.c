@@ -10,7 +10,7 @@
 CsaneCoverage
 csane_coverage_collect(CsaneTopLevels *toplevel, CsaneStatements *statements) {
     CsaneCoverage result = {0};
-    for (int32 i = 0; i < toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(toplevel->items); i += 1) {
         CsaneTopItem *item = &toplevel->items[i];
         switch (item->kind) {
         case CSANE_TOP_FUNCTION_DEFINITION:
@@ -39,7 +39,7 @@ csane_coverage_collect(CsaneTopLevels *toplevel, CsaneStatements *statements) {
             break;
         }
     }
-    for (int32 i = 0; i < statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
         CsaneStatement *stmt = &statements->items[i];
         if (stmt->kind == CSANE_STMT_OPAQUE) {
             result.opaque_statements += 1;
@@ -58,7 +58,7 @@ typedef struct CsaneStructuralUnresolved {
 
 static bool
 csane_structure_conditional(CsaneRegions *regions, int32 owner) {
-    if (owner < 0 || owner >= regions->count) {
+    if (owner < 0 || owner >= ARRAY_LEN(regions->items)) {
         return false;
     }
     return regions->items[owner].kind == CSANE_REGION_CONDITIONAL_BRANCH;
@@ -103,7 +103,7 @@ csane_coverage_report_structural(char *path, int32 path_len,
         return;
     }
     items = malloc2(capacity*SIZEOF(*items));
-    for (int32 i = 0; i < toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(toplevel->items); i += 1) {
         CsaneTopItem *item = &toplevel->items[i];
         char *reason;
         if (item->kind != CSANE_TOP_OPAQUE) {
@@ -116,7 +116,7 @@ csane_coverage_report_structural(char *path, int32 path_len,
         csane_structure_add(items, &count, item->tokens.first,
                             "top-level", reason);
     }
-    for (int32 i = 0; i < statements->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
         CsaneStatement *item = &statements->items[i];
         char *reason;
         if (item->kind != CSANE_STMT_OPAQUE) {

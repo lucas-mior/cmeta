@@ -835,7 +835,7 @@ csane_declarations_check(CsaneFile *file) {
     }
     lines = malloc2(line_count*SIZEOF(*lines));
     memset64(lines, 0, line_count*SIZEOF(*lines));
-    for (i = 0; i < file->toplevel->count; i += 1) {
+    for (i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
 
         if (item->kind == CSANE_TOP_DECLARATION
@@ -844,7 +844,7 @@ csane_declarations_check(CsaneFile *file) {
             csane_decl_one(file, item->tokens, lines, line_count);
         }
     }
-    for (i = 0; i < file->toplevel->count; i += 1) {
+    for (i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
 
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
@@ -882,7 +882,7 @@ csane_declarations_headers(CsaneFile *file) {
     if (csane_calls_generated(file->path, file->path_len)) {
         return;
     }
-    for (int32 i = 0; i < file->toplevel->count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
             || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {

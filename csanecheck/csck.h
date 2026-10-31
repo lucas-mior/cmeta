@@ -31,8 +31,6 @@ typedef struct CsanePattern {
 
 typedef struct CsanePatterns {
     CsanePattern *items;
-    int32 count;
-    int32 capacity;
 } CsanePatterns;
 
 typedef struct CsanePolicy {

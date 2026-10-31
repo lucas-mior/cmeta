@@ -15,8 +15,6 @@ typedef struct CsaneTokenPath {
     Tokenization *tokens;
     TokenRange bounds;
     TokenRange *parts;
-    int32 count;
-    int32 capacity;
 } CsaneTokenPath;
 
 /* Borrowed, bounded token navigation. path == NULL means an ordinary
