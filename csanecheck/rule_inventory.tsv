@@ -22,6 +22,7 @@ FMT020	cbase/c-format.md	75	117	Function calls	Prefer single-line calls, then br
 FMT021	cbase/c-format.md	139	156	Long lines	Use the documented line-breaking priorities for arithmetic, assignments, macros, nesting, declarations, and strings.	manual	-	Several subcases require readability/judgment; line length itself is enforced.
 FMT022	cbase/c-format.md	158	173	Indentation	Align wrapped long expressions for readability as shown.	csanecheck_candidate	-	-
 FMT023	cbase/c-format.md	186	212	Function headers	When function arguments wrap, align continuation parameters and keep related arguments grouped where recognized.	implemented	FMT-FUNC-ALIGN	Parameter alignment is implemented.
+FMT050	cbase/c-format.md	221	241	Other related arguments case	Keep two consecutive string-literal arguments on the same line, or each alone on its own line, when all other arguments are non-string.	implemented	FMT-STRING-PAIR	Applies to exactly two literal arguments; ignores other literal expressions.
 FMT024	cbase/c-format.md	214	315	Printf-like calls	Apply the documented format-string/argument wrapping and alignment rules.	implemented	FMT-FORMAT-LINE;FMT-FORMAT-ARGS-WRAP;FMT-ARG-ALIGN;FMT-LITERAL-ALIGN	-
 FMT025	cbase/c-format.md	317	339	realloc2 style	Use the documented preferred realloc2 wrapping order.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Covered through generic call/assignment wrapping heuristics.
 FMT026	cbase/c-format.md	341	354	Switch formatting	Align case/default labels with their switch.	implemented	AST-SWITCH-ALIGN	-

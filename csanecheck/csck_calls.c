@@ -302,6 +302,11 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
     int32 count = csane_call_arguments(file, view, args, 256);
     Tokenization *tokens;
     int32 format = -1;
+    int32 first_string = -1;
+    int32 second_string = -1;
+    int32 string_count = 0;
+    int32 first_line;
+    int32 second_line;
 
     if (count < 1) {
         return;
@@ -408,6 +413,47 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
     }
     if (count < 3) {
         return;
+    }
+    /* When exactly two adjacent arguments are string literals, keep them
+     * together or put each on a line without any other argument. */
+    for (int32 i = 0; i < count; i += 1) {
+        if (args[i].first != args[i].last
+            || !csane_call_string(&tokens->tokens[args[i].first])) {
+            continue;
+        }
+        string_count += 1;
+        if (string_count == 1) {
+            first_string = i;
+        } else if (string_count == 2) {
+            second_string = i;
+        }
+    }
+    if (string_count == 2 && second_string == first_string + 1) {
+        first_line = csane_calls_location(file, args[first_string].first).line;
+        second_line = csane_calls_location(file,
+                                           args[second_string].first).line;
+        if (first_line != second_line) {
+            for (int32 i = 0; i < count; i += 1) {
+                int32 begin;
+                int32 end;
+
+                if (i == first_string || i == second_string) {
+                    continue;
+                }
+                begin = csane_calls_location(file, args[i].first).line;
+                end = csane_calls_location(file, args[i].last).line;
+                if ((begin <= first_line && first_line <= end)
+                    || (begin <= second_line && second_line <= end)) {
+                    int32 token = args[second_string].first;
+
+                    csane_rule_issue(file, tokens->tokens[token].offset,
+                                     STRLIT("FMT-STRING-PAIR"),
+                                     "related string arguments must share "
+                                     "a line or each be on its own line");
+                    break;
+                }
+            }
+        }
     }
     for (int32 i = 0; i + 1 < count; i += 1) {
         int32 a;
