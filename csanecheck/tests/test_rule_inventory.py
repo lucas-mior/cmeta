@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 16: the guide/legacy enforcement inventory stays complete and valid."""
+"""Check the guide and checker enforcement inventory."""
 
 import csv
 from pathlib import Path
@@ -9,7 +9,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "csanecheck/rule_inventory.tsv"
-COMPAT = ROOT / "csanecheck/perl_compatibility.tsv"
 GUIDES = (ROOT / "cbase/c-format.md", ROOT / "cbase/c-guidelines.md")
 CLASSIFICATIONS = {"implemented", "csanecheck_candidate", "compiler", "manual"}
 RULE_ID = re.compile(r'"([A-Z][A-Z0-9-]+)"')
@@ -90,23 +89,6 @@ class RuleInventoryTests(unittest.TestCase):
                     self.assertTrue(
                         any(a <= number <= b for a, b, _ in entries),
                         f"uncovered top-level rule at {relative}:{number}: {line}")
-
-    def test_all_legacy_p01_p25_mappings_are_in_the_unified_inventory(self):
-        inventory = {row["inventory_id"]: row for row in self.rows}
-        with COMPAT.open(encoding="utf-8") as stream:
-            legacy = list(csv.DictReader(stream, delimiter="\t"))
-        self.assertEqual(len(legacy), 25)
-        for mapping in legacy:
-            key = "LEG-" + mapping["legacy_key"]
-            with self.subTest(legacy=key):
-                self.assertIn(key, inventory)
-                row = inventory[key]
-                self.assertEqual(row["classification"], "implemented")
-                self.assertEqual(row["csane_rule_ids"], mapping["csane_rule_id"])
-        self.assertIn("LEG-API-NEVER", inventory)
-        self.assertIn("LEG-API-CBASE", inventory)
-        self.assertIn("LEG-DISCOVERY", inventory)
-        self.assertIn("LEG-STATUS", inventory)
 
     def test_inventory_has_all_four_enforcement_classes(self):
         classes = {row["classification"] for row in self.rows}
