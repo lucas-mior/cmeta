@@ -804,8 +804,7 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
             if (csane_top_parameters(&stream, enclosing)) {
                 csane_top_fragments(&stream, CSANE_TOP_PARAMETER_FRAGMENT);
             } else {
-                csane_top_append(&stream, CSANE_TOP_OPAQUE,
-                                 0, count, -1, -1);
+                csane_top_append(&stream, CSANE_TOP_OPAQUE, 0, count, -1, -1);
             }
         }
         /* Complete body alternatives belong to the statement scanner. */
