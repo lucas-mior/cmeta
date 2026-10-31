@@ -196,12 +196,12 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
             if ((directive >= 0) && (directive < pp.directive_count)) {
                 token = pp.directives[directive].hash_token;
             }
-            csane_issue(path, path_len, &tokens, token, "PP-STRUCTURE",
-                        "invalid preprocessor structure");
+            csane_issue(path, path_len, &tokens, token,
+                        "PP-STRUCTURE", "invalid preprocessor structure");
         }
         if (!pp_ok && pp.issue_count == 0) {
-            csane_issue(path, path_len, &tokens, -1, "PP-STRUCTURE",
-                        "preprocessor analysis failed");
+            csane_issue(path, path_len, &tokens, -1,
+                        "PP-STRUCTURE", "preprocessor analysis failed");
         }
         for (int32 i = 0; i < toplevel.count; i += 1) {
             CsaneTopItem *item = &toplevel.items[i];
