@@ -47,25 +47,19 @@ c_ast_free(CAst *ast) {
     if (ast == NULL) {
         return;
     }
-    free2(ast->declarators,
-          (int64)ast->declarator_capacity*SIZEOF(CDeclaratorNode));
-    free2(ast->declarations,
-          (int64)ast->declaration_capacity*SIZEOF(CDeclaration));
-    free2(ast->enumerators,
-          (int64)ast->enumerator_capacity*SIZEOF(CEnumerator));
-    free2(ast->records, (int64)ast->record_capacity*SIZEOF(CRecord));
-    free2(ast->expressions,
-          (int64)ast->expression_capacity*SIZEOF(CExpression));
-    free2(ast->arguments,
-          (int64)ast->argument_capacity*SIZEOF(CExprArgument));
-    free2(ast->statements,
-          (int64)ast->statement_capacity*SIZEOF(CStatement));
-    free2(ast->externals,
-          (int64)ast->external_capacity*SIZEOF(CExternal));
-    free2(ast->issues,
-          (int64)ast->issue_capacity*SIZEOF(CParseIssue));
-    free2(ast->scopes, (int64)ast->scope_capacity*SIZEOF(CScope));
-    free2(ast->bindings, (int64)ast->binding_capacity*SIZEOF(CBinding));
+
+    free2(ast->declarators, ast->declarator_capacity*SIZEOF(CDeclaratorNode));
+    free2(ast->declarations, ast->declaration_capacity*SIZEOF(CDeclaration));
+    free2(ast->enumerators, ast->enumerator_capacity*SIZEOF(CEnumerator));
+    free2(ast->records, ast->record_capacity*SIZEOF(CRecord));
+    free2(ast->expressions, ast->expression_capacity*SIZEOF(CExpression));
+    free2(ast->arguments, ast->argument_capacity*SIZEOF(CExprArgument));
+    free2(ast->statements, ast->statement_capacity*SIZEOF(CStatement));
+    free2(ast->externals, ast->external_capacity*SIZEOF(CExternal));
+    free2(ast->issues, ast->issue_capacity*SIZEOF(CParseIssue));
+    free2(ast->scopes, ast->scope_capacity*SIZEOF(CScope));
+    free2(ast->bindings, ast->binding_capacity*SIZEOF(CBinding));
+
     *ast = (CAst){0};
     ast->current_scope = -1;
     return;
