@@ -822,6 +822,7 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
     int32 binding_count;
     int32 scope_count;
     int32 scope;
+
     if ((ast == NULL) || (ast->tokenization == NULL)
         || !token_range_is_valid(ast->tokenization, range)) {
         return result;
@@ -831,9 +832,15 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
         result.status = C_DECL_PARSE_NOT_DECLARATION;
         return result;
     }
-    c = (DeclCursor){.ast = ast, .range = range, .pos = range.first,
-                     .issue = -1, .inferred_type = -1,
-                     .status = C_DECL_PARSE_OK};
+
+    c = (DeclCursor){
+        .ast = ast,
+        .range = range,
+        .pos = range.first,
+        .issue = -1,
+        .inferred_type = -1,
+        .status = C_DECL_PARSE_OK
+    };
     declaration_count = ast->declaration_count;
     declarator_count = ast->declarator_count;
     record_count = ast->record_count;
