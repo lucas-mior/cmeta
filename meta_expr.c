@@ -808,7 +808,7 @@ expr_test_more_syntax(void) {
         {"1 2", C_EXPR_PARSE_MALFORMED, 0},
         {"({1;})", C_EXPR_PARSE_UNSUPPORTED, 0},
     };
-    for (int32 i = 0; i < SIZEOF(cases)/SIZEOF(cases[0]); i += 1) {
+    for (int32 i = 0; i < LENGTH(cases); i += 1) {
         Tokenization tokens = tokenize(cases[i].text, strlen32(cases[i].text));
         CAst ast;
         CExprParseResult result;
