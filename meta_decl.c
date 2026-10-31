@@ -1084,8 +1084,7 @@ ast_test_scopes_and_rollback(void) {
     ASSERT_EQ(c_ast_lookup_tag(&ast, ast_test_find(&tokens, "Fail", 0)),
               C_NAME_UNKNOWN);
     ASSERT(c_ast_scope_push(&ast) > 0);
-    ASSERT(c_ast_bind(&ast, ast_test_find(&tokens, "Type", 2),
-                      C_NAME_TYPEDEF));
+    ASSERT(c_ast_bind(&ast, ast_test_find(&tokens, "Type", 2), C_NAME_TYPEDEF));
     ASSERT_EQ(c_ast_lookup(&ast, ast_test_find(&tokens, "Type", 3)),
               C_NAME_TYPEDEF);
     ASSERT(c_ast_scope_pop(&ast));
