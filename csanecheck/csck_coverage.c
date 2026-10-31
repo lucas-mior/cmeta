@@ -142,8 +142,7 @@ csane_coverage_first(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_coverage_token(CsaneFile *file, int32 index,
-                     char *text, int32 text_len) {
+csane_coverage_token(CsaneFile *file, int32 index, char *text, int32 text_len) {
     return index >= 0 && index < file->tokens->token_count
            && TOKEN_IS(&file->tokens->tokens[index], text, text_len);
 }

@@ -20,8 +20,7 @@ typedef struct CsaneTopStream {
 } CsaneTopStream;
 
 static bool
-csane_top_is(CsaneTopStream *stream, int32 pos,
-             char *name, int32 name_len) {
+csane_top_is(CsaneTopStream *stream, int32 pos, char *name, int32 name_len) {
     Token *token;
 
     if (pos < 0 || pos >= stream->count) {
@@ -236,8 +235,7 @@ csane_top_attribute(CsaneTopStream *stream, int32 pos) {
 /* ATTR_* can itself be a macro-generated function name. Treat it as a
  * trailing annotation only after an earlier parameter list has closed. */
 static bool
-csane_top_trailing_attribute(CsaneTopStream *stream, int32 first,
-                             int32 pos) {
+csane_top_trailing_attribute(CsaneTopStream *stream, int32 first, int32 pos) {
     if (!csane_top_attribute(stream, pos)) {
         return false;
     }
@@ -343,8 +341,7 @@ csane_top_type(CsaneTopStream *stream, int32 first, int32 end) {
 }
 
 static bool
-csane_top_macro_statement(CsaneTopStream *stream, int32 first,
-                          int32 end) {
+csane_top_macro_statement(CsaneTopStream *stream, int32 first, int32 end) {
     int32 close;
 
     if (!csane_token_macro_name(csane_top_token(stream, first))
@@ -396,8 +393,7 @@ csane_top_new_line(CsaneTopStream *stream, int32 a, int32 b) {
 }
 
 static bool
-csane_top_macro_boundary(CsaneTopStream *stream, int32 first,
-                         int32 close) {
+csane_top_macro_boundary(CsaneTopStream *stream, int32 first, int32 close) {
     int32 next;
 
     if (stream->matches[first + 1] != close

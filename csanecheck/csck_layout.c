@@ -26,8 +26,7 @@ csane_layout_code(CsaneFile *file, int32 index) {
 }
 
 static bool
-csane_layout_is(Tokenization *tokens, int32 i,
-                char *name, int32 name_len) {
+csane_layout_is(Tokenization *tokens, int32 i, char *name, int32 name_len) {
     return i >= 0 && i < tokens->token_count
            && TOKEN_IS(&tokens->tokens[i], name, name_len);
 }
@@ -231,8 +230,7 @@ csane_layout_in_cast(CsaneFile *file, CsaneTokenView *view, int32 index) {
 /* Recognize the prefix of a declaration without guessing typedef names.
  * The enclosing statement or function header supplies the boundary. */
 static bool
-csane_layout_type_prefix(CsaneTokenView *view, int32 first,
-                         int32 type_end) {
+csane_layout_type_prefix(CsaneTokenView *view, int32 first, int32 type_end) {
     Tokenization *tokens = view->tokens;
     for (int32 i = first; i >= 0 && i < type_end;) {
         Token *part = &tokens->tokens[i];
@@ -483,8 +481,7 @@ csane_layout_function_parameters(CsaneFile *file, CsaneTokenView *view,
 }
 
 static bool
-csane_layout_inside_brackets(CsaneTokenView *view, int32 first,
-                             int32 index) {
+csane_layout_inside_brackets(CsaneTokenView *view, int32 first, int32 index) {
     Tokenization *tokens = view->tokens;
     for (int32 i = csane_tokens_next(view, first);
          i >= 0 && i < index; i = csane_tokens_next(view, i)) {
@@ -1044,8 +1041,7 @@ csane_layout_return_pointer(CsaneFile *file, int32 index) {
 }
 
 static bool
-csane_layout_prefix_unary(CsaneFile *file, CsaneTokenView *view,
-                          int32 index) {
+csane_layout_prefix_unary(CsaneFile *file, CsaneTokenView *view, int32 index) {
     Tokenization *tokens = view->tokens;
     Token *op = &tokens->tokens[index];
     int32 before = csane_tokens_previous(view, index);

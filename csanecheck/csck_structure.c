@@ -8,8 +8,7 @@
 #include "csck.h"
 
 CsaneCoverage
-csane_coverage_collect(CsaneTopLevels *toplevel,
-                       CsaneStatements *statements) {
+csane_coverage_collect(CsaneTopLevels *toplevel, CsaneStatements *statements) {
     CsaneCoverage result = {0};
     for (int32 i = 0; i < toplevel->count; i += 1) {
         CsaneTopItem *item = &toplevel->items[i];

@@ -152,8 +152,7 @@ csane_call_macro_fragments(CsaneFile *file, TokenRange range) {
 /* Macro parameters need not be uppercase. Read the corresponding
  * definition rather than guessing their spelling from identifier case. */
 static bool
-csane_call_macro_parameters(CsaneFile *file, int32 open,
-                            TokenRange content) {
+csane_call_macro_parameters(CsaneFile *file, int32 open, TokenRange content) {
     CsaneRegions *regions = file->regions;
     int32 region = csane_regions_at_token(regions, open);
     int32 definition = csane_regions_enclosing(regions, region,

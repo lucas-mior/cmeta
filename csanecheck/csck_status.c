@@ -8,8 +8,7 @@
 #include "csck.h"
 
 static bool
-csane_status_is(CsaneFile *file, int32 i,
-                char *text, int32 text_len) {
+csane_status_is(CsaneFile *file, int32 i, char *text, int32 text_len) {
     return i >= 0 && i < file->tokens->token_count
            && TOKEN_IS(&file->tokens->tokens[i], text, text_len);
 }
@@ -42,8 +41,7 @@ csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
 }
 
 static bool
-csane_status_declaration(CsaneFile *file, int32 token,
-                         TokenRange body) {
+csane_status_declaration(CsaneFile *file, int32 token, TokenRange body) {
     int32 previous = tokenization_previous_significant(file->tokens, token);
     int32 next = tokenization_next_significant(file->tokens, token);
     return previous >= body.first && next < body.end

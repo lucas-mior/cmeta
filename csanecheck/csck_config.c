@@ -249,8 +249,7 @@ csane_policy_columns(CsanePolicy *policy, char *path, int32 path_len) {
 }
 
 static bool
-csane_path_prefix(char *path, int32 path_len, char *prefix,
-                  int32 prefix_len) {
+csane_path_prefix(char *path, int32 path_len, char *prefix, int32 prefix_len) {
     if (!BEGINS_WITH(path, path_len, prefix, prefix_len)) {
         return false;
     }
@@ -343,8 +342,7 @@ csane_policy_in_ryu(CsanePolicy *policy, char *path, int32 path_len) {
 }
 
 static char *
-csane_join_path(char *root, int32 a, char *name, int32 b,
-                int32 *path_len) {
+csane_join_path(char *root, int32 a, char *name, int32 b, int32 *path_len) {
     char *path = malloc2(a + b + 2);
     memcpy64(path, root, a);
     path[a] = '/';
@@ -406,8 +404,7 @@ csane_load_names(CsanePaths *names, char *path, int32 path_len) {
  * supports projects using cbase as a standalone source directory.
  */
 bool
-csane_policy_project(CsanePolicy *policy, char *project,
-                     int32 project_len) {
+csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
     char resolved[PATH_MAX];
     bool ok = true;
     char *cbase;
@@ -892,8 +889,7 @@ csane_config_line(CsanePolicy *policy, char *line, int32 line_len,
 }
 
 bool
-csane_policy_config(CsanePolicy *policy, char *filename,
-                    int32 filename_len) {
+csane_policy_config(CsanePolicy *policy, char *filename, int32 filename_len) {
     char *text = NULL;
     int32 len = read_entire_file(filename, &text);
     bool ok = true;

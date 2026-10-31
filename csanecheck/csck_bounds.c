@@ -15,8 +15,7 @@ csane_bounds_unwrap(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_bounds_token(CsaneFile *file, int32 index,
-                   char *name, int32 name_len) {
+csane_bounds_token(CsaneFile *file, int32 index, char *name, int32 name_len) {
     return index >= 0 && index < file->tokens->token_count
            && TOKEN_IS(&file->tokens->tokens[index], name, name_len);
 }

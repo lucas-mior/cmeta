@@ -142,8 +142,7 @@ csane_source_horizontal(char c) {
 
 /* Return the first character of the directive keyword, or -1. */
 static int32
-csane_source_directive(CsaneFile *file, int32 start, int32 end,
-                       int32 *cursor) {
+csane_source_directive(CsaneFile *file, int32 start, int32 end, int32 *cursor) {
     char *text = file->tokens->text;
     int32 i = start;
     while (i < end && (csane_source_horizontal(text[i])
