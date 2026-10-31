@@ -875,8 +875,12 @@ c_ast_parse_statement(CAst *ast, TokenRange range, CPreprocessorAnalysis *pp) {
         pp = &local;
         owned = true;
     }
-    c = (StmtCursor){.ast = ast, .pp = pp, .range = range,
-                     .pos = range.first};
+    c = (StmtCursor){
+        .ast = ast,
+        .pp = pp,
+        .range = range,
+        .pos = range.first
+    };
     before = ast->issue_count;
     result.statement = stmt_parse_one(&c);
     result.next_token = c.pos;
