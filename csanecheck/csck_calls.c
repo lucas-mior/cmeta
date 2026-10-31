@@ -47,6 +47,11 @@ csane_calls_related(Token *a, Token *b) {
         && ENDS_WITH(b->text, b->len, "_len")) {
         return true;
     }
+    if (a->len > 0 && b->len == a->len + 1
+        && b->text[0] == 'n'
+        && !memcmp64(b->text + 1, a->text, a->len)) {
+        return true;
+    }
     if (a->len >= 1 && a->text[a->len - 1] == 'x') {
         prefix = a->len - 1;
         if ((prefix == 0 || a->text[prefix - 1] == '_')
@@ -267,8 +272,11 @@ csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
         args[count].last = last;
         args[count].format = csane_call_format(file, range);
         args[count].identifier =
-            first == last
-            && file->tokens->tokens[first].kind == TOKEN_IDENT;
+            (first == last
+             && file->tokens->tokens[first].kind == TOKEN_IDENT)
+            || (TOKEN_IS(&file->tokens->tokens[first], "&")
+                && file->tokens->tokens[last].kind == TOKEN_IDENT
+                && csane_call_next(file, range, first) == last);
         count += 1;
     }
     return count;
@@ -410,8 +418,8 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
         if (!args[i].identifier || !args[i + 1].identifier) {
             continue;
         }
-        a = args[i].first;
-        b = args[i + 1].first;
+        a = args[i].last;
+        b = args[i + 1].last;
         if (!csane_calls_related(&tokens->tokens[a], &tokens->tokens[b])) {
             continue;
         }
