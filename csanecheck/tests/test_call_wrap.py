@@ -147,6 +147,76 @@ CASES = {
 }
 
 
+# These two fixtures intentionally diverge from Perl: a long unrelated
+# neighbor no longer hides the short wrapped call.
+CSANE_EXPECTED = {
+    "long_neighbor": (2,),
+    "long_group_suppresses_short_wrap": (2,),
+}
+
+RELATED_CASES = {
+    "same_function": (
+        "void f(void) {\n    work(a,\n         b);\n"
+        "    work(this_argument_makes_the_call_long,\n"
+        "         a_second_argument_that_cannot_fit_on_the_first_line);\n}\n",
+        ()),
+    "same_first_argument": (
+        "void f(void) {\n    first(context,\n          b);\n"
+        "    second(context, argument_that_makes_the_call_too_long,\n"
+        "           and_this_extra_argument_exceeds_eighty_columns);\n}\n",
+        ()),
+    "different_first_argument": (
+        "void f(void) {\n    first(context,\n          b);\n"
+        "    second(other, argument_that_makes_the_call_too_long,\n"
+        "           and_this_extra_argument_exceeds_eighty_columns);\n}\n",
+        (2,)),
+    "nested_same_first_argument": (
+        "void f(void) {\n    first(get(a, b),\n          b);\n"
+        "    second(get(a, b), argument_that_makes_the_call_too_long,\n"
+        "           and_this_extra_argument_exceeds_eighty_columns);\n}\n",
+        ()),
+    "nested_different_first_argument": (
+        "void f(void) {\n    first(get(a, b),\n          b);\n"
+        "    second(get(a, c), argument_that_makes_the_call_too_long,\n"
+        "           and_this_extra_argument_exceeds_eighty_columns);\n}\n",
+        (2,)),
+    "assert_different_inner_calls": (
+        "void f(void) {\n"
+        "    ASSERT(!cy_args_resolve_options(&registry, &args.options,\n"
+        "                                    &configured, &generic));\n"
+        "    ASSERT(!cy_fit_resolve_options(fit, &registry, &generic,\n"
+        "                                   &resolved));\n}\n",
+        (4,)),
+    "assert_same_inner_function": (
+        "void f(void) {\n"
+        "    ASSERT(!cy_fit_resolve_options(fit,\n"
+        "                                   &registry));\n"
+        "    ASSERT(!cy_fit_resolve_options(other, &registry,\n"
+        "                                   argument_that_is_much_too_long));\n}\n",
+        ()),
+    "assert_same_inner_first_argument": (
+        "void f(void) {\n"
+        "    ASSERT(!cy_args_resolve_options(fit,\n"
+        "                                    &registry));\n"
+        "    ASSERT(!cy_fit_resolve_options(fit, &registry,\n"
+        "                                   argument_that_is_much_too_long));\n}\n",
+        ()),
+    "assert_different_inner_first_argument": (
+        "void f(void) {\n"
+        "    ASSERT(!cy_args_resolve_options(fit,\n"
+        "                                    &registry));\n"
+        "    ASSERT(!cy_fit_resolve_options(other, &registry,\n"
+        "                                   argument_that_is_much_too_long));\n}\n",
+        (2,)),
+    "related_chain": (
+        "void f(void) {\n    first(context,\n          b);\n"
+        "    second(context, b);\n"
+        "    second(argument_that_makes_the_call_too_long,\n"
+        "           and_this_extra_argument_exceeds_eighty_columns);\n}\n",
+        ()),
+}
+
+
 class CallWrapTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -170,8 +240,26 @@ class CallWrapTests(unittest.TestCase):
                                 if item.category == self.category)
                 expected = Counter(lines)
                 self.assertEqual(legacy, expected, comparison.summary())
-                self.assertEqual(newer, expected, comparison.summary())
+                self.assertEqual(newer,
+                                 Counter(CSANE_EXPECTED.get(name, lines)),
+                                 comparison.summary())
                 self.assertFalse(comparison.legacy_unknown,
+                                 comparison.summary())
+                self.assertFalse(comparison.csane_unknown,
+                                 comparison.summary())
+
+
+    def test_related_neighbor_exception(self):
+        for name, (source, lines) in RELATED_CASES.items():
+            with self.subTest(case=name):
+                path = self.root / "src" / f"related_{name}.c"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding="utf-8")
+                comparison = run_checkers([path], self.root,
+                                          rules=self.rules)
+                newer = Counter(item.line for item in comparison.csane
+                                if item.category == self.category)
+                self.assertEqual(newer, Counter(lines),
                                  comparison.summary())
                 self.assertFalse(comparison.csane_unknown,
                                  comparison.summary())

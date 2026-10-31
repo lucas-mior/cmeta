@@ -19,6 +19,8 @@ typedef struct CsaneWrapSpan {
     int32 indent;
     bool fits;
     bool wrapped;
+    int32 call_name;
+    TokenRange first_arg;
 } CsaneWrapSpan;
 
 enum CsaneWrapKind {
@@ -310,6 +312,70 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
            || kind == CSANE_LOCAL_MACRO_INVOCATION ? name : -1;
 }
 
+/* Save the invoked name and the first argument as token ranges, so
+ * whitespace differences do not affect neighboring-call comparisons.
+ * For ASSERT(!function(...)), compare the underlying function instead of
+ * treating every assertion as a call to the same function.
+ */
+static bool
+csane_wrap_first_arg(CsaneTokenView *view, int32 name, TokenRange *arg) {
+    int32 open = csane_tokens_next(view, name);
+    int32 close = csane_tokens_match(view, open);
+    CsaneTokenView inside;
+    TokenRange content = {open + 1, close};
+    int32 comma;
+    int32 first;
+
+    if (close < 0 || !csane_tokens_subview(&inside, view, content)) {
+        return false;
+    }
+    first = csane_tokens_next(&inside, open);
+    if (first >= close) {
+        return false;
+    }
+    comma = csane_tokens_top_level(&inside, open, STRLIT(","));
+    if (comma < 0) {
+        return false;
+    }
+    *arg = (TokenRange){first, comma};
+    return true;
+}
+
+static void
+csane_wrap_call_identity(CsaneFile *file, int32 name, CsaneWrapSpan *span) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view = csane_tokens_full(tokens);
+    TokenRange first_arg = {0};
+
+    span->call_name = name;
+    if (!csane_wrap_first_arg(&view, name, &first_arg)) {
+        span->first_arg = first_arg;
+        return;
+    }
+    if (csane_wrap_token_is(&tokens->tokens[name], STRLIT("ASSERT"))) {
+        for (int32 i = first_arg.first; i < first_arg.end;
+             i = csane_tokens_next(&view, i)) {
+            Token *token = &tokens->tokens[i];
+            int32 next = csane_tokens_next(&view, i);
+            int32 close;
+
+            if (token->kind != TOKEN_IDENT || next >= first_arg.end
+                || !csane_wrap_token_is(&tokens->tokens[next], STRLIT("("))) {
+                continue;
+            }
+            close = csane_tokens_match(&view, next);
+            if (close < 0 || close >= first_arg.end) {
+                continue;
+            }
+            span->call_name = i;
+            (void)csane_wrap_first_arg(&view, i, &first_arg);
+            break;
+        }
+    }
+    span->first_arg = first_arg;
+    return;
+}
+
 static bool
 csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
     Tokenization *tokens = file->tokens;
@@ -341,6 +407,7 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
             return false;
         }
     }
+    csane_wrap_call_identity(file, name, span);
     span->start = line_start;
     span->end = tokens->tokens[last].offset + tokens->tokens[last].len;
     span->indent = first_offset - line_start;
@@ -423,6 +490,39 @@ csane_wrap_compare_calls(void *left, void *right) {
     return 0;
 }
 
+static bool
+csane_wrap_call_related(CsaneFile *file, CsaneWrapSpan *a, CsaneWrapSpan *b) {
+    Tokenization *tokens = file->tokens;
+    Token *left = &tokens->tokens[a->call_name];
+    Token *right = &tokens->tokens[b->call_name];
+    CsaneTokenView view;
+    int32 i;
+    int32 j;
+
+    if (left->len == right->len
+        && !memcmp64(left->text, right->text, left->len)) {
+        return true;
+    }
+    if (a->first_arg.first >= a->first_arg.end
+        || b->first_arg.first >= b->first_arg.end) {
+        return false;
+    }
+    view = csane_tokens_full(tokens);
+    i = a->first_arg.first;
+    j = b->first_arg.first;
+    while (i < a->first_arg.end && j < b->first_arg.end) {
+        left = &tokens->tokens[i];
+        right = &tokens->tokens[j];
+        if (left->len != right->len
+            || memcmp64(left->text, right->text, left->len)) {
+            return false;
+        }
+        i = csane_tokens_next(&view, i);
+        j = csane_tokens_next(&view, j);
+    }
+    return i >= a->first_arg.end && j >= b->first_arg.end;
+}
+
 static void
 csane_wrap_call_group(CsaneFile *file, CsaneWrapSpan *items,
                       int32 first, int32 end) {
@@ -476,7 +576,9 @@ csane_wrap_call_check(CsaneFile *file) {
         int32 end = first + 1;
         while (end < unique
                && csane_wrap_adjacent(file, &items[end - 1], &items[end],
-                                      CSANE_WRAP_CALL)) {
+                                      CSANE_WRAP_CALL)
+               && csane_wrap_call_related(file, &items[end - 1],
+                                          &items[end])) {
             end += 1;
         }
         csane_wrap_call_group(file, items, first, end);
