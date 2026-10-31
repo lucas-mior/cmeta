@@ -272,7 +272,7 @@ test_assignments(void) {
         SFLIT("= x"),
         SFLIT("x = "),
     };
-    for (int32 i = 0; i < SIZEOF(invalid)/SIZEOF(invalid[0]); i += 1) {
+    for (int32 i = 0; i < LENGTH(invalid); i += 1) {
         Tokenization tokens = tokenize_copy(invalid[i]->data, invalid[i]->len,
                                             TOKENIZE_DEFAULT);
         CsaneTokenView view = csane_tokens_full(&tokens);
