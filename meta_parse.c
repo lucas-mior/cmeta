@@ -609,8 +609,12 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
     }
     before = ast->issue_count;
     start = ast->external_count;
-    c = (UnitCursor){.ast = ast, .pp = pp, .range = range,
-                     .pos = range.first};
+    c = (UnitCursor){
+        .ast = ast,
+        .pp = pp,
+        .range = range,
+        .pos = range.first,
+    };
     for (int32 i = 0; i < pp->issue_count; i += 1) {
         StmtCursor issue = {.ast = ast};
         int32 d = pp->issues[i].directive_index;
