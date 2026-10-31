@@ -569,8 +569,15 @@ expr_parse_root(CAst *ast, TokenRange range, bool initializer) {
     }
     previous_nodes = ast->expression_count;
     previous_args = ast->argument_count;
-    c = (ExprCursor){.ast = ast, .range = range, .pos = next,
-                     .issue = -1, .status = C_EXPR_PARSE_OK};
+
+    c = (ExprCursor){
+        .ast = ast,
+        .range = range,
+        .pos = next,
+        .issue = -1,
+        .status = C_EXPR_PARSE_OK
+    };
+
     if (initializer) {
         result.expression = expr_parse_initializer(&c);
     } else {
