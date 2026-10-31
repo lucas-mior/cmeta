@@ -571,11 +571,9 @@ test_preprocessor_logical_directive_range(void) {
     ASSERT_EQ(directive.source.end,
               strlen32("  #define ADD(a, b) ((a) + \\\n"
                        "                    (b))\n"));
-    ASSERT(c_preprocessor_directive_containing(&tokenization, b,
-                                               &directive));
+    ASSERT(c_preprocessor_directive_containing(&tokenization, b, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
-    ASSERT(!c_preprocessor_directive_containing(&tokenization, x,
-                                                &directive));
+    ASSERT(!c_preprocessor_directive_containing(&tokenization, x, &directive));
     ASSERT(!c_preprocessor_directive_at(&tokenization, b, &directive));
     free_tokenization(&tokenization);
     return;
