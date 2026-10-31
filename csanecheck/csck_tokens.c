@@ -565,8 +565,7 @@ bool
 csane_tokens_assignment(CsaneTokenView *view, TokenRange *left,
                         TokenRange *right, int32 *operator_index) {
     int32 chosen;
-    int32 count = SIZEOF(csane_token_assignments)
-                  /SIZEOF(csane_token_assignments[0]);
+    int32 count = LENGTH(csane_token_assignments);
     TokenRange lhs;
     TokenRange rhs;
     CsaneTokenView lhs_view;

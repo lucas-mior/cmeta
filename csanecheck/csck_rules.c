@@ -516,8 +516,7 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
 
     ASSERT(file != NULL);
     fixture = csane_fixture_path(file->path, file->path_len);
-    for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
-         i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_rules); i += 1) {
         CsaneRule *rule = &csane_rules[i];
         if (rule->pass == pass
             && (!fixture || rule->include_fixtures)) {
@@ -561,8 +560,7 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
                        CsaneRuleCounts *totals) {
     int32 incomplete = 0;
     CsaneRuleCounts sum = {0};
-    for (int32 i = 0; i < (int32)(SIZEOF(csane_rules)/SIZEOF(csane_rules[0]));
-         i += 1) {
+    for (int32 i = 0; i < LENGTH(csane_rules); i += 1) {
         CsaneRule *rule = &csane_rules[i];
         CsaneRuleCounts counts =
             csane_coverage_rule(file, rule->target, rule->id,

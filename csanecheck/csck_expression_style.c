@@ -481,6 +481,79 @@ csane_style_round64(CsaneFile *file, CsaneTokenView *view, int32 name) {
     }
 }
 
+/* A fixed-array count belongs to LENGTH, not a manually divided
+ * SIZEOF pair. Match complete token-local operands, including comments and
+ * line breaks, and require the same array name on both sides. */
+static void
+csane_style_sizeof_length(CsaneFile *file, CsaneTokenView *view,
+                          int32 name, int32 open, int32 close) {
+    Tokenization *tokens = file->tokens;
+    int32 array = csane_tokens_next(view, open);
+    int32 divide;
+    int32 second;
+    int32 second_open;
+    int32 second_array;
+    int32 bracket;
+    int32 zero;
+    int32 bracket_close;
+    int32 second_close;
+
+    if (array >= close || tokens->tokens[array].kind != TOKEN_IDENT
+        || csane_tokens_next(view, array) != close) {
+        return;
+    }
+    divide = csane_tokens_next(view, close);
+    if (divide >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[divide], "/")) {
+        return;
+    }
+    second = csane_tokens_next(view, divide);
+    if (second >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[second], "SIZEOF")) {
+        return;
+    }
+    second_open = csane_tokens_next(view, second);
+    if (second_open >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[second_open], "(")) {
+        return;
+    }
+    second_array = csane_tokens_next(view, second_open);
+    if (second_array >= view->range.end
+        || tokens->tokens[second_array].kind != TOKEN_IDENT
+        || tokens->tokens[array].len != tokens->tokens[second_array].len
+        || memcmp64(tokens->tokens[array].text,
+                    tokens->tokens[second_array].text,
+                    tokens->tokens[array].len) != 0) {
+        return;
+    }
+    bracket = csane_tokens_next(view, second_array);
+    if (bracket >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[bracket], "[")) {
+        return;
+    }
+    zero = csane_tokens_next(view, bracket);
+    if (zero >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[zero], "0")) {
+        return;
+    }
+    bracket_close = csane_tokens_next(view, zero);
+    if (bracket_close >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[bracket_close], "]")
+        || csane_tokens_match(view, bracket) != bracket_close) {
+        return;
+    }
+    second_close = csane_tokens_next(view, bracket_close);
+    if (second_close >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[second_close], ")")
+        || csane_tokens_match(view, second_open) != second_close) {
+        return;
+    }
+    csane_rule_issue(file, tokens->tokens[name].offset,
+                     STRLIT("STYLE-SIZEOF-LENGTH"),
+                     "use LENGTH(array) instead of "
+                     "SIZEOF(array)/SIZEOF(array[0])");
+}
+
 void
 csane_expression_style_check(CsaneFile *file) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
@@ -587,6 +660,9 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
                 continue;
+            }
+            if (TOKEN_IS(token, "SIZEOF")) {
+                csane_style_sizeof_length(file, &local, i, next, close);
             }
             if (TOKEN_IS(token, "floor") || TOKEN_IS(token, "ceil")
                 || TOKEN_IS(token, "round")) {
