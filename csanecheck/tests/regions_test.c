@@ -107,7 +107,7 @@ test_complete_groups(void) {
     CHECK(c_preprocessor_analysis_init(&pp, &tokens));
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     CHECK(regions.complete);
-    CHECK(pp.group_count == 2);
+    CHECK(ARRAY_LEN(pp.groups) == 2);
     test_partition(&regions, 0);
     test_token_index(&regions);
     int32 first = test_enclosing(&regions, text, text_len,
@@ -167,7 +167,7 @@ test_recovery(void) {
     CPreprocessorAnalysis pp = {0};
     CsaneRegions regions = {0};
     CHECK(!c_preprocessor_analysis_init(&pp, &tokens));
-    CHECK(pp.issue_count >= 3);
+    CHECK(ARRAY_LEN(pp.issues) >= 3);
     CHECK(csane_regions_init(&regions, &tokens, &pp));
     CHECK(!regions.complete);
     test_partition(&regions, 0);

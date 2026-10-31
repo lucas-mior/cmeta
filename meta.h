@@ -550,14 +550,6 @@ typedef struct CPreprocessorAnalysis {
     int32 *token_directives;
     int32 *token_branches;
     enum CPreprocessorTokenRole *token_roles;
-    int32 directive_count;
-    int32 directive_capacity;
-    int32 branch_count;
-    int32 branch_capacity;
-    int32 group_count;
-    int32 group_capacity;
-    int32 issue_count;
-    int32 issue_capacity;
 } CPreprocessorAnalysis;
 
 /* Returns false for bad arguments or a malformed conditional structure.

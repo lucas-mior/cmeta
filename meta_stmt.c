@@ -128,7 +128,7 @@ stmt_match(StmtCursor *c, int32 open) {
         int32 directive = stmt_directive(c, i);
         if (directive >= 0) {
             bool skipped_group = false;
-            for (int32 j = 0; j < c->pp->group_count; j += 1) {
+            for (int32 j = 0; j < ARRAY_LEN(c->pp->groups); j += 1) {
                 CPreprocessorGroup *g = &c->pp->groups[j];
                 int32 b = g->first_branch;
                 if ((b >= 0)
@@ -370,7 +370,7 @@ stmt_pp(StmtCursor *c, int32 first, int32 directive) {
     int32 tail;
     int32 following;
     bool shared;
-    for (int32 i = 0; i < c->pp->group_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(c->pp->groups); i += 1) {
         int32 branch = c->pp->groups[i].first_branch;
         if ((branch >= 0)
             && (c->pp->branches[branch].directive_index == directive)) {

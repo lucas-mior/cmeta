@@ -233,7 +233,7 @@ csane_in_sizeof_definition(CsaneFile *file, int32 token_index) {
         return false;
     }
     directive_index = pp->token_directives[token_index];
-    if (directive_index < 0 || directive_index >= pp->directive_count) {
+    if (directive_index < 0 || directive_index >= ARRAY_LEN(pp->directives)) {
         return false;
     }
     directive = &pp->directives[directive_index];

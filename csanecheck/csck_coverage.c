@@ -513,7 +513,9 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
             }
         }
     } else if (kind == CSANE_TARGET_DIRECTIVES) {
-        for (int32 i = 0; i < file->preprocessor->directive_count; i += 1) {
+        int32 directives = ARRAY_LEN(file->preprocessor->directives);
+
+        for (int32 i = 0; i < directives; i += 1) {
             csane_coverage_target(&counts, true);
         }
         if (!file->preprocessor_ok) {

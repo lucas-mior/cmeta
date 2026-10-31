@@ -131,8 +131,8 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     coverage = csane_coverage_collect(&toplevel, &statements);
     violations = file.violations;
     structural_issues = coverage.opaque_externals + coverage.opaque_statements;
-    issues = structural_issues + pp.issue_count;
-    if (!pp_ok && pp.issue_count == 0) {
+    issues = structural_issues + ARRAY_LEN(pp.issues);
+    if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
         issues += 1;
     }
     stats->violations += violations;
@@ -153,7 +153,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
                    coverage.function_decls,
                    coverage.function_defs, coverage.statements,
                    coverage.opaque_statements, coverage.opaque_externals,
-                   structural_issues, pp.issue_count);
+                   structural_issues, ARRAY_LEN(pp.issues));
     }
     if ((options->coverage || options->require_coverage)
         && structural_issues > 0) {
@@ -184,22 +184,22 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     stats->tokens += tokens.token_count;
     stats->externals += ARRAY_LEN(toplevel.items);
     stats->structural_issues += structural_issues;
-    stats->preprocessor_issues += pp.issue_count;
+    stats->preprocessor_issues += ARRAY_LEN(pp.issues);
 
-    if (!pp_ok && pp.issue_count == 0) {
+    if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
         stats->preprocessor_issues += 1;
     }
     if (options->report_parse || options->strict_parse) {
-        for (int32 i = 0; i < pp.issue_count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(pp.issues); i += 1) {
             int32 directive = pp.issues[i].directive_index;
             int32 token = -1;
-            if ((directive >= 0) && (directive < pp.directive_count)) {
+            if ((directive >= 0) && (directive < ARRAY_LEN(pp.directives))) {
                 token = pp.directives[directive].hash_token;
             }
             csane_issue(path, path_len, &tokens, token,
                         "PP-STRUCTURE", "invalid preprocessor structure");
         }
-        if (!pp_ok && pp.issue_count == 0) {
+        if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
             csane_issue(path, path_len, &tokens, -1,
                         "PP-STRUCTURE", "preprocessor analysis failed");
         }

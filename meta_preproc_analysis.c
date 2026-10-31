@@ -15,39 +15,13 @@
 #include "cbase.h"
 #include "meta.h"
 
-static void *
-preproc_analysis_grow(void *items, int32 *capacity, int32 count,
-                      int32 item_size) {
-    int32 next;
-    void *result;
-
-    if (count < *capacity) {
-        return items;
-    }
-    ASSERT_LT(*capacity, INT32_MAX/2);
-    next = (*capacity == 0) ? 16 : *capacity*2;
-    ASSERT_GT_VAR(next, *capacity);
-    if (items == NULL) {
-        result = malloc2((int64)next*item_size);
-    } else {
-        result = realloc2(items, *capacity, next, item_size);
-    }
-    *capacity = next;
-    return result;
-}
-
 static int32
 preproc_analysis_append_directive(CPreprocessorAnalysis *analysis,
                                   CPreprocessorDirective directive) {
     int32 index;
 
-    index = analysis->directive_count;
-    analysis->directives =
-        preproc_analysis_grow(analysis->directives,
-                              &analysis->directive_capacity, index,
-                              SIZEOF(directive));
-    analysis->directives[index] = directive;
-    analysis->directive_count += 1;
+    index = ARRAY_LEN(analysis->directives);
+    ARRAY_PUSH(analysis->directives, directive);
     return index;
 }
 
@@ -57,18 +31,14 @@ preproc_analysis_append_group(CPreprocessorAnalysis *analysis,
     CPreprocessorGroup group = {0};
     int32 index;
 
-    index = analysis->group_count;
-    analysis->groups = preproc_analysis_grow(analysis->groups,
-                                             &analysis->group_capacity,
-                                             index, SIZEOF(group));
+    index = ARRAY_LEN(analysis->groups);
     group.source.start = analysis->directives[directive_index].source.start;
     group.source.end = analysis->tokenization->text_len;
     group.parent_branch = parent_branch;
     group.first_branch = -1;
     group.last_branch = -1;
     group.endif_directive = -1;
-    analysis->groups[index] = group;
-    analysis->group_count += 1;
+    ARRAY_PUSH(analysis->groups, group);
     return index;
 }
 
@@ -79,10 +49,7 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
     CPreprocessorBranch branch = {0};
     int32 index;
 
-    index = analysis->branch_count;
-    analysis->branches = preproc_analysis_grow(analysis->branches,
-                                               &analysis->branch_capacity,
-                                               index, SIZEOF(branch));
+    index = ARRAY_LEN(analysis->branches);
     group = &analysis->groups[group_index];
     branch.group_index = group_index;
     branch.parent_branch = group->parent_branch;
@@ -91,14 +58,13 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
     branch.body_source.start =
         analysis->directives[directive_index].source.end;
     branch.body_source.end = analysis->tokenization->text_len;
-    analysis->branches[index] = branch;
+    ARRAY_PUSH(analysis->branches, branch);
     if (group->last_branch >= 0) {
         analysis->branches[group->last_branch].next_branch = index;
     } else {
         group->first_branch = index;
     }
     group->last_branch = index;
-    analysis->branch_count += 1;
     return index;
 }
 
@@ -106,14 +72,7 @@ static void
 preproc_analysis_add_issue(CPreprocessorAnalysis *analysis,
                            enum CPreprocessorIssueKind kind,
                            int32 directive_index) {
-    int32 index;
-
-    index = analysis->issue_count;
-    analysis->issues = preproc_analysis_grow(analysis->issues,
-                                             &analysis->issue_capacity,
-                                             index, SIZEOF(*analysis->issues));
-    analysis->issues[index] = (CPreprocessorIssue){kind, directive_index};
-    analysis->issue_count += 1;
+    ARRAY_PUSH(analysis->issues, (CPreprocessorIssue){kind, directive_index});
     return;
 }
 
@@ -309,7 +268,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
         current_group = (parent >= 0)
                          ? analysis->branches[parent].group_index : -1;
     }
-    for (int32 i = 0; i < analysis->branch_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(analysis->branches); i += 1) {
         CPreprocessorBranch *branch = &analysis->branches[i];
 
         branch->body_tokens.first =
@@ -319,7 +278,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
             tokenization_token_at_or_after_offset(tokenization,
                                                   branch->body_source.end);
     }
-    return analysis->issue_count == 0;
+    return ARRAY_LEN(analysis->issues) == 0;
 }
 
 void
@@ -327,14 +286,10 @@ c_preprocessor_analysis_free(CPreprocessorAnalysis *analysis) {
     if (analysis == NULL) {
         return;
     }
-    free2(analysis->directives,
-          analysis->directive_capacity*SIZEOF(*analysis->directives));
-    free2(analysis->branches,
-          analysis->branch_capacity*SIZEOF(*analysis->branches));
-    free2(analysis->groups,
-          analysis->group_capacity*SIZEOF(*analysis->groups));
-    free2(analysis->issues,
-          analysis->issue_capacity*SIZEOF(*analysis->issues));
+    ARRAY_FREE(analysis->directives);
+    ARRAY_FREE(analysis->branches);
+    ARRAY_FREE(analysis->groups);
+    ARRAY_FREE(analysis->issues);
     if (analysis->tokenization != NULL) {
         int32 count = analysis->tokenization->token_count;
 
@@ -413,10 +368,10 @@ preproc_test_nested_conditionals(void) {
     enum CPreprocessorTokenRole role;
 
     ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(analysis.directive_count, 7);
-    ASSERT_EQ(analysis.group_count, 2);
-    ASSERT_EQ(analysis.branch_count, 5);
-    ASSERT_ZERO(analysis.issue_count);
+    ASSERT_EQ(ARRAY_LEN(analysis.directives), 7);
+    ASSERT_EQ(ARRAY_LEN(analysis.groups), 2);
+    ASSERT_EQ(ARRAY_LEN(analysis.branches), 5);
+    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
     ASSERT_EQ(analysis.groups[0].first_branch, 0);
     ASSERT_EQ(analysis.groups[0].last_branch, 4);
     ASSERT_EQ(analysis.groups[1].parent_branch, 0);
@@ -474,8 +429,8 @@ preproc_test_macro_regions(void) {
     int32 index;
 
     ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(analysis.directive_count, 3);
-    ASSERT_ZERO(analysis.group_count);
+    ASSERT_EQ(ARRAY_LEN(analysis.directives), 3);
+    ASSERT_ZERO(ARRAY_LEN(analysis.groups));
     index = preproc_test_find(&tokens, "b", 0);
     ASSERT(c_preprocessor_token_context(&analysis, index, &role, &directive,
                                         &branch));
@@ -519,7 +474,7 @@ preproc_test_malformed(void) {
     CPreprocessorAnalysis analysis;
 
     ASSERT(!c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(analysis.issue_count, 6);
+    ASSERT_EQ(ARRAY_LEN(analysis.issues), 6);
     ASSERT_EQ(analysis.issues[0].kind, C_PP_ISSUE_STRAY_ELSE);
     ASSERT_EQ(analysis.issues[1].kind, C_PP_ISSUE_STRAY_ENDIF);
     ASSERT_EQ(analysis.issues[2].kind, C_PP_ISSUE_ELIF_AFTER_ELSE);
@@ -546,12 +501,81 @@ preproc_test_comments_and_digraph(void) {
     CPreprocessorAnalysis analysis;
 
     ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(analysis.directive_count, 2);
-    ASSERT_EQ(analysis.group_count, 1);
-    ASSERT_EQ(analysis.branch_count, 1);
+    ASSERT_EQ(ARRAY_LEN(analysis.directives), 2);
+    ASSERT_EQ(ARRAY_LEN(analysis.groups), 1);
+    ASSERT_EQ(ARRAY_LEN(analysis.branches), 1);
     ASSERT_EQ(analysis.groups[0].source.end, tokens.text_len);
     c_preprocessor_analysis_free(&analysis);
     free_tokenization(&tokens);
+    return;
+}
+
+static void
+preproc_test_array_growth(void) {
+    String text = {0};
+    Tokenization tokens;
+    CPreprocessorAnalysis analysis;
+
+    for (int32 i = 0; i < 64; i += 1) {
+        STR_APPEND(&text, "#if FLAG\n#else\n#endif\n");
+    }
+    tokens = tokenize(text.data, text.len);
+    ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
+    ASSERT_EQ(ARRAY_LEN(analysis.directives), 192);
+    ASSERT_EQ(ARRAY_LEN(analysis.groups), 64);
+    ASSERT_EQ(ARRAY_LEN(analysis.branches), 128);
+    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
+    for (int32 i = 0; i < 64; i += 1) {
+        CPreprocessorGroup *group = &analysis.groups[i];
+        CPreprocessorBranch *first = &analysis.branches[i*2];
+        CPreprocessorBranch *second = &analysis.branches[i*2 + 1];
+
+        ASSERT_EQ(group->parent_branch, -1);
+        ASSERT_EQ(group->first_branch, i*2);
+        ASSERT_EQ(group->last_branch, i*2 + 1);
+        ASSERT_EQ(group->endif_directive, i*3 + 2);
+        ASSERT_EQ(first->directive_index, i*3);
+        ASSERT_EQ(first->next_branch, i*2 + 1);
+        ASSERT_EQ(second->directive_index, i*3 + 1);
+        ASSERT_EQ(second->next_branch, -1);
+    }
+    c_preprocessor_analysis_free(&analysis);
+    ASSERT_ZERO(ARRAY_LEN(analysis.directives));
+    ASSERT_ZERO(ARRAY_LEN(analysis.groups));
+    ASSERT_ZERO(ARRAY_LEN(analysis.branches));
+    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
+    free_tokenization(&tokens);
+    str_free(&text);
+    return;
+}
+
+static void
+preproc_test_issue_growth(void) {
+    String text = {0};
+    Tokenization tokens;
+    CPreprocessorAnalysis analysis;
+
+    for (int32 i = 0; i < 64; i += 1) {
+        STR_APPEND(&text, "#else\n");
+    }
+    for (int32 i = 0; i < 64; i += 1) {
+        STR_APPEND(&text, "#if OPEN\n");
+    }
+    tokens = tokenize(text.data, text.len);
+    ASSERT(!c_preprocessor_analysis_init(&analysis, &tokens));
+    ASSERT_EQ(ARRAY_LEN(analysis.directives), 128);
+    ASSERT_EQ(ARRAY_LEN(analysis.groups), 64);
+    ASSERT_EQ(ARRAY_LEN(analysis.branches), 64);
+    ASSERT_EQ(ARRAY_LEN(analysis.issues), 128);
+    for (int32 i = 0; i < 64; i += 1) {
+        ASSERT_EQ(analysis.issues[i].kind, C_PP_ISSUE_STRAY_ELSE);
+        ASSERT_EQ(analysis.issues[i].directive_index, i);
+        ASSERT_EQ(analysis.issues[i + 64].kind, C_PP_ISSUE_UNCLOSED_IF);
+        ASSERT_EQ(analysis.issues[i + 64].directive_index, 127 - i);
+    }
+    c_preprocessor_analysis_free(&analysis);
+    free_tokenization(&tokens);
+    str_free(&text);
     return;
 }
 
@@ -561,6 +585,8 @@ main(void) {
     preproc_test_macro_regions();
     preproc_test_malformed();
     preproc_test_comments_and_digraph();
+    preproc_test_array_growth();
+    preproc_test_issue_growth();
     return 0;
 }
 #endif /* TESTING_meta_preproc_analysis */

@@ -198,7 +198,7 @@ unit_preprocessor(UnitCursor *c, int32 first, int32 directive) {
     CPreprocessorGroup *g;
     int32 head;
     int32 tail;
-    for (int32 i = 0; i < c->pp->group_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(c->pp->groups); i += 1) {
         int32 branch = c->pp->groups[i].first_branch;
         if ((branch >= 0)
             && (c->pp->branches[branch].directive_index == directive)) {
@@ -299,7 +299,7 @@ unit_partial_function_open(UnitCursor *c, int32 first) {
         if ((directive >= 0)
             && (c->pp->directives[directive].hash_token == i)) {
             bool skipped = false;
-            for (int32 j = 0; j < c->pp->group_count; j += 1) {
+            for (int32 j = 0; j < ARRAY_LEN(c->pp->groups); j += 1) {
                 CPreprocessorGroup *g = &c->pp->groups[j];
                 int32 b = g->first_branch;
                 if ((b >= 0)
@@ -433,7 +433,7 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
     }
     defined = false;
     possible = false;
-    for (int32 i = 0; i < c->pp->directive_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(c->pp->directives); i += 1) {
         CPreprocessorDirective *directive = &c->pp->directives[i];
         int32 candidate_index = -1;
         Token *candidate;
@@ -622,7 +622,7 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
         .range = range,
         .pos = range.first,
     };
-    for (int32 i = 0; i < pp->issue_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(pp->issues); i += 1) {
         StmtCursor issue = {.ast = ast};
         int32 d = pp->issues[i].directive_index;
         int32 token = pp->directives[d].hash_token;

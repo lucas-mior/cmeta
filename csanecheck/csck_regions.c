@@ -101,7 +101,7 @@ csane_regions_define(CsaneRegions *regions, int32 parent,
 static bool
 csane_regions_directive_complete(CsaneRegions *regions, int32 directive) {
     CPreprocessorAnalysis *pp = regions->preprocessor;
-    for (int32 i = 0; i < pp->issue_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(pp->issues); i += 1) {
         if (pp->issues[i].directive_index == directive) {
             return false;
         }
@@ -143,7 +143,7 @@ static int32
 csane_regions_first_directive(CsaneRegions *regions, int32 offset) {
     CPreprocessorAnalysis *pp = regions->preprocessor;
     int32 first = 0;
-    int32 end = pp->directive_count;
+    int32 end = ARRAY_LEN(pp->directives);
     while (first < end) {
         int32 middle = first + (end - first)/2;
         if (pp->directives[middle].source.start < offset) {
@@ -163,11 +163,12 @@ csane_regions_group_usable(CsaneRegions *regions, int32 index) {
     CPreprocessorGroup *group;
     int32 cursor;
 
-    if (index < 0 || index >= pp->group_count) {
+    if (index < 0 || index >= ARRAY_LEN(pp->groups)) {
         return false;
     }
     group = &pp->groups[index];
-    if (group->first_branch < 0 || group->first_branch >= pp->branch_count
+    if (group->first_branch < 0
+        || group->first_branch >= ARRAY_LEN(pp->branches)
         || group->source.start < 0
         || group->source.end > regions->tokens->text_len
         || group->source.end <= group->source.start) {
@@ -179,12 +180,13 @@ csane_regions_group_usable(CsaneRegions *regions, int32 index) {
         CPreprocessorBranch *branch;
         SourceRange directive;
 
-        if (b >= pp->branch_count || pp->branches[b].group_index != index) {
+        if (b >= ARRAY_LEN(pp->branches)
+            || pp->branches[b].group_index != index) {
             return false;
         }
         branch = &pp->branches[b];
         if (branch->directive_index < 0
-            || branch->directive_index >= pp->directive_count) {
+            || branch->directive_index >= ARRAY_LEN(pp->directives)) {
             return false;
         }
         directive = pp->directives[branch->directive_index].source;
@@ -197,7 +199,7 @@ csane_regions_group_usable(CsaneRegions *regions, int32 index) {
         cursor = branch->body_source.end;
     }
     if (group->endif_directive >= 0) {
-        if (group->endif_directive >= pp->directive_count
+        if (group->endif_directive >= ARRAY_LEN(pp->directives)
             || pp->directives[group->endif_directive].source.start < cursor
             || pp->directives[group->endif_directive].source.end
                != group->source.end) {
@@ -266,7 +268,7 @@ csane_regions_content(CsaneRegions *regions, int32 parent,
     CPreprocessorAnalysis *pp = regions->preprocessor;
     int32 cursor = source.start;
     int32 i = csane_regions_first_directive(regions, cursor);
-    while (i < pp->directive_count
+    while (i < ARRAY_LEN(pp->directives)
            && pp->directives[i].source.start < source.end) {
         CPreprocessorDirective *directive = &pp->directives[i];
         int32 group = opening_groups[i];
@@ -338,18 +340,18 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
     }
     regions->tokens = tokens;
     regions->preprocessor = pp;
-    regions->complete = pp->issue_count == 0;
+    regions->complete = ARRAY_LEN(pp->issues) == 0;
     root = csane_regions_append(regions, -1, CSANE_REGION_FILE,
                                 (SourceRange){0, tokens->text_len},
                                 -1, -1, -1);
-    if (pp->directive_count > 0) {
-        opening_groups = malloc2((int64)pp->directive_count
+    if (ARRAY_LEN(pp->directives) > 0) {
+        opening_groups = malloc2(ARRAY_LEN(pp->directives)
                                  *SIZEOF(*opening_groups));
-        for (int32 i = 0; i < pp->directive_count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(pp->directives); i += 1) {
             opening_groups[i] = -1;
         }
         /* Partial conditional groups survive unrelated syntax issues. */
-        for (int32 i = 0; i < pp->group_count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(pp->groups); i += 1) {
             int32 branch;
             int32 directive;
 
@@ -363,7 +365,7 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
     }
     csane_regions_content(regions, root, (SourceRange){0, tokens->text_len},
                           opening_groups, -1);
-    free2(opening_groups, pp->directive_count*SIZEOF(*opening_groups));
+    free2(opening_groups, ARRAY_LEN(pp->directives)*SIZEOF(*opening_groups));
     if (tokens->token_count > 0) {
         int32 cursor = 0;
         regions->token_regions =
