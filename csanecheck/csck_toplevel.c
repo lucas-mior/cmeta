@@ -1164,10 +1164,8 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
                                  ? CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT
                                  : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
                                  0, 1, -1, -1);
-                free2(stream.indices,
-                      stream.capacity*SIZEOF(*stream.indices));
-                free2(stream.leaf,
-                      stream.capacity*SIZEOF(*stream.leaf));
+                free2(stream.indices, stream.capacity*SIZEOF(*stream.indices));
+                free2(stream.leaf, stream.capacity*SIZEOF(*stream.leaf));
             }
         }
     }
