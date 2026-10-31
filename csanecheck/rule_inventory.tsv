@@ -20,35 +20,35 @@ FMT018	cbase/c-format.md	67	67	Function calls	Do not put whitespace before a fun
 FMT019	cbase/c-format.md	69	104	Function calls	Do not wrap a call before its first argument; align continuation arguments to the first argument, except generated .meta.h files.	implemented	FMT-CALL-FIRST;FMT-CALL-FIRST-TOPLEVEL;FMT-ARG-ALIGN	-
 FMT020	cbase/c-format.md	75	117	Function calls	Prefer single-line calls, then break after the first argument, then after assignment = when required by width.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Mechanical unnecessary-wrap cases are implemented.
 FMT021	cbase/c-format.md	139	156	Long lines	Use the documented line-breaking priorities for arithmetic, assignments, macros, nesting, declarations, and strings.	manual	-	Several subcases require readability/judgment; line length itself is enforced.
-FMT022	cbase/c-format.md	158	173	Indentation	Align wrapped long expressions for readability as shown.	csanecheck_candidate	-	-
-FMT023	cbase/c-format.md	186	212	Function headers	When function arguments wrap, align continuation parameters and keep related arguments grouped where recognized.	implemented	FMT-FUNC-ALIGN	Parameter alignment is implemented.
+FMT022	cbase/c-format.md	165	180	Indentation	Align wrapped long expressions for readability as shown.	csanecheck_candidate	-	-
+FMT023	cbase/c-format.md	193	219	Function headers	When function arguments wrap, align continuation parameters and keep related arguments grouped where recognized.	implemented	FMT-FUNC-ALIGN	Parameter alignment is implemented.
 FMT050	cbase/c-format.md	221	241	Other related arguments case	Keep two consecutive string-literal arguments on the same line, or each alone on its own line, when all other arguments are non-string.	implemented	FMT-STRING-PAIR	Applies to exactly two literal arguments; ignores other literal expressions.
-FMT024	cbase/c-format.md	214	315	Printf-like calls	Apply the documented format-string/argument wrapping and alignment rules.	implemented	FMT-FORMAT-LINE;FMT-FORMAT-ARGS-WRAP;FMT-ARG-ALIGN;FMT-LITERAL-ALIGN	-
-FMT025	cbase/c-format.md	317	339	realloc2 style	Use the documented preferred realloc2 wrapping order.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Covered through generic call/assignment wrapping heuristics.
-FMT026	cbase/c-format.md	341	354	Switch formatting	Align case/default labels with their switch.	implemented	AST-SWITCH-ALIGN	-
-FMT027	cbase/c-format.md	358	366	Declaration formatting	Declare at most one variable per line.	implemented	AST-DECL-ONE	-
-FMT028	cbase/c-format.md	367	382	Initialization formatting	Require trailing commas in array initializers with at least four elements and multiline struct initializers, except {0}.	implemented	FMT-TRAILING-COMMA	-
-FMT029	cbase/c-format.md	386	396	Curly braces	Require braces for all control-flow bodies.	implemented	AST-BRACES	-
-FMT030	cbase/c-format.md	398	409	If expressions	Parenthesize binary-expression operands of && and ||.	csanecheck_candidate	-	-
-FMT031	cbase/c-format.md	411	436	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-
-FMT032	cbase/c-format.md	438	449	Confusing precedence	Use parentheses to make mixed &&/|| precedence explicit.	csanecheck_candidate	-	-
-FMT033	cbase/c-format.md	451	463	Confusing precedence	Put chains of three or more &&/|| operators on multiple lines.	csanecheck_candidate	-	-
-FMT034	cbase/c-format.md	476	515	Function declaration and definition	Keep function headers on one line when they fit; otherwise align wrapped parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN;FMT-FUNC-WRAP	Parameter alignment and unnecessary wrapping are implemented.
-FMT035	cbase/c-format.md	517	530	Function declaration and definition	Group related parameters by type/intent when wrapping.	implemented	FMT-RELATED-ARGS	Only recognized related-argument patterns are mechanical.
-FMT036	cbase/c-format.md	532	580	Function declaration and definition	Keep object and corresponding _len arguments together when possible.	implemented	FMT-RELATED-ARGS	-
-FMT037	cbase/c-format.md	582	593	Function declaration and definition	In prototypes, add parameter names only when two or more parameters share that type.	csanecheck_candidate	-	-
-FMT038	cbase/c-format.md	595	612	Function declaration and definition	Prefer breaking calls after an argument before breaking an assignment before =.	implemented	FMT-ASSIGN-EQ;FMT-CALL-WRAP;FMT-ASSIGN-WRAP	-
-FMT039	cbase/c-format.md	615	616	Preprocessor directives	Indent macro continuation lines using 0, 2, or 4 spaces.	csanecheck_candidate	-	-
-FMT040	cbase/c-format.md	617	618	Preprocessor directives	Do not use #ifdef/#ifndef; use #if defined()/!defined().	implemented	PP-DEFINED	-
-FMT041	cbase/c-format.md	626	630	Preprocessor directives	Keep macro definition lines within the configured column limit.	implemented	SRC-COLUMNS	The 80-column limit is implemented.
-FMT042	cbase/c-format.md	632	668	Initialization	Use multiline indentation for nonzero struct initializers; keep {0} compact.	csanecheck_candidate	-	-
-FMT043	cbase/c-format.md	668	684	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
+FMT024	cbase/c-format.md	243	344	Printf-like calls	Apply the documented format-string/argument wrapping and alignment rules.	implemented	FMT-FORMAT-LINE;FMT-FORMAT-ARGS-WRAP;FMT-ARG-ALIGN;FMT-LITERAL-ALIGN	-
+FMT025	cbase/c-format.md	346	368	realloc2 style	Use the documented preferred realloc2 wrapping order.	implemented	FMT-CALL-WRAP;FMT-ASSIGN-WRAP	Covered through generic call/assignment wrapping heuristics.
+FMT026	cbase/c-format.md	370	383	Switch formatting	Align case/default labels with their switch.	implemented	AST-SWITCH-ALIGN	-
+FMT027	cbase/c-format.md	385	395	Declaration formatting	Declare at most one variable per line.	implemented	AST-DECL-ONE	-
+FMT028	cbase/c-format.md	396	411	Initialization formatting	Require trailing commas in array initializers with at least four elements and multiline struct initializers, except {0}.	implemented	FMT-TRAILING-COMMA	-
+FMT029	cbase/c-format.md	413	426	Curly braces	Require braces for all control-flow bodies.	implemented	AST-BRACES	-
+FMT030	cbase/c-format.md	427	439	If expressions	Parenthesize binary-expression operands of && and ||.	csanecheck_candidate	-	-
+FMT031	cbase/c-format.md	440	466	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-
+FMT032	cbase/c-format.md	467	479	Confusing precedence	Use parentheses to make mixed &&/|| precedence explicit.	csanecheck_candidate	-	-
+FMT033	cbase/c-format.md	480	493	Confusing precedence	Put chains of three or more &&/|| operators on multiple lines.	csanecheck_candidate	-	-
+FMT034	cbase/c-format.md	505	544	Function declaration and definition	Keep function headers on one line when they fit; otherwise align wrapped parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN;FMT-FUNC-WRAP	Parameter alignment and unnecessary wrapping are implemented.
+FMT035	cbase/c-format.md	546	559	Function declaration and definition	Group related parameters by type/intent when wrapping.	implemented	FMT-RELATED-ARGS	Only recognized related-argument patterns are mechanical.
+FMT036	cbase/c-format.md	561	609	Function declaration and definition	Keep object and corresponding _len arguments together when possible.	implemented	FMT-RELATED-ARGS	-
+FMT037	cbase/c-format.md	611	623	Function declaration and definition	In prototypes, add parameter names only when two or more parameters share that type.	csanecheck_candidate	-	-
+FMT038	cbase/c-format.md	624	641	Function declaration and definition	Prefer breaking calls after an argument before breaking an assignment before =.	implemented	FMT-ASSIGN-EQ;FMT-CALL-WRAP;FMT-ASSIGN-WRAP	-
+FMT039	cbase/c-format.md	643	645	Preprocessor directives	Indent macro continuation lines using 0, 2, or 4 spaces.	csanecheck_candidate	-	-
+FMT040	cbase/c-format.md	646	646	Preprocessor directives	Do not use #ifdef/#ifndef; use #if defined()/!defined().	implemented	PP-DEFINED	-
+FMT041	cbase/c-format.md	655	659	Preprocessor directives	Keep macro definition lines within the configured column limit.	implemented	SRC-COLUMNS	The 80-column limit is implemented.
+FMT042	cbase/c-format.md	661	695	Initialization	Use multiline indentation for nonzero struct initializers; keep {0} compact.	csanecheck_candidate	-	-
+FMT043	cbase/c-format.md	697	714	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
 FMT044	cbase/c-format.md	12	13	Whitespace and indentation	Use four spaces per indentation level; macro continuations may use 0, 2, or 4 spaces.	csanecheck_candidate	-	-
 FMT045	cbase/c-format.md	118	137	Function calls	If wrapping still cannot fit, use aliases, shorter names, or an external-library wrapper in the documented priority order.	manual	-	Requires naming/readability judgment.
-FMT046	cbase/c-format.md	175	184	Function headers	Put qualifiers/return type on one line and the function name/arguments on the next.	csanecheck_candidate	-	-
-FMT047	cbase/c-format.md	465	474	Function declaration and definition	In function definitions, put a newline before the function name and parameters.	csanecheck_candidate	-	-
-FMT048	cbase/c-format.md	618	624	Preprocessor directives	Prefer macros explicitly defined as 0/1 and test their value directly rather than definedness.	manual	-	Preference rather than a strict local anti-pattern.
-FMT049	cbase/c-format.md	626	630	Preprocessor directives	When a macro definition must wrap, use backslash continuation as documented.	csanecheck_candidate	-	-
+FMT046	cbase/c-format.md	182	191	Function headers	Put qualifiers/return type on one line and the function name/arguments on the next.	csanecheck_candidate	-	-
+FMT047	cbase/c-format.md	494	503	Function declaration and definition	In function definitions, put a newline before the function name and parameters.	csanecheck_candidate	-	-
+FMT048	cbase/c-format.md	647	653	Preprocessor directives	Prefer macros explicitly defined as 0/1 and test their value directly rather than definedness.	manual	-	Preference rather than a strict local anti-pattern.
+FMT049	cbase/c-format.md	655	659	Preprocessor directives	When a macro definition must wrap, use backslash continuation as documented.	csanecheck_candidate	-	-
 CG001	cbase/c-guidelines.md	15	20	Standard	Use ISO C11; compiler extensions only behind portable macros as described; code must compile with tcc.	compiler	-	Compilation/toolchain responsibility.
 CG002	cbase/c-guidelines.md	22	36	Files and organization	Use a common-denominator header and include cbase.h/common.h before other project includes.	csanecheck_candidate	-	-
 CG003	cbase/c-guidelines.md	38	44	APIs and error handling	User-facing APIs validate inputs/errors; internal functions assert programmer-controlled preconditions and handle remaining errors.	manual	-	-
@@ -108,32 +108,32 @@ CG054	cbase/c-guidelines.md	1007	1030	Assertions	Use cbase assertion macros and 
 CG055	cbase/c-guidelines.md	1031	1033	Assertions	Do not use ASSERT_EQ for enums.	csanecheck_candidate	-	-
 CG056	cbase/c-guidelines.md	1034	1057	Assertions	Use specialized success/failure/NULL assertion forms for function results.	manual	-	-
 CG057	cbase/c-guidelines.md	1058	1060	Assertions	Prefer ASSERT_ZERO(value) over ASSERT(value == 0).	implemented	STYLE-ASSERT-REL	-
-CG058	cbase/c-guidelines.md	1061	1093	Assertions	Use constant-RHS and ordered comparison assertion forms, preserving constants on the right.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
-CG059	cbase/c-guidelines.md	1094	1099	Assertions	Prefer ASSERT_ZERO and ASSERT_BETWEEN idioms for zero and bounds checks.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
-CG060	cbase/c-guidelines.md	1100	1102	Modules	Define internal functions static.	manual	-	Requires cross-file/use knowledge to avoid false positives.
-CG061	cbase/c-guidelines.md	1103	1122	Magic numbers and literals	Avoid unexplained magic values; derive/name values when meaning is not obvious.	manual	-	-
-CG062	cbase/c-guidelines.md	1123	1135	Declaration and initialization	Initialize variables/structs/arrays only when the initial value is semantically correct and use documented zero-init forms.	manual	-	-
-CG063	cbase/c-guidelines.md	1136	1145	Declaration and initialization	Keep variable scope small; artificial blocks are acceptable only under documented nesting/readability constraints.	implemented	AST-ARTIFICIAL-BLOCK	Deep artificial-block prohibition implemented; broader scope choice remains manual.
-CG064	cbase/c-guidelines.md	1146	1177	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	compiler	-	Compiler -Wdeclaration-after-statement is the primary enforcement mechanism.
-CG065	cbase/c-guidelines.md	1178	1229	Declaration and initialization	Initialize default/stub return values at declaration, but keep accumulator initialization near its loop where clearer.	manual	-	-
-CG066	cbase/c-guidelines.md	1230	1273	Declaration and initialization	Declare and initialize aliases/copies together when dependencies permit.	manual	-	-
-CG067	cbase/c-guidelines.md	1274	1303	Declaration and initialization	When initialization is appropriate and the variable is the only one in scope, prefer declaration-time initialization.	manual	-	-
-CG068	cbase/c-guidelines.md	1304	1311	Utilities	Reuse cbase utilities; add missing common utilities to the appropriate cbase module.	manual	-	-
-CG069	cbase/c-guidelines.md	1314	1317	Functions	Avoid functions called only once in the same file except callbacks and similar non-inlineable uses.	manual	-	Requires call/use analysis and callback judgment.
-CG070	cbase/c-guidelines.md	1318	1320	Functions	Do not define struct types used only inside one function.	manual	-	-
-CG071	cbase/c-guidelines.md	1321	1343	Functions	Inline int32 status temporaries when each assignment is consumed exactly once on the next line and has no independent lifetime.	implemented	STYLE-STATUS-TEMP	-
-CG072	cbase/c-guidelines.md	1344	1349	Functions	Understand implementation/documentation of called functions before using them.	manual	-	-
-CG073	cbase/c-guidelines.md	1350	1371	Functions	Use blank lines to group related statements, declarations, assertions, and struct assignments.	manual	-	-
-CG074	cbase/c-guidelines.md	1372	1386	Testing	Every non-main .c file should contain the documented TESTING_file_prefix block.	csanecheck_candidate	-	-
-CG075	cbase/c-guidelines.md	1388	1398	File organization	Use include guards for every .c/.h except include-template files.	csanecheck_candidate	-	-
-CG076	cbase/c-guidelines.md	1399	1401	File organization	Include cbase.h first, with documented cbase bootstrap exceptions.	csanecheck_candidate	-	-
-CG077	cbase/c-guidelines.md	1403	1407	libc functions	Never use functions_never_use; functions_allowed_cbase_only may be used only in cbase wrappers.	implemented	API-NEVER;API-CBASE-ONLY	-
-CG078	cbase/c-guidelines.md	1409	1412	Missing cases	For unspecified cases, follow cbase precedent and engineering judgment.	manual	-	-
+CG058	cbase/c-guidelines.md	1061	1097	Assertions	Use constant-RHS and ordered comparison assertion forms, preserving constants on the right.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
+CG059	cbase/c-guidelines.md	1098	1102	Assertions	Prefer ASSERT_ZERO and ASSERT_BETWEEN idioms for zero and bounds checks.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
+CG060	cbase/c-guidelines.md	1104	1106	Modules	Define internal functions static.	manual	-	Requires cross-file/use knowledge to avoid false positives.
+CG061	cbase/c-guidelines.md	1107	1126	Magic numbers and literals	Avoid unexplained magic values; derive/name values when meaning is not obvious.	manual	-	-
+CG062	cbase/c-guidelines.md	1127	1139	Declaration and initialization	Initialize variables/structs/arrays only when the initial value is semantically correct and use documented zero-init forms.	manual	-	-
+CG063	cbase/c-guidelines.md	1140	1149	Declaration and initialization	Keep variable scope small; artificial blocks are acceptable only under documented nesting/readability constraints.	implemented	AST-ARTIFICIAL-BLOCK	Deep artificial-block prohibition implemented; broader scope choice remains manual.
+CG064	cbase/c-guidelines.md	1150	1180	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	compiler	-	Compiler -Wdeclaration-after-statement is the primary enforcement mechanism.
+CG065	cbase/c-guidelines.md	1182	1233	Declaration and initialization	Initialize default/stub return values at declaration, but keep accumulator initialization near its loop where clearer.	manual	-	-
+CG066	cbase/c-guidelines.md	1234	1277	Declaration and initialization	Declare and initialize aliases/copies together when dependencies permit.	manual	-	-
+CG067	cbase/c-guidelines.md	1278	1306	Declaration and initialization	When initialization is appropriate and the variable is the only one in scope, prefer declaration-time initialization.	manual	-	-
+CG068	cbase/c-guidelines.md	1308	1316	Utilities	Reuse cbase utilities; add missing common utilities to the appropriate cbase module.	manual	-	-
+CG069	cbase/c-guidelines.md	1317	1321	Functions	Avoid functions called only once in the same file except callbacks and similar non-inlineable uses.	manual	-	Requires call/use analysis and callback judgment.
+CG070	cbase/c-guidelines.md	1322	1324	Functions	Do not define struct types used only inside one function.	manual	-	-
+CG071	cbase/c-guidelines.md	1325	1347	Functions	Inline int32 status temporaries when each assignment is consumed exactly once on the next line and has no independent lifetime.	implemented	STYLE-STATUS-TEMP	-
+CG072	cbase/c-guidelines.md	1348	1353	Functions	Understand implementation/documentation of called functions before using them.	manual	-	-
+CG073	cbase/c-guidelines.md	1354	1374	Functions	Use blank lines to group related statements, declarations, assertions, and struct assignments.	manual	-	-
+CG074	cbase/c-guidelines.md	1376	1402	Testing	Every non-main .c file should contain the documented TESTING_file_prefix block.	csanecheck_candidate	-	-
+CG075	cbase/c-guidelines.md	1404	1414	File organization	Use include guards for every .c/.h except include-template files.	csanecheck_candidate	-	-
+CG076	cbase/c-guidelines.md	1415	1417	File organization	Include cbase.h first, with documented cbase bootstrap exceptions.	csanecheck_candidate	-	-
+CG077	cbase/c-guidelines.md	1419	1423	libc functions	Never use functions_never_use; functions_allowed_cbase_only may be used only in cbase wrappers.	implemented	API-NEVER;API-CBASE-ONLY	-
+CG078	cbase/c-guidelines.md	1425	1429	Missing cases	For unspecified cases, follow cbase precedent and engineering judgment.	manual	-	-
 CG079	cbase/c-guidelines.md	165	174	sizeof	Prefer SIZEOF(*pointer) rather than SIZEOF(TypePointedTo), and rely on integer promotion rather than unnecessary int64 casts.	csanecheck_candidate	-	-
 LEG-API-CBASE	cbase/functions_allowed_cbase_only.txt	1	9	Legacy libc policy	Allow configured restricted libc calls only inside cbase.	implemented	API-CBASE-ONLY	-
 LEG-API-NEVER	cbase/functions_never_use.txt	1	32	Legacy libc policy	Reject direct calls to every configured never-use function.	implemented	API-NEVER	-
 LEG-DISCOVERY	cbase/functions_forbidden.sh	132	194	Legacy wrapper	Discover the legacy project source set with its exclusions and Ryu treatment.	implemented	-	Covered by test_full_tree_discovery.py and configurable csanecheck discovery.
 LEG-STATUS	cbase/status_temporary_patterns.py	1	1	Legacy status checker	Detect temporary status assignment/use pairs that can be safely inlined.	implemented	STYLE-STATUS-TEMP	Intentional side-effect-ordering divergence is documented.
-CG081	cbase/c-guidelines.md	1416	1422	Rounding to int64	Use floor64(x), ceil64(x), and round64(x) instead of casting floor(x), ceil(x), or round(x) to int64.	implemented	STYLE-ROUND64	Detects direct int64 casts on floor/ceil/round calls.
-CG082	cbase/c-guidelines.md	1424	1438	Integer literals in function and macro calls	Pass integer literal arguments without casting them to int32 or int64.	implemented	STYLE-LITERAL-INT-CAST	Detects direct integer-literal casts in call arguments.
+CG081	cbase/c-guidelines.md	1430	1437	Rounding to int64	Use floor64(x), ceil64(x), and round64(x) instead of casting floor(x), ceil(x), or round(x) to int64.	implemented	STYLE-ROUND64	Detects direct int64 casts on floor/ceil/round calls.
+CG082	cbase/c-guidelines.md	1438	1452	Integer literals in function and macro calls	Pass integer literal arguments without casting them to int32 or int64.	implemented	STYLE-LITERAL-INT-CAST	Detects direct integer-literal casts in call arguments.
 CG084	cbase/c-guidelines.md	1034	1035	Assertions	Use ASSERT_EQ instead of ASSERT_CLOSE when the tolerance is 0.0.	implemented	STYLE-ASSERT-CLOSE-ZERO	Detects a sole 0.0 third argument to ASSERT_CLOSE.
