@@ -795,7 +795,10 @@ csane_top_fragments(CsaneTopStream *stream, enum CsaneTopKind kind) {
 
 static void
 csane_top_owner(CsaneTopLevels *top, int32 owner) {
-    CsaneTopStream stream = {.top = top, .owner = owner};
+    CsaneTopStream stream = {
+        .top = top,
+        .owner = owner
+    };
     CsaneTopItem *enclosing;
 
     csane_top_collect(&stream);
