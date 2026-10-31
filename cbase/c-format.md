@@ -692,9 +692,11 @@ Break lines longer than 80 characters with the backslash. Example:
 ```
 
 ## Initialization
-Use line breaks and indentation for designated struct initialization,
-including compound struct literals. Positional struct initialization may remain
-on one line. Zero initialization with `{0}` is also exempt:
+Use line breaks and indentation for designated struct initialization with
+multiple members, including compound struct literals. A single designated
+member may remain on one line, with or without a trailing comma. Positional
+struct initialization may also remain on one line. Zero initialization with
+`{0}` is exempt:
 
 ```c
 typedef struct MyStruct {
@@ -702,8 +704,11 @@ typedef struct MyStruct {
     char *other;
 } MyStruct;
 
-// bad
-MyStruct my_struct = { .string = "string", };
+// good: one designated member
+MyStruct my_struct = {.string = "string"};
+
+// good: one designated member with a trailing comma
+MyStruct my_struct = {.string = "string",};
 
 // good
 MyStruct my_struct = {
@@ -716,8 +721,8 @@ MyStruct my_struct = {
     .other = "other",
 };
 
-// bad
-MyStruct my_struct = { .string = "string", .other = "other", };
+// bad: two designated members on one line
+MyStruct my_struct = {.string = "string", .other = "other"};
 
 // bad
 MyStruct my_struct = {
@@ -730,12 +735,13 @@ MyStruct my_struct = {0};
 // good: positional initialization
 MyStruct my_struct2 = {"string", "other"};
 
-// bad: designated compound literal
+// good: one designated member in a compound literal
 my_struct = (MyStruct){.string = "string"};
 
-// good: designated compound literal
+// good: multiple designated members in a compound literal
 my_struct = (MyStruct){
     .string = "string",
+    .other = "other",
 };
 ```
 

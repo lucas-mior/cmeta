@@ -49,14 +49,14 @@ int32 f(S *s) {
     S local = { . x = 1 };
     return s -> x + local .x;
 }
-""", ["FMT-STRUCT-INITIALIZER", "FMT-MEMBER-SPACING",
-       "FMT-MEMBER-SPACING", "FMT-MEMBER-SPACING"])
+""", ["FMT-MEMBER-SPACING", "FMT-MEMBER-SPACING",
+       "FMT-MEMBER-SPACING"])
         self.check("""typedef struct S { int32 x; } S;
 int32 f(S *s) {
     S local = { .x = 1 };
     return s->x + local.x;
 }
-""", ["FMT-STRUCT-INITIALIZER"])
+""", [])
 
     def test_unary_and_cast_spacing(self):
         self.check("""int32 f(int32 value) {

@@ -42,8 +42,8 @@ FMT038	cbase/c-format.md	657	674	Function declaration and definition	Prefer brea
 FMT039	cbase/c-format.md	676	678	Preprocessor directives	Indent macro continuation lines using 0, 2, or 4 spaces.	csanecheck_candidate	-	-
 FMT040	cbase/c-format.md	679	679	Preprocessor directives	Do not use #ifdef/#ifndef; use #if defined()/!defined().	implemented	PP-DEFINED	-
 FMT041	cbase/c-format.md	688	692	Preprocessor directives	Keep macro definition lines within the configured column limit.	implemented	SRC-COLUMNS	The 80-column limit is implemented.
-FMT042	cbase/c-format.md	694	740	Initialization	Use multiline indentation for designated struct initializers, including compound literals; positional initializers are exempt.	implemented	FMT-STRUCT-INITIALIZER	-
-FMT043	cbase/c-format.md	742	759	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
+FMT042	cbase/c-format.md	694	746	Initialization	Require multiline indentation for designated struct initializers with multiple entries; one-field and positional initializers are exempt.	implemented	FMT-STRUCT-INITIALIZER	-
+FMT043	cbase/c-format.md	748	765	Initialization	Indent nested struct initializers consistently.	csanecheck_candidate	-	-
 FMT044	cbase/c-format.md	12	13	Whitespace and indentation	Use four spaces per indentation level; macro continuations may use 0, 2, or 4 spaces.	csanecheck_candidate	-	-
 FMT045	cbase/c-format.md	118	137	Function calls	If wrapping still cannot fit, use aliases, shorter names, or an external-library wrapper in the documented priority order.	manual	-	Requires naming/readability judgment.
 FMT046	cbase/c-format.md	182	191	Function headers	Put qualifiers/return type on one line and the function name/arguments on the next.	csanecheck_candidate	-	-

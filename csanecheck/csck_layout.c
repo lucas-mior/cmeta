@@ -1342,6 +1342,20 @@ csane_layout_struct_initializer_check(CsaneFile *file, int32 open) {
         SourceLocation member = tokenization_token_location(tokens, first);
         SourceLocation previous = tokenization_token_location(tokens, last);
 
+        if (start.line == end.line) {
+            CsaneTokenView members;
+            TokenRange content = {open + 1, close};
+
+            if (csane_tokens_subview(&members, &view, content)) {
+                int32 comma = csane_tokens_top_level(&members, open,
+                                                     STRLIT(","));
+                if (comma >= 0
+                    && (comma == close
+                        || csane_tokens_next(&members, comma) == close)) {
+                    return;
+                }
+            }
+        }
         if (start.line == member.line || end.line == previous.line) {
             csane_rule_issue(file, tokens->tokens[open].offset,
                              STRLIT("FMT-STRUCT-INITIALIZER"),

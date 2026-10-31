@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FMT042: designated struct initializers must span multiple lines."""
+"""FMT042: multiple struct initializer entries require separate lines."""
 
 from pathlib import Path
 import re
@@ -44,7 +44,7 @@ void f(void) {
     S compound = (S){.x = 1};
     use(a, b, c, local, tag, compound);
 }
-""", [(2, 7), (7, 15), (8, 20), (9, 21)])
+""", [(7, 15)])
 
     def test_valid_zero_multiline_arrays_and_non_struct(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
@@ -74,7 +74,7 @@ S c = (S){
 };
 S d[] = {{.x = 1}, {.x = 2}};
 int32 e[][2] = {{1, 2}, {3, 4}};
-""", [(2, 10), (7, 10), (7, 20)])
+""", [])
 
     def test_members_must_not_share_brace_lines(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
@@ -91,12 +91,12 @@ S c = {
 """, [(2, 7), (5, 7)])
 
     def test_preprocessor_and_macro_body_are_separate(self):
-        self.check("""typedef struct S { int32 x; } S;
-#define MAKE_S (S){.x = 3}
+        self.check("""typedef struct S { int32 x; int32 y; } S;
+#define MAKE_S (S){.x = 3, .y = 4}
 #if USE_FIRST
-S a = {.x = 1};
+S a = {.x = 1, .y = 2};
 #else
-S b = {.x = 2};
+S b = {.x = 2, .y = 3};
 #endif
 // S c = {.x = 5};
 """, [(4, 7), (6, 7)])
@@ -140,7 +140,7 @@ void g(S *pointer, bool test) {
     };
     use((struct T){.x = 6});
 }
-""", [(4, 15), (7, 19), (8, 12), (9, 26), (13, 19)])
+""", [])
 
     def test_nested_literals_and_array_designators(self):
         self.check("""typedef struct S { int32 x; } S;
@@ -155,7 +155,30 @@ S array[] = {[0].x = 1};
 S array2[] = {[0] = {.x = 2}};
 S array3[] = {[0] = {1}};
 int32 numbers[] = {[0] = 1};
-""", [(3, 11), (3, 24), (10, 21)])
+""", [])
+
+    def test_single_field_with_nested_commas_and_trailing_comma(self):
+        self.check("""typedef struct S { int32 x; int32 y; } S;
+S a = {.x = 1};
+S b = {.x = 2,};
+S c = (S){.x = call(1, 2)};
+S d = {.x = (int32[]){1, 2}[0]};
+S e = {.x = call((S){.x = 1, .y = 2}, 3)};
+S f = {.x = call(1, 2), .y = 3};
+S g = {.x = 1, .y = call(2, 3)};
+S h = {.x = 1, 2};
+""", [(6, 21), (7, 7), (8, 7), (9, 7)])
+
+    def test_single_field_multiline_still_requires_separate_brace_lines(self):
+        self.check("""typedef struct S { int32 x; } S;
+S a = {.x = 1,
+};
+S b = {
+    .x = 1};
+S c = {
+    .x = 1,
+};
+""", [(2, 7), (4, 7)])
 
     def test_similar_expressions_are_not_initializers(self):
         self.check("""typedef struct S { int32 x; } S;
