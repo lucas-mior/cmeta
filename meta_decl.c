@@ -89,8 +89,7 @@ decl_make_declaration(DeclCursor *c, enum CDeclarationKind kind) {
 }
 
 static int32
-decl_make_record(DeclCursor *c, enum CRecordKind kind,
-                 int32 first, int32 tag) {
+decl_make_record(DeclCursor *c, enum CRecordKind kind, int32 first, int32 tag) {
     CAst *ast = c->ast;
     int32 index = ast->record_count;
     ast->records = c_ast_storage_grow(ast->records, &ast->record_capacity,
@@ -226,8 +225,7 @@ decl_is_qualifier(enum CKeyword k) {
 static int32 decl_parse_one(DeclCursor *, enum CDeclarationKind, bool);
 
 static void
-decl_parse_enumerators(DeclCursor *c, int32 first, int32 end,
-                       int32 record) {
+decl_parse_enumerators(DeclCursor *c, int32 first, int32 end, int32 record) {
     DeclCursor inner = *c;
     int32 tail = -1;
     inner.range = (TokenRange){first, end};
@@ -290,8 +288,7 @@ decl_parse_enumerators(DeclCursor *c, int32 first, int32 end,
 }
 
 static void
-decl_parse_members(DeclCursor *c, int32 first, int32 end,
-                   int32 record) {
+decl_parse_members(DeclCursor *c, int32 first, int32 end, int32 record) {
     DeclCursor inner = *c;
     int32 tail = -1;
     inner.range = (TokenRange){first, end};
