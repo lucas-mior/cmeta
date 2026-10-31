@@ -392,6 +392,7 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
     int32 end;
     int32 node;
     StmtCursor issue;
+
     if (name->kind != TOKEN_IDENT) {
         return -1;
     }
@@ -399,7 +400,13 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
     if (open >= c->range.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
         return -1;
     }
-    view = (StmtCursor){.ast = c->ast, .pp = c->pp, .range = c->range};
+
+    view = (StmtCursor){
+        .ast = c->ast,
+        .pp = c->pp,
+        .range = c->range
+    };
+
     close = stmt_match(&view, open);
     if (close < 0) {
         return -1;
