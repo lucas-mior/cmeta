@@ -55,8 +55,7 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
     branch.parent_branch = group->parent_branch;
     branch.directive_index = directive_index;
     branch.next_branch = -1;
-    branch.body_source.start =
-        analysis->directives[directive_index].source.end;
+    branch.body_source.start = analysis->directives[directive_index].source.end;
     branch.body_source.end = analysis->tokenization->text_len;
     ARRAY_PUSH(analysis->branches, branch);
     if (group->last_branch >= 0) {
