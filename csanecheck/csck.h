@@ -234,7 +234,7 @@ void csane_calls_token_check(CsaneFile *);
 void csane_wrap_check(CsaneFile *);
 void csane_wrap_call_check(CsaneFile *);
 int32 csane_wrap_flat_length(char *, int32, int32, int32);
-bool csane_wrap_safe(CsaneFile *, int32, int32);
+bool csane_wrap_safe(CsaneFile *, int32, int32, bool);
 void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
 int32 csane_rules_incomplete(CsaneFile *, bool, bool, CsaneRuleCounts *);
