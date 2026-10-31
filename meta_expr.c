@@ -740,8 +740,7 @@ expr_test_calls_and_initializers(void) {
     c_ast_free(&ast);
     free_tokenization(&t);
     source = "{ .x = 1, [2].y = f(3), {4, 5}, }";
-    t = tokenize_with_flags(source, strlen32(source),
-                            TOKENIZE_SKIP_WHITESPACE);
+    t = tokenize_with_flags(source, strlen32(source), TOKENIZE_SKIP_WHITESPACE);
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_initializer(&ast, (TokenRange){0, t.token_count});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
