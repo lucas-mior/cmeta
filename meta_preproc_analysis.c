@@ -329,22 +329,22 @@ c_preprocessor_analysis_free(CPreprocessorAnalysis *analysis) {
         return;
     }
     free2(analysis->directives,
-          (int64)analysis->directive_capacity*SIZEOF(*analysis->directives));
+          analysis->directive_capacity*SIZEOF(*analysis->directives));
     free2(analysis->branches,
-          (int64)analysis->branch_capacity*SIZEOF(*analysis->branches));
+          analysis->branch_capacity*SIZEOF(*analysis->branches));
     free2(analysis->groups,
-          (int64)analysis->group_capacity*SIZEOF(*analysis->groups));
+          analysis->group_capacity*SIZEOF(*analysis->groups));
     free2(analysis->issues,
-          (int64)analysis->issue_capacity*SIZEOF(*analysis->issues));
+          analysis->issue_capacity*SIZEOF(*analysis->issues));
     if (analysis->tokenization != NULL) {
         int32 count = analysis->tokenization->token_count;
 
         free2(analysis->token_directives,
-              (int64)count*SIZEOF(*analysis->token_directives));
+              count*SIZEOF(*analysis->token_directives));
         free2(analysis->token_branches,
-              (int64)count*SIZEOF(*analysis->token_branches));
+              count*SIZEOF(*analysis->token_branches));
         free2(analysis->token_roles,
-              (int64)count*SIZEOF(*analysis->token_roles));
+              count*SIZEOF(*analysis->token_roles));
     }
     *analysis = (CPreprocessorAnalysis){0};
     return;
