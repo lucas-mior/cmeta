@@ -215,8 +215,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
             CsaneStatement *stmt = &statements.items[i];
             if (stmt->kind == CSANE_STMT_OPAQUE) {
                 csane_issue(path, path_len, &tokens, stmt->tokens.first,
-                            "STRUCTURE-OPAQUE",
-                            "unrecognized statement");
+                            "STRUCTURE-OPAQUE", "unrecognized statement");
             }
         }
     }
