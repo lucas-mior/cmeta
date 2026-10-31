@@ -370,8 +370,7 @@ csane_regions_init(CsaneRegions *regions, Tokenization *tokens,
     }
     csane_regions_content(regions, root, (SourceRange){0, tokens->text_len},
                           opening_groups, -1);
-    free2(opening_groups, (int64)pp->directive_count
-                          *SIZEOF(*opening_groups));
+    free2(opening_groups, pp->directive_count*SIZEOF(*opening_groups));
     if (tokens->token_count > 0) {
         int32 cursor = 0;
         regions->token_regions =
