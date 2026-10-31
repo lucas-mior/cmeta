@@ -230,7 +230,10 @@ test_split_separators_and_collector(void) {
     char *text = ",,f(a, b),";
     Tokenization tokenization = tokenize(text, strlen32(text));
     TokenRange range = {0, tokenization.token_count};
-    TokenRange partial[2] = {{-1, -1}, {-1, -1}};
+    TokenRange partial[2] = {
+        {-1, -1},
+        {-1, -1}
+    };
     TokenRange full[5];
     int32 count;
 
