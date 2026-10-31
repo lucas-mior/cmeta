@@ -137,15 +137,18 @@ It additionally checks the independent `API-NEVER` and `API-CBASE-ONLY` rules
 against token-local direct calls without misclassifying member accesses or
 function prototypes.
 
-## Step 11 — complete-call wrapping parity
+## Step 11 — complete-call wrapping
 
-`test_call_wrap.py` compares the legacy P18 rule with `FMT-CALL-WRAP` on 46
-independent positive and negative source fixtures. It checks neighboring-call
-groups, short and overlong calls, preprocessor branches, nested calls, calls
-in assignments/returns, macro invocations, comment and string-literal
-exceptions, and generated-header exemptions. Both source locations and
-duplicate counts must agree. No translation-unit AST information is used to
-classify these call-wrap candidates.
+`test_call_wrap.py` tests the legacy P18 rule and `FMT-CALL-WRAP` on
+independent positive and negative source fixtures. The rule differs from Perl
+when adjacent calls have different function names and different first
+arguments: these calls are now checked independently instead of suppressing
+one another. `ASSERT(!function(...))` uses the inner function for grouping.
+Other fixtures retain Perl parity, including preprocessor branches, nested
+calls, calls in assignments/returns, macro invocations, comment and
+string-literal exceptions, and generated-header exemptions. No
+translation-unit AST information is used to classify call-wrap candidates.
+The full-tree parity test permits only additional P18 diagnostics.
 
 ## Step 12 — Assignment placement and wrapping parity
 

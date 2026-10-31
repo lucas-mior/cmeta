@@ -89,10 +89,18 @@ class FullTreeCompatibilityTests(unittest.TestCase):
         actual = csane_legacy_selected_files(PROJECT)
         self.assertEqual(actual, self.legacy_files)
 
-    def test_full_tree_p01_p25_parity(self):
+    def test_full_tree_p01_p25_parity_except_call_wrap(self):
         comparison = run_checkers(self.legacy_files, PROJECT, file_list=True,
                                   rules=self.rules)
-        self.assertTrue(comparison.matches, comparison.summary())
+        # csanecheck deliberately reports additional call-wrap violations
+        # when adjacent calls have different names and first arguments.
+        # Everything else must still match the legacy Perl checker.
+        self.assertFalse(comparison.missing, comparison.summary())
+        self.assertFalse(comparison.legacy_unknown, comparison.summary())
+        self.assertFalse(comparison.csane_unknown, comparison.summary())
+        unexpected = [item for item in comparison.added
+                      if item[2] != self.rules["P18"].category]
+        self.assertFalse(unexpected, comparison.summary())
 
     def test_every_legacy_category_has_focused_regression_reference(self):
         missing = [rule.key for rule in self.rules.values()
