@@ -116,8 +116,7 @@ static int32 expr_parse_prec(ExprCursor *, int32);
 static int32 expr_parse_initializer(ExprCursor *);
 
 static int32
-expr_parse_list(ExprCursor *c, int32 open, bool initializer,
-                int32 callee) {
+expr_parse_list(ExprCursor *c, int32 open, bool initializer, int32 callee) {
     CAst *ast = c->ast;
     int32 node;
     int32 tail = -1;

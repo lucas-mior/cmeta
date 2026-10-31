@@ -487,8 +487,7 @@ decl_parse_specifiers(DeclCursor *c, int32 d) {
 static int32 decl_parse_declarator(DeclCursor *, bool);
 
 static void
-decl_parse_parameters(DeclCursor *c, int32 node, int32 start,
-                      int32 end) {
+decl_parse_parameters(DeclCursor *c, int32 node, int32 start, int32 end) {
     DeclCursor inner = *c;
     int32 tail = -1;
     inner.range = (TokenRange){start, end};
@@ -678,8 +677,7 @@ decl_is_function(CAst *ast, int32 root) {
 }
 
 static int32
-decl_parse_one(DeclCursor *c, enum CDeclarationKind kind,
-               bool require_semi) {
+decl_parse_one(DeclCursor *c, enum CDeclarationKind kind, bool require_semi) {
     int32 first = decl_next(c);
     int32 d;
     int32 tail = -1;

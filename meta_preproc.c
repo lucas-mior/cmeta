@@ -16,8 +16,7 @@
 #include "meta.h"
 
 static int32
-preprocessor_logical_line_end_offset(Tokenization *tokenization,
-                                     int32 offset) {
+preprocessor_logical_line_end_offset(Tokenization *tokenization, int32 offset) {
     if ((tokenization == NULL) || (offset < 0)
         || (offset > tokenization->text_len)) {
         return -1;
