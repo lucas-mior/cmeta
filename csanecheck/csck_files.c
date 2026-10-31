@@ -291,8 +291,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
 }
 
 bool
-csane_collect_file_list(CsanePaths *paths, char *filename,
-                        int32 filename_len) {
+csane_collect_file_list(CsanePaths *paths, char *filename, int32 filename_len) {
     char *text = NULL;
     int32 len;
     bool ok = true;

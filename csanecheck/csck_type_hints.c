@@ -196,8 +196,7 @@ csane_hint_alias_before(CsaneTokenView *view, int32 end) {
 /* Collect simple typedef declarators only. Complex function-pointer typedefs
  * are intentionally left unknown rather than guessed. */
 static void
-csane_hint_typedef(CsaneTypeHints *hints, CsaneTokenView *view,
-                   int32 first) {
+csane_hint_typedef(CsaneTypeHints *hints, CsaneTokenView *view, int32 first) {
     Tokenization *tokens = view->tokens;
     int32 segment = csane_tokens_next(view, first);
     int32 i = segment;

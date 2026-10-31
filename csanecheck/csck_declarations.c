@@ -176,8 +176,7 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_decl_word(CsaneFile *file, int32 token,
-                char *word, int32 word_len) {
+csane_decl_word(CsaneFile *file, int32 token, char *word, int32 word_len) {
     return token >= 0 && token < file->tokens->token_count
            && file->tokens->tokens[token].kind == TOKEN_IDENT
            && TOKEN_IS(&file->tokens->tokens[token], word, word_len);

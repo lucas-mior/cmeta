@@ -301,8 +301,7 @@ csane_regions_content(CsaneRegions *regions, int32 parent,
 /* Visit siblings in source order, assigning each token only once.
  * Use token starts, not region token ranges: tokens may cross boundaries. */
 static void
-csane_regions_index_tokens(CsaneRegions *regions, int32 region,
-                           int32 *cursor) {
+csane_regions_index_tokens(CsaneRegions *regions, int32 region, int32 *cursor) {
     Tokenization *tokens = regions->tokens;
     CsaneSourceRegion *item = &regions->items[region];
     int32 child = item->first_child;

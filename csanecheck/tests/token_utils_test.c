@@ -47,8 +47,7 @@ test_find_token(Tokenization *tokens,
 }
 
 static bool
-test_view_first_is(CsaneTokenView *view,
-                   char *text, int32 text_len) {
+test_view_first_is(CsaneTokenView *view, char *text, int32 text_len) {
     int32 first = csane_tokens_next(view, view->range.first - 1);
     return first >= view->range.first && first < view->range.end
            && STREQUAL(view->tokens->tokens[first].text,

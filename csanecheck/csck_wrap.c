@@ -139,8 +139,7 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
  * positive maximum permits an early result once the text cannot fit.
  */
 int32
-csane_wrap_flat_length(char *text, int32 start, int32 end,
-                       int32 max_width) {
+csane_wrap_flat_length(char *text, int32 start, int32 end, int32 max_width) {
     int32 width = 0;
     for (int32 i = start; i < end;) {
         if (text[i] == '\\') {
@@ -187,8 +186,7 @@ csane_wrap_flat_length(char *text, int32 start, int32 end,
 }
 
 static bool
-csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a,
-                         CsaneWrapSpan *b) {
+csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a, CsaneWrapSpan *b) {
     Tokenization *tokens = file->tokens;
     char *text = tokens->text;
     int32 position = a->end;
@@ -313,8 +311,7 @@ csane_wrap_local_call(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_wrap_local_span(CsaneFile *file, TokenRange range,
-                      CsaneWrapSpan *span) {
+csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
     Tokenization *tokens = file->tokens;
     int32 first = token_range_first_significant(tokens, range);
     int32 last = token_range_last_significant(tokens, range);
