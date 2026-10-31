@@ -750,6 +750,8 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
     int32 open;
     CsaneTokenView view;
     int32 close;
+    int32 name;
+    int32 suffix;
     TokenRange args;
     int32 first;
     int32 previous;
@@ -766,6 +768,30 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
     close = csane_tokens_match(&view, open);
     if (close < 0) {
         return;
+    }
+    name = csane_tokens_previous(&view, open);
+    if (name >= range.first
+        && csane_local_decl_line(file, name)
+           < csane_local_decl_line(file, close)
+        && csane_wrap_safe(file, name, close)) {
+        CsaneTokenView full = csane_tokens_full(file->tokens);
+        suffix = csane_tokens_next(&full, close);
+        if (suffix < file->tokens->token_count
+            && (csane_decl_is(file, suffix, STRLIT(";"))
+                || csane_decl_is(file, suffix, STRLIT("{")))) {
+            int32 start = file->tokens->tokens[name].offset;
+            int32 end = file->tokens->tokens[suffix].offset
+                        + file->tokens->tokens[suffix].len;
+            int32 width = csane_wrap_flat_length(file->tokens->text,
+                                                 start, end,
+                                                 file->column_limit);
+            if (width >= 0 && (file->column_limit <= 0
+                               || width <= file->column_limit)) {
+                csane_rule_issue(file, start, STRLIT("FMT-FUNC-WRAP"),
+                                 "function header fits on one line but its "
+                                 "parameters are split across multiple lines");
+            }
+        }
     }
     args = (TokenRange){open + 1, close};
     first = csane_decl_next(file, args, args.first - 1);

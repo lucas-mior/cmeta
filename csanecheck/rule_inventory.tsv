@@ -32,7 +32,7 @@ FMT030	cbase/c-format.md	398	409	If expressions	Parenthesize binary-expression o
 FMT031	cbase/c-format.md	411	436	If expressions	Avoid redundant parentheses around simple unary/plain boolean conditions.	csanecheck_candidate	-	-
 FMT032	cbase/c-format.md	438	449	Confusing precedence	Use parentheses to make mixed &&/|| precedence explicit.	csanecheck_candidate	-	-
 FMT033	cbase/c-format.md	451	463	Confusing precedence	Put chains of three or more &&/|| operators on multiple lines.	csanecheck_candidate	-	-
-FMT034	cbase/c-format.md	476	515	Function declaration and definition	Align wrapped function declaration/definition parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN	Parameter alignment is implemented.
+FMT034	cbase/c-format.md	476	515	Function declaration and definition	Keep function headers on one line when they fit; otherwise align wrapped parameters using the documented long-header layout.	implemented	FMT-FUNC-ALIGN;FMT-FUNC-WRAP	Parameter alignment and unnecessary wrapping are implemented.
 FMT035	cbase/c-format.md	517	530	Function declaration and definition	Group related parameters by type/intent when wrapping.	implemented	FMT-RELATED-ARGS	Only recognized related-argument patterns are mechanical.
 FMT036	cbase/c-format.md	532	580	Function declaration and definition	Keep object and corresponding _len arguments together when possible.	implemented	FMT-RELATED-ARGS	-
 FMT037	cbase/c-format.md	582	593	Function declaration and definition	In prototypes, add parameter names only when two or more parameters share that type.	csanecheck_candidate	-	-
