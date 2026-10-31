@@ -7,7 +7,8 @@ import re
 import subprocess
 import unittest
 
-from differential import CSANE, PROJECT
+PROJECT = Path(__file__).resolve().parents[2]
+CSANE = PROJECT / "bin/csanecheck"
 
 
 ALLOWLIST = PROJECT / "csanecheck/tests/full_tree_coverage_allowlist.tsv"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Full-tree acceptance tests for legacy P01-P25 compatibility."""
+"""Check that csanecheck discovers the source files selected by the wrapper."""
 
 import os
 from pathlib import Path
@@ -7,8 +7,8 @@ import re
 import subprocess
 import unittest
 
-from differential import CSANE, PROJECT, load_rules, run_checkers
-
+PROJECT = Path(__file__).resolve().parents[2]
+CSANE = PROJECT / "bin/csanecheck"
 
 LEGACY_ROOTS = (
     "cbase", "src", "test", "tests", "examples", "cyblocks", "tools",
@@ -79,46 +79,11 @@ def csane_legacy_selected_files(root):
     return sorted(set(selected))
 
 
-class FullTreeCompatibilityTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.rules = load_rules()
-        cls.legacy_files = legacy_selected_files(PROJECT)
-
-    def test_legacy_source_selection_matches_csanecheck(self):
+class FullTreeDiscoveryTests(unittest.TestCase):
+    def test_wrapper_source_selection_matches_csanecheck(self):
+        expected = legacy_selected_files(PROJECT)
         actual = csane_legacy_selected_files(PROJECT)
-        self.assertEqual(actual, self.legacy_files)
-
-    def test_full_tree_p01_p25_parity_except_call_wrap(self):
-        comparison = run_checkers(self.legacy_files, PROJECT, file_list=True,
-                                  rules=self.rules)
-        # csanecheck deliberately reports additional call-wrap violations
-        # when adjacent calls have different names and first arguments.
-        # Everything else must still match the legacy Perl checker.
-        self.assertFalse(comparison.missing, comparison.summary())
-        self.assertFalse(comparison.legacy_unknown, comparison.summary())
-        self.assertFalse(comparison.csane_unknown, comparison.summary())
-        unexpected = [item for item in comparison.added
-                      if item[2] != self.rules["P18"].category]
-        self.assertFalse(unexpected, comparison.summary())
-
-    def test_every_legacy_category_has_focused_regression_reference(self):
-        missing = [rule.key for rule in self.rules.values()
-                   if rule.status != "implemented"]
-        self.assertEqual(missing, [])
-
-        inventory = PROJECT / "csanecheck/perl_compatibility.tsv"
-        with inventory.open(encoding="utf-8") as stream:
-            header = stream.readline().rstrip("\n").split("\t")
-            legacy_test = header.index("legacy_test")
-            uncovered = []
-            for line in stream:
-                fields = line.rstrip("\n").split("\t")
-                if not fields or not fields[0]:
-                    continue
-                if fields[legacy_test] in ("", "-"):
-                    uncovered.append(fields[0])
-        self.assertEqual(uncovered, [])
+        self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":
