@@ -76,7 +76,8 @@ csane_wrap_literal_newline(Token *token) {
  * with individual newline escapes intentionally retains physical breaks.
  */
 bool
-csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
+csane_wrap_safe(CsaneFile *file, int32 first, int32 last,
+                bool allow_semicolons) {
     Tokenization *tokens = file->tokens;
     int32 previous_string = -1;
     int32 run_count = 0;
@@ -94,7 +95,8 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
             || csane_wrap_token_is(token, STRLIT("}"))) {
             return false;
         }
-        if (csane_wrap_token_is(token, STRLIT(";")) && i != last) {
+        if (!allow_semicolons && csane_wrap_token_is(token, STRLIT(";"))
+            && i != last) {
             return false;
         }
         if (token->kind == TOKEN_LITERAL) {
@@ -433,7 +435,7 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
     span->end = line_end;
     span->wrapped = span->end_line > span->start_line;
     span->fits = false;
-    if (csane_wrap_safe(file, first, last)) {
+    if (csane_wrap_safe(file, first, last, false)) {
         int32 width = csane_wrap_flat_length(text, span->start, span->end,
                                              file->column_limit);
         span->fits = width >= 0 && (file->column_limit <= 0
@@ -584,6 +586,126 @@ csane_wrap_call_check(CsaneFile *file) {
         csane_wrap_call_group(file, items, first, end);
         first = end;
     }
+    if (file->statements != NULL) {
+        Tokenization *tokens = file->tokens;
+        CsaneTokenView view = csane_tokens_full(tokens);
+
+        for (int32 i = 0; i < file->statements->count; i += 1) {
+            CsaneStatement *stmt = &file->statements->items[i];
+            int32 first;
+            int32 last;
+            int32 open;
+            int32 close;
+            int32 start;
+            int32 end;
+            int32 close_end;
+            int32 close_line;
+            bool duplicate = false;
+            bool wrapped_call = false;
+            bool suffix_safe = true;
+            bool brace = false;
+
+            if (stmt->kind != CSANE_STMT_IF
+                && stmt->kind != CSANE_STMT_FOR
+                && stmt->kind != CSANE_STMT_WHILE
+                && stmt->kind != CSANE_STMT_SWITCH) {
+                continue;
+            }
+            for (int32 j = 0; j < i; j += 1) {
+                CsaneStatement *previous = &file->statements->items[j];
+
+                if (previous->header.first == stmt->header.first
+                    && previous->header.end == stmt->header.end) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) {
+                continue;
+            }
+            first = token_range_first_significant(tokens, stmt->header);
+            last = token_range_last_significant(tokens, stmt->header);
+            if (first < 0 || last <= first) {
+                continue;
+            }
+            open = csane_tokens_next(&view, first);
+            close = csane_tokens_match(&view, open);
+            if (open < 0 || close < 0 || close != last) {
+                continue;
+            }
+            for (int32 j = csane_tokens_next(&view, open); j < close;
+                 j = csane_tokens_next(&view, j)) {
+                Token *token = &tokens->tokens[j];
+                int32 call_open;
+                int32 call_close;
+                enum CsaneLocalKind kind;
+
+                if (token->kind != TOKEN_IDENT) {
+                    continue;
+                }
+                call_open = csane_tokens_next(&view, j);
+                if (call_open >= close
+                    || !csane_wrap_token_is(&tokens->tokens[call_open],
+                                            STRLIT("("))) {
+                    continue;
+                }
+                call_close = csane_tokens_match(&view, call_open);
+                if (call_close < 0 || call_close > close) {
+                    continue;
+                }
+                kind = csane_classify_invocation(tokens, stmt->header, j);
+                if ((kind == CSANE_LOCAL_CALL
+                     || kind == CSANE_LOCAL_MACRO_INVOCATION)
+                    && csane_wrap_location(tokens, j).line
+                       != csane_wrap_location(tokens, call_close).line) {
+                    wrapped_call = true;
+                    break;
+                }
+            }
+            if (!wrapped_call
+                || !csane_wrap_safe(file, first, last, true)) {
+                continue;
+            }
+            start = csane_wrap_line_start(tokens->text,
+                                          tokens->tokens[first].offset);
+            for (int32 j = start; j < tokens->tokens[first].offset; j += 1) {
+                if (tokens->text[j] != ' ') {
+                    suffix_safe = false;
+                    break;
+                }
+            }
+            close_end = tokens->tokens[close].offset
+                        + tokens->tokens[close].len;
+            close_line = csane_wrap_location(tokens, close).line;
+            end = tokenization_physical_line_end_offset(tokens, close_line);
+            if (end > close_end && tokens->text[end - 1] == '\n') {
+                end -= 1;
+            }
+            for (int32 j = close_end; suffix_safe && j < end; j += 1) {
+                char c = tokens->text[j];
+
+                if (c == ' ' || c == '\t' || c == '\r') {
+                    continue;
+                }
+                if (c == '{' && !brace) {
+                    brace = true;
+                    continue;
+                }
+                suffix_safe = false;
+            }
+            if (suffix_safe) {
+                int32 width = csane_wrap_flat_length(tokens->text, start, end,
+                                                     file->column_limit);
+
+                if (width >= 0 && (file->column_limit <= 0
+                                   || width <= file->column_limit)) {
+                    csane_rule_issue(file, start, STRLIT("FMT-CALL-WRAP"),
+                                     "call fits on one line but is "
+                                     "split across multiple lines");
+                }
+            }
+        }
+    }
     free2(items, capacity*SIZEOF(*items));
     return;
 }
@@ -720,7 +842,8 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     if (csane_name_kind(&tokens->tokens[first]) == CSANE_NAME_TYPE) {
         return true;
     }
-    if (!braced && !trailing_comment && csane_wrap_safe(file, first, last)) {
+    if (!braced && !trailing_comment
+        && csane_wrap_safe(file, first, last, false)) {
         int32 width = csane_wrap_flat_length(text, start, span->end,
                                              file->column_limit);
         span->fits = width >= 0 && (file->column_limit <= 0

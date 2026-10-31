@@ -95,6 +95,52 @@ class CallWrapTests(unittest.TestCase):
                     r":(\d+):\d+: error\[FMT-CALL-WRAP\]", result.stdout))
                 self.assertEqual(found, Counter(lines), result.stdout)
 
+    def test_control_header_calls_wrap_only_when_needed(self):
+        path = self.root / "src" / "control_headers.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "void f(void) {\n"
+            "    if (!STREQUAL(candidate->name, candidate->name_len,\n"
+            "                  name, name_len)) {\n"
+            "        work();\n"
+            "    }\n"
+            "    while (matches(candidate,\n"
+            "                   name)) {\n"
+            "        work();\n"
+            "    }\n"
+            "    for (; matches(candidate,\n"
+            "                   name);) {\n"
+            "        work();\n"
+            "    }\n"
+            "    switch (classify(candidate,\n"
+            "                     name)) {\n"
+            "    default:\n"
+            "        break;\n"
+            "    }\n"
+            "    if (outer(inner(candidate,\n"
+            "                    name))) {\n"
+            "        work();\n"
+            "    }\n"
+            "    if (matches(candidate, /* keep this split */\n"
+            "                name)) {\n"
+            "        work();\n"
+            "    }\n"
+            "    if (matches(first_argument_with_a_very_long_name,\n"
+            "                second_argument_with_a_very_long_name)) {\n"
+            "        work();\n"
+            "    }\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run(
+            [str(CSANE), "--file", str(path)], cwd=self.root,
+            text=True, capture_output=True, check=False,
+        )
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+        found = Counter(int(line) for line in re.findall(
+            r":(\d+):\d+: error\[FMT-CALL-WRAP\]", result.stdout))
+        self.assertEqual(found, Counter({2: 1, 6: 1, 10: 1, 14: 1, 19: 1}),
+                         result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

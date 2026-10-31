@@ -772,7 +772,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
     if (name >= range.first
         && csane_local_decl_line(file, name)
            < csane_local_decl_line(file, close)
-        && csane_wrap_safe(file, name, close)) {
+        && csane_wrap_safe(file, name, close, false)) {
         CsaneTokenView full = csane_tokens_full(file->tokens);
         suffix = csane_tokens_next(&full, close);
         if (suffix < file->tokens->token_count
