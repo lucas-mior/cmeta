@@ -1741,19 +1741,19 @@ test_find_token(Tokenization *tokenization, char *text) {
 static void
 test_token_predicates(void) {
     Token op = {
-        .kind = TOKEN_OPERATOR, .text = "+", .len = 1
+        .kind = TOKEN_OPERATOR, .text = "+", .len = 1,
     };
     Token punct = {
-        .kind = TOKEN_PUNCT, .text = ";", .len = 1
+        .kind = TOKEN_PUNCT, .text = ";", .len = 1,
     };
     Token literal = {
-        .kind = TOKEN_LITERAL, .text = "1", .len = 1
+        .kind = TOKEN_LITERAL, .text = "1", .len = 1,
     };
     Token comment = {
-        .kind = TOKEN_COMMENT, .text = "// c", .len = 4
+        .kind = TOKEN_COMMENT, .text = "// c", .len = 4,
     };
     Token space = {
-        .kind = TOKEN_SPACE, .text = " ", .len = 1
+        .kind = TOKEN_SPACE, .text = " ", .len = 1,
     };
 
     ASSERT(op.kind == TOKEN_OPERATOR);
