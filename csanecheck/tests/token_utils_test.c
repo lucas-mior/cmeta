@@ -219,7 +219,7 @@ test_empty_malformed_arguments(void) {
         SFLIT("f(a, b)"),
     };
     int32 expected[] = {0, 0, -1, -1, -1, -1, 2,};
-    for (int32 i = 0; i < SIZEOF(cases)/SIZEOF(cases[0]); i += 1) {
+    for (int32 i = 0; i < LENGTH(cases); i += 1) {
         Tokenization tokens = tokenize_copy(cases[i]->data, cases[i]->len,
                                             TOKENIZE_DEFAULT);
         CsaneTokenView view = csane_tokens_full(&tokens);
