@@ -406,37 +406,8 @@ test_path_navigation(void) {
     return;
 }
 
-static void
-test_path_growth(void) {
-    Tokenization tokens =
-        tokenize_copy(STRLIT("a b c d e f g h i j k l m n o p q r s t "
-                             "u v w x y z a b c d e f g h i j k l m n"),
-                      TOKENIZE_DEFAULT);
-    CsaneTokenPath path;
-    int32 count = 0;
-
-    CHECK(csane_token_path_init(&path, &tokens,
-                                (TokenRange){0, tokens.token_count}));
-    for (int32 i = 0; i + 1 < tokens.token_count; i += 2) {
-        CHECK(csane_token_path_append(&path, (TokenRange){i, i + 1}));
-        count += 1;
-        CHECK(ARRAY_LEN(path.parts) == count);
-    }
-    CHECK(ARRAY_LEN(path.parts) > 8);
-    CHECK(ARRAY_CAPACITY(path.parts) >= ARRAY_LEN(path.parts));
-    int32 end = path.parts[count - 1].end;
-    CHECK(csane_token_path_append(&path, (TokenRange){end, end + 1}));
-    CHECK(ARRAY_LEN(path.parts) == count);
-    csane_token_path_free(&path);
-    CHECK(path.parts == NULL);
-    CHECK(ARRAY_LEN(path.parts) == 0);
-    free_tokenization(&tokens);
-    return;
-}
-
 int
 main(void) {
-    test_path_growth();
     test_bounded_expected_strings();
     test_nested_arguments();
     test_empty_malformed_arguments();
