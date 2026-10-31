@@ -2359,8 +2359,7 @@ test_token_range_balanced_delimiters(void) {
     ASSERT_EQ(token_range_matching_delimiter_reverse(&tokenization, all, close),
               outer);
 
-    close = token_range_matching_delimiter_forward(&tokenization, all,
-                                                   bracket);
+    close = token_range_matching_delimiter_forward(&tokenization, all, bracket);
     ASSERT(TOKEN_IS(&tokenization.tokens[close], "]"));
     ASSERT_EQ(token_range_matching_delimiter_reverse(&tokenization, all, close),
               bracket);
