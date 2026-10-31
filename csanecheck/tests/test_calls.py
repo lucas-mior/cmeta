@@ -90,6 +90,35 @@ class CallLayoutTests(unittest.TestCase):
             "}\n"
         ), {})
 
+    def test_function_headers_wrap_only_when_needed(self):
+        path = self.root / "src" / "header_wrap.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "int32\n"
+            "cy_fit_add_initial_state_guess(CyFitProblem *fit, char *name,\n"
+            "                               double guess) { return 0; }\n"
+            "void\n"
+            "short_prototype(int32 first,\n"
+            "                int32 second);\n"
+            "int32\n"
+            "single_line(int32 first, int32 second) { return 0; }\n"
+            "void\n"
+            "very_long_function_name_that_cannot_fit_on_one_line(\n"
+            "    int32 first_argument_with_a_long_name,\n"
+            "    int32 second_argument_with_a_long_name\n"
+            ");\n"
+            "void\n"
+            "commented_header(int32 first, /* keep this split */\n"
+            "                 int32 second);\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        findings = re.findall(r":(\d+):\d+: error\[FMT-FUNC-WRAP\]",
+                              result.stdout)
+        self.assertEqual(findings, ["2", "5"],
+                         result.stdout + result.stderr)
+
     def test_literal_alignment_not_counted_twice_in_nested_calls(self):
         self.compare("nested_literals.c", (
             "void f(void) {\n"

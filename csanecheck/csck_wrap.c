@@ -73,7 +73,7 @@ csane_wrap_literal_newline(Token *token) {
  * boundaries. Unlike ordinary multiline strings, a run of literal fragments
  * with individual newline escapes intentionally retains physical breaks.
  */
-static bool
+bool
 csane_wrap_safe(CsaneFile *file, int32 first, int32 last) {
     Tokenization *tokens = file->tokens;
     int32 previous_string = -1;
