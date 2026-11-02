@@ -346,9 +346,10 @@ csane_call_equal_tokens(CsaneFile *file, TokenRange a, TokenRange b) {
     return left == a.end && right == b.end;
 }
 
-/* SP(array, index) is available for the parallel array_lens[index] and
- * array[index] members. Require identical member paths and index expressions;
- * a merely similar name or index must not trigger a replacement suggestion. */
+/* SP(array, index) replaces matching array_lens[index], array[index]
+ * arguments, whether standalone variables or struct members. The owner path
+ * is empty for standalone arrays. Require identical paths and indices so a
+ * merely similar name or index cannot trigger a replacement suggestion. */
 static bool
 csane_call_sp_pair(CsaneFile *file, CsaneTokenView *view,
                    CsaneCallArgument *length, CsaneCallArgument *string) {

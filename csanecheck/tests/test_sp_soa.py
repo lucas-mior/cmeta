@@ -24,6 +24,22 @@ class SpanOfArraysTests(unittest.TestCase):
                            's.strings[i]);', 1),
             "local_arrays": ('fmt_printf("text: %.*s", names_lens[i], '
                              'names[i]);', 1),
+            "standalone_arrays_exact": (
+                'fmt_printf("%.*s", strings_lens[i], strings[i]);', 1),
+            "standalone_arrays_after_conversion": (
+                'fmt_printf("n=%d: %.*s", n, strings_lens[i + 1], '
+                'strings[i + 1]);', 1),
+            "standalone_arrays_with_comment": (
+                'fmt_printf("%.*s", strings_lens[i], '
+                'strings[/* matching index */ i]);', 1),
+            "standalone_arrays_index_mismatch": (
+                'fmt_printf("%.*s", strings_lens[i], strings[j]);', 0),
+            "standalone_arrays_name_mismatch": (
+                'fmt_printf("%.*s", strings_lens[i], others[i]);', 0),
+            "standalone_vs_member": (
+                'fmt_printf("%.*s", s->strings_lens[i], strings[i]);', 0),
+            "standalone_already_sp": (
+                'fmt_printf("%.*s", SP(strings, i));', 0),
             "nested_owner": ('fmt_printf("text: %.*s", '
                              'owners[k].names_lens[i + 1], '
                              'owners[k].names[i + 1]);', 1),
