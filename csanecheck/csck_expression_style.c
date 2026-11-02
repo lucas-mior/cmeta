@@ -218,6 +218,16 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
         csane_rule_issue(file, token->offset, STRLIT("STYLE-STRLIT-LEN"),
                          "STRLIT_LEN called on a literal string");
     }
+    if (TOKEN_IS(token, "SIZEOF") && count == 1) {
+        int32 first = csane_style_first(file, args[0]);
+        if (first < args[0].end
+            && tokenization_next_significant(tokens, first) >= args[0].end
+            && csane_style_string_start(file, args[0])) {
+            csane_rule_issue(file, token->offset,
+                             STRLIT("STYLE-SIZEOF-LITERAL"),
+                             "SIZEOF called on a literal string");
+        }
+    }
     if (TOKEN_IS(token, "STREQUAL")) {
         for (int32 i = 0; i < count; i += 1) {
             int32 strlit = csane_style_strlit_argument(file, args[i]);
@@ -825,6 +835,7 @@ csane_expression_style_check(CsaneFile *file) {
                 csane_style_round64(file, &local, i);
             } else if (TOKEN_IS(token, "ASSERT")
                        || TOKEN_IS(token, "ASSERT_CLOSE")
+                       || TOKEN_IS(token, "SIZEOF")
                        || TOKEN_IS(token, "STRLIT_LEN")
                        || TOKEN_IS(token, "STREQUAL")
                        || TOKEN_IS(token, "str_printf")) {
