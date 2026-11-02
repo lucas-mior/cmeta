@@ -18,87 +18,87 @@
     XX(TOKEN_PREPROC)
 
 #define C_KEYWORD_FIELDS                          \
-    XX(C_KEYWORD_ALIGNAS,       _Alignas)         \
-    XX(C_KEYWORD_ALIGNOF,       _Alignof)         \
-    XX(C_KEYWORD_ATOMIC,        _Atomic)          \
-    XX(C_KEYWORD_BOOL,          _Bool)            \
-    XX(C_KEYWORD_COMPLEX,       _Complex)         \
-    XX(C_KEYWORD_GENERIC,       _Generic)         \
-    XX(C_KEYWORD_IMAGINARY,     _Imaginary)       \
-    XX(C_KEYWORD_NORETURN,      _Noreturn)        \
-    XX(C_KEYWORD_STATIC_ASSERT, _Static_assert)   \
-    XX(C_KEYWORD_THREAD_LOCAL,  _Thread_local)    \
-    XX(C_KEYWORD_AUTO,          auto)             \
-    XX(C_KEYWORD_BREAK,         break)            \
-    XX(C_KEYWORD_CASE,          case)             \
-    XX(C_KEYWORD_CHAR,          char)             \
-    XX(C_KEYWORD_CONST,         const)            \
-    XX(C_KEYWORD_CONTINUE,      continue)         \
-    XX(C_KEYWORD_DEFAULT,       default)          \
-    XX(C_KEYWORD_DO,            do)               \
-    XX(C_KEYWORD_DOUBLE,        double)           \
-    XX(C_KEYWORD_ELSE,          else)             \
-    XX(C_KEYWORD_ENUM,          enum)             \
-    XX(C_KEYWORD_EXTERN,        extern)           \
-    XX(C_KEYWORD_FLOAT,         float)            \
-    XX(C_KEYWORD_FOR,           for)              \
-    XX(C_KEYWORD_GOTO,          goto)             \
-    XX(C_KEYWORD_IF,            if)               \
-    XX(C_KEYWORD_INLINE,        inline)           \
-    XX(C_KEYWORD_INT,           int)              \
-    XX(C_KEYWORD_LONG,          long)             \
-    XX(C_KEYWORD_REGISTER,      register)         \
-    XX(C_KEYWORD_RESTRICT,      restrict)         \
-    XX(C_KEYWORD_RETURN,        return)           \
-    XX(C_KEYWORD_SHORT,         short)            \
-    XX(C_KEYWORD_SIGNED,        signed)           \
-    XX(C_KEYWORD_SIZEOF,        sizeof)           \
-    XX(C_KEYWORD_STATIC,        static)           \
-    XX(C_KEYWORD_STRUCT,        struct)           \
-    XX(C_KEYWORD_SWITCH,        switch)           \
-    XX(C_KEYWORD_TYPEDEF,       typedef)          \
-    XX(C_KEYWORD_UNION,         union)            \
-    XX(C_KEYWORD_UNSIGNED,      unsigned)         \
-    XX(C_KEYWORD_VOID,          void)             \
-    XX(C_KEYWORD_VOLATILE,      volatile)         \
-    XX(C_KEYWORD_WHILE,         while)
+    XX(C_KEYWORD_ALIGNAS, "_Alignas")             \
+    XX(C_KEYWORD_ALIGNOF, "_Alignof")             \
+    XX(C_KEYWORD_ATOMIC, "_Atomic")               \
+    XX(C_KEYWORD_BOOL, "_Bool")                   \
+    XX(C_KEYWORD_COMPLEX, "_Complex")             \
+    XX(C_KEYWORD_GENERIC, "_Generic")             \
+    XX(C_KEYWORD_IMAGINARY, "_Imaginary")         \
+    XX(C_KEYWORD_NORETURN, "_Noreturn")           \
+    XX(C_KEYWORD_STATIC_ASSERT, "_Static_assert") \
+    XX(C_KEYWORD_THREAD_LOCAL, "_Thread_local")   \
+    XX(C_KEYWORD_AUTO, "auto")                    \
+    XX(C_KEYWORD_BREAK, "break")                  \
+    XX(C_KEYWORD_CASE, "case")                    \
+    XX(C_KEYWORD_CHAR, "char")                    \
+    XX(C_KEYWORD_CONST, "const")                  \
+    XX(C_KEYWORD_CONTINUE, "continue")            \
+    XX(C_KEYWORD_DEFAULT, "default")              \
+    XX(C_KEYWORD_DO, "do")                        \
+    XX(C_KEYWORD_DOUBLE, "double")                \
+    XX(C_KEYWORD_ELSE, "else")                    \
+    XX(C_KEYWORD_ENUM, "enum")                    \
+    XX(C_KEYWORD_EXTERN, "extern")                \
+    XX(C_KEYWORD_FLOAT, "float")                  \
+    XX(C_KEYWORD_FOR, "for")                      \
+    XX(C_KEYWORD_GOTO, "goto")                    \
+    XX(C_KEYWORD_IF, "if")                        \
+    XX(C_KEYWORD_INLINE, "inline")                \
+    XX(C_KEYWORD_INT, "int")                      \
+    XX(C_KEYWORD_LONG, "long")                    \
+    XX(C_KEYWORD_REGISTER, "register")            \
+    XX(C_KEYWORD_RESTRICT, "restrict")            \
+    XX(C_KEYWORD_RETURN, "return")                \
+    XX(C_KEYWORD_SHORT, "short")                  \
+    XX(C_KEYWORD_SIGNED, "signed")                \
+    XX(C_KEYWORD_SIZEOF, "sizeof")                \
+    XX(C_KEYWORD_STATIC, "static")                \
+    XX(C_KEYWORD_STRUCT, "struct")                \
+    XX(C_KEYWORD_SWITCH, "switch")                \
+    XX(C_KEYWORD_TYPEDEF, "typedef")              \
+    XX(C_KEYWORD_UNION, "union")                  \
+    XX(C_KEYWORD_UNSIGNED, "unsigned")            \
+    XX(C_KEYWORD_VOID, "void")                    \
+    XX(C_KEYWORD_VOLATILE, "volatile")            \
+    XX(C_KEYWORD_WHILE, "while")
 
 #define C_ASSIGN_OP_FIELDS             \
-    XX(C_ASSIGN_OP_ASSIGN,    =)       \
-    XX(C_ASSIGN_OP_ADD,       +=)      \
-    XX(C_ASSIGN_OP_SUB,       -=)      \
-    XX(C_ASSIGN_OP_MUL,       *=)      \
-    XX(C_ASSIGN_OP_DIV,       /=)      \
-    XX(C_ASSIGN_OP_MOD,       %=)      \
-    XX(C_ASSIGN_OP_SHL,       <<=)     \
-    XX(C_ASSIGN_OP_SHR,       >>=)     \
-    XX(C_ASSIGN_OP_BIT_AND,   &=)      \
-    XX(C_ASSIGN_OP_BIT_XOR,   ^=)      \
-    XX(C_ASSIGN_OP_BIT_OR,    |=)
+    XX(C_ASSIGN_OP_ASSIGN, "=")        \
+    XX(C_ASSIGN_OP_ADD, "+=")          \
+    XX(C_ASSIGN_OP_SUB, "-=")          \
+    XX(C_ASSIGN_OP_MUL, "*=")          \
+    XX(C_ASSIGN_OP_DIV, "/=")          \
+    XX(C_ASSIGN_OP_MOD, "%=")          \
+    XX(C_ASSIGN_OP_SHL, "<<=")         \
+    XX(C_ASSIGN_OP_SHR, ">>=")         \
+    XX(C_ASSIGN_OP_BIT_AND, "&=")      \
+    XX(C_ASSIGN_OP_BIT_XOR, "^=")      \
+    XX(C_ASSIGN_OP_BIT_OR, "|=")
 
 #define C_BINARY_OP_FIELDS              \
-    XX(C_BINARY_OP_MUL,         *)      \
-    XX(C_BINARY_OP_DIV,         /)      \
-    XX(C_BINARY_OP_MOD,         %)      \
-    XX(C_BINARY_OP_ADD,         +)      \
-    XX(C_BINARY_OP_SUB,         -)      \
-    XX(C_BINARY_OP_SHL,         <<)     \
-    XX(C_BINARY_OP_SHR,         >>)     \
-    XX(C_BINARY_OP_LT,          <)      \
-    XX(C_BINARY_OP_LE,          <=)     \
-    XX(C_BINARY_OP_GT,          >)      \
-    XX(C_BINARY_OP_GE,          >=)     \
-    XX(C_BINARY_OP_EQ,          ==)     \
-    XX(C_BINARY_OP_NE,          !=)     \
-    XX(C_BINARY_OP_BIT_AND,     &)      \
-    XX(C_BINARY_OP_BIT_XOR,     ^)      \
-    XX(C_BINARY_OP_BIT_OR,      |)      \
-    XX(C_BINARY_OP_LOGICAL_AND, &&)     \
-    XX(C_BINARY_OP_LOGICAL_OR,  ||)
+    XX(C_BINARY_OP_MUL, "*")            \
+    XX(C_BINARY_OP_DIV, "/")            \
+    XX(C_BINARY_OP_MOD, "%")            \
+    XX(C_BINARY_OP_ADD, "+")            \
+    XX(C_BINARY_OP_SUB, "-")            \
+    XX(C_BINARY_OP_SHL, "<<")           \
+    XX(C_BINARY_OP_SHR, ">>")           \
+    XX(C_BINARY_OP_LT, "<")             \
+    XX(C_BINARY_OP_LE, "<=")            \
+    XX(C_BINARY_OP_GT, ">")             \
+    XX(C_BINARY_OP_GE, ">=")            \
+    XX(C_BINARY_OP_EQ, "==")            \
+    XX(C_BINARY_OP_NE, "!=")            \
+    XX(C_BINARY_OP_BIT_AND, "&")        \
+    XX(C_BINARY_OP_BIT_XOR, "^")        \
+    XX(C_BINARY_OP_BIT_OR, "|")         \
+    XX(C_BINARY_OP_LOGICAL_AND, "&&")   \
+    XX(C_BINARY_OP_LOGICAL_OR, "||")
 
 #define C_MEMBER_OP_FIELDS      \
-    XX(C_MEMBER_OP_DOT,   .)    \
-    XX(C_MEMBER_OP_ARROW, ->)
+    XX(C_MEMBER_OP_DOT, ".")    \
+    XX(C_MEMBER_OP_ARROW, "->")
 
 #if defined(CBASE_H)
   #define ENUM_NAME TokenKind
