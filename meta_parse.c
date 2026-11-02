@@ -646,12 +646,12 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
 
 static int32
 unit_test_find(Tokenization *t, char *word, int32 occurrence) {
-    TokenRange all = {0, t->token_count};
+    TokenRange all = {0, ARRAY_LEN(t->tokens)};
     int32 i = -1;
     for (int32 j = 0; j <= occurrence; j += 1) {
         i = token_range_next_text(t, all, i, word, strlen32(word));
     }
-    ASSERT_LT_VAR(i, t->token_count);
+    ASSERT_LT_VAR(i, ARRAY_LEN(t->tokens));
     return i;
 }
 
@@ -674,7 +674,8 @@ unit_test_functions(void) {
     ASSERT(c_ast_init(&ast, &t));
     r =
         c_ast_parse_translation_unit(&ast,
-                                     (TokenRange){0, t.token_count}, NULL);
+                                     (TokenRange){0, ARRAY_LEN(t.tokens)},
+                                     NULL);
     ASSERT_EQ(r.issue_count, 0);
     ASSERT_EQ(r.external_count, 4);
     f = ast.externals[r.first_external].next;
@@ -716,8 +717,8 @@ unit_test_alternatives(void) {
     int32 next;
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
-    r =
-        c_ast_parse_translation_unit(&ast, (TokenRange){0, t.token_count}, &pp);
+    r = c_ast_parse_translation_unit(&ast,
+                                     (TokenRange){0, ARRAY_LEN(t.tokens)}, &pp);
     ASSERT_EQ(r.issue_count, 0);
     first = r.first_external;
     ASSERT_EQ(ast.externals[first].kind, C_EXTERNAL_PP_DIRECTIVE);
@@ -756,7 +757,7 @@ unit_test_conditional_function_body(void) {
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
     result =
-        c_ast_parse_translation_unit(&ast, (TokenRange){0, t.token_count},
+        c_ast_parse_translation_unit(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)},
                                      &pp);
     ASSERT_EQ(result.issue_count, 0);
     ASSERT_EQ(ast.externals[result.first_external].kind,
@@ -786,7 +787,8 @@ unit_test_malformed_and_recovery(void) {
     ASSERT(c_ast_init(&ast, &t));
     r =
         c_ast_parse_translation_unit(&ast,
-                                     (TokenRange){0, t.token_count}, NULL);
+                                     (TokenRange){0, ARRAY_LEN(t.tokens)},
+                                     NULL);
     ASSERT_GT(r.issue_count, 0);
     ASSERT_EQ(ast.externals[r.first_external].kind, C_EXTERNAL_UNSUPPORTED);
     second = ast.externals[r.first_external].next;

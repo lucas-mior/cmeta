@@ -655,11 +655,11 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         }
         /* Region token bounds include tokens overlapping their source
          * edges. The stream owns tokens by their starting offset. */
-        if (part.first < tokens->token_count
+        if (part.first < ARRAY_LEN(tokens->tokens)
             && tokens->tokens[part.first].offset < region->source.start) {
             part.first += 1;
         }
-        if (part.end < tokens->token_count
+        if (part.end < ARRAY_LEN(tokens->tokens)
             && tokens->tokens[part.end].offset < region->source.end) {
             part.end += 1;
         }
@@ -759,7 +759,7 @@ csane_statements_at_token(CsaneStatements *statements, int32 function,
         return -1;
     }
     tokens = statements->toplevel->regions->tokens;
-    if (token < 0 || token >= tokens->token_count) {
+    if (token < 0 || token >= ARRAY_LEN(tokens->tokens)) {
         return -1;
     }
     offset = tokens->tokens[token].offset;

@@ -48,7 +48,7 @@ csane_decl_next(CsaneFile *file, TokenRange range, int32 after) {
 
 static bool
 csane_decl_is(CsaneFile *file, int32 i, char *name, int32 name_len) {
-    return i >= 0 && i < file->tokens->token_count
+    return i >= 0 && i < ARRAY_LEN(file->tokens->tokens)
            && TOKEN_IS(&file->tokens->tokens[i], name, name_len);
 }
 
@@ -175,7 +175,7 @@ csane_decl_function_open(CsaneFile *file, TokenRange range) {
 
 static bool
 csane_decl_word(CsaneFile *file, int32 token, char *word, int32 word_len) {
-    return token >= 0 && token < file->tokens->token_count
+    return token >= 0 && token < ARRAY_LEN(file->tokens->tokens)
            && file->tokens->tokens[token].kind == TOKEN_IDENT
            && TOKEN_IS(&file->tokens->tokens[token], word, word_len);
 }
@@ -211,7 +211,7 @@ csane_decl_aggregate(CsaneFile *file, int32 token) {
 
 static bool
 csane_decl_known_type(CsaneFile *file, int32 token) {
-    if (token < 0 || token >= file->tokens->token_count) {
+    if (token < 0 || token >= ARRAY_LEN(file->tokens->tokens)) {
         return false;
     }
     return csane_type_name(&file->tokens->tokens[token])
@@ -771,7 +771,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
         && csane_wrap_safe(file, name, close, false)) {
         CsaneTokenView full = csane_tokens_full(file->tokens);
         suffix = csane_tokens_next(&full, close);
-        if (suffix < file->tokens->token_count
+        if (suffix < ARRAY_LEN(file->tokens->tokens)
             && (csane_decl_is(file, suffix, STRLIT(";"))
                 || csane_decl_is(file, suffix, STRLIT("{")))) {
             int32 start = file->tokens->tokens[name].offset;

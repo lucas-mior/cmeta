@@ -43,7 +43,7 @@ static int32
 stmt_directive(StmtCursor *c, int32 token) {
     int32 d;
     if ((c->pp == NULL) || (token >= c->range.end)
-        || (token >= c->ast->tokenization->token_count)) {
+        || (token >= ARRAY_LEN(c->ast->tokenization->tokens))) {
         return -1;
     }
     d = c->pp->token_directives[token];
@@ -902,12 +902,12 @@ c_ast_parse_statement(CAst *ast, TokenRange range, CPreprocessorAnalysis *pp) {
 
 static int32
 stmt_test_find(Tokenization *t, char *name, int32 occurrence) {
-    TokenRange all = {0, t->token_count};
+    TokenRange all = {0, ARRAY_LEN(t->tokens)};
     int32 i = -1;
     for (int32 j = 0; j <= occurrence; j += 1) {
         i = token_range_next_text(t, all, i, name, strlen32(name));
     }
-    ASSERT_LT_VAR(i, t->token_count);
+    ASSERT_LT_VAR(i, ARRAY_LEN(t->tokens));
     return i;
 }
 
@@ -924,7 +924,7 @@ stmt_test_control_flow(void) {
     int32 x;
     ASSERT(c_ast_init(&ast, &t));
     r =
-        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
+        c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
     ASSERT_EQ(r.issue, 0);
     ASSERT_EQ(ast.statements[r.statement].kind, C_STMT_COMPOUND);
     x = ast.statements[r.statement].first_child;
@@ -972,7 +972,7 @@ stmt_test_preprocessor(void) {
     ASSERT(c_preprocessor_analysis_init(&pp, &t));
     ASSERT(c_ast_init(&ast, &t));
     r =
-        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, &pp);
+        c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, &pp);
     ASSERT_EQ(r.issue, 0);
     first = ast.statements[r.statement].first_child;
     group = ast.statements[first].next;
@@ -1002,7 +1002,7 @@ stmt_test_recovery(void) {
     int32 d;
     ASSERT(c_ast_init(&ast, &t));
     r =
-        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
+        c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
     ASSERT_GT(ast.issue_count, 0);
     a = ast.statements[r.statement].first_child;
     b = ast.statements[a].next;
@@ -1024,7 +1024,7 @@ stmt_test_malformed_headers(void) {
     int32 child;
     ASSERT(c_ast_init(&ast, &t));
     r =
-        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
+        c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
     ASSERT_GE(ast.issue_count, 3);
     child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_IF);
@@ -1051,7 +1051,7 @@ stmt_test_unresolved_pointer_declarations(void) {
     int32 child;
     ASSERT(c_ast_init(&ast, &t));
     r =
-        c_ast_parse_statement(&ast, (TokenRange){0, t.token_count}, NULL);
+        c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
     child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_UNSUPPORTED);
     child = ast.statements[child].next;

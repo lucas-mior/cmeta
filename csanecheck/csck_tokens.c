@@ -126,7 +126,7 @@ csane_tokens_full(Tokenization *tokens) {
     CsaneTokenView view = {0};
     if (tokens != NULL) {
         (void)csane_tokens_view(&view, tokens,
-                                (TokenRange){0, tokens->token_count});
+                                (TokenRange){0, ARRAY_LEN(tokens->tokens)});
     }
     return view;
 }

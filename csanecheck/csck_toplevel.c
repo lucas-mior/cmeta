@@ -1203,7 +1203,7 @@ csane_toplevel_free(CsaneTopLevels *top) {
 int32
 csane_toplevel_at_token(CsaneTopLevels *top, int32 owner, int32 token) {
     if (top == NULL || top->regions == NULL || token < 0
-        || token >= top->regions->tokens->token_count || owner < 0
+        || token >= ARRAY_LEN(top->regions->tokens->tokens) || owner < 0
         || owner >= ARRAY_LEN(top->regions->items)) {
         return -1;
     }

@@ -113,40 +113,20 @@ line_starts_preprocessor(char *text, int32 len) {
 static void
 tokenization_add_token(Tokenization *tokenization, enum TokenKind category,
                        char *text, int32 len, int32 offset) {
-    Token *token;
-
     if (len <= 0) {
         return;
     }
 
-    if (tokenization->token_count >= tokenization->token_capacity) {
-        int32 new_capacity;
-
-        if (tokenization->token_capacity > 0) {
-            new_capacity = tokenization->token_capacity*2;
-        } else {
-            new_capacity = TOKENIZE_INITIAL_TOKEN_CAPACITY;
-        }
-        if (tokenization->tokens) {
-            tokenization->tokens = realloc2(tokenization->tokens,
-                                            tokenization->token_capacity,
-                                            new_capacity,
-                                            SIZEOF(*tokenization->tokens));
-        } else {
-            tokenization->tokens =
-                malloc2(new_capacity*SIZEOF(*tokenization->tokens));
-        }
-        tokenization->token_capacity = new_capacity;
+    if (tokenization->tokens == NULL) {
+        ARRAY_INIT(tokenization->tokens, TOKENIZE_INITIAL_TOKEN_CAPACITY);
     }
-
-    token = &tokenization->tokens[tokenization->token_count];
-    token->kind = category;
-    token->len = len;
-    token->column = offset;
-    token->offset = offset;
-    token->text = text;
-
-    tokenization->token_count += 1;
+    ARRAY_PUSH(tokenization->tokens, ((Token){
+        .kind = category,
+        .len = len,
+        .column = offset,
+        .offset = offset,
+        .text = text,
+    }));
     return;
 }
 
@@ -799,7 +779,7 @@ token_range_is_valid(Tokenization *tokenization, TokenRange range) {
     }
     return (range.first >= 0)
            && (range.first <= range.end)
-           && (range.end <= tokenization->token_count);
+           && (range.end <= ARRAY_LEN(tokenization->tokens));
 }
 
 int32
@@ -1252,7 +1232,7 @@ token_range_source_range(Tokenization *tokenization, TokenRange range) {
         return result;
     }
     if (range.first == range.end) {
-        if (range.first == tokenization->token_count) {
+        if (range.first == ARRAY_LEN(tokenization->tokens)) {
             result.start = tokenization->text_len;
         } else {
             result.start = tokenization->tokens[range.first].offset;
@@ -1277,7 +1257,7 @@ tokenization_source_between(Tokenization *tokenization, int32 left_index,
 
     if ((tokenization == NULL) || (left_index < 0)
         || (right_index <= left_index)
-        || (right_index >= tokenization->token_count)) {
+        || (right_index >= ARRAY_LEN(tokenization->tokens))) {
         return result;
     }
     left = &tokenization->tokens[left_index];
@@ -1312,7 +1292,7 @@ tokenization_comment_between(Tokenization *tokenization, int32 left_index,
                              int32 right_index) {
     if ((tokenization == NULL) || (left_index < 0)
         || (right_index <= left_index)
-        || (right_index >= tokenization->token_count)) {
+        || (right_index >= ARRAY_LEN(tokenization->tokens))) {
         return false;
     }
     for (int32 i = left_index + 1; i < right_index; i += 1) {
@@ -1486,7 +1466,7 @@ tokenization_token_location(Tokenization *tokenization, int32 token_index) {
     int32 offset;
 
     if ((tokenization == NULL) || (token_index < 0)
-        || (token_index >= tokenization->token_count)) {
+        || (token_index >= ARRAY_LEN(tokenization->tokens))) {
         return result;
     }
     offset = tokenization->tokens[token_index].offset;
@@ -1498,7 +1478,7 @@ tokenization_significant_at_or_after(Tokenization *tokenization,
                                      int32 token_index) {
     int32 result = token_index;
     ASSERT_GE(token_index, 0);
-    while ((result < tokenization->token_count)
+    while ((result < ARRAY_LEN(tokenization->tokens))
            && token_is_trivia(&tokenization->tokens[result])) {
         result += 1;
     }
@@ -1532,7 +1512,7 @@ tokenization_token_at_or_after_offset(Tokenization *tokenization,
         return -1;
     }
     first = 0;
-    end = tokenization->token_count;
+    end = ARRAY_LEN(tokenization->tokens);
     while (first < end) {
         int32 middle = first + (end - first)/2;
         Token *token = &tokenization->tokens[middle];
@@ -1592,7 +1572,7 @@ tokenization_find_matching(Tokenization *tokenization, int32 open_index) {
     Token *open;
     int32 depth;
 
-    if ((open_index < 0) || (open_index >= tokenization->token_count)) {
+    if ((open_index < 0) || (open_index >= ARRAY_LEN(tokenization->tokens))) {
         return -1;
     }
 
@@ -1610,7 +1590,7 @@ tokenization_find_matching(Tokenization *tokenization, int32 open_index) {
     }
 
     depth = 0;
-    for (int32 i = open_index; i < tokenization->token_count; i += 1) {
+    for (int32 i = open_index; i < ARRAY_LEN(tokenization->tokens); i += 1) {
         Token *token;
 
         token = &tokenization->tokens[i];
@@ -1656,17 +1636,13 @@ free_tokenization(Tokenization *tokenization) {
         return;
     }
 
-    free2(tokenization->tokens,
-          tokenization->token_capacity*SIZEOF(*tokenization->tokens));
+    ARRAY_FREE(tokenization->tokens);
     free2(tokenization->line_starts,
           tokenization->line_capacity*SIZEOF(*tokenization->line_starts));
     if (tokenization->owned_text != NULL) {
         free2(tokenization->owned_text, (int64)tokenization->text_len + 1);
     }
 
-    tokenization->tokens = NULL;
-    tokenization->token_count = 0;
-    tokenization->token_capacity = 0;
     tokenization->text = NULL;
     tokenization->text_len = 0;
     tokenization->line_starts = NULL;
@@ -1730,7 +1706,7 @@ test_assert_token(Token *token, enum TokenKind kind, char *text, int32 column) {
 
 static int32
 test_find_token(Tokenization *tokenization, char *text) {
-    for (int32 i = 0; i < tokenization->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokenization->tokens); i += 1) {
         if (TOKEN_IS(&tokenization->tokens[i], text, strlen32(text))) {
             return i;
         }
@@ -1882,7 +1858,7 @@ test_tokenize_default(void) {
     char *text = "int x = foo(1, \"a\"); // c\n";
     Tokenization line = tokenize(text, strlen32(text));
 
-    ASSERT_EQ(line.token_count, 17);
+    ASSERT_EQ(ARRAY_LEN(line.tokens), 17);
     test_assert_token(&line.tokens[0], TOKEN_IDENT, "int", 0);
     test_assert_token(&line.tokens[1], TOKEN_SPACE, " ", 3);
     test_assert_token(&line.tokens[4], TOKEN_OPERATOR, "=", 6);
@@ -1895,6 +1871,45 @@ test_tokenize_default(void) {
     test_assert_token(&line.tokens[15], TOKEN_COMMENT, "// c", 21);
     test_assert_token(&line.tokens[16], TOKEN_NEWLINE, "\n", 25);
     free_tokenization(&line);
+    return;
+}
+
+static void
+test_tokenize_array_growth(void) {
+    char text[258];
+    Tokenization tokens;
+
+    tokens = tokenize("", 0);
+    ASSERT_ZERO(ARRAY_LEN(tokens.tokens));
+    ASSERT_ZERO(ARRAY_CAPACITY(tokens.tokens));
+    free_tokenization(&tokens);
+
+    tokens = tokenize("x", 1);
+    ASSERT_EQ(ARRAY_LEN(tokens.tokens), 1);
+    ASSERT_EQ(ARRAY_CAPACITY(tokens.tokens), TOKENIZE_INITIAL_TOKEN_CAPACITY);
+    free_tokenization(&tokens);
+    ASSERT_NULL(tokens.tokens);
+    ASSERT_ZERO(ARRAY_LEN(tokens.tokens));
+
+    for (int32 i = 0; i < LENGTH(text); i += 2) {
+        text[i] = 'x';
+        text[i + 1] = ' ';
+    }
+    tokens = tokenize(text, LENGTH(text));
+    ASSERT_EQ(ARRAY_LEN(tokens.tokens), LENGTH(text));
+    ASSERT_GE_VAR(ARRAY_CAPACITY(tokens.tokens), LENGTH(text));
+    for (int32 i = 0; i < LENGTH(text); i += 1) {
+        ASSERT_EQ(tokens.tokens[i].offset, i);
+        ASSERT_EQ(tokens.tokens[i].len, 1);
+        ASSERT(tokens.tokens[i].text == &text[i]);
+        if (i % 2 == 0) {
+            ASSERT(tokens.tokens[i].kind == TOKEN_IDENT);
+        } else {
+            ASSERT(tokens.tokens[i].kind == TOKEN_SPACE);
+        }
+    }
+    free_tokenization(&tokens);
+    ASSERT_NULL(tokens.tokens);
     return;
 }
 
@@ -1929,7 +1944,7 @@ test_tokenize_preprocessor_and_skip_whitespace(void) {
 
     line = tokenize_with_flags(preproc_text, strlen32(preproc_text),
                                TOKENIZE_PREPROCESSOR_LINES);
-    ASSERT_EQ(line.token_count, 1);
+    ASSERT_EQ(ARRAY_LEN(line.tokens), 1);
     test_assert_token(&line.tokens[0], TOKEN_PREPROC, preproc_text, 0);
     ASSERT(line.text == preproc_text);
     ASSERT_EQ(line.text_len, strlen32(preproc_text));
@@ -1937,7 +1952,7 @@ test_tokenize_preprocessor_and_skip_whitespace(void) {
 
     skipped = tokenize_with_flags(skip_text, strlen32(skip_text),
                                   TOKENIZE_SKIP_WHITESPACE);
-    ASSERT_EQ(skipped.token_count, 2);
+    ASSERT_EQ(ARRAY_LEN(skipped.tokens), 2);
     test_assert_token(&skipped.tokens[0], TOKEN_IDENT, "a", 0);
     test_assert_token(&skipped.tokens[1], TOKEN_IDENT, "b", 2);
     free_tokenization(&skipped);
@@ -1951,7 +1966,7 @@ test_tokenize_block_comment_across_lines(void) {
     Tokenization tokenization;
 
     tokenization = tokenize(text, strlen32(text));
-    ASSERT_EQ(tokenization.token_count, 8);
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 8);
     test_assert_token(&tokenization.tokens[0], TOKEN_COMMENT, "/* hello", 0);
     test_assert_token(&tokenization.tokens[1], TOKEN_NEWLINE, "\n", 8);
     test_assert_token(&tokenization.tokens[2], TOKEN_COMMENT, "world */", 9);
@@ -1960,7 +1975,7 @@ test_tokenize_block_comment_across_lines(void) {
 
     tokenization = tokenize_with_flags(preproc_text, strlen32(preproc_text),
                                        TOKENIZE_PREPROCESSOR_LINES);
-    ASSERT_EQ(tokenization.token_count, 9);
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 9);
     test_assert_token(&tokenization.tokens[0], TOKEN_COMMENT, "/* hello", 0);
     test_assert_token(&tokenization.tokens[1], TOKEN_NEWLINE, "\n", 8);
     test_assert_token(&tokenization.tokens[2], TOKEN_COMMENT,
@@ -1970,7 +1985,7 @@ test_tokenize_block_comment_across_lines(void) {
 
     tokenization = tokenize_with_flags(text, strlen32(text),
                                        TOKENIZE_SKIP_WHITESPACE);
-    ASSERT_EQ(tokenization.token_count, 5);
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 5);
     test_assert_token(&tokenization.tokens[0], TOKEN_COMMENT, "/* hello", 0);
     test_assert_token(&tokenization.tokens[1], TOKEN_COMMENT, "world */", 9);
     test_assert_token(&tokenization.tokens[2], TOKEN_IDENT, "int", 18);
@@ -1984,14 +1999,14 @@ test_tokenization_navigation(void) {
     Tokenization tokenization;
 
     tokenization = tokenize(text, strlen32(text));
-    ASSERT_EQ(tokenization.token_count, 9);
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 9);
     ASSERT_EQ(tokenization_significant_at_or_after(&tokenization, 1), 4);
     ASSERT_EQ(tokenization_next_significant(&tokenization, 0), 4);
     ASSERT_EQ(tokenization_previous_significant(&tokenization, 8), 4);
     ASSERT_EQ(tokenization_token_at_or_after_offset(&tokenization, 8), 4);
     ASSERT_EQ(tokenization_token_at_or_after_offset(&tokenization,
                                                     strlen32(text)),
-              tokenization.token_count);
+              ARRAY_LEN(tokenization.tokens));
     ASSERT(token_is_trivia(&tokenization.tokens[1]));
     ASSERT(token_is_trivia(&tokenization.tokens[2]));
     ASSERT(!token_is_trivia(&tokenization.tokens[4]));
@@ -2096,9 +2111,9 @@ test_token_range_significant_equal(void) {
     left = tokenize(left_text, strlen32(left_text));
     right = tokenize(right_text, strlen32(right_text));
     different = tokenize(different_text, strlen32(different_text));
-    left_range = (TokenRange){0, left.token_count};
-    right_range = (TokenRange){0, right.token_count};
-    different_range = (TokenRange){0, different.token_count};
+    left_range = (TokenRange){0, ARRAY_LEN(left.tokens)};
+    right_range = (TokenRange){0, ARRAY_LEN(right.tokens)};
+    different_range = (TokenRange){0, ARRAY_LEN(different.tokens)};
 
     ASSERT(token_range_significant_equal(&left, left_range,
                                          &right, right_range));
@@ -2108,7 +2123,8 @@ test_token_range_significant_equal(void) {
     ASSERT(!token_range_significant_equal(&left, left_range,
                                           &right, right_range));
     ASSERT(!token_range_significant_equal(&left,
-                                          (TokenRange){-1, left.token_count},
+                                          (TokenRange){-1,
+                                                       ARRAY_LEN(left.tokens)},
                                           &right, right_range));
 
     free_tokenization(&left);
@@ -2137,7 +2153,7 @@ test_tokenization_between_queries(void) {
     int32 g;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     a = token_range_next_text(&tokenization, all, -1, STRLIT("a"));
     b = token_range_next_text(&tokenization, all, a, STRLIT("b"));
     c = token_range_next_text(&tokenization, all, b, STRLIT("c"));
@@ -2163,15 +2179,13 @@ test_tokenization_between_queries(void) {
 
     ASSERT(!tokenization_newline_between(&tokenization, -1, b));
     ASSERT(!tokenization_comment_between(&tokenization, b, b));
-    ASSERT(!tokenization_blank_line_between(&tokenization, g,
-                                            tokenization.token_count));
-    ASSERT(!tokenization_line_continuation_between(&tokenization, g,
-                                                   tokenization.token_count));
+    ASSERT(!tokenization_blank_line_between(&tokenization, g, all.end));
+    ASSERT(!tokenization_line_continuation_between(&tokenization, g, all.end));
     free_tokenization(&tokenization);
 
     tokenization = tokenize_with_flags(text, strlen32(text),
                                        TOKENIZE_SKIP_WHITESPACE);
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     a = token_range_next_text(&tokenization, all, -1, STRLIT("a"));
     b = token_range_next_text(&tokenization, all, a, STRLIT("b"));
     c = token_range_next_text(&tokenization, all, b, STRLIT("c"));
@@ -2194,19 +2208,19 @@ test_token_ranges(void) {
     SourceRange source;
 
     tokenization = tokenize(text, strlen32(text));
-    range = (TokenRange){0, tokenization.token_count};
+    range = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     ASSERT(token_range_is_valid(&tokenization, range));
     ASSERT(!token_range_is_valid(&tokenization, (TokenRange){-1, 0}));
-    range = (TokenRange){0, tokenization.token_count + 1};
+    range = (TokenRange){0, ARRAY_LEN(tokenization.tokens) + 1};
     ASSERT(!token_range_is_valid(&tokenization, range));
-    range = (TokenRange){0, tokenization.token_count};
+    range = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     ASSERT_EQ(token_range_first_significant(&tokenization, range), 1);
     ASSERT_EQ(token_range_last_significant(&tokenization, range),
-              tokenization.token_count - 2);
+              ARRAY_LEN(tokenization.tokens) - 2);
 
     trimmed = token_range_trim_trivia(&tokenization, range);
     ASSERT_EQ(trimmed.first, 1);
-    ASSERT_EQ(trimmed.end, tokenization.token_count - 1);
+    ASSERT_EQ(trimmed.end, ARRAY_LEN(tokenization.tokens) - 1);
     source = token_range_source_range(&tokenization, trimmed);
     ASSERT_EQ(source.start, 2);
     ASSERT_EQ(source.end, strlen32(text) - 2);
@@ -2224,8 +2238,8 @@ test_token_ranges(void) {
     ASSERT_EQ(source.start, 2);
     ASSERT_EQ(source.end, 2);
 
-    range = (TokenRange){tokenization.token_count,
-                         tokenization.token_count};
+    range = (TokenRange){ARRAY_LEN(tokenization.tokens),
+                         ARRAY_LEN(tokenization.tokens)};
     source = token_range_source_range(&tokenization, range);
     ASSERT_EQ(source.start, tokenization.text_len);
     ASSERT_EQ(source.end, tokenization.text_len);
@@ -2353,7 +2367,7 @@ test_token_range_balanced_delimiters(void) {
     int32 close;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     outer = token_range_next_text(&tokenization, all, -1, STRLIT("("));
     bracket = token_range_next_text(&tokenization, all, outer, STRLIT("["));
     nested = token_range_next_text(&tokenization, all, bracket, STRLIT("("));
@@ -2405,7 +2419,7 @@ test_token_range_malformed_delimiters(void) {
     int32 close_bracket;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     paren = token_range_next_text(&tokenization, all, -1, STRLIT("("));
     bracket = token_range_next_text(&tokenization, all, paren, STRLIT("["));
     close_bracket = token_range_next_text(&tokenization, all, bracket,
@@ -2426,7 +2440,7 @@ test_token_range_malformed_delimiters(void) {
 
     text = "(a[0]) (";
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     paren = token_range_next_text(&tokenization, all, -1, STRLIT("("));
     ASSERT_GE(token_range_matching_delimiter_forward(&tokenization, all,
                                                      paren),
@@ -2445,7 +2459,7 @@ test_token_range_malformed_delimiters(void) {
 
     text = ")";
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     ASSERT(!token_range_is_balanced(&tokenization, all));
     ASSERT(!token_range_delimiter_depth_before(&tokenization, all, all.end,
                                                &depth));
@@ -2474,7 +2488,7 @@ test_token_range_delimiter_depth(void) {
     int32 d;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     foo = token_range_next_text(&tokenization, all, -1, STRLIT("foo"));
     open = token_range_next_text(&tokenization, all, foo, STRLIT("("));
     close = token_range_matching_delimiter_forward(&tokenization, all, open);
@@ -2549,7 +2563,7 @@ test_token_range_deep_delimiters(void) {
     text[DEPTH*2 + 1] = '\0';
 
     tokenization = tokenize(text, DEPTH*2 + 1);
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     ASSERT(token_range_is_balanced(&tokenization, all));
     close = token_range_matching_delimiter_forward(&tokenization, all, 0);
     ASSERT_GE(close, 0);
@@ -2589,7 +2603,7 @@ test_tokenize_with_flags_returns_source_metadata(void) {
                                        TOKENIZE_SKIP_WHITESPACE);
     ASSERT(tokenization.text == text);
     ASSERT_EQ(tokenization.text_len, strlen32(text));
-    ASSERT_EQ(tokenization.token_count, 3);
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 3);
     test_assert_token(&tokenization.tokens[0], TOKEN_IDENT, "x", 0);
     test_assert_token(&tokenization.tokens[1], TOKEN_OPERATOR, "+", 2);
     test_assert_token(&tokenization.tokens[2], TOKEN_IDENT, "y", 4);
@@ -2618,7 +2632,7 @@ test_tokenize_copy_and_offsets(void) {
     ASSERT_EQ(offset, 1);
     offset = tokenization_token_at_or_after_offset(&tokenization,
                                                    tokenization.text_len);
-    ASSERT_EQ(offset, tokenization.token_count);
+    ASSERT_EQ(offset, ARRAY_LEN(tokenization.tokens));
     location = tokenization_source_location(&tokenization, 8);
     ASSERT_EQ(location.line, 3);
     ASSERT_EQ(location.column, 3);
@@ -2628,7 +2642,7 @@ test_tokenize_copy_and_offsets(void) {
 
     tokenization = tokenize_copy(NULL, 0, TOKENIZE_DEFAULT);
     ASSERT(tokenization.owned_text != NULL);
-    ASSERT_ZERO(tokenization.token_count);
+    ASSERT_ZERO(ARRAY_LEN(tokenization.tokens));
     free_tokenization(&tokenization);
     tokenization = tokenize_copy(NULL, 1, TOKENIZE_DEFAULT);
     ASSERT_NULL(tokenization.owned_text);
@@ -2641,16 +2655,14 @@ test_tokenization_define_digraph_and_continuation(void) {
                  "    (x)\n"
                  "int z;\n";
     Tokenization tokenization;
+    TokenRange range;
     int32 inside;
     int32 outside;
 
     tokenization = tokenize(text, strlen32(text));
-    inside = token_range_next_text(&tokenization,
-                                   (TokenRange){0, tokenization.token_count},
-                                   -1, STRLIT("x"));
-    outside = token_range_next_text(&tokenization,
-                                    (TokenRange){0, tokenization.token_count},
-                                    -1, STRLIT("int"));
+    range = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
+    inside = token_range_next_text(&tokenization, range, -1, STRLIT("x"));
+    outside = token_range_next_text(&tokenization, range, -1, STRLIT("int"));
     ASSERT(tokenization_is_in_preprocessor_define(&tokenization, inside));
     ASSERT(!tokenization_is_in_preprocessor_define(&tokenization, outside));
     free_tokenization(&tokenization);
@@ -2667,6 +2679,7 @@ main(void) {
     test_operator_or_punct_category();
     test_line_starts_preprocessor();
     test_tokenize_default();
+    test_tokenize_array_growth();
     test_tokenize_first_byte_dispatch();
     test_tokenize_preprocessor_and_skip_whitespace();
     test_tokenize_block_comment_across_lines();

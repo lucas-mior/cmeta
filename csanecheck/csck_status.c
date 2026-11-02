@@ -10,7 +10,7 @@
 
 static bool
 csane_status_is(CsaneFile *file, int32 i, char *text, int32 text_len) {
-    return i >= 0 && i < file->tokens->token_count
+    return i >= 0 && i < ARRAY_LEN(file->tokens->tokens)
            && TOKEN_IS(&file->tokens->tokens[i], text, text_len);
 }
 

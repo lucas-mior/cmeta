@@ -79,7 +79,7 @@ c_preprocessor_token_is_line_splice(Tokenization *tokenization,
     Token *token;
     int32 offset;
 
-    if ((token_index < 0) || (token_index >= tokenization->token_count)) {
+    if ((token_index < 0) || (token_index >= ARRAY_LEN(tokenization->tokens))) {
         return false;
     }
     token = &tokenization->tokens[token_index];
@@ -279,7 +279,8 @@ c_preprocessor_directive_at(Tokenization *tokenization, int32 token_index,
     int32 end;
 
     if ((tokenization == NULL) || (result == NULL)
-        || (token_index < 0) || (token_index >= tokenization->token_count)) {
+        || (token_index < 0)
+        || (token_index >= ARRAY_LEN(tokenization->tokens))) {
         return false;
     }
     token = &tokenization->tokens[token_index];
@@ -308,7 +309,8 @@ c_preprocessor_directive_containing(Tokenization *tokenization,
     int32 end;
 
     if ((tokenization == NULL) || (result == NULL)
-        || (token_index < 0) || (token_index >= tokenization->token_count)) {
+        || (token_index < 0)
+        || (token_index >= ARRAY_LEN(tokenization->tokens))) {
         return false;
     }
     token = &tokenization->tokens[token_index];
@@ -485,7 +487,7 @@ static int32
 test_find_text(Tokenization *tokenization, char *text, int32 text_len) {
     TokenRange all;
 
-    all = (TokenRange){0, tokenization->token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization->tokens)};
     return token_range_next_text(tokenization, all, -1, text, text_len);
 }
 
@@ -561,7 +563,7 @@ test_preprocessor_logical_directive_range(void) {
     tokenization = tokenize(text, strlen32(text));
     hash = test_find_text(&tokenization, STRLIT("#"));
     b = test_find_text(&tokenization, STRLIT("b"));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     b = token_range_next_text(&tokenization, all, b, STRLIT("b"));
     x = test_find_text(&tokenization, STRLIT("int"));
 
@@ -635,7 +637,7 @@ test_preprocessor_object_and_function_spacing(void) {
     bool expected[] = {false, true, true, false,};
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     cursor = -1;
     for (int32 i = 0; i < LENGTH(expected); i += 1) {
         CPreprocessorDirective directive;
@@ -667,7 +669,7 @@ test_preprocessor_empty_define_and_malformed(void) {
     CPreprocessorDefine define;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     first_hash = token_range_next_text(&tokenization, all, -1, STRLIT("#"));
     second_hash = token_range_next_text(&tokenization, all, first_hash,
                                         STRLIT("#"));
@@ -704,7 +706,7 @@ test_preprocessor_unknown_and_non_directive_hash(void) {
     int32 third_hash;
 
     tokenization = tokenize(text, strlen32(text));
-    all = (TokenRange){0, tokenization.token_count};
+    all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     first_hash = token_range_next_text(&tokenization, all, -1, STRLIT("#"));
     second_hash = token_range_next_text(&tokenization, all, first_hash,
                                         STRLIT("#"));

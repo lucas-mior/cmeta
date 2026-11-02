@@ -116,12 +116,12 @@ static bool
 csane_source_masked(Tokenization *tokens, int32 *cursor, int32 offset) {
     Token *token;
 
-    while (*cursor < tokens->token_count
+    while (*cursor < ARRAY_LEN(tokens->tokens)
            && tokens->tokens[*cursor].offset
               + tokens->tokens[*cursor].len <= offset) {
         *cursor += 1;
     }
-    if (*cursor >= tokens->token_count) {
+    if (*cursor >= ARRAY_LEN(tokens->tokens)) {
         return false;
     }
     token = &tokens->tokens[*cursor];
@@ -254,7 +254,7 @@ csane_sizeof_has_operand(CsaneFile *file, int32 index) {
     Tokenization *tokens = file->tokens;
     int32 next = tokenization_next_significant(tokens, index);
     Token *token;
-    if (next >= tokens->token_count) {
+    if (next >= ARRAY_LEN(tokens->tokens)) {
         return false;
     }
     if ((file->preprocessor->token_roles != NULL)
@@ -282,7 +282,7 @@ csane_rule_sizeof(CsaneFile *file) {
     if (file->is_ryu) {
         return;
     }
-    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
         if (!csane_token_text(token, STRLIT("sizeof"))
             || (token->kind != TOKEN_IDENT)
@@ -306,7 +306,7 @@ csane_rule_sizeof(CsaneFile *file) {
 static bool
 csane_api_known_type(CsaneFile *file, int32 index) {
     Token *token;
-    if (index < 0 || index >= file->tokens->token_count) {
+    if (index < 0 || index >= ARRAY_LEN(file->tokens->tokens)) {
         return false;
     }
     token = &file->tokens->tokens[index];
@@ -381,7 +381,7 @@ csane_api_classify(CsaneFile *file, int32 index) {
         }
     }
     next = tokenization_next_significant(tokens, index);
-    if (next >= tokens->token_count) {
+    if (next >= ARRAY_LEN(tokens->tokens)) {
         return CSANE_API_NOT_CALL;
     }
     if (TOKEN_IS(&tokens->tokens[next], ")")) {
@@ -391,7 +391,8 @@ csane_api_classify(CsaneFile *file, int32 index) {
         }
         next = tokenization_next_significant(tokens, next);
     }
-    if (next >= tokens->token_count || !TOKEN_IS(&tokens->tokens[next], "(")) {
+    if (next >= ARRAY_LEN(tokens->tokens)
+        || !TOKEN_IS(&tokens->tokens[next], "(")) {
         return CSANE_API_NOT_CALL;
     }
     call_open = next;
@@ -410,7 +411,7 @@ csane_api_classify(CsaneFile *file, int32 index) {
             || TOKEN_IS(&tokens->tokens[before], "->"))) {
         return CSANE_API_NOT_CALL;
     }
-    range = (TokenRange){0, tokens->token_count};
+    range = (TokenRange){0, ARRAY_LEN(tokens->tokens)};
     if (token_range_matching_delimiter_forward(tokens, range, call_open) < 0) {
         return CSANE_API_UNRESOLVED;
     }
@@ -436,7 +437,7 @@ csane_libc_printf(Token *token) {
 
 static void
 csane_rule_calls(CsaneFile *file) {
-    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
         bool never = csane_token_name_in(token, &file->policy->never_names);
         CsanePaths *names = &file->policy->cbase_names;

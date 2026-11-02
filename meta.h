@@ -335,9 +335,6 @@ typedef struct Tokenization {
     Token *tokens;
 
     int32 text_len;
-    int32 token_count;
-    int32 token_capacity;
-    int32 padding;
 
     /* Lazily allocated physical-line index owned by this tokenization. */
     int32 line_count;
@@ -573,7 +570,7 @@ int32 tokenization_physical_line_start_offset(Tokenization *, int32);
 int32 tokenization_previous_significant(Tokenization *, int32);
 SourceLocation tokenization_source_location(Tokenization *, int32);
 int32 tokenization_significant_at_or_after(Tokenization *, int32);
-/* O(log token_count); returns token_count when no token overlaps or follows. */
+/* O(log N), where N is the token count; returns N if none matches. */
 int32 tokenization_token_at_or_after_offset(Tokenization *, int32);
 SourceLocation tokenization_token_location(Tokenization *, int32);
 Tokenization tokenize(char *, int32);

@@ -16,7 +16,7 @@ csane_bounds_unwrap(CsaneFile *file, TokenRange range) {
 
 static bool
 csane_bounds_token(CsaneFile *file, int32 index, char *name, int32 name_len) {
-    return index >= 0 && index < file->tokens->token_count
+    return index >= 0 && index < ARRAY_LEN(file->tokens->tokens)
            && TOKEN_IS(&file->tokens->tokens[index], name, name_len);
 }
 
@@ -266,7 +266,7 @@ csane_bounds_check(CsaneFile *file) {
     if (file->is_ryu || file->regions == NULL) {
         return;
     }
-    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         csane_bounds_at(file, i);
     }
 }

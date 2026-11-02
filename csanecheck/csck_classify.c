@@ -108,7 +108,7 @@ enum CsaneLocalKind
 csane_classify_statement(Tokenization *tokens, TokenRange range) {
     int32 i;
 
-    if (!tokens || range.first < 0 || range.end > tokens->token_count
+    if (!tokens || range.first < 0 || range.end > ARRAY_LEN(tokens->tokens)
         || range.first >= range.end) {
         return CSANE_LOCAL_UNKNOWN;
     }
@@ -134,7 +134,7 @@ csane_classify_invocation(Tokenization *tokens, TokenRange range, int32 name) {
     int32 next;
     enum CsaneNameKind kind;
 
-    if (!tokens || range.first < 0 || range.end > tokens->token_count
+    if (!tokens || range.first < 0 || range.end > ARRAY_LEN(tokens->tokens)
         || name < range.first || name >= range.end
         || tokens->tokens[name].kind != TOKEN_IDENT) {
         return CSANE_LOCAL_UNKNOWN;

@@ -52,7 +52,7 @@ static void
 csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
             char *code, char *message) {
     SourceLocation loc = tokenization_token_location(tokens, index);
-    if (index < 0 || index >= tokens->token_count) {
+    if (index < 0 || index >= ARRAY_LEN(tokens->tokens)) {
         loc = tokenization_source_location(tokens, tokens->text_len);
     }
     fmt_printf("%.*s:%d:%d: note[%s]: %s\n",
@@ -181,7 +181,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     }
 
     stats->files += 1;
-    stats->tokens += tokens.token_count;
+    stats->tokens += ARRAY_LEN(tokens.tokens);
     stats->externals += ARRAY_LEN(toplevel.items);
     stats->structural_issues += structural_issues;
     stats->preprocessor_issues += ARRAY_LEN(pp.issues);

@@ -56,8 +56,8 @@ test_token_index(CsaneRegions *regions) {
     Tokenization *tokens = regions->tokens;
     CHECK(csane_regions_at_token(NULL, 0) == -1);
     CHECK(csane_regions_at_token(regions, -1) == -1);
-    CHECK(csane_regions_at_token(regions, tokens->token_count) == -1);
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    CHECK(csane_regions_at_token(regions, ARRAY_LEN(tokens->tokens)) == -1);
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         int32 expected = csane_regions_at_offset(regions,
                                                  tokens->tokens[i].offset);
         CHECK(csane_regions_at_token(regions, i) == expected);

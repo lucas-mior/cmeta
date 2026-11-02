@@ -207,11 +207,11 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
     *analysis = (CPreprocessorAnalysis){0};
     if ((tokenization == NULL) || (tokenization->text == NULL)
         || (tokenization->text_len < 0)
-        || (tokenization->token_count < 0)) {
+        || (ARRAY_LEN(tokenization->tokens) < 0)) {
         return false;
     }
     analysis->tokenization = tokenization;
-    count = tokenization->token_count;
+    count = ARRAY_LEN(tokenization->tokens);
     if (count > 0) {
         analysis->token_roles = malloc2(count*SIZEOF(*analysis->token_roles));
         analysis->token_directives =
@@ -290,7 +290,7 @@ c_preprocessor_analysis_free(CPreprocessorAnalysis *analysis) {
     ARRAY_FREE(analysis->groups);
     ARRAY_FREE(analysis->issues);
     if (analysis->tokenization != NULL) {
-        int32 count = analysis->tokenization->token_count;
+        int32 count = ARRAY_LEN(analysis->tokenization->tokens);
 
         free2(analysis->token_directives,
               count*SIZEOF(*analysis->token_directives));
@@ -310,7 +310,7 @@ c_preprocessor_token_context(CPreprocessorAnalysis *analysis,
                              int32 *directive_index, int32 *branch_index) {
     if ((analysis == NULL) || (analysis->tokenization == NULL)
         || (token_index < 0)
-        || (token_index >= analysis->tokenization->token_count)) {
+        || (token_index >= ARRAY_LEN(analysis->tokenization->tokens))) {
         return false;
     }
     if (role != NULL) {
@@ -333,14 +333,14 @@ c_preprocessor_token_context(CPreprocessorAnalysis *analysis,
 
 static int32
 preproc_test_find(Tokenization *tokenization, char *word, int32 occurrence) {
-    TokenRange all = {0, tokenization->token_count};
+    TokenRange all = {0, ARRAY_LEN(tokenization->tokens)};
     int32 cursor = -1;
 
     for (int32 i = 0; i <= occurrence; i += 1) {
         cursor = token_range_next_text(tokenization, all, cursor,
                                        word, strlen32(word));
     }
-    ASSERT_LT_VAR(cursor, tokenization->token_count);
+    ASSERT_LT_VAR(cursor, ARRAY_LEN(tokenization->tokens));
     return cursor;
 }
 
@@ -405,7 +405,7 @@ preproc_test_nested_conditionals(void) {
     ASSERT_EQ(branch, -1);
     ASSERT_EQ(directive, 4);
     ASSERT(!c_preprocessor_token_context(&analysis, -1, NULL, NULL, NULL));
-    ASSERT(!c_preprocessor_token_context(&analysis, tokens.token_count,
+    ASSERT(!c_preprocessor_token_context(&analysis, ARRAY_LEN(tokens.tokens),
                                          NULL, NULL, NULL));
     c_preprocessor_analysis_free(&analysis);
     free_tokenization(&tokens);

@@ -951,18 +951,18 @@ cleanup:
 
 static int32
 ast_test_find(Tokenization *tokens, char *name, int32 occurrence) {
-    TokenRange all = {0, tokens->token_count};
+    TokenRange all = {0, ARRAY_LEN(tokens->tokens)};
     int32 i = -1;
     for (int32 j = 0; j <= occurrence; j += 1) {
         i = token_range_next_text(tokens, all, i, name, strlen32(name));
     }
-    ASSERT_LT_VAR(i, tokens->token_count);
+    ASSERT_LT_VAR(i, ARRAY_LEN(tokens->tokens));
     return i;
 }
 
 static CDeclParseResult
 ast_test_parse(CAst *ast, int32 start) {
-    TokenRange range = {start, ast->tokenization->token_count};
+    TokenRange range = {start, ARRAY_LEN(ast->tokenization->tokens)};
     return c_ast_parse_declaration(ast, range);
 }
 

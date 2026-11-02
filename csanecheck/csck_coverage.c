@@ -143,7 +143,7 @@ csane_coverage_first(CsaneFile *file, TokenRange range) {
 
 static bool
 csane_coverage_token(CsaneFile *file, int32 index, char *text, int32 text_len) {
-    return index >= 0 && index < file->tokens->token_count
+    return index >= 0 && index < ARRAY_LEN(file->tokens->tokens)
            && TOKEN_IS(&file->tokens->tokens[index], text, text_len);
 }
 
@@ -529,7 +529,7 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
             csane_coverage_statements(file, &counts, kind);
         }
     } else {
-        for (int32 i = 0; i < tokens->token_count; i += 1) {
+        for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
             Token *token = &tokens->tokens[i];
             bool relevant = false;
             bool resolved = true;

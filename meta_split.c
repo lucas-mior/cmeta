@@ -157,7 +157,7 @@ test_split_nested_arguments(void) {
     char *text = " a, foo(b, c), (T){1, 2}, array[x, y] ";
     char *expected[] = {"a", "foo(b, c)", "(T){1, 2}", "array[x, y]",};
     Tokenization tokenization = tokenize(text, strlen32(text));
-    TokenRange all = {0, tokenization.token_count};
+    TokenRange all = {0, ARRAY_LEN(tokenization.tokens)};
     TokenRange items[4];
     TokenRangeSplit split;
     TokenRange item;
@@ -189,7 +189,7 @@ static void
 test_split_empty_elements(void) {
     char *text = " , /*comment*/, x, ";
     Tokenization tokenization = tokenize(text, strlen32(text));
-    TokenRange all = {0, tokenization.token_count};
+    TokenRange all = {0, ARRAY_LEN(tokenization.tokens)};
     TokenRange items[4];
     int32 count;
 
@@ -212,7 +212,7 @@ test_split_empty_elements(void) {
         char *only_trivia = " \n/* no arguments */ ";
         int32 text_len = strlen32(only_trivia);
         Tokenization empty = tokenize_with_flags(only_trivia, text_len, flags);
-        TokenRange range = {0, empty.token_count};
+        TokenRange range = {0, ARRAY_LEN(empty.tokens)};
         TokenRangeSplit split;
         TokenRange item;
 
@@ -229,7 +229,7 @@ static void
 test_split_separators_and_collector(void) {
     char *text = ",,f(a, b),";
     Tokenization tokenization = tokenize(text, strlen32(text));
-    TokenRange range = {0, tokenization.token_count};
+    TokenRange range = {0, ARRAY_LEN(tokenization.tokens)};
     TokenRange partial[2] = {
         {-1, -1},
         {-1, -1}
@@ -267,7 +267,7 @@ test_split_literals_comments_and_flags(void) {
 
     for (int32 i = 0; i < LENGTH(flags); i += 1) {
         Tokenization t = tokenize_with_flags(text, strlen32(text), flags[i]);
-        TokenRange all = {0, t.token_count};
+        TokenRange all = {0, ARRAY_LEN(t.tokens)};
         TokenRangeSplit split;
         TokenRange item;
         int32 count = 0;
@@ -299,7 +299,7 @@ test_split_source_spans_without_whitespace_tokens(void) {
     char *expected[] = {"f(1, 2)", "   /*hi*/ g(3, 4)", "  z"};
     Tokenization t = tokenize_with_flags(text, strlen32(text),
                                          TOKENIZE_SKIP_WHITESPACE);
-    TokenRange all = {0, t.token_count};
+    TokenRange all = {0, ARRAY_LEN(t.tokens)};
     TokenRangeSplit split;
     TokenRange item;
     SourceRange source;
@@ -349,7 +349,7 @@ test_split_deep_nesting(void) {
 
     {
         Tokenization t = tokenize(text, pos);
-        TokenRange all = {0, t.token_count};
+        TokenRange all = {0, ARRAY_LEN(t.tokens)};
 
         ASSERT_EQ(token_range_split_collect(&t, all, STRLIT(","), items, 2), 2);
         ASSERT_EQ(items[1].end - items[1].first, 1);
@@ -365,7 +365,7 @@ test_split_invalid_and_unbalanced(void) {
 
     for (int32 i = 0; i < LENGTH(bad); i += 1) {
         Tokenization t = tokenize(bad[i], strlen32(bad[i]));
-        TokenRange all = {0, t.token_count};
+        TokenRange all = {0, ARRAY_LEN(t.tokens)};
         TokenRangeSplit split;
         TokenRange result;
 
@@ -377,7 +377,7 @@ test_split_invalid_and_unbalanced(void) {
 
     {
         Tokenization t = tokenize("a,b", 3);
-        TokenRange all = {0, t.token_count};
+        TokenRange all = {0, ARRAY_LEN(t.tokens)};
         TokenRangeSplit split;
 
         ASSERT(!token_range_split_init(NULL, &t, all, STRLIT(",")));
@@ -400,7 +400,7 @@ static void
 test_split_raw_macro_parameters(void) {
     char *text = "#define F(x, y, ...) (x)\n";
     Tokenization t = tokenize(text, strlen32(text));
-    TokenRange all = {0, t.token_count};
+    TokenRange all = {0, ARRAY_LEN(t.tokens)};
     CPreprocessorDirective directive;
     CPreprocessorDefine define;
     TokenRange items[3];

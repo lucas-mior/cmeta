@@ -32,7 +32,7 @@ c_ast_storage_grow(void *old, int32 *capacity, int32 count, int32 unit) {
 bool
 c_ast_init(CAst *ast, Tokenization *tokenization) {
     if ((ast == NULL) || (tokenization == NULL)
-        || (tokenization->token_count < 0)) {
+        || (ARRAY_LEN(tokenization->tokens) < 0)) {
         return false;
     }
     *ast = (CAst){0};
@@ -101,7 +101,7 @@ c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
 
     if ((ast == NULL) || (ast->tokenization == NULL)
         || (ast->current_scope < 0) || (name < 0)
-        || (name >= ast->tokenization->token_count)
+        || (name >= ARRAY_LEN(ast->tokenization->tokens))
         || (ast->tokenization->tokens[name].kind != TOKEN_IDENT)
         || (name_class <= C_NAME_UNKNOWN)
         || (name_class > C_NAME_INFERRED_TYPEDEF)) {
@@ -119,7 +119,7 @@ c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
 static enum CNameClass
 c_ast_lookup_internal(CAst *ast, int32 name, bool tag) {
     if ((ast == NULL) || (ast->tokenization == NULL) || (name < 0)
-        || (name >= ast->tokenization->token_count)) {
+        || (name >= ARRAY_LEN(ast->tokenization->tokens))) {
         return C_NAME_UNKNOWN;
     }
     if (ast->tokenization->tokens[name].kind != TOKEN_IDENT) {

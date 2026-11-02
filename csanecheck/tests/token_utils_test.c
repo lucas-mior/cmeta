@@ -33,7 +33,7 @@ static int32
 test_find_token(Tokenization *tokens,
                 char *text, int32 text_len, int32 occurrence) {
     int32 found = 0;
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         Token *token = &tokens->tokens[i];
         if (!STREQUAL(token->text, token->len, text, text_len)) {
             continue;
@@ -78,12 +78,13 @@ test_conditional_path(void) {
 
     CHECK(first_hash >= 0 && endif_hash >= 0 && second >= 0 && suffix >= 0);
     CHECK(csane_token_path_init(&path, &tokens,
-                                (TokenRange){0, tokens.token_count}));
+                                (TokenRange){0, ARRAY_LEN(tokens.tokens)}));
     CHECK(csane_token_path_append(&path, (TokenRange){0, first_hash}));
     CHECK(csane_token_path_append(&path,
                                   (TokenRange){second, endif_hash}));
     CHECK(csane_token_path_append(&path,
-                                  (TokenRange){suffix, tokens.token_count}));
+                                  (TokenRange){suffix,
+                                               ARRAY_LEN(tokens.tokens)}));
     CHECK(csane_tokens_path_view(&view, &path));
     CHECK(csane_tokens_balanced(&view));
     CHECK(csane_tokens_match(&view, open) == close);
@@ -135,13 +136,14 @@ test_nested_conditional_path(void) {
 
     CHECK(outer_hash >= 0 && inner_hash >= 0 && inner_endif_hash >= 0);
     CHECK(csane_token_path_init(&path, &tokens,
-                                (TokenRange){0, tokens.token_count}));
+                                (TokenRange){0, ARRAY_LEN(tokens.tokens)}));
     CHECK(csane_token_path_append(&path, (TokenRange){0, outer_hash}));
     CHECK(csane_token_path_append(&path, (TokenRange){outer, inner_hash}));
     CHECK(csane_token_path_append(&path,
                                   (TokenRange){inner_b, inner_endif_hash}));
     CHECK(csane_token_path_append(&path,
-                                  (TokenRange){suffix, tokens.token_count}));
+                                  (TokenRange){suffix,
+                                               ARRAY_LEN(tokens.tokens)}));
     CHECK(csane_tokens_path_view(&view, &path));
     CHECK(csane_tokens_balanced(&view));
     CHECK(csane_tokens_match(&view, open) == close);
@@ -376,16 +378,16 @@ test_path_navigation(void) {
         CsaneTokenPath path;
         CsaneTokenView view;
         CHECK(csane_token_path_init(&path, &tokens,
-                                    (TokenRange){0, tokens.token_count}));
+                                    (TokenRange){0, ARRAY_LEN(tokens.tokens)}));
         if (stride > 0) {
             int32 start = stride > 2 ? stride/2 : 0;
-            for (int32 i = start; i < tokens.token_count; i += stride) {
+            for (int32 i = start; i < ARRAY_LEN(tokens.tokens); i += stride) {
                 CHECK(csane_token_path_append(&path, (TokenRange){i, i + 1}));
             }
         }
         CHECK(csane_tokens_path_view(&view, &path));
-        for (int32 first = 0; first <= tokens.token_count; first += 1) {
-            for (int32 end = first; end <= tokens.token_count; end += 1) {
+        for (int32 first = 0; first <= ARRAY_LEN(tokens.tokens); first += 1) {
+            for (int32 end = first; end <= ARRAY_LEN(tokens.tokens); end += 1) {
                 CsaneTokenView subview;
                 CHECK(csane_tokens_subview(&subview, &view,
                                            (TokenRange){first, end}));

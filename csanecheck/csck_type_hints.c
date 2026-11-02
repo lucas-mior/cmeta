@@ -216,7 +216,7 @@ csane_type_hints_init(CsaneTypeHints *hints, CsaneRegions *regions) {
     Tokenization *tokens = regions->tokens;
 
     *hints = (CsaneTypeHints){.tokens = regions->tokens};
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         Token *token = &tokens->tokens[i];
         int32 region;
         CsaneTokenView view;

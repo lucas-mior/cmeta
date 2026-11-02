@@ -13,7 +13,7 @@
  * whitespace is reconstructed, and unparsed regions produce no AST claims. */
 bool
 csane_calls_code(CsaneFile *file, int32 index) {
-    if (index < 0 || index >= file->tokens->token_count) {
+    if (index < 0 || index >= ARRAY_LEN(file->tokens->tokens)) {
         return false;
     }
     return !file->preprocessor->token_roles
@@ -703,7 +703,7 @@ csane_calls_token_check(CsaneFile *file) {
     if (csane_calls_generated(file->path, file->path_len)) {
         return;
     }
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         Token *token = &tokens->tokens[i];
         CsaneTokenView local;
         int32 region;
@@ -747,7 +747,7 @@ csane_calls_token_check(CsaneFile *file) {
             || csane_call_prototype(file, name)) {
             continue;
         }
-        range = (TokenRange){0, tokens->token_count};
+        range = (TokenRange){0, ARRAY_LEN(tokens->tokens)};
         before = csane_tokens_previous(&local, name);
         if (before >= 0
             && (csane_type_name(&tokens->tokens[before])

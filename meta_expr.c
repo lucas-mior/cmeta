@@ -619,11 +619,11 @@ c_ast_parse_initializer(CAst *ast, TokenRange range) {
 static int32
 expr_test_find(Tokenization *t, char *name, int32 occurrence) {
     int32 found = -1;
-    TokenRange range = {0, t->token_count};
+    TokenRange range = {0, ARRAY_LEN(t->tokens)};
     for (int32 i = 0; i <= occurrence; i += 1) {
         found = token_range_next_text(t, range, found, name, strlen32(name));
     }
-    ASSERT_LT_VAR(found, t->token_count);
+    ASSERT_LT_VAR(found, ARRAY_LEN(t->tokens));
     return found;
 }
 
@@ -642,7 +642,7 @@ expr_test_precedence(void) {
     int32 add;
     int32 op;
     ASSERT(c_ast_init(&ast, &t));
-    result = c_ast_parse_expression(&ast, (TokenRange){0, t.token_count});
+    result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
     comma = result.expression;
     ASSERT_EQ(ast.expressions[comma].kind, C_EXPR_COMMA);
@@ -686,7 +686,7 @@ expr_test_types(void) {
     TokenRange range;
     ASSERT(c_ast_init(&ast, &t));
     declaration = c_ast_parse_declaration(&ast,
-                                          (TokenRange){0, t.token_count});
+                                          (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(declaration.status, C_DECL_PARSE_OK);
     start = declaration.next_token;
     range = (TokenRange){start, expr_test_find(&t, ";", 1)};
@@ -734,7 +734,7 @@ expr_test_calls_and_initializers(void) {
     int32 first;
     TokenRange designator;
     ASSERT(c_ast_init(&ast, &t));
-    result = c_ast_parse_expression(&ast, (TokenRange){0, t.token_count});
+    result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
     ASSERT_EQ(ast.expressions[result.expression].kind, C_EXPR_SUBSCRIPT);
     call = ast.expressions[result.expression].left;
@@ -749,7 +749,8 @@ expr_test_calls_and_initializers(void) {
     source = "{ .x = 1, [2].y = f(3), {4, 5}, }";
     t = tokenize_with_flags(source, strlen32(source), TOKENIZE_SKIP_WHITESPACE);
     ASSERT(c_ast_init(&ast, &t));
-    result = c_ast_parse_initializer(&ast, (TokenRange){0, t.token_count});
+    result = c_ast_parse_initializer(&ast,
+                                     (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_OK);
     ASSERT_EQ(ast.expressions[result.expression].kind, C_EXPR_INITIALIZER_LIST);
     ASSERT_EQ(ast.expressions[result.expression].argument_count, 3);
@@ -768,7 +769,7 @@ expr_test_errors(void) {
     CAst ast;
     CExprParseResult result;
     ASSERT(c_ast_init(&ast, &t));
-    result = c_ast_parse_expression(&ast, (TokenRange){0, t.token_count});
+    result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_MALFORMED);
     ASSERT_EQ(ast.expression_count, 0);
     ASSERT_EQ(ast.argument_count, 0);
@@ -777,7 +778,7 @@ expr_test_errors(void) {
     source = "_Generic(x, int: 1)";
     t = tokenize(source, strlen32(source));
     ASSERT(c_ast_init(&ast, &t));
-    result = c_ast_parse_expression(&ast, (TokenRange){0, t.token_count});
+    result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_UNSUPPORTED);
     ASSERT_EQ(ast.expression_count, 0);
     c_ast_free(&ast);
@@ -821,7 +822,7 @@ expr_test_more_syntax(void) {
         CExprParseResult result;
         TokenRange range;
         ASSERT(c_ast_init(&ast, &tokens));
-        range = (TokenRange){0, tokens.token_count};
+        range = (TokenRange){0, ARRAY_LEN(tokens.tokens)};
         result = c_ast_parse_expression(&ast, range);
         if (result.status != cases[i].status) {
             error("Expression test %d: %s\n", i, cases[i].text);
@@ -901,18 +902,18 @@ expr_test_typedef_shadowing(void) {
     TokenRange range;
     ASSERT(c_ast_init(&ast, &tokens));
     decl = c_ast_parse_declaration(&ast,
-                                   (TokenRange){0, tokens.token_count});
+                                   (TokenRange){0, ARRAY_LEN(tokens.tokens)});
     ASSERT_EQ(decl.status, C_DECL_PARSE_OK);
     ASSERT_EQ(c_ast_lookup(&ast, expr_test_find(&tokens, "T", 2)),
               C_NAME_TYPEDEF);
     decl = c_ast_parse_declaration(&ast,
                                    (TokenRange){decl.next_token,
-                                                tokens.token_count});
+                                                ARRAY_LEN(tokens.tokens)});
     ASSERT_EQ(decl.status, C_DECL_PARSE_OK);
     ASSERT_EQ(c_ast_lookup(&ast, expr_test_find(&tokens, "T", 2)),
               C_NAME_ORDINARY);
     start = decl.next_token;
-    range = (TokenRange){start, tokens.token_count};
+    range = (TokenRange){start, ARRAY_LEN(tokens.tokens)};
     expr = c_ast_parse_expression(&ast, range);
     ASSERT_EQ(expr.status, C_EXPR_PARSE_OK);
     ASSERT_EQ(ast.expressions[expr.expression].kind, C_EXPR_BINARY);

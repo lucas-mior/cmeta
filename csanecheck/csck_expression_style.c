@@ -192,7 +192,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
                                                      args[0].end})) {
             CsaneTokenView view = csane_tokens_full(tokens);
             int32 semicolon = csane_tokens_next(&view, close);
-            if (semicolon < tokens->token_count
+            if (semicolon < ARRAY_LEN(tokens->tokens)
                 && TOKEN_IS(&tokens->tokens[semicolon], ";")) {
                 csane_rule_issue(file, token->offset,
                                  STRLIT("STYLE-ASSERT-REL"),
@@ -713,7 +713,7 @@ void
 csane_expression_style_check(CsaneFile *file) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
     Tokenization *tokens = file->tokens;
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         Token *token = &tokens->tokens[i];
         int32 next;
         int32 previous;
@@ -732,7 +732,7 @@ csane_expression_style_check(CsaneFile *file) {
             continue;
         }
         next = csane_tokens_next(&view, i);
-        if (next >= tokens->token_count
+        if (next >= ARRAY_LEN(tokens->tokens)
             || !TOKEN_IS(&tokens->tokens[next], "(")) {
             continue;
         }
@@ -802,7 +802,7 @@ csane_expression_style_check(CsaneFile *file) {
         if (close < 0) {
             continue;
         }
-        range = (TokenRange){0, tokens->token_count};
+        range = (TokenRange){0, ARRAY_LEN(tokens->tokens)};
         kind = csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {

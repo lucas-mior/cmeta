@@ -19,7 +19,7 @@ csane_layout_generated(char *path, int32 path_len) {
 
 static bool
 csane_layout_code(CsaneFile *file, int32 index) {
-    return index >= 0 && index < file->tokens->token_count
+    return index >= 0 && index < ARRAY_LEN(file->tokens->tokens)
            && (file->preprocessor->token_roles == NULL
                || file->preprocessor->token_roles[index]
                   == C_PP_TOKEN_CODE);
@@ -27,7 +27,7 @@ csane_layout_code(CsaneFile *file, int32 index) {
 
 static bool
 csane_layout_is(Tokenization *tokens, int32 i, char *name, int32 name_len) {
-    return i >= 0 && i < tokens->token_count
+    return i >= 0 && i < ARRAY_LEN(tokens->tokens)
            && TOKEN_IS(&tokens->tokens[i], name, name_len);
 }
 
@@ -869,7 +869,7 @@ static void
 csane_layout_leading_assignment(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
     char *text = tokens->text;
-    for (int32 i = 0; i < tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
         Token *token = &tokens->tokens[i];
         int32 start;
         int32 part_index;
@@ -886,12 +886,12 @@ csane_layout_leading_assignment(CsaneFile *file) {
                 j += 1;
                 continue;
             }
-            while (part_index < tokens->token_count
+            while (part_index < ARRAY_LEN(tokens->tokens)
                    && tokens->tokens[part_index].offset
                       + tokens->tokens[part_index].len <= j) {
                 part_index += 1;
             }
-            if (part_index < tokens->token_count) {
+            if (part_index < ARRAY_LEN(tokens->tokens)) {
                 Token *part = &tokens->tokens[part_index];
 
                 if (part->kind == TOKEN_COMMENT && part->offset <= j
@@ -1388,7 +1388,7 @@ csane_layout_nested_braces_check(CsaneFile *file, int32 index) {
         }
     }
     next = tokenization_next_significant(tokens, index);
-    if (next >= tokens->token_count) {
+    if (next >= ARRAY_LEN(tokens->tokens)) {
         return;
     }
     if (TOKEN_IS(first, "{")) {
@@ -1504,7 +1504,7 @@ csane_layout_check(CsaneFile *file) {
     if (file->is_ryu || csane_layout_generated(file->path, file->path_len)) {
         return;
     }
-    for (int32 i = 0; i < file->tokens->token_count; i += 1) {
+    for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         enum CsaneLayoutOperator kind = csane_layout_classify(file, i);
         Token *op = &file->tokens->tokens[i];
         csane_layout_nested_braces_check(file, i);

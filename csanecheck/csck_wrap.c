@@ -209,7 +209,7 @@ csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a, CsaneWrapSpan *b) {
             end += 1;
         }
         first = tokenization_token_at_or_after_offset(tokens, position);
-        for (int32 i = first; i < tokens->token_count; i += 1) {
+        for (int32 i = first; i < ARRAY_LEN(tokens->tokens); i += 1) {
             Token *token = &tokens->tokens[i];
             if (token->offset >= end) {
                 break;
@@ -794,7 +794,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
             i += 1;
             continue;
         }
-        for (int32 j = last + 1; j < tokens->token_count; j += 1) {
+        for (int32 j = last + 1; j < ARRAY_LEN(tokens->tokens); j += 1) {
             Token *token = &tokens->tokens[j];
             if (token->offset > i) {
                 break;
@@ -915,7 +915,7 @@ static int32
 csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
                                    int32 used) {
     Tokenization *tokens = file->tokens;
-    for (int32 op = 0; op < tokens->token_count; op += 1) {
+    for (int32 op = 0; op < ARRAY_LEN(tokens->tokens); op += 1) {
         int32 start;
         int32 first;
         int32 end;
@@ -935,7 +935,7 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
             first -= 1;
         }
         end = op + 1;
-        while (end < tokens->token_count) {
+        while (end < ARRAY_LEN(tokens->tokens)) {
             Token *token = &tokens->tokens[end];
             if (csane_wrap_token_is(token, STRLIT("}"))
                 || token->kind == TOKEN_PREPROC) {
@@ -947,7 +947,7 @@ csane_wrap_collect_assignment_gaps(CsaneFile *file, CsaneWrapSpan *items,
             }
             end += 1;
         }
-        if (end <= op + 1 || end > tokens->token_count
+        if (end <= op + 1 || end > ARRAY_LEN(tokens->tokens)
             || !csane_wrap_token_is(&tokens->tokens[end - 1], STRLIT(";"))) {
             continue;
         }
@@ -970,7 +970,7 @@ csane_wrap_check(CsaneFile *file) {
     if (file->is_ryu || csane_wrap_generated(file->path, file->path_len)) {
         return;
     }
-    capacity = file->tokens->token_count;
+    capacity = ARRAY_LEN(file->tokens->tokens);
     if (file->statements != NULL) {
         capacity += ARRAY_LEN(file->statements->items);
     }
