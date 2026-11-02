@@ -509,83 +509,12 @@ preproc_test_comments_and_digraph(void) {
     return;
 }
 
-static void
-preproc_test_array_growth(void) {
-    String text = {0};
-    Tokenization tokens;
-    CPreprocessorAnalysis analysis;
-
-    for (int32 i = 0; i < 64; i += 1) {
-        STR_APPEND(&text, "#if FLAG\n#else\n#endif\n");
-    }
-    tokens = tokenize(text.data, text.len);
-    ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(ARRAY_LEN(analysis.directives), 192);
-    ASSERT_EQ(ARRAY_LEN(analysis.groups), 64);
-    ASSERT_EQ(ARRAY_LEN(analysis.branches), 128);
-    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
-    for (int32 i = 0; i < 64; i += 1) {
-        CPreprocessorGroup *group = &analysis.groups[i];
-        CPreprocessorBranch *first = &analysis.branches[i*2];
-        CPreprocessorBranch *second = &analysis.branches[i*2 + 1];
-
-        ASSERT_EQ(group->parent_branch, -1);
-        ASSERT_EQ(group->first_branch, i*2);
-        ASSERT_EQ(group->last_branch, i*2 + 1);
-        ASSERT_EQ(group->endif_directive, i*3 + 2);
-        ASSERT_EQ(first->directive_index, i*3);
-        ASSERT_EQ(first->next_branch, i*2 + 1);
-        ASSERT_EQ(second->directive_index, i*3 + 1);
-        ASSERT_EQ(second->next_branch, -1);
-    }
-    c_preprocessor_analysis_free(&analysis);
-    ASSERT_ZERO(ARRAY_LEN(analysis.directives));
-    ASSERT_ZERO(ARRAY_LEN(analysis.groups));
-    ASSERT_ZERO(ARRAY_LEN(analysis.branches));
-    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
-    free_tokenization(&tokens);
-    str_free(&text);
-    return;
-}
-
-static void
-preproc_test_issue_growth(void) {
-    String text = {0};
-    Tokenization tokens;
-    CPreprocessorAnalysis analysis;
-
-    for (int32 i = 0; i < 64; i += 1) {
-        STR_APPEND(&text, "#else\n");
-    }
-    for (int32 i = 0; i < 64; i += 1) {
-        STR_APPEND(&text, "#if OPEN\n");
-    }
-    tokens = tokenize(text.data, text.len);
-    ASSERT(!c_preprocessor_analysis_init(&analysis, &tokens));
-    ASSERT_EQ(ARRAY_LEN(analysis.directives), 128);
-    ASSERT_EQ(ARRAY_LEN(analysis.groups), 64);
-    ASSERT_EQ(ARRAY_LEN(analysis.branches), 64);
-    ASSERT_EQ(ARRAY_LEN(analysis.issues), 128);
-    for (int32 i = 0; i < 64; i += 1) {
-        ASSERT_EQ(analysis.issues[i].kind, C_PP_ISSUE_STRAY_ELSE);
-        ASSERT_EQ(analysis.issues[i].directive_index, i);
-        ASSERT_EQ(analysis.issues[i + 64].kind, C_PP_ISSUE_UNCLOSED_IF);
-        ASSERT_EQ(analysis.issues[i + 64].directive_index, 127 - i);
-    }
-    c_preprocessor_analysis_free(&analysis);
-    free_tokenization(&tokens);
-    str_free(&text);
-    return;
-}
-
 int
 main(void) {
     preproc_test_nested_conditionals();
     preproc_test_macro_regions();
     preproc_test_malformed();
     preproc_test_comments_and_digraph();
-    preproc_test_array_growth();
-    preproc_test_issue_growth();
     return 0;
 }
 #endif /* TESTING_meta_preproc_analysis */

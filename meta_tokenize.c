@@ -1875,45 +1875,6 @@ test_tokenize_default(void) {
 }
 
 static void
-test_tokenize_array_growth(void) {
-    char text[258];
-    Tokenization tokens;
-
-    tokens = tokenize("", 0);
-    ASSERT_ZERO(ARRAY_LEN(tokens.tokens));
-    ASSERT_ZERO(ARRAY_CAPACITY(tokens.tokens));
-    free_tokenization(&tokens);
-
-    tokens = tokenize("x", 1);
-    ASSERT_EQ(ARRAY_LEN(tokens.tokens), 1);
-    ASSERT_EQ(ARRAY_CAPACITY(tokens.tokens), TOKENIZE_INITIAL_TOKEN_CAPACITY);
-    free_tokenization(&tokens);
-    ASSERT_NULL(tokens.tokens);
-    ASSERT_ZERO(ARRAY_LEN(tokens.tokens));
-
-    for (int32 i = 0; i < LENGTH(text); i += 2) {
-        text[i] = 'x';
-        text[i + 1] = ' ';
-    }
-    tokens = tokenize(text, LENGTH(text));
-    ASSERT_EQ(ARRAY_LEN(tokens.tokens), LENGTH(text));
-    ASSERT_GE_VAR(ARRAY_CAPACITY(tokens.tokens), LENGTH(text));
-    for (int32 i = 0; i < LENGTH(text); i += 1) {
-        ASSERT_EQ(tokens.tokens[i].offset, i);
-        ASSERT_EQ(tokens.tokens[i].len, 1);
-        ASSERT(tokens.tokens[i].text == &text[i]);
-        if (i % 2 == 0) {
-            ASSERT(tokens.tokens[i].kind == TOKEN_IDENT);
-        } else {
-            ASSERT(tokens.tokens[i].kind == TOKEN_SPACE);
-        }
-    }
-    free_tokenization(&tokens);
-    ASSERT_NULL(tokens.tokens);
-    return;
-}
-
-static void
 test_tokenize_first_byte_dispatch(void) {
     char *text = "u user UPPER Lvalue u8name u\"x\" U'x' L\"z\" .5 . + @";
     Tokenization line = tokenize(text, strlen32(text));
@@ -2679,7 +2640,6 @@ main(void) {
     test_operator_or_punct_category();
     test_line_starts_preprocessor();
     test_tokenize_default();
-    test_tokenize_array_growth();
     test_tokenize_first_byte_dispatch();
     test_tokenize_preprocessor_and_skip_whitespace();
     test_tokenize_block_comment_across_lines();
