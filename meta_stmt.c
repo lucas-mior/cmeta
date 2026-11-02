@@ -16,8 +16,6 @@
 #include "meta.h"
 #include "meta_ast.h"
 
-static void *c_ast_storage_grow(void *, int32 *, int32, int32);
-
 typedef struct StmtCursor {
     CAst *ast;
     CPreprocessorAnalysis *pp;
@@ -71,21 +69,14 @@ static void
 stmt_issue(StmtCursor *c, enum CParseIssueKind kind, int32 token,
            TokenRange range) {
     CAst *ast = c->ast;
-    int32 i = ast->issue_count;
-    ast->issues = c_ast_storage_grow(ast->issues, &ast->issue_capacity,
-                                     i, SIZEOF(CParseIssue));
-    ast->issues[i] = (CParseIssue){kind, token, range};
-    ast->issue_count += 1;
+    ARRAY_PUSH(ast->issues, (CParseIssue){kind, token, range});
 }
 
 static int32
 stmt_new(StmtCursor *c, enum CStatementKind kind, int32 first) {
     CAst *ast = c->ast;
-    int32 i = ast->statement_count;
-    ast->statements = c_ast_storage_grow(ast->statements,
-                                         &ast->statement_capacity,
-                                         i, SIZEOF(CStatement));
-    ast->statements[i] = (CStatement){
+    int32 i = ARRAY_LEN(ast->statements);
+    ARRAY_PUSH(ast->statements, (CStatement){
         .kind = kind, .tokens = {first, first},
         .condition = {first, first}, .for_init = {first, first},
         .for_step = {first, first}, .expression = -1,
@@ -93,8 +84,7 @@ stmt_new(StmtCursor *c, enum CStatementKind kind, int32 first) {
         .declaration = -1,
         .first_child = -1, .next = -1, .else_child = -1,
         .token = -1, .directive = -1,
-    };
-    ast->statement_count += 1;
+    });
     return i;
 }
 
@@ -249,22 +239,22 @@ stmt_ambiguous_pointer_decl(StmtCursor *c, int32 first, int32 semi) {
         || c_ast_lookup(ast, first) != C_NAME_UNKNOWN) {
         return false;
     }
-    declarations = ast->declaration_count;
-    declarators = ast->declarator_count;
-    records = ast->record_count;
-    enumerators = ast->enumerator_count;
-    bindings = ast->binding_count;
-    scopes = ast->scope_count;
+    declarations = ARRAY_LEN(ast->declarations);
+    declarators = ARRAY_LEN(ast->declarators);
+    records = ARRAY_LEN(ast->records);
+    enumerators = ARRAY_LEN(ast->enumerators);
+    bindings = ARRAY_LEN(ast->bindings);
+    scopes = ARRAY_LEN(ast->scopes);
     current_scope = ast->current_scope;
     c_ast_scope_push(ast);
     c_ast_bind(ast, first, C_NAME_TYPEDEF);
     result = c_ast_parse_declaration(ast, (TokenRange){first, semi + 1});
-    ast->declaration_count = declarations;
-    ast->declarator_count = declarators;
-    ast->record_count = records;
-    ast->enumerator_count = enumerators;
-    ast->binding_count = bindings;
-    ast->scope_count = scopes;
+    ARRAY_SET_COUNT(ast->declarations, declarations);
+    ARRAY_SET_COUNT(ast->declarators, declarators);
+    ARRAY_SET_COUNT(ast->records, records);
+    ARRAY_SET_COUNT(ast->enumerators, enumerators);
+    ARRAY_SET_COUNT(ast->bindings, bindings);
+    ARRAY_SET_COUNT(ast->scopes, scopes);
     ast->current_scope = current_scope;
     return result.status == C_DECL_PARSE_OK;
 }
@@ -275,7 +265,7 @@ static int32 stmt_parse_one(StmtCursor *);
  * C11. Roll back its names if it appears after if/while/for/do or a label. */
 static int32
 stmt_parse_body(StmtCursor *c) {
-    int32 bindings = c->ast->binding_count;
+    int32 bindings = ARRAY_LEN(c->ast->bindings);
     StmtCursor child = *c;
     int32 body;
     child.depth += 1;
@@ -287,7 +277,7 @@ stmt_parse_body(StmtCursor *c) {
         stmt_issue(c, C_PARSE_ISSUE_MALFORMED, stmt->tokens.first,
                    stmt->tokens);
         stmt->kind = C_STMT_UNSUPPORTED;
-        c->ast->binding_count = bindings;
+        ARRAY_SET_COUNT(c->ast->bindings, bindings);
     }
     return body;
 }
@@ -881,10 +871,10 @@ c_ast_parse_statement(CAst *ast, TokenRange range, CPreprocessorAnalysis *pp) {
         .range = range,
         .pos = range.first
     };
-    before = ast->issue_count;
+    before = ARRAY_LEN(ast->issues);
     result.statement = stmt_parse_one(&c);
     result.next_token = c.pos;
-    if (ast->issue_count > before) {
+    if (ARRAY_LEN(ast->issues) > before) {
         result.issue = ast->issues[before].kind;
         result.issue_token = ast->issues[before].token;
     }
@@ -1003,7 +993,7 @@ stmt_test_recovery(void) {
     ASSERT(c_ast_init(&ast, &t));
     r =
         c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
-    ASSERT_GT(ast.issue_count, 0);
+    ASSERT_GT(ARRAY_LEN(ast.issues), 0);
     a = ast.statements[r.statement].first_child;
     b = ast.statements[a].next;
     ASSERT_EQ(ast.statements[b].kind, C_STMT_EXPRESSION);
@@ -1025,7 +1015,7 @@ stmt_test_malformed_headers(void) {
     ASSERT(c_ast_init(&ast, &t));
     r =
         c_ast_parse_statement(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)}, NULL);
-    ASSERT_GE(ast.issue_count, 3);
+    ASSERT_GE(ARRAY_LEN(ast.issues), 3);
     child = ast.statements[r.statement].first_child;
     ASSERT_EQ(ast.statements[child].kind, C_STMT_IF);
     child = ast.statements[child].next;
@@ -1068,7 +1058,7 @@ stmt_test_unresolved_pointer_declarations(void) {
     ASSERT_EQ(ast.statements[child].kind, C_STMT_FOR);
     ASSERT_LT(ast.statements[child].for_init_expression, 0);
     ASSERT_GE(ast.statements[child].expression, 0);
-    ASSERT_GE(ast.issue_count, 2);
+    ASSERT_GE(ARRAY_LEN(ast.issues), 2);
     ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "Arena", 0)),
               C_NAME_UNKNOWN);
     ASSERT_EQ(c_ast_lookup(&ast, stmt_test_find(&t, "GenericArrayHeader", 0)),

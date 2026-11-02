@@ -16,8 +16,6 @@
 #include "meta.h"
 #include "meta_ast.h"
 
-static void *c_ast_storage_grow(void *, int32 *, int32, int32);
-
 typedef struct ExprCursor {
     CAst *ast;
     TokenRange range;
@@ -66,17 +64,13 @@ static int32
 expr_make(ExprCursor *c, enum CExpressionKind kind, TokenRange range,
           int32 operator_token, int32 left, int32 right) {
     CAst *ast = c->ast;
-    int32 i = ast->expression_count;
-    ast->expressions =
-        c_ast_storage_grow(ast->expressions, &ast->expression_capacity,
-                           i, SIZEOF(CExpression));
-    ast->expressions[i] = (CExpression){
+    int32 i = ARRAY_LEN(ast->expressions);
+    ARRAY_PUSH(ast->expressions, (CExpression){
         .tokens = range, .type_tokens = {range.first, range.first},
         .kind = kind, .operator_token = operator_token,
         .left = left, .right = right, .third = -1,
         .first_argument = -1,
-    };
-    ast->expression_count += 1;
+    });
     return i;
 }
 
@@ -84,14 +78,10 @@ static void
 expr_append_arg(ExprCursor *c, int32 list, int32 *tail, int32 value,
                 TokenRange designator) {
     CAst *ast = c->ast;
-    int32 i = ast->argument_count;
-    ast->arguments = c_ast_storage_grow(ast->arguments,
-                                        &ast->argument_capacity,
-                                        i, SIZEOF(CExprArgument));
-    ast->arguments[i] = (CExprArgument){
+    int32 i = ARRAY_LEN(ast->arguments);
+    ARRAY_PUSH(ast->arguments, (CExprArgument){
         .designator = designator, .expression = value, .next = -1,
-    };
-    ast->argument_count += 1;
+    });
     if (*tail < 0) {
         ast->expressions[list].first_argument = i;
     } else {
@@ -567,8 +557,8 @@ expr_parse_root(CAst *ast, TokenRange range, bool initializer) {
         result.status = C_EXPR_PARSE_NOT_EXPRESSION;
         return result;
     }
-    previous_nodes = ast->expression_count;
-    previous_args = ast->argument_count;
+    previous_nodes = ARRAY_LEN(ast->expressions);
+    previous_args = ARRAY_LEN(ast->arguments);
 
     c = (ExprCursor){
         .ast = ast,
@@ -591,8 +581,8 @@ expr_parse_root(CAst *ast, TokenRange range, bool initializer) {
     result.status = c.status;
     result.issue_token = c.issue;
     if ((result.expression < 0) || (c.status != C_EXPR_PARSE_OK)) {
-        ast->expression_count = previous_nodes;
-        ast->argument_count = previous_args;
+        ARRAY_SET_COUNT(ast->expressions, previous_nodes);
+        ARRAY_SET_COUNT(ast->arguments, previous_args);
         result.expression = -1;
     } else {
         result.next_token = next;
@@ -771,8 +761,8 @@ expr_test_errors(void) {
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_MALFORMED);
-    ASSERT_EQ(ast.expression_count, 0);
-    ASSERT_EQ(ast.argument_count, 0);
+    ASSERT_EQ(ARRAY_LEN(ast.expressions), 0);
+    ASSERT_EQ(ARRAY_LEN(ast.arguments), 0);
     c_ast_free(&ast);
     free_tokenization(&t);
     source = "_Generic(x, int: 1)";
@@ -780,7 +770,7 @@ expr_test_errors(void) {
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
     ASSERT_EQ(result.status, C_EXPR_PARSE_UNSUPPORTED);
-    ASSERT_EQ(ast.expression_count, 0);
+    ASSERT_EQ(ARRAY_LEN(ast.expressions), 0);
     c_ast_free(&ast);
     free_tokenization(&t);
     return;
@@ -831,8 +821,8 @@ expr_test_more_syntax(void) {
         if (result.status == C_EXPR_PARSE_OK) {
             ASSERT_EQ(ast.expressions[result.expression].kind, cases[i].kind);
         } else {
-            ASSERT_EQ(ast.expression_count, 0);
-            ASSERT_EQ(ast.argument_count, 0);
+            ASSERT_EQ(ARRAY_LEN(ast.expressions), 0);
+            ASSERT_EQ(ARRAY_LEN(ast.arguments), 0);
         }
         c_ast_free(&ast);
         free_tokenization(&tokens);
@@ -879,12 +869,12 @@ expr_test_structure_and_rollback(void) {
     first_arg = ast.expressions[root].first_argument;
     ASSERT_LT_VAR(ast.arguments[first_arg].designator.first,
                   ast.arguments[first_arg].designator.end);
-    count = ast.expression_count;
+    count = ARRAY_LEN(ast.expressions);
     range = (TokenRange){expr_test_find(&tokens, "f", 1),
                          expr_test_find(&tokens, ";", 3)};
     result = c_ast_parse_expression(&ast, range);
     ASSERT_EQ(result.status, C_EXPR_PARSE_MALFORMED);
-    ASSERT_EQ(ast.expression_count, count);
+    ASSERT_EQ(ARRAY_LEN(ast.expressions), count);
     ASSERT_EQ(ast.expressions[root].kind, C_EXPR_INITIALIZER_LIST);
     c_ast_free(&ast);
     free_tokenization(&tokens);
@@ -917,7 +907,7 @@ expr_test_typedef_shadowing(void) {
     expr = c_ast_parse_expression(&ast, range);
     ASSERT_EQ(expr.status, C_EXPR_PARSE_OK);
     ASSERT_EQ(ast.expressions[expr.expression].kind, C_EXPR_BINARY);
-    ASSERT_EQ(ast.binding_count, 2);
+    ASSERT_EQ(ARRAY_LEN(ast.bindings), 2);
     c_ast_free(&ast);
     free_tokenization(&tokens);
     return;

@@ -17,8 +17,6 @@
 #include "meta_ast.h"
 #include "meta_stmt.c"
 
-static void *c_ast_storage_grow(void *, int32 *, int32, int32);
-
 typedef struct UnitCursor {
     CAst *ast;
     CPreprocessorAnalysis *pp;
@@ -36,16 +34,12 @@ unit_sig(UnitCursor *c, int32 start) {
 static int32
 unit_new(UnitCursor *c, enum CExternalKind kind, TokenRange tokens) {
     CAst *ast = c->ast;
-    int32 i = ast->external_count;
-    ast->externals = c_ast_storage_grow(ast->externals,
-                                        &ast->external_capacity,
-                                        i, SIZEOF(CExternal));
-    ast->externals[i] = (CExternal){
+    int32 i = ARRAY_LEN(ast->externals);
+    ARRAY_PUSH(ast->externals, (CExternal){
         .tokens = tokens, .kind = kind, .declaration = -1,
         .function_body = -1, .first_child = -1, .next = -1,
         .directive = -1,
-    };
-    ast->external_count += 1;
+    });
     return i;
 }
 
@@ -614,8 +608,8 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
         pp = &local;
         owned = true;
     }
-    before = ast->issue_count;
-    start = ast->external_count;
+    before = ARRAY_LEN(ast->issues);
+    start = ARRAY_LEN(ast->externals);
     c = (UnitCursor){
         .ast = ast,
         .pp = pp,
@@ -630,8 +624,8 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
                    pp->directives[d].tokens);
     }
     unit_parse_region(&c, -1, &result.first_external, &tail);
-    result.external_count = ast->external_count - start;
-    result.issue_count = ast->issue_count - before;
+    result.external_count = ARRAY_LEN(ast->externals) - start;
+    result.issue_count = ARRAY_LEN(ast->issues) - before;
     if (owned) {
         c_preprocessor_analysis_free(pp);
     }
@@ -800,8 +794,56 @@ unit_test_malformed_and_recovery(void) {
     free_tokenization(&t);
 }
 
+static void
+unit_test_ast_array_growth(void) {
+    String source = {0};
+    Tokenization tokens;
+    CAst ast;
+    CUnitParseResult result;
+    int32 last_scope;
+    TokenRange empty = {0, 0};
+
+    for (int32 i = 0; i < 48; i += 1) {
+        STR_APPEND(&source, "enum E { A, B }; struct S { int field; }; "
+                            "int f(int x) { int y = 0; foo(x, y); "
+                            "if (x) { y = x + 1; } return y; } ");
+    }
+    tokens = tokenize(source.data, source.len);
+    ASSERT(c_ast_init(&ast, &tokens));
+    result = c_ast_parse_translation_unit(&ast,
+                                          (TokenRange){0,
+                                            ARRAY_LEN(tokens.tokens)}, NULL);
+    ASSERT_ZERO(result.issue_count);
+    ASSERT_GT(ARRAY_LEN(ast.declarators), 32);
+    ASSERT_GT(ARRAY_LEN(ast.declarations), 32);
+    ASSERT_GT(ARRAY_LEN(ast.enumerators), 32);
+    ASSERT_GT(ARRAY_LEN(ast.records), 32);
+    ASSERT_GT(ARRAY_LEN(ast.scopes), 32);
+    ASSERT_GT(ARRAY_LEN(ast.bindings), 32);
+    ASSERT_GT(ARRAY_LEN(ast.expressions), 32);
+    ASSERT_GT(ARRAY_LEN(ast.arguments), 32);
+    ASSERT_GT(ARRAY_LEN(ast.statements), 32);
+    ASSERT_GT(ARRAY_LEN(ast.externals), 32);
+
+    last_scope = ast.current_scope;
+    for (int32 i = 0; i < 48; i += 1) {
+        int32 new_scope = c_ast_scope_push(&ast);
+        ASSERT_EQ(ast.scopes[new_scope].parent, last_scope);
+        last_scope = new_scope;
+    }
+    for (int32 i = 0; i < 48; i += 1) {
+        ARRAY_PUSH(ast.issues, (CParseIssue){C_PARSE_ISSUE_MALFORMED,
+                                             0, empty});
+    }
+    ASSERT_EQ(ARRAY_LEN(ast.issues), 48);
+    c_ast_free(&ast);
+    free_tokenization(&tokens);
+    str_free(&source);
+}
+
 int
 main(void) {
+    unit_test_ast_array_growth();
     unit_test_functions();
     unit_test_alternatives();
     unit_test_conditional_function_body();

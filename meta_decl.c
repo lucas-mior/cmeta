@@ -16,8 +16,6 @@
 #include "meta.h"
 #include "meta_ast.h"
 
-static void *c_ast_storage_grow(void *, int32 *, int32, int32);
-
 typedef struct DeclCursor {
     CAst *ast;
     TokenRange range;
@@ -59,46 +57,35 @@ static int32
 decl_make_node(DeclCursor *c, enum CDeclaratorKind kind,
                int32 first, int32 end, int32 inner, int32 name) {
     CAst *ast = c->ast;
-    int32 index = ast->declarator_count;
-    ast->declarators =
-        c_ast_storage_grow(ast->declarators, &ast->declarator_capacity,
-                           index, SIZEOF(CDeclaratorNode));
-    ast->declarators[index] = (CDeclaratorNode){
+    int32 index = ARRAY_LEN(ast->declarators);
+    ARRAY_PUSH(ast->declarators, (CDeclaratorNode){
         .tokens = {first, end}, .extra = {end, end},
         .kind = kind, .inner = inner, .next = -1,
         .name_token = name, .first_parameter = -1,
-    };
-    ast->declarator_count += 1;
+    });
     return index;
 }
 
 static int32
 decl_make_declaration(DeclCursor *c, enum CDeclarationKind kind) {
     CAst *ast = c->ast;
-    int32 index = ast->declaration_count;
-    ast->declarations =
-        c_ast_storage_grow(ast->declarations, &ast->declaration_capacity,
-                           index, SIZEOF(CDeclaration));
-    ast->declarations[index] = (CDeclaration){
+    int32 index = ARRAY_LEN(ast->declarations);
+    ARRAY_PUSH(ast->declarations, (CDeclaration){
         .kind = kind, .first_declarator = -1, .record = -1,
         .next = -1, .body = {c->pos, c->pos},
         .inferred_type_token = -1,
-    };
-    ast->declaration_count += 1;
+    });
     return index;
 }
 
 static int32
 decl_make_record(DeclCursor *c, enum CRecordKind kind, int32 first, int32 tag) {
     CAst *ast = c->ast;
-    int32 index = ast->record_count;
-    ast->records = c_ast_storage_grow(ast->records, &ast->record_capacity,
-                                      index, SIZEOF(CRecord));
-    ast->records[index] = (CRecord){
+    int32 index = ARRAY_LEN(ast->records);
+    ARRAY_PUSH(ast->records, (CRecord){
         .tokens = {first, first}, .body = {first, first}, .kind = kind,
         .tag_token = tag, .first_member = -1, .first_enumerator = -1,
-    };
-    ast->record_count += 1;
+    });
     return index;
 }
 
@@ -240,15 +227,11 @@ decl_parse_enumerators(DeclCursor *c, int32 first, int32 end, int32 record) {
             return;
         }
         i = decl_sig(&inner, name + 1);
-        e = ast->enumerator_count;
-        ast->enumerators =
-            c_ast_storage_grow(ast->enumerators, &ast->enumerator_capacity,
-                               e, SIZEOF(CEnumerator));
-        ast->enumerators[e] = (CEnumerator){
+        e = ARRAY_LEN(ast->enumerators);
+        ARRAY_PUSH(ast->enumerators, (CEnumerator){
             .tokens = {name, i}, .value = {i, i},
             .name_token = name, .next = -1,
-        };
-        ast->enumerator_count += 1;
+        });
         if (tail < 0) {
             ast->records[record].first_enumerator = e;
         } else {
@@ -841,23 +824,23 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
         .inferred_type = -1,
         .status = C_DECL_PARSE_OK
     };
-    declaration_count = ast->declaration_count;
-    declarator_count = ast->declarator_count;
-    record_count = ast->record_count;
-    enumerator_count = ast->enumerator_count;
-    binding_count = ast->binding_count;
-    scope_count = ast->scope_count;
+    declaration_count = ARRAY_LEN(ast->declarations);
+    declarator_count = ARRAY_LEN(ast->declarators);
+    record_count = ARRAY_LEN(ast->records);
+    enumerator_count = ARRAY_LEN(ast->enumerators);
+    binding_count = ARRAY_LEN(ast->bindings);
+    scope_count = ARRAY_LEN(ast->scopes);
     scope = ast->current_scope;
     result.declaration = decl_parse_one(&c, C_DECLARATION_NORMAL, true);
     result.status = c.status;
     result.issue_token = c.issue;
     if ((result.declaration < 0) || (c.status != C_DECL_PARSE_OK)) {
-        ast->declaration_count = declaration_count;
-        ast->declarator_count = declarator_count;
-        ast->record_count = record_count;
-        ast->enumerator_count = enumerator_count;
-        ast->binding_count = binding_count;
-        ast->scope_count = scope_count;
+        ARRAY_SET_COUNT(ast->declarations, declaration_count);
+        ARRAY_SET_COUNT(ast->declarators, declarator_count);
+        ARRAY_SET_COUNT(ast->records, record_count);
+        ARRAY_SET_COUNT(ast->enumerators, enumerator_count);
+        ARRAY_SET_COUNT(ast->bindings, binding_count);
+        ARRAY_SET_COUNT(ast->scopes, scope_count);
         ast->current_scope = scope;
         result.declaration = -1;
     } else {
@@ -899,12 +882,12 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
         .status = C_DECL_PARSE_OK
     };
 
-    declaration_count = ast->declaration_count;
-    declarator_count = ast->declarator_count;
-    record_count = ast->record_count;
-    enumerator_count = ast->enumerator_count;
-    binding_count = ast->binding_count;
-    scope_count = ast->scope_count;
+    declaration_count = ARRAY_LEN(ast->declarations);
+    declarator_count = ARRAY_LEN(ast->declarators);
+    record_count = ARRAY_LEN(ast->records);
+    enumerator_count = ARRAY_LEN(ast->enumerators);
+    binding_count = ARRAY_LEN(ast->bindings);
+    scope_count = ARRAY_LEN(ast->scopes);
     current_scope = ast->current_scope;
     infer_types = ast->infer_type_names;
     infer_external = ast->infer_external;
@@ -931,12 +914,12 @@ c_ast_is_type_name(CAst *ast, TokenRange range) {
     }
     valid = (c.status == C_DECL_PARSE_OK) && (decl_next(&c) == range.end);
 cleanup:
-    ast->declaration_count = declaration_count;
-    ast->declarator_count = declarator_count;
-    ast->record_count = record_count;
-    ast->enumerator_count = enumerator_count;
-    ast->binding_count = binding_count;
-    ast->scope_count = scope_count;
+    ARRAY_SET_COUNT(ast->declarations, declaration_count);
+    ARRAY_SET_COUNT(ast->declarators, declarator_count);
+    ARRAY_SET_COUNT(ast->records, record_count);
+    ARRAY_SET_COUNT(ast->enumerators, enumerator_count);
+    ARRAY_SET_COUNT(ast->bindings, binding_count);
+    ARRAY_SET_COUNT(ast->scopes, scope_count);
     ast->current_scope = current_scope;
     ast->infer_type_names = infer_types;
     ast->infer_external = infer_external;
@@ -1079,20 +1062,20 @@ ast_test_scopes_and_rollback(void) {
     ASSERT_EQ(c_ast_lookup(&ast, ast_test_find(&tokens, "Type", 1)),
               C_NAME_TYPEDEF);
     start = result.next_token;
-    saved = ast.declaration_count;
+    saved = ARRAY_LEN(ast.declarations);
     result = ast_test_parse(&ast, start);
     ASSERT_EQ(result.status, C_DECL_PARSE_NOT_DECLARATION);
-    ASSERT_EQ(ast.declaration_count, saved);
+    ASSERT_EQ(ARRAY_LEN(ast.declarations), saved);
     result = ast_test_parse(&ast, ast_test_find(&tokens, "int", 1));
     ASSERT_EQ(result.status, C_DECL_PARSE_OK);
     ASSERT_EQ(c_ast_lookup(&ast, ast_test_find(&tokens, "Type", 3)),
               C_NAME_ORDINARY);
     result = ast_test_parse(&ast, result.next_token);
     ASSERT_EQ(result.status, C_DECL_PARSE_NOT_DECLARATION);
-    saved = ast.binding_count;
+    saved = ARRAY_LEN(ast.bindings);
     result = ast_test_parse(&ast, ast_test_find(&tokens, "typedef", 1));
     ASSERT_EQ(result.status, C_DECL_PARSE_NOT_DECLARATION);
-    ASSERT_EQ(ast.binding_count, saved);
+    ASSERT_EQ(ARRAY_LEN(ast.bindings), saved);
     ASSERT_EQ(c_ast_lookup(&ast, ast_test_find(&tokens, "good", 0)),
               C_NAME_UNKNOWN);
     ASSERT_EQ(c_ast_lookup_tag(&ast, ast_test_find(&tokens, "Fail", 0)),
@@ -1171,7 +1154,7 @@ ast_test_malformed(void) {
     ASSERT(c_ast_init(&ast, &tokens));
     result = ast_test_parse(&ast, 0);
     ASSERT_EQ(result.status, C_DECL_PARSE_MALFORMED);
-    ASSERT_EQ(ast.declaration_count, 0);
+    ASSERT_EQ(ARRAY_LEN(ast.declarations), 0);
     result = ast_test_parse(&ast, ast_test_find(&tokens, "int", 1));
     ASSERT_EQ(result.status, C_DECL_PARSE_MALFORMED);
     result = ast_test_parse(&ast, ast_test_find(&tokens, "int", 2));

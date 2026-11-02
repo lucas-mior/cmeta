@@ -8,27 +8,6 @@
 #include "meta.h"
 #include "meta_ast.h"
 
-static void *
-c_ast_storage_grow(void *old, int32 *capacity, int32 count, int32 unit) {
-    int32 next;
-
-    if (count < *capacity) {
-        return old;
-    }
-    ASSERT_LT(*capacity, INT32_MAX/2);
-    next = 16;
-    if (*capacity != 0) {
-        next = *capacity*2;
-    }
-    if (old == NULL) {
-        old = malloc2((int64)next*unit);
-    } else {
-        old = realloc2(old, *capacity, next, unit);
-    }
-    *capacity = next;
-    return old;
-}
-
 bool
 c_ast_init(CAst *ast, Tokenization *tokenization) {
     if ((ast == NULL) || (tokenization == NULL)
@@ -48,17 +27,17 @@ c_ast_free(CAst *ast) {
         return;
     }
 
-    free2(ast->declarators, ast->declarator_capacity*SIZEOF(CDeclaratorNode));
-    free2(ast->declarations, ast->declaration_capacity*SIZEOF(CDeclaration));
-    free2(ast->enumerators, ast->enumerator_capacity*SIZEOF(CEnumerator));
-    free2(ast->records, ast->record_capacity*SIZEOF(CRecord));
-    free2(ast->expressions, ast->expression_capacity*SIZEOF(CExpression));
-    free2(ast->arguments, ast->argument_capacity*SIZEOF(CExprArgument));
-    free2(ast->statements, ast->statement_capacity*SIZEOF(CStatement));
-    free2(ast->externals, ast->external_capacity*SIZEOF(CExternal));
-    free2(ast->issues, ast->issue_capacity*SIZEOF(CParseIssue));
-    free2(ast->scopes, ast->scope_capacity*SIZEOF(CScope));
-    free2(ast->bindings, ast->binding_capacity*SIZEOF(CBinding));
+    ARRAY_FREE(ast->declarators);
+    ARRAY_FREE(ast->declarations);
+    ARRAY_FREE(ast->enumerators);
+    ARRAY_FREE(ast->records);
+    ARRAY_FREE(ast->expressions);
+    ARRAY_FREE(ast->arguments);
+    ARRAY_FREE(ast->statements);
+    ARRAY_FREE(ast->externals);
+    ARRAY_FREE(ast->issues);
+    ARRAY_FREE(ast->scopes);
+    ARRAY_FREE(ast->bindings);
 
     *ast = (CAst){0};
     ast->current_scope = -1;
@@ -70,11 +49,8 @@ c_ast_scope_push(CAst *ast) {
     int32 index;
 
     ASSERT(ast != NULL);
-    index = ast->scope_count;
-    ast->scopes = c_ast_storage_grow(ast->scopes, &ast->scope_capacity,
-                                     index, SIZEOF(CScope));
-    ast->scopes[index] = (CScope){.parent = ast->current_scope};
-    ast->scope_count += 1;
+    index = ARRAY_LEN(ast->scopes);
+    ARRAY_PUSH(ast->scopes, (CScope){.parent = ast->current_scope});
     ast->current_scope = index;
     return index;
 }
@@ -97,8 +73,6 @@ ast_names_equal(CAst *ast, int32 a, int32 b) {
 
 bool
 c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
-    int32 count;
-
     if ((ast == NULL) || (ast->tokenization == NULL)
         || (ast->current_scope < 0) || (name < 0)
         || (name >= ARRAY_LEN(ast->tokenization->tokens))
@@ -107,12 +81,8 @@ c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
         || (name_class > C_NAME_INFERRED_TYPEDEF)) {
         return false;
     }
-    count = ast->binding_count;
-    ast->bindings =
-        c_ast_storage_grow(ast->bindings, &ast->binding_capacity,
-                           count, SIZEOF(CBinding));
-    ast->bindings[count] = (CBinding){ast->current_scope, name, name_class};
-    ast->binding_count += 1;
+    ARRAY_PUSH(ast->bindings, (CBinding){ast->current_scope, name,
+                                        name_class});
     return true;
 }
 
@@ -127,7 +97,7 @@ c_ast_lookup_internal(CAst *ast, int32 name, bool tag) {
     }
     for (int32 scope = ast->current_scope; scope >= 0;
          scope = ast->scopes[scope].parent) {
-        for (int32 i = ast->binding_count - 1; i >= 0; i -= 1) {
+        for (int32 i = ARRAY_LEN(ast->bindings) - 1; i >= 0; i -= 1) {
             CBinding *binding = &ast->bindings[i];
             bool is_tag = binding->name_class >= C_NAME_TAG_STRUCT
                           && binding->name_class <= C_NAME_TAG_ENUM;

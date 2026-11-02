@@ -266,29 +266,7 @@ typedef struct CAst {
     CStatement *statements;
     CExternal *externals;
     CParseIssue *issues;
-    int32 declarator_count;
-    int32 declarator_capacity;
-    int32 declaration_count;
-    int32 declaration_capacity;
-    int32 enumerator_count;
-    int32 enumerator_capacity;
-    int32 record_count;
-    int32 record_capacity;
-    int32 scope_count;
-    int32 scope_capacity;
-    int32 binding_count;
-    int32 binding_capacity;
     int32 current_scope;
-    int32 expression_count;
-    int32 expression_capacity;
-    int32 argument_count;
-    int32 argument_capacity;
-    int32 statement_count;
-    int32 statement_capacity;
-    int32 external_count;
-    int32 external_capacity;
-    int32 issue_count;
-    int32 issue_capacity;
     bool infer_type_names; /* Opt-in to unknown type-name inference. */
     bool infer_external; /* Only while parsing an external declaration. */
 } CAst;
