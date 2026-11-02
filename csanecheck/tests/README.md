@@ -11,7 +11,7 @@ python3 -m unittest discover -s csanecheck/tests -p 'test_*.py' -v
 
 The suite checks csanecheck directly. It covers source and preprocessor rules,
 formatting, calls and arguments, declarations, control flow, parser recovery,
-forbidden APIs, source discovery, rule inventory, coverage accounting, and
+forbidden APIs, source discovery, coverage accounting, and
 other checker-specific diagnostics. `test_full_tree_coverage.py` verifies
 that unresolved coverage does not exceed the checked-in allowlist.
 

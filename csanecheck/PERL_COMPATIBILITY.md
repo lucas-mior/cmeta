@@ -424,16 +424,6 @@ acceptance assertion requires all P01-P25 inventory entries to remain
 clean repository from making a legacy category appear verified merely because
 neither checker happens to emit it.
 
-## Unified guide inventory
-
-`rule_inventory.tsv` is the broader source of truth for migration beyond Perl
-parity.  It includes the P01-P25 mappings from `perl_compatibility.tsv`, the
-legacy function-list/discovery/status policies, and the enforceable and manual
-rules from `c-format.md` and `c-guidelines.md`.  `perl_compatibility.tsv`
-remains the exact P01-P25 differential specification; the unified inventory
-classifies where each broader guide rule belongs (`implemented`,
-`csanecheck_candidate`, `compiler`, or `manual`).
-
 ## File-scope macro first-argument layout
 
 `FMT-CALL-FIRST` reports calls that break directly after `(`. Recognized
