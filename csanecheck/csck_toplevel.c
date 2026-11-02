@@ -1103,6 +1103,7 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
     int32 original_count = ARRAY_LEN(top->items);
     for (int32 item_index = 0; item_index < original_count; item_index += 1) {
         CsaneTopItem *item = &top->items[item_index];
+        int32 owner = item->owner_region;
         bool is_enum = false;
         bool aggregate = false;
         int32 open = -1;
@@ -1128,8 +1129,7 @@ csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
         if (open < 0 || close <= open || close >= item->tokens.end) {
             continue;
         }
-        /* Appending fragments can relocate top->items. */
-        int32 owner = item->owner_region;
+        /* Appending fragments can relocate top->items; use saved owner. */
         for (int32 i = open + 1; i < close; i += 1) {
             bool already = false;
             if (!csane_token_macro_name(&tokens->tokens[i])

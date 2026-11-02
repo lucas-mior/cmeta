@@ -282,6 +282,49 @@ csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
     return count;
 }
 
+/* An array and LENGTH(array) are related only when the complete array
+ * expression is identical on both sides. Ignore whitespace and comments,
+ * but not extra operations or arguments to LENGTH. */
+static bool
+csane_call_matching_length(CsaneFile *file, CsaneTokenView *view,
+                           CsaneCallArgument *array,
+                           CsaneCallArgument *length) {
+    Tokenization *tokens = file->tokens;
+    TokenRange array_range = {array->first, array->last + 1};
+    TokenRange length_range = {length->first, length->last + 1};
+    TokenRange operand;
+    int32 open;
+    int32 left;
+    int32 right;
+
+    if (tokens->tokens[array->first].kind != TOKEN_IDENT
+        || !TOKEN_IS(&tokens->tokens[length->first], "LENGTH")) {
+        return false;
+    }
+    open = csane_call_next(file, length_range, length->first);
+    if (open >= length_range.end
+        || !TOKEN_IS(&tokens->tokens[open], "(")
+        || csane_tokens_match(view, open) != length->last) {
+        return false;
+    }
+    operand = (TokenRange){open + 1, length->last};
+    array_range = csane_tokens_unwrap(view, array_range);
+    operand = csane_tokens_unwrap(view, operand);
+    left = csane_call_next(file, array_range, array_range.first - 1);
+    right = csane_call_next(file, operand, operand.first - 1);
+    while (left < array_range.end && right < operand.end) {
+        Token *a = &tokens->tokens[left];
+        Token *b = &tokens->tokens[right];
+        if (a->kind != b->kind || a->len != b->len
+            || memcmp64(a->text, b->text, a->len)) {
+            return false;
+        }
+        left = csane_call_next(file, array_range, left);
+        right = csane_call_next(file, operand, right);
+    }
+    return left == array_range.end && right == operand.end;
+}
+
 static int32
 csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
                          int32 count, int32 line) {
@@ -460,13 +503,19 @@ csane_call_context(CsaneFile *file, CsaneTokenView *view) {
         int32 b;
         int32 line_a;
         int32 line_b;
+        bool related = false;
 
-        if (!args[i].identifier || !args[i + 1].identifier) {
-            continue;
-        }
         a = args[i].last;
         b = args[i + 1].last;
-        if (!csane_calls_related(&tokens->tokens[a], &tokens->tokens[b])) {
+        if (args[i].identifier && args[i + 1].identifier) {
+            related = csane_calls_related(&tokens->tokens[a],
+                                          &tokens->tokens[b]);
+        }
+        if (!related) {
+            related = csane_call_matching_length(file, view, &args[i],
+                                                 &args[i + 1]);
+        }
+        if (!related) {
             continue;
         }
         line_a = csane_calls_location(file, a).line;

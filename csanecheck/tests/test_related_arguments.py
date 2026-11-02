@@ -63,6 +63,52 @@ class RelatedArgumentsTests(unittest.TestCase):
             "existing_width_height_pair": (
                 "    work(prefix, box_width,\n"
                 "         box_height);\n", [3]),
+            "length_shared_first_line": (
+                "    work(prefix, items,\n"
+                "         LENGTH(items));\n", [3]),
+            "length_shared_second_line": (
+                "    work(prefix,\n"
+                "         items,\n"
+                "         LENGTH(items), tail);\n", [4]),
+            "length_same_line": (
+                "    work(prefix, items, LENGTH(items));\n", []),
+            "length_separate_lines": (
+                "    work(prefix,\n"
+                "         items,\n"
+                "         LENGTH(items));\n", []),
+            "length_two_arguments": (
+                "    work(items,\n"
+                "         LENGTH(items));\n", []),
+            "length_member_access": (
+                "    work(prefix, holder->items,\n"
+                "         LENGTH(holder->items));\n", [3]),
+            "length_indexed_array": (
+                "    work(prefix, matrix[i],\n"
+                "         LENGTH(matrix[i]));\n", [3]),
+            "length_parenthesized_operand": (
+                "    work(prefix, items,\n"
+                "         LENGTH((items)));\n", [3]),
+            "length_with_comment": (
+                "    work(prefix, items,\n"
+                "         LENGTH(/* count */ items));\n", [3]),
+            "length_different_array": (
+                "    work(prefix, items,\n"
+                "         LENGTH(other_items));\n", []),
+            "length_has_extra_argument": (
+                "    work(prefix, items,\n"
+                "         LENGTH(items, extra));\n", []),
+            "length_has_extra_operation": (
+                "    work(prefix, items,\n"
+                "         LENGTH(items) + 1);\n", []),
+            "length_nested_in_other_call": (
+                "    work(prefix, items,\n"
+                "         consume(LENGTH(items)));\n", []),
+            "length_nested_array_name_differs": (
+                "    work(prefix, holder->items,\n"
+                "         LENGTH(other->items));\n", []),
+            "length_not_first_argument": (
+                "    work(prefix, &items,\n"
+                "         LENGTH(items));\n", []),
             "unrelated_names": (
                 "    work(prefix, properties,\n"
                 "         notproperties, tail);\n", []),
