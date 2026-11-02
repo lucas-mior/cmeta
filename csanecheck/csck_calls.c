@@ -325,6 +325,212 @@ csane_call_matching_length(CsaneFile *file, CsaneTokenView *view,
     return left == array_range.end && right == operand.end;
 }
 
+/* Compare expression tokens, ignoring comments and whitespace but not
+ * operators, suffixes or index structure. */
+static bool
+csane_call_equal_tokens(CsaneFile *file, TokenRange a, TokenRange b) {
+    Tokenization *tokens = file->tokens;
+    int32 left = csane_call_next(file, a, a.first - 1);
+    int32 right = csane_call_next(file, b, b.first - 1);
+
+    while (left < a.end && right < b.end) {
+        Token *x = &tokens->tokens[left];
+        Token *y = &tokens->tokens[right];
+        if (x->kind != y->kind || x->len != y->len
+            || memcmp64(x->text, y->text, x->len)) {
+            return false;
+        }
+        left = csane_call_next(file, a, left);
+        right = csane_call_next(file, b, right);
+    }
+    return left == a.end && right == b.end;
+}
+
+/* SP(array, index) is available for the parallel array_lens[index] and
+ * array[index] members. Require identical member paths and index expressions;
+ * a merely similar name or index must not trigger a replacement suggestion. */
+static bool
+csane_call_sp_pair(CsaneFile *file, CsaneTokenView *view,
+                   CsaneCallArgument *length, CsaneCallArgument *string) {
+    Tokenization *tokens = file->tokens;
+    TokenRange lrange = {length->first, length->last + 1};
+    TokenRange srange = {string->first, string->last + 1};
+    int32 lopen;
+    int32 sopen;
+    int32 lname;
+    int32 sname;
+    Token *length_token = NULL;
+    Token *string_token = NULL;
+
+    if (!TOKEN_IS(&tokens->tokens[length->last], "]")
+        || !TOKEN_IS(&tokens->tokens[string->last], "]")) {
+        return false;
+    }
+    lopen = csane_tokens_match(view, length->last);
+    sopen = csane_tokens_match(view, string->last);
+    if (lopen < 0 || sopen < 0) {
+        return false;
+    }
+    lname = csane_call_previous(file, lrange, lopen);
+    sname = csane_call_previous(file, srange, sopen);
+    if (lname < length->first || sname < string->first) {
+        return false;
+    }
+    length_token = &tokens->tokens[lname];
+    string_token = &tokens->tokens[sname];
+    if (length_token->kind != TOKEN_IDENT || string_token->kind != TOKEN_IDENT
+        || string_token->len < 1
+        || string_token->text[string_token->len - 1] != 's'
+        || length_token->len != string_token->len + 5
+        || memcmp64(length_token->text, string_token->text, string_token->len)
+        || !ENDS_WITH(length_token->text, length_token->len, "_lens")) {
+        return false;
+    }
+    return csane_call_equal_tokens(file,
+                                   (TokenRange){length->first, lname},
+                                   (TokenRange){string->first, sname})
+           && csane_call_equal_tokens(file,
+                                      (TokenRange){lopen + 1, length->last},
+                                      (TokenRange){sopen + 1, string->last});
+}
+
+/* Follow format conversions to find the two arguments consumed by %.*s.
+ * The existing format-string recognition chooses the format argument; this
+ * parser only handles literal formats, without guessing dynamic expressions. */
+static void
+csane_call_sp_format(CsaneFile *file, CsaneTokenView *view,
+                     CsaneCallArgument *args, int32 count, int32 format) {
+    Tokenization *tokens = file->tokens;
+    TokenRange range = {args[format].first, args[format].last + 1};
+    int32 next_arg = format + 1;
+
+    for (int32 i = csane_call_next(file, range, range.first - 1);
+         i < range.end; i = csane_call_next(file, range, i)) {
+        Token *literal = &tokens->tokens[i];
+        int32 quote;
+        int32 end;
+
+        if (!csane_call_string(literal)) {
+            return;
+        }
+        quote = literal_quote_index(literal->text, literal->len, 0);
+        end = literal->len - 1;
+        for (int32 j = quote + 1; j < end;) {
+            int32 start;
+            int32 stars = 0;
+            char conversion;
+
+            if (literal->text[j] == '\\') {
+                j += 2;
+                continue;
+            }
+            if (literal->text[j] != '%') {
+                j += 1;
+                continue;
+            }
+            start = j;
+            j += 1;
+            if (j < end && literal->text[j] == '%') {
+                j += 1;
+                continue;
+            }
+            while (j < end && (literal->text[j] == '-'
+                               || literal->text[j] == '+'
+                               || literal->text[j] == ' '
+                               || literal->text[j] == '#'
+                               || literal->text[j] == '0'
+                               || literal->text[j] == '\'')) {
+                j += 1;
+            }
+            if (j < end && literal->text[j] == '*') {
+                stars += 1;
+                j += 1;
+            } else {
+                while (j < end && literal->text[j] >= '0'
+                       && literal->text[j] <= '9') {
+                    j += 1;
+                }
+            }
+            if (j < end && literal->text[j] == '.') {
+                j += 1;
+                if (j < end && literal->text[j] == '*') {
+                    stars += 1;
+                    j += 1;
+                } else {
+                    while (j < end && literal->text[j] >= '0'
+                           && literal->text[j] <= '9') {
+                        j += 1;
+                    }
+                }
+            }
+            if (j < end && (literal->text[j] == 'h'
+                            || literal->text[j] == 'l')) {
+                char modifier = literal->text[j];
+                j += 1;
+                if (j < end && literal->text[j] == modifier) {
+                    j += 1;
+                }
+            } else if (j < end && (literal->text[j] == 'j'
+                                   || literal->text[j] == 'z'
+                                   || literal->text[j] == 't'
+                                   || literal->text[j] == 'L')) {
+                j += 1;
+            } else if (j < end && literal->text[j] == 'w') {
+                j += 1;
+                while (j < end && literal->text[j] >= '0'
+                       && literal->text[j] <= '9') {
+                    j += 1;
+                }
+            }
+            if (j >= end) {
+                return;
+            }
+            conversion = literal->text[j];
+            if (conversion != 'd' && conversion != 'i'
+                && conversion != 'u' && conversion != 'o'
+                && conversion != 'x' && conversion != 'X'
+                && conversion != 'f' && conversion != 'F'
+                && conversion != 'e' && conversion != 'E'
+                && conversion != 'g' && conversion != 'G'
+                && conversion != 'a' && conversion != 'A'
+                && conversion != 'c' && conversion != 's'
+                && conversion != 'p' && conversion != 'n') {
+                return;
+            }
+            if (j == start + 3 && conversion == 's'
+                && literal->text[start + 1] == '.'
+                && literal->text[start + 2] == '*'
+                && next_arg + 1 < count
+                && csane_call_sp_pair(file, view, &args[next_arg],
+                                      &args[next_arg + 1])) {
+                csane_rule_issue(file,
+                                 tokens->tokens[args[next_arg].first].offset,
+                                 STRLIT("STYLE-SP-SOA"),
+                                 "use SP(array, index) for %.*s with "
+                                 "parallel string arrays");
+            }
+            next_arg += 1 + stars;
+            j += 1;
+        }
+    }
+}
+
+static void
+csane_call_sp_check(CsaneFile *file, CsaneTokenView *view) {
+    CsaneCallArgument args[256];
+    int32 count = csane_call_arguments(file, view, args, 256);
+
+    if (count < 3) {
+        return;
+    }
+    for (int32 i = 0; i < count; i += 1) {
+        if (args[i].format) {
+            csane_call_sp_format(file, view, args, count, i);
+            break;
+        }
+    }
+}
+
 static int32
 csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
                          int32 count, int32 line) {
@@ -603,11 +809,16 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
                              "call breaks before the first argument");
         }
     }
+    macro_parameters = macro
+                       && csane_call_macro_parameters(file, open, content);
+    if (!macro
+        || (!csane_call_macro_fragments(file, content)
+            && !macro_parameters)) {
+        csane_call_sp_check(file, &view);
+    }
     if (!csane_calls_line_break(file, open, close)) {
         return;
     }
-    macro_parameters = macro
-                       && csane_call_macro_parameters(file, open, content);
     /* Contextual comparisons are sound for self-contained replacements.
      * Names of macros or parameters can change their argument structure. */
     if (!macro

@@ -610,6 +610,19 @@ str_printf("%.*s = %d\n", name_len, name, number);
 Note: `cbase/fmt.c` auto handles the case of passing `NULL` as the `char *`
 argument for `"%s"` family formatters, no need to check it.
 
+When using `"%.*s"` with a struct of arrays (or other parallel arrays),
+use `SP(array, index)` instead of repeating both the array name and index
+for the `array_lens[index]`, `array[index]` pair. The array name must end in
+`s`, and `SP` expands to the byte length and pointer in that order:
+```c
+// bad
+fmt_printf("value: %.*s", s->strings_lens[i], s->strings[i]);
+
+// good
+fmt_printf("value: %.*s", SP(s->strings, i));
+```
+This also applies when other conversions precede `"%.*s"` in the format.
+
 Do not use a format string that only formats a single argument without any
 literal content:
 ```c

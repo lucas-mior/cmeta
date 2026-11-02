@@ -89,53 +89,54 @@ CG034	cbase/c-guidelines.md	383	459	Strings and lengths	Use char * plus int32 le
 CG035	cbase/c-guidelines.md	461	502	String patterns	Use ENDS_WITH/BEGINS_WITH and documented string/length macro patterns.	manual	-	-
 CG036	cbase/c-guidelines.md	503	602	String representations	Use only the documented five string representations according to ownership/termination/lifetime.	manual	-	-
 CG037	cbase/c-guidelines.md	602	602	String representations	Do not invent additional string representations.	manual	-	-
-CG038	cbase/c-guidelines.md	604	627	Building strings	Build strings using the documented String/STR_APPEND/format helpers rather than ad-hoc approaches.	manual	-	-
-CG039	cbase/c-guidelines.md	628	634	Printf	Avoid libc printf-family APIs; use project wrappers.	implemented	API-LIBC-PRINTF	Direct calls outside cbase are checked with token-aware API classification.
-CG040	cbase/c-guidelines.md	635	649	Comparing strings	Use the documented comparison routine based on whether lengths are known; strcmp is reserved for sorting.	manual	-	Specific STREQUAL/STRLIT anti-patterns are implemented elsewhere, but choosing the correct comparator requires string-representation knowledge.
-CG041	cbase/c-guidelines.md	650	657	Prefix/suffix checks	Use BEGINS_WITH/ENDS_WITH documented forms for prefix/suffix checks.	manual	-	-
-CG042	cbase/c-guidelines.md	658	662	Standard-library wrappers	Prefer cbase wrappers around standard-library functionality.	manual	-	Exact configured never-use/restricted libc names are separately represented by CG077/legacy API rows; general wrapper preference is broader.
-CG043	cbase/c-guidelines.md	663	670	Error messages	Use error/error2 for error messages.	manual	-	-
-CG044	cbase/c-guidelines.md	671	689	Fatal errors	Print errors with error() then terminate with fatal(EXIT_FAILURE); avoid hidden exiting helpers.	manual	-	-
-CG045	cbase/c-guidelines.md	690	835	Error handling	Follow the documented project error-propagation conventions and preserve cleanup/context.	manual	-	-
-CG046	cbase/c-guidelines.md	836	850	Control flow and error handling	Avoid goto except common cleanup logic; prefer structured cleanup when practical.	csanecheck_candidate	-	-
-CG047	cbase/c-guidelines.md	851	866	Struct initialization	Use the documented struct initialization/error-handling patterns.	manual	-	-
-CG048	cbase/c-guidelines.md	867	885	Return values for errors	Only model caller-handleable failures; prefer handling at higher layers and no error return for infallible functions.	manual	-	-
-CG049	cbase/c-guidelines.md	886	910	Return values for errors	Use documented negative integer/NULL/out-parameter conventions based on return-domain semantics.	manual	-	-
-CG050	cbase/c-guidelines.md	911	917	Return values for errors	Return bool only for predicates whose false result is not an operational error.	manual	-	-
-CG051	cbase/c-guidelines.md	918	934	Return values for errors	Use signed integer status for fallible actions and translate errno/domain errors at boundaries.	manual	-	-
-CG052	cbase/c-guidelines.md	934	937	Return values for errors	Do not use bool for fallible action functions merely for caller convenience.	manual	-	-
-CG053	cbase/c-guidelines.md	938	1035	More on if expressions	Follow documented condition factoring, assignment-in-condition, and readability rules.	manual	-	Some subpatterns can later become csanecheck candidates.
-CG054	cbase/c-guidelines.md	1036	1059	Assertions	Use cbase assertion macros and documented assertion forms.	manual	-	-
-CG055	cbase/c-guidelines.md	1060	1062	Assertions	Do not use ASSERT_EQ for enums.	csanecheck_candidate	-	-
-CG056	cbase/c-guidelines.md	1063	1086	Assertions	Use specialized success/failure/NULL assertion forms for function results.	manual	-	-
-CG057	cbase/c-guidelines.md	1087	1089	Assertions	Prefer ASSERT_ZERO(value) over ASSERT(value == 0).	implemented	STYLE-ASSERT-REL	-
-CG058	cbase/c-guidelines.md	1090	1126	Assertions	Use constant-RHS and ordered comparison assertion forms, preserving constants on the right.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
-CG059	cbase/c-guidelines.md	1127	1131	Assertions	Prefer ASSERT_ZERO and ASSERT_BETWEEN idioms for zero and bounds checks.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
-CG060	cbase/c-guidelines.md	1133	1135	Modules	Define internal functions static.	manual	-	Requires cross-file/use knowledge to avoid false positives.
-CG061	cbase/c-guidelines.md	1136	1155	Magic numbers and literals	Avoid unexplained magic values; derive/name values when meaning is not obvious.	manual	-	-
-CG062	cbase/c-guidelines.md	1156	1168	Declaration and initialization	Initialize variables/structs/arrays only when the initial value is semantically correct and use documented zero-init forms.	manual	-	-
-CG063	cbase/c-guidelines.md	1169	1178	Declaration and initialization	Keep variable scope small; artificial blocks are acceptable only under documented nesting/readability constraints.	implemented	AST-ARTIFICIAL-BLOCK	Deep artificial-block prohibition implemented; broader scope choice remains manual.
-CG064	cbase/c-guidelines.md	1179	1209	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	compiler	-	Compiler -Wdeclaration-after-statement is the primary enforcement mechanism.
-CG065	cbase/c-guidelines.md	1211	1262	Declaration and initialization	Initialize default/stub return values at declaration, but keep accumulator initialization near its loop where clearer.	manual	-	-
-CG066	cbase/c-guidelines.md	1263	1306	Declaration and initialization	Declare and initialize aliases/copies together when dependencies permit.	manual	-	-
-CG067	cbase/c-guidelines.md	1307	1335	Declaration and initialization	When initialization is appropriate and the variable is the only one in scope, prefer declaration-time initialization.	manual	-	-
-CG068	cbase/c-guidelines.md	1337	1345	Utilities	Reuse cbase utilities; add missing common utilities to the appropriate cbase module.	manual	-	-
-CG069	cbase/c-guidelines.md	1346	1350	Functions	Avoid functions called only once in the same file except callbacks and similar non-inlineable uses.	manual	-	Requires call/use analysis and callback judgment.
-CG070	cbase/c-guidelines.md	1351	1353	Functions	Do not define struct types used only inside one function.	manual	-	-
-CG071	cbase/c-guidelines.md	1354	1376	Functions	Inline int32 status temporaries when each assignment is consumed exactly once on the next line and has no independent lifetime.	implemented	STYLE-STATUS-TEMP	-
-CG072	cbase/c-guidelines.md	1377	1382	Functions	Understand implementation/documentation of called functions before using them.	manual	-	-
-CG073	cbase/c-guidelines.md	1383	1403	Functions	Use blank lines to group related statements, declarations, assertions, and struct assignments.	manual	-	-
-CG074	cbase/c-guidelines.md	1405	1431	Testing	Every non-main .c file should contain the documented TESTING_file_prefix block.	csanecheck_candidate	-	-
-CG075	cbase/c-guidelines.md	1433	1443	File organization	Use include guards for every .c/.h except include-template files.	csanecheck_candidate	-	-
-CG076	cbase/c-guidelines.md	1444	1446	File organization	Include cbase.h first, with documented cbase bootstrap exceptions.	csanecheck_candidate	-	-
-CG077	cbase/c-guidelines.md	1448	1452	libc functions	Never use functions_never_use; functions_allowed_cbase_only may be used only in cbase wrappers.	implemented	API-NEVER;API-CBASE-ONLY	-
-CG078	cbase/c-guidelines.md	1454	1458	Missing cases	For unspecified cases, follow cbase precedent and engineering judgment.	manual	-	-
+CG038	cbase/c-guidelines.md	604	640	Building strings	Build strings using the documented String/STR_APPEND/format helpers rather than ad-hoc approaches.	manual	-	-
+CG039	cbase/c-guidelines.md	641	647	Printf	Avoid libc printf-family APIs; use project wrappers.	implemented	API-LIBC-PRINTF	Direct calls outside cbase are checked with token-aware API classification.
+CG040	cbase/c-guidelines.md	648	662	Comparing strings	Use the documented comparison routine based on whether lengths are known; strcmp is reserved for sorting.	manual	-	Specific STREQUAL/STRLIT anti-patterns are implemented elsewhere, but choosing the correct comparator requires string-representation knowledge.
+CG041	cbase/c-guidelines.md	663	670	Prefix/suffix checks	Use BEGINS_WITH/ENDS_WITH documented forms for prefix/suffix checks.	manual	-	-
+CG042	cbase/c-guidelines.md	671	675	Standard-library wrappers	Prefer cbase wrappers around standard-library functionality.	manual	-	Exact configured never-use/restricted libc names are separately represented by CG077/legacy API rows; general wrapper preference is broader.
+CG043	cbase/c-guidelines.md	676	683	Error messages	Use error/error2 for error messages.	manual	-	-
+CG044	cbase/c-guidelines.md	684	702	Fatal errors	Print errors with error() then terminate with fatal(EXIT_FAILURE); avoid hidden exiting helpers.	manual	-	-
+CG045	cbase/c-guidelines.md	703	848	Error handling	Follow the documented project error-propagation conventions and preserve cleanup/context.	manual	-	-
+CG046	cbase/c-guidelines.md	849	863	Control flow and error handling	Avoid goto except common cleanup logic; prefer structured cleanup when practical.	csanecheck_candidate	-	-
+CG047	cbase/c-guidelines.md	864	879	Struct initialization	Use the documented struct initialization/error-handling patterns.	manual	-	-
+CG048	cbase/c-guidelines.md	880	898	Return values for errors	Only model caller-handleable failures; prefer handling at higher layers and no error return for infallible functions.	manual	-	-
+CG049	cbase/c-guidelines.md	899	923	Return values for errors	Use documented negative integer/NULL/out-parameter conventions based on return-domain semantics.	manual	-	-
+CG050	cbase/c-guidelines.md	924	930	Return values for errors	Return bool only for predicates whose false result is not an operational error.	manual	-	-
+CG051	cbase/c-guidelines.md	931	947	Return values for errors	Use signed integer status for fallible actions and translate errno/domain errors at boundaries.	manual	-	-
+CG052	cbase/c-guidelines.md	947	950	Return values for errors	Do not use bool for fallible action functions merely for caller convenience.	manual	-	-
+CG053	cbase/c-guidelines.md	951	1048	More on if expressions	Follow documented condition factoring, assignment-in-condition, and readability rules.	manual	-	Some subpatterns can later become csanecheck candidates.
+CG054	cbase/c-guidelines.md	1049	1072	Assertions	Use cbase assertion macros and documented assertion forms.	manual	-	-
+CG055	cbase/c-guidelines.md	1073	1075	Assertions	Do not use ASSERT_EQ for enums.	csanecheck_candidate	-	-
+CG056	cbase/c-guidelines.md	1076	1099	Assertions	Use specialized success/failure/NULL assertion forms for function results.	manual	-	-
+CG057	cbase/c-guidelines.md	1100	1102	Assertions	Prefer ASSERT_ZERO(value) over ASSERT(value == 0).	implemented	STYLE-ASSERT-REL	-
+CG058	cbase/c-guidelines.md	1103	1139	Assertions	Use constant-RHS and ordered comparison assertion forms, preserving constants on the right.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
+CG059	cbase/c-guidelines.md	1140	1144	Assertions	Prefer ASSERT_ZERO and ASSERT_BETWEEN idioms for zero and bounds checks.	implemented	STYLE-ASSERT-REL;STYLE-ASSERT-BOUNDS	-
+CG060	cbase/c-guidelines.md	1146	1148	Modules	Define internal functions static.	manual	-	Requires cross-file/use knowledge to avoid false positives.
+CG061	cbase/c-guidelines.md	1149	1168	Magic numbers and literals	Avoid unexplained magic values; derive/name values when meaning is not obvious.	manual	-	-
+CG062	cbase/c-guidelines.md	1169	1181	Declaration and initialization	Initialize variables/structs/arrays only when the initial value is semantically correct and use documented zero-init forms.	manual	-	-
+CG063	cbase/c-guidelines.md	1182	1191	Declaration and initialization	Keep variable scope small; artificial blocks are acceptable only under documented nesting/readability constraints.	implemented	AST-ARTIFICIAL-BLOCK	Deep artificial-block prohibition implemented; broader scope choice remains manual.
+CG064	cbase/c-guidelines.md	1192	1222	Declaration and initialization	Prefer declarations at block tops; do not mix declarations and code, except loop/scope cases.	compiler	-	Compiler -Wdeclaration-after-statement is the primary enforcement mechanism.
+CG065	cbase/c-guidelines.md	1224	1275	Declaration and initialization	Initialize default/stub return values at declaration, but keep accumulator initialization near its loop where clearer.	manual	-	-
+CG066	cbase/c-guidelines.md	1276	1319	Declaration and initialization	Declare and initialize aliases/copies together when dependencies permit.	manual	-	-
+CG067	cbase/c-guidelines.md	1320	1348	Declaration and initialization	When initialization is appropriate and the variable is the only one in scope, prefer declaration-time initialization.	manual	-	-
+CG068	cbase/c-guidelines.md	1350	1358	Utilities	Reuse cbase utilities; add missing common utilities to the appropriate cbase module.	manual	-	-
+CG069	cbase/c-guidelines.md	1359	1363	Functions	Avoid functions called only once in the same file except callbacks and similar non-inlineable uses.	manual	-	Requires call/use analysis and callback judgment.
+CG070	cbase/c-guidelines.md	1364	1366	Functions	Do not define struct types used only inside one function.	manual	-	-
+CG071	cbase/c-guidelines.md	1367	1389	Functions	Inline int32 status temporaries when each assignment is consumed exactly once on the next line and has no independent lifetime.	implemented	STYLE-STATUS-TEMP	-
+CG072	cbase/c-guidelines.md	1390	1395	Functions	Understand implementation/documentation of called functions before using them.	manual	-	-
+CG073	cbase/c-guidelines.md	1396	1416	Functions	Use blank lines to group related statements, declarations, assertions, and struct assignments.	manual	-	-
+CG074	cbase/c-guidelines.md	1418	1444	Testing	Every non-main .c file should contain the documented TESTING_file_prefix block.	csanecheck_candidate	-	-
+CG075	cbase/c-guidelines.md	1446	1456	File organization	Use include guards for every .c/.h except include-template files.	csanecheck_candidate	-	-
+CG076	cbase/c-guidelines.md	1457	1459	File organization	Include cbase.h first, with documented cbase bootstrap exceptions.	csanecheck_candidate	-	-
+CG077	cbase/c-guidelines.md	1461	1465	libc functions	Never use functions_never_use; functions_allowed_cbase_only may be used only in cbase wrappers.	implemented	API-NEVER;API-CBASE-ONLY	-
+CG078	cbase/c-guidelines.md	1467	1471	Missing cases	For unspecified cases, follow cbase precedent and engineering judgment.	manual	-	-
 CG079	cbase/c-guidelines.md	188	188	sizeof	Prefer SIZEOF(*pointer) rather than SIZEOF(TypePointedTo).	csanecheck_candidate	-	-
 LEG-API-CBASE	cbase/functions_allowed_cbase_only.txt	1	9	Legacy libc policy	Allow configured restricted libc calls only inside cbase.	implemented	API-CBASE-ONLY	-
 LEG-API-NEVER	cbase/functions_never_use.txt	1	32	Legacy libc policy	Reject direct calls to every configured never-use function.	implemented	API-NEVER	-
 LEG-DISCOVERY	cbase/functions_forbidden.sh	132	194	Legacy wrapper	Discover the legacy project source set with its exclusions and Ryu treatment.	implemented	-	Covered by test_full_tree_discovery.py and configurable csanecheck discovery.
 LEG-STATUS	cbase/status_temporary_patterns.py	1	1	Legacy status checker	Detect temporary status assignment/use pairs that can be safely inlined.	implemented	STYLE-STATUS-TEMP	Intentional side-effect-ordering divergence is documented.
-CG081	cbase/c-guidelines.md	1459	1466	Rounding to int64	Use floor64(x), ceil64(x), and round64(x) instead of casting floor(x), ceil(x), or round(x) to int64.	implemented	STYLE-ROUND64	Detects direct int64 casts on floor/ceil/round calls.
-CG082	cbase/c-guidelines.md	1467	1481	Integer literals in function and macro calls	Pass integer literal arguments without casting them to int32 or int64.	implemented	STYLE-LITERAL-INT-CAST	Detects direct integer-literal casts in call arguments.
-CG084	cbase/c-guidelines.md	1063	1064	Assertions	Use ASSERT_EQ instead of ASSERT_CLOSE when the tolerance is 0.0.	implemented	STYLE-ASSERT-CLOSE-ZERO	Detects a sole 0.0 third argument to ASSERT_CLOSE.
+CG081	cbase/c-guidelines.md	1472	1479	Rounding to int64	Use floor64(x), ceil64(x), and round64(x) instead of casting floor(x), ceil(x), or round(x) to int64.	implemented	STYLE-ROUND64	Detects direct int64 casts on floor/ceil/round calls.
+CG082	cbase/c-guidelines.md	1480	1494	Integer literals in function and macro calls	Pass integer literal arguments without casting them to int32 or int64.	implemented	STYLE-LITERAL-INT-CAST	Detects direct integer-literal casts in call arguments.
+CG084	cbase/c-guidelines.md	1076	1077	Assertions	Use ASSERT_EQ instead of ASSERT_CLOSE when the tolerance is 0.0.	implemented	STYLE-ASSERT-CLOSE-ZERO	Detects a sole 0.0 third argument to ASSERT_CLOSE.
 CG085	cbase/c-guidelines.md	171	186	sizeof	Do not cast a signed integer operand to int64 solely for multiplication by SIZEOF.	implemented	STYLE-SIZEOF-INT64-CAST	Checks direct casts on simple identifiers (optionally parenthesized) on either side of multiplication; requires manual review for casts with other operand types.
+CG086	cbase/c-guidelines.md	613	624	Building strings	Use SP(array, index) for %.*s passed matching parallel array_lens[index], array[index] arguments.	implemented	STYLE-SP-SOA	Matches identical member paths and index tokens; locates pairs using literal format conversion argument positions.
