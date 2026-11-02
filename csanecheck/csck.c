@@ -640,6 +640,7 @@ cleanup:
         fmt_printf("If you think any of them are a false positive"
                    ", put them in a file called false-positives.txt"
                    ", and add an exception for it in cbase/csanecheck.conf.\n");
+        fmt_printf("Findings: %lld\n", stats.violations);
     }
 
     csane_paths_free(&options.files);
