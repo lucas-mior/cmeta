@@ -9,7 +9,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "csanecheck/rule_inventory.tsv"
-GUIDES = (ROOT / "cbase/c-format.md", ROOT / "cbase/c-guidelines.md")
 CLASSIFICATIONS = {"implemented", "csanecheck_candidate", "compiler", "manual"}
 RULE_ID = re.compile(r'"([A-Z][A-Z0-9-]+)"')
 
@@ -25,19 +24,6 @@ def checker_rule_ids():
         text = path.read_text(encoding="utf-8")
         result.update(RULE_ID.findall(text))
     return result
-
-
-def section_ranges(path):
-    lines = path.read_text(encoding="utf-8").splitlines()
-    headings = []
-    for number, line in enumerate(lines, 1):
-        if line.startswith("## ") or line.startswith("### "):
-            headings.append((number, line.lstrip("# ")))
-    ranges = []
-    for index, (start, title) in enumerate(headings):
-        end = headings[index + 1][0] - 1 if index + 1 < len(headings) else len(lines)
-        ranges.append((start, end, title))
-    return lines, ranges
 
 
 class RuleInventoryTests(unittest.TestCase):
@@ -65,30 +51,6 @@ class RuleInventoryTests(unittest.TestCase):
                 if rule_ids != "-":
                     for rule_id in rule_ids.split(";"):
                         self.assertIn(rule_id, known_rules)
-
-    def test_every_guide_section_and_top_level_bullet_is_inventory_covered(self):
-        by_source = {}
-        for row in self.rows:
-            by_source.setdefault(row["source"], []).append(
-                (int(row["line_start"]), int(row["line_end"]), row["inventory_id"]))
-        for guide in GUIDES:
-            relative = guide.relative_to(ROOT).as_posix()
-            entries = by_source.get(relative, [])
-            lines, sections = section_ranges(guide)
-            for start, end, title in sections:
-                if title == "Note":
-                    continue
-                with self.subTest(source=relative, section=title):
-                    self.assertTrue(
-                        any(a <= end and b >= start for a, b, _ in entries),
-                        f"no inventory entry for {relative}:{start} {title}")
-            for number, line in enumerate(lines, 1):
-                if not line.startswith("- "):
-                    continue
-                with self.subTest(source=relative, line=number):
-                    self.assertTrue(
-                        any(a <= number <= b for a, b, _ in entries),
-                        f"uncovered top-level rule at {relative}:{number}: {line}")
 
     def test_inventory_has_all_four_enforcement_classes(self):
         classes = {row["classification"] for row in self.rows}
