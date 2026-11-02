@@ -1795,8 +1795,8 @@ test_literal_scanners(void) {
     {
         char trailing_escape[] = {'\"', 'a', '\\'};
 
-        ASSERT_EQ(scan_literal_token(trailing_escape,
-                                     LENGTH(trailing_escape), 0),
+        ASSERT_EQ(scan_literal_token(trailing_escape, LENGTH(trailing_escape),
+                                     0),
                   LENGTH(trailing_escape));
     }
     return;
