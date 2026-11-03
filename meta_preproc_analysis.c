@@ -370,7 +370,7 @@ preproc_test_nested_conditionals(void) {
     ASSERT_EQ(ARRAY_LEN(analysis.directives), 7);
     ASSERT_EQ(ARRAY_LEN(analysis.groups), 2);
     ASSERT_EQ(ARRAY_LEN(analysis.branches), 5);
-    ASSERT_ZERO(ARRAY_LEN(analysis.issues));
+    ASSERT_EQ(ARRAY_LEN(analysis.issues), 0);
     ASSERT_EQ(analysis.groups[0].first_branch, 0);
     ASSERT_EQ(analysis.groups[0].last_branch, 4);
     ASSERT_EQ(analysis.groups[1].parent_branch, 0);
@@ -429,12 +429,12 @@ preproc_test_macro_regions(void) {
 
     ASSERT(c_preprocessor_analysis_init(&analysis, &tokens));
     ASSERT_EQ(ARRAY_LEN(analysis.directives), 3);
-    ASSERT_ZERO(ARRAY_LEN(analysis.groups));
+    ASSERT_EQ(ARRAY_LEN(analysis.groups), 0);
     index = preproc_test_find(&tokens, "b", 0);
     ASSERT(c_preprocessor_token_context(&analysis, index, &role, &directive,
                                         &branch));
     ASSERT_EQ(role, C_PP_TOKEN_MACRO_PARAMETERS);
-    ASSERT_ZERO(directive);
+    ASSERT_EQ(directive, 0);
     index = preproc_test_find(&tokens, "+", 0);
     ASSERT(c_preprocessor_token_context(&analysis, index, &role, &directive,
                                         &branch));

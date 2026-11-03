@@ -430,11 +430,11 @@ test_c_assignment_ops(void) {
     ASSERT(C_ASSIGN_OP_parse(STRLIT("%=")) == C_ASSIGN_OP_MOD);
     ASSERT(C_ASSIGN_OP_parse(STRLIT("<<=")) == C_ASSIGN_OP_SHL);
     ASSERT(C_ASSIGN_OP_parse(STRLIT(">>=")) == C_ASSIGN_OP_SHR);
-    ASSERT_ZERO(C_ASSIGN_OP_parse(STRLIT("ADD")));
+    ASSERT_EQ(C_ASSIGN_OP_parse(STRLIT("ADD")), 0);
     ASSERT(c_token_assign_op(&token) == C_ASSIGN_OP_ADD);
 
     token = test_token(TOKEN_IDENT, "+=");
-    ASSERT_ZERO(c_token_assign_op(&token));
+    ASSERT_EQ(c_token_assign_op(&token), 0);
     return;
 }
 
@@ -445,13 +445,13 @@ test_c_binary_ops(void) {
     ASSERT(C_BINARY_OP_parse(STRLIT("*")) == C_BINARY_OP_MUL);
     ASSERT(C_BINARY_OP_parse(STRLIT("<=")) == C_BINARY_OP_LE);
     ASSERT(C_BINARY_OP_parse(STRLIT("|")) == C_BINARY_OP_BIT_OR);
-    ASSERT_ZERO(C_BINARY_OP_parse(STRLIT("BIT_OR")));
+    ASSERT_EQ(C_BINARY_OP_parse(STRLIT("BIT_OR")), 0);
     ASSERT(c_token_binary_op(&token) == C_BINARY_OP_LOGICAL_AND);
     ASSERT_EQ(c_binary_op_precedence(C_BINARY_OP_LOGICAL_OR), 1);
     ASSERT_EQ(c_binary_op_precedence(C_BINARY_OP_MUL), 10);
 
     token = test_token(TOKEN_PUNCT, "+");
-    ASSERT_ZERO(c_token_binary_op(&token));
+    ASSERT_EQ(c_token_binary_op(&token), 0);
     return;
 }
 
@@ -475,7 +475,7 @@ test_c_member_ops(void) {
     Token token = test_token(TOKEN_OPERATOR, "->");
 
     ASSERT(C_MEMBER_OP_parse(STRLIT(".")) == C_MEMBER_OP_DOT);
-    ASSERT_ZERO(C_MEMBER_OP_parse(STRLIT("ARROW")));
+    ASSERT_EQ(C_MEMBER_OP_parse(STRLIT("ARROW")), 0);
     ASSERT(c_token_member_op(&token) == C_MEMBER_OP_ARROW);
 
     token = test_token(TOKEN_PUNCT, ".");
@@ -493,9 +493,9 @@ test_c_keywords_and_type_words(void) {
     ASSERT(c_token_keyword(&token) == C_KEYWORD_IF);
 
     token = test_token(TOKEN_OPERATOR, "if");
-    ASSERT_ZERO(c_token_keyword(&token));
-    ASSERT_ZERO(C_KEYWORD_parse(STRLIT("IF")));
-    ASSERT_ZERO(C_KEYWORD_parse(STRLIT("_static_assert")));
+    ASSERT_EQ(c_token_keyword(&token), 0);
+    ASSERT_EQ(C_KEYWORD_parse(STRLIT("IF")), 0);
+    ASSERT_EQ(C_KEYWORD_parse(STRLIT("_static_assert")), 0);
 
     token = test_token(TOKEN_IDENT, "int32");
     ASSERT(c_text_is_type_word(STRLIT("double")));
@@ -513,7 +513,7 @@ test_c_keywords_and_type_words(void) {
     ASSERT(c_token_is_type_qualifier(&token));
 
     token = test_token(TOKEN_IDENT, "x");
-    ASSERT_ZERO(C_KEYWORD_parse(STRLIT("x")));
+    ASSERT_EQ(C_KEYWORD_parse(STRLIT("x")), 0);
     ASSERT(!c_token_is_type_word(&token));
     ASSERT(!c_token_is_declaration_prefix(&token));
     return;

@@ -1784,13 +1784,13 @@ static void
 test_literal_scanners(void) {
     char *literal = "\"a\\\"b\" tail";
 
-    ASSERT_ZERO(literal_quote_index(STRLIT("'x'"), 0));
+    ASSERT_EQ(literal_quote_index(STRLIT("'x'"), 0), 0);
     ASSERT_EQ(literal_quote_index(STRLIT("L\"abc\""), 0), 1);
     ASSERT_EQ(literal_quote_index(STRLIT("u8\"abc\""), 0), 2);
     ASSERT_EQ(literal_quote_index(STRLIT("name"), 0), -1);
     ASSERT_EQ(scan_literal_token(literal, strlen32(literal), 0), 6);
     ASSERT_EQ(scan_literal_token(STRLIT("u8\"xy\";"), 0), 6);
-    ASSERT_ZERO(scan_literal_token(STRLIT("name"), 0));
+    ASSERT_EQ(scan_literal_token(STRLIT("name"), 0), 0);
 
     {
         char trailing_escape[] = {'\"', 'a', '\\'};
@@ -2218,7 +2218,7 @@ test_tokenization_source_locations(void) {
 
     tokenization = tokenize(text, strlen32(text));
     ASSERT_NULL(tokenization.line_starts);
-    ASSERT_ZERO(tokenization.line_count);
+    ASSERT_EQ(tokenization.line_count, 0);
     ASSERT_EQ(tokenization_physical_line_count(&tokenization), 4);
     ASSERT(tokenization.line_starts != NULL);
     ASSERT_EQ(tokenization_physical_line_start_offset(&tokenization, 1), 0);
@@ -2233,45 +2233,45 @@ test_tokenization_source_locations(void) {
     ASSERT_EQ(tokenization_physical_line_end_offset(&tokenization, 5), -1);
 
     location = tokenization_source_location(&tokenization, 0);
-    ASSERT_ZERO(location.offset);
+    ASSERT_EQ(location.offset, 0);
     ASSERT_EQ(location.line, 1);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_source_location(&tokenization, 3);
     ASSERT_EQ(location.line, 1);
     ASSERT_EQ(location.column, 3);
     location = tokenization_source_location(&tokenization, 4);
     ASSERT_EQ(location.line, 2);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_source_location(&tokenization, 8);
     ASSERT_EQ(location.line, 2);
     ASSERT_EQ(location.column, 4);
     location = tokenization_source_location(&tokenization, 9);
     ASSERT_EQ(location.line, 3);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_source_location(&tokenization,
                                             tokenization.text_len);
     ASSERT_EQ(location.line, 4);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_source_location(&tokenization, -1);
     ASSERT_EQ(location.offset, -1);
-    ASSERT_ZERO(location.line);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.line, 0);
+    ASSERT_EQ(location.column, 0);
 
     def_token = test_find_token(&tokenization, "def");
     last_token = test_find_token(&tokenization, "last");
     location = tokenization_token_location(&tokenization, def_token);
     ASSERT_EQ(location.line, 2);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_token_location(&tokenization, last_token);
     ASSERT_EQ(location.line, 3);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     location = tokenization_token_location(&tokenization, -1);
     ASSERT_EQ(location.offset, -1);
 
     free_tokenization(&tokenization);
     ASSERT_NULL(tokenization.line_starts);
-    ASSERT_ZERO(tokenization.line_count);
-    ASSERT_ZERO(tokenization.line_capacity);
+    ASSERT_EQ(tokenization.line_count, 0);
+    ASSERT_EQ(tokenization.line_capacity, 0);
     return;
 }
 
@@ -2283,12 +2283,12 @@ test_tokenization_empty_source_location(void) {
 
     tokenization = tokenize(text, 0);
     ASSERT_EQ(tokenization_physical_line_count(&tokenization), 1);
-    ASSERT_ZERO(tokenization_physical_line_start_offset(&tokenization, 1));
-    ASSERT_ZERO(tokenization_physical_line_end_offset(&tokenization, 1));
+    ASSERT_EQ(tokenization_physical_line_start_offset(&tokenization, 1), 0);
+    ASSERT_EQ(tokenization_physical_line_end_offset(&tokenization, 1), 0);
     location = tokenization_source_location(&tokenization, 0);
-    ASSERT_ZERO(location.offset);
+    ASSERT_EQ(location.offset, 0);
     ASSERT_EQ(location.line, 1);
-    ASSERT_ZERO(location.column);
+    ASSERT_EQ(location.column, 0);
     free_tokenization(&tokenization);
     return;
 }
@@ -2307,7 +2307,7 @@ test_tokenization_preprocessor_define_detection(void) {
     ASSERT_GE(plus, 0);
     ASSERT_GE(int_token, 0);
     offset = tokenization.tokens[plus].offset;
-    ASSERT_ZERO(tokenization_logical_line_start_offset(&tokenization, offset));
+    ASSERT_EQ(tokenization_logical_line_start_offset(&tokenization, offset), 0);
     ASSERT(tokenization_is_in_preprocessor_define(&tokenization, plus));
     ASSERT(!tokenization_is_in_preprocessor_define(&tokenization, int_token));
     ASSERT(!tokenization_is_in_preprocessor_define(&tokenization, -1));
@@ -2414,8 +2414,8 @@ test_token_range_malformed_delimiters(void) {
     ASSERT(token_range_delimiter_depth_before(&tokenization, all, all.end,
                                               &depth));
     ASSERT_EQ(depth.paren, 1);
-    ASSERT_ZERO(depth.bracket);
-    ASSERT_ZERO(depth.brace);
+    ASSERT_EQ(depth.bracket, 0);
+    ASSERT_EQ(depth.brace, 0);
     free_tokenization(&tokenization);
 
     text = ")";
@@ -2461,7 +2461,7 @@ test_token_range_delimiter_depth(void) {
     ASSERT(token_range_delimiter_depth_before(&tokenization, all, one, &depth));
     ASSERT_EQ(depth.paren, 1);
     ASSERT_EQ(depth.bracket, 1);
-    ASSERT_ZERO(depth.brace);
+    ASSERT_EQ(depth.brace, 0);
     ASSERT(token_range_delimiter_depth_before(&tokenization, all, all.end,
                                               &depth));
     ASSERT(token_delimiter_depth_is_zero(depth));
@@ -2603,7 +2603,7 @@ test_tokenize_copy_and_offsets(void) {
 
     tokenization = tokenize_copy(NULL, 0, TOKENIZE_DEFAULT);
     ASSERT(tokenization.owned_text != NULL);
-    ASSERT_ZERO(ARRAY_LEN(tokenization.tokens));
+    ASSERT_EQ(ARRAY_LEN(tokenization.tokens), 0);
     free_tokenization(&tokenization);
     tokenization = tokenize_copy(NULL, 1, TOKENIZE_DEFAULT);
     ASSERT_NULL(tokenization.owned_text);

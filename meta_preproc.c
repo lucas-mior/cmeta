@@ -569,7 +569,7 @@ test_preprocessor_logical_directive_range(void) {
 
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
-    ASSERT_ZERO(directive.source.start);
+    ASSERT_EQ(directive.source.start, 0);
     ASSERT_EQ(directive.source.end,
               strlen32("  #define ADD(a, b) ((a) + \\\n"
                        "                    (b))\n"));
@@ -684,7 +684,7 @@ test_preprocessor_empty_define_and_malformed(void) {
     ASSERT(c_preprocessor_directive_at(&tokenization, second_hash, &directive));
     ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
     ASSERT(define.function_like);
-    ASSERT_ZERO(c_preprocessor_define_parameter_count(&tokenization, &define));
+    ASSERT_EQ(c_preprocessor_define_parameter_count(&tokenization, &define), 0);
     ASSERT(token_range_is_empty(&tokenization, define.replacement));
 
     ASSERT(c_preprocessor_directive_at(&tokenization, third_hash, &directive));

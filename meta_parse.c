@@ -813,7 +813,7 @@ unit_test_ast_array_growth(void) {
     result = c_ast_parse_translation_unit(&ast,
                                           (TokenRange){0,
                                             ARRAY_LEN(tokens.tokens)}, NULL);
-    ASSERT_ZERO(result.issue_count);
+    ASSERT_EQ(result.issue_count, 0);
     ASSERT_GT(ARRAY_LEN(ast.declarators), 32);
     ASSERT_GT(ARRAY_LEN(ast.declarations), 32);
     ASSERT_GT(ARRAY_LEN(ast.enumerators), 32);
