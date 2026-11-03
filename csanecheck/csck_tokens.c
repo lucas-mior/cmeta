@@ -431,34 +431,54 @@ csane_tokens_balanced(CsaneTokenView *view) {
     return true;
 }
 
+/* Scan contiguous ranges including trivia, like the underlying token-range
+ * helpers. Path views skip inactive segments and trivia while preserving the
+ * original token indices. */
+static int32
+csane_tokens_scan_next(CsaneTokenView *view, int32 cursor) {
+    if (view->path == NULL) {
+        return cursor + 1;
+    }
+    return csane_tokens_next(view, cursor);
+}
+
+static int32
+csane_tokens_scan_first(CsaneTokenView *view) {
+    if (view->path == NULL) {
+        return view->range.first;
+    }
+    return csane_tokens_next(view, view->range.first - 1);
+}
+
 int32
 csane_tokens_top_level(CsaneTokenView *view, int32 cursor,
                        char *text, int32 len) {
+    int32 result;
     int32 i;
     if (view == NULL || view->tokens == NULL || text == NULL || len <= 0
-        || !csane_tokens_balanced(view)) {
+        || !token_range_is_valid(view->tokens, view->range)) {
         return -1;
     }
-    if (view->path == NULL) {
-        TokenDelimiterDepth zero = {0};
-        return token_range_next_text_at_depth(view->tokens, view->range,
-                                              cursor, zero, text, len);
-    }
-    i = csane_tokens_next(view, cursor);
-    while (i >= view->range.first && i < view->range.end) {
+    result = view->range.end;
+    i = csane_tokens_scan_first(view);
+    while (i < view->range.end) {
         Token *token = &view->tokens->tokens[i];
-        if (TOKEN_IS(token, text, len)) {
-            return i;
+        if (result == view->range.end && i > cursor
+            && TOKEN_IS(token, text, len)) {
+            result = i;
         }
         if (token_is_open_delimiter(token)) {
-            i = csane_tokens_match(view, i);
-            if (i < 0) {
+            int32 close = csane_tokens_match(view, i);
+            if (close < 0) {
                 return -1;
             }
+            i = close;
+        } else if (token_is_close_delimiter(token)) {
+            return -1;
         }
-        i = csane_tokens_next(view, i);
+        i = csane_tokens_scan_next(view, i);
     }
-    return view->range.end;
+    return result;
 }
 
 static bool
@@ -479,25 +499,24 @@ csane_tokens_split(CsaneTokenView *view, char *separator, int32 len,
     int32 i;
     if (view == NULL || view->tokens == NULL || separator == NULL || len <= 0
         || capacity < 0 || (capacity > 0 && items == NULL)
-        || !csane_tokens_balanced(view)) {
+        || !token_range_is_valid(view->tokens, view->range)) {
         return -1;
-    }
-    if (view->path == NULL) {
-        return token_range_split_collect(view->tokens, view->range, separator,
-                                         len, items, capacity);
     }
     if (csane_tokens_empty(view)) {
         return 0;
     }
     first = view->range.first;
-    i = csane_tokens_next(view, view->range.first - 1);
-    while (i >= view->range.first && i < view->range.end) {
+    i = csane_tokens_scan_first(view);
+    while (i < view->range.end) {
         Token *token = &view->tokens->tokens[i];
         if (token_is_open_delimiter(token)) {
-            i = csane_tokens_match(view, i);
-            if (i < 0) {
+            int32 close = csane_tokens_match(view, i);
+            if (close < 0) {
                 return -1;
             }
+            i = close;
+        } else if (token_is_close_delimiter(token)) {
+            return -1;
         } else if (TOKEN_IS(token, separator, len)) {
             if (count < capacity) {
                 items[count] = (TokenRange){first, i};
@@ -505,7 +524,7 @@ csane_tokens_split(CsaneTokenView *view, char *separator, int32 len,
             count += 1;
             first = i + 1;
         }
-        i = csane_tokens_next(view, i);
+        i = csane_tokens_scan_next(view, i);
     }
     if (count < capacity) {
         items[count] = (TokenRange){first, view->range.end};
@@ -555,26 +574,37 @@ bool
 csane_tokens_assignment(CsaneTokenView *view, TokenRange *left,
                         TokenRange *right, int32 *operator_index) {
     int32 chosen;
-    int32 count = LENGTH(csane_token_assignments);
+    int32 i;
     TokenRange lhs;
     TokenRange rhs;
     CsaneTokenView lhs_view;
     CsaneTokenView rhs_view;
     if (view == NULL || view->tokens == NULL
-        || !csane_tokens_balanced(view)) {
+        || !token_range_is_valid(view->tokens, view->range)) {
         return false;
     }
     chosen = view->range.end;
-    for (int32 i = 0; i < count; i += 1) {
-        StrFlex *op = csane_token_assignments[i];
-        int32 index = csane_tokens_top_level(view, view->range.first - 1,
-                                             op->data, op->len);
-        if (index < 0) {
+    i = csane_tokens_scan_first(view);
+    while (i < view->range.end) {
+        Token *token = &view->tokens->tokens[i];
+        if (token_is_open_delimiter(token)) {
+            int32 close = csane_tokens_match(view, i);
+            if (close < 0) {
+                return false;
+            }
+            i = close;
+        } else if (token_is_close_delimiter(token)) {
             return false;
+        } else if (chosen == view->range.end) {
+            for (int32 j = 0; j < LENGTH(csane_token_assignments); j += 1) {
+                StrFlex *op = csane_token_assignments[j];
+                if (TOKEN_IS(token, op->data, op->len)) {
+                    chosen = i;
+                    break;
+                }
+            }
         }
-        if (index < chosen) {
-            chosen = index;
-        }
+        i = csane_tokens_scan_next(view, i);
     }
     if (chosen == view->range.end) {
         return false;
