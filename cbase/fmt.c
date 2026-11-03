@@ -2509,7 +2509,6 @@ fmt_ldouble_exp_exponent(FormatBinaryFloat *parts,
     ASSERT(parts != NULL);
     ASSERT(exponent != NULL);
     ASSERT(integer != NULL);
-    ASSERT_GE(value, 0.0L);
 
     if (parts->zero) {
         *exponent = 0;
@@ -2847,7 +2846,7 @@ fmt_ldouble_generate_general_body(FormatSpec *spec, ldouble value,
     ASSERT_GT(capacity, 0);
     ASSERT(integer != NULL);
     ASSERT(fmt_float_is_general(spec->conversion));
-    ASSERT(spec->precision >= 1);
+    ASSERT_GE(spec->precision, 1);
 
     work_spec = *spec;
     if (fmt_float_is_upper(spec->conversion)) {
@@ -3302,7 +3301,6 @@ fmt_float_generate_hex_body(FormatSpec *spec, double value,
     if (spec->precision < 0) {
         digit_len = fmt_float_hex_trim_digits(digits);
     } else {
-        ASSERT(spec->precision <= INT32_MAX);
         if (spec->precision < FMT_DOUBLE_HEX_DIGITS) {
             fmt_float_hex_round(&first_digit, digits, spec->precision, upper);
         }
