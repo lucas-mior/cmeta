@@ -562,8 +562,10 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                 relevant = TOKEN_IS(token, "=");
             } else if (kind == CSANE_TARGET_OPERATORS) {
                 relevant = csane_coverage_operator(token);
-                resolved = csane_layout_classify(file, i)
-                           != CSANE_LAYOUT_UNRESOLVED;
+                if (relevant) {
+                    resolved = csane_layout_classify(file, i)
+                               != CSANE_LAYOUT_UNRESOLVED;
+                }
             } else if (kind == CSANE_TARGET_CALLS
                        || kind == CSANE_TARGET_STYLE_CALLS) {
                 int32 name = tokenization_previous_significant(tokens, i);

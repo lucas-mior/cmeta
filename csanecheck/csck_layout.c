@@ -1608,8 +1608,11 @@ csane_layout_check(CsaneFile *file) {
         return;
     }
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
-        enum CsaneLayoutOperator kind = csane_layout_classify(file, i);
         Token *op = &file->tokens->tokens[i];
+        enum CsaneLayoutOperator kind = CSANE_LAYOUT_SKIP;
+        if (op->kind == TOKEN_OPERATOR) {
+            kind = csane_layout_classify(file, i);
+        }
         csane_layout_nested_braces_check(file, i);
         csane_layout_local_style_check(file, i, kind);
         if (kind == CSANE_LAYOUT_MULTIPLY) {

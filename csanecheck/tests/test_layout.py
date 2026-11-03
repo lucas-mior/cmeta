@@ -44,6 +44,20 @@ class OperatorLayoutTests(unittest.TestCase):
         self.assertEqual(status, "partial" if unresolved else "checked")
         return result
 
+    def test_non_operator_tokens_preserve_operator_diagnostics(self):
+        result = self.check('''int32 classify(int32 a, int32 b) {
+    char *text = "a + b * c";
+    int32 sum = a+b;
+    int32 product = a* b;
+    if (a >= b) {
+        return sum;
+    }
+    return product;
+}
+''', ["FMT-BINARY-SPACING", "FMT-MULTIPLY"])
+        self.assertIn("group=LAYOUT status=checked", result.stdout)
+        self.assertIn("eligible=7 checked=7", result.stdout)
+
     def test_multiplication_and_pointer_declarators(self):
         self.check("""typedef int32 MyType;
 typedef struct NcScreen NcScreen;
