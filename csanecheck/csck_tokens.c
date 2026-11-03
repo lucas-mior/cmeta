@@ -225,9 +225,7 @@ csane_tokens_previous(CsaneTokenView *view, int32 cursor) {
     TokenRange part;
     int32 previous;
     int32 last;
-    if (view == NULL || view->tokens == NULL) {
-        return -1;
-    }
+
     if (view->path == NULL) {
         return token_range_previous_significant(view->tokens, view->range,
                                                 cursor);
