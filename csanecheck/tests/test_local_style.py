@@ -184,6 +184,53 @@ int32 f(int32 x) {
 }
 """, [])
 
+    def test_assert_close_required_for_floating_tolerance(self):
+        self.check("""void f(double a, double b, double tol) {
+    ASSERT(fabs(a - b) < tol);
+    ASSERT(fabsf(a - b) <= tol);
+    ASSERT((fabs((a - b)) < (tol)));
+    ASSERT(tol > fabs(a - b));
+    ASSERT((tol >= (fabsf((a - b)))));
+    ASSERT(fabs(g(a, b) - h(a, b)) < tol);
+    ASSERT(fabs(a - b) < 0.001);
+}
+""", ["STYLE-ASSERT-CLOSE"]*7)
+
+    def test_assert_close_unrelated_conditions_are_allowed(self):
+        self.check("""void f(double a, double b, double c, double tol,
+       bool flag) {
+    ASSERT_CLOSE(a, b, tol);
+    ASSERT_EQ(a, b);
+    ASSERT(fabs(a - b) > tol);
+    ASSERT(tol < fabs(a - b));
+    ASSERT(fabs(a + b) < tol);
+    ASSERT(fabs(a - b - c) < tol);
+    ASSERT(fabs(a - b) < tol && flag);
+    ASSERT(fabs(a - b) < tol || flag);
+    ASSERT(fabs(a - b) == tol);
+    ASSERT(fabsl(a - b) < tol);
+    ASSERT(fabs(a - b) / c < tol);
+    if (fabs(a - b) < tol) {
+        use(a);
+    }
+    // ASSERT(fabs(a - b) < tol);
+    char *message = "ASSERT(fabs(a - b) < tol)";
+}
+""", [])
+
+    def test_assert_close_macros_and_preprocessor_branches(self):
+        self.check("""#define CHECK_NEAR(a, b, tol) ASSERT(fabs((a) - (b)) < tol)
+#if defined(SOME_OPTION)
+void f(double a, double b, double tol) {
+    ASSERT(fabs(a - b) <= tol);
+}
+#else
+void g(double a, double b, double tol) {
+    ASSERT(tol >= fabs(a - b));
+}
+#endif
+""", ["STYLE-ASSERT-CLOSE"]*3)
+
     def test_initializer_trailing_comma_rules(self):
         self.check("""typedef struct S { int32 x; int32 y; } S;
 int32 short_array[] = {1, 2, 3};

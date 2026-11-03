@@ -258,6 +258,114 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     }
 }
 
+/* Match a single absolute difference, not arbitrary calculations involving
+ * fabs. ASSERT_CLOSE accepts float/double, so exclude long-double fabsl. */
+static bool
+csane_style_fabs_difference(CsaneTokenView *view, TokenRange range) {
+    CsaneTokenView expression;
+    CsaneTokenView difference;
+    TokenRange args[1];
+    int32 name;
+    int32 open;
+    int32 close;
+    int32 minus;
+
+    range = csane_tokens_unwrap(view, range);
+    if (!csane_tokens_subview(&expression, view, range)) {
+        return false;
+    }
+    name = csane_tokens_next(&expression, range.first - 1);
+    if (name >= range.end
+        || (!TOKEN_IS(&view->tokens->tokens[name], "fabs")
+            && !TOKEN_IS(&view->tokens->tokens[name], "fabsf"))) {
+        return false;
+    }
+    open = csane_tokens_next(&expression, name);
+    if (open >= range.end
+        || !TOKEN_IS(&view->tokens->tokens[open], "(")) {
+        return false;
+    }
+    close = csane_tokens_match(&expression, open);
+    if (close < 0 || csane_tokens_next(&expression, close) < range.end
+        || csane_tokens_arguments(&expression, open, args, 1) != 1) {
+        return false;
+    }
+    range = csane_tokens_unwrap(&expression, args[0]);
+    if (!csane_tokens_subview(&difference, &expression, range)) {
+        return false;
+    }
+    minus = csane_tokens_top_level(&difference, range.first - 1, "-", 1);
+    if (minus <= csane_tokens_next(&difference, range.first - 1)
+        || minus >= range.end
+        || csane_tokens_next(&difference, minus) >= range.end) {
+        return false;
+    }
+    /* Chained subtraction is not a direct comparison of two operands. */
+    return csane_tokens_top_level(&difference, minus, "-", 1)
+           == range.end;
+}
+
+static void
+csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
+                             int32 name, int32 open) {
+    TokenRange args[1];
+    TokenRange condition;
+    TokenRange difference;
+    CsaneTokenView expression;
+    int32 comparison = -1;
+    int32 i;
+
+    if (csane_tokens_arguments(view, open, args, 1) != 1) {
+        return;
+    }
+    condition = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&expression, view, condition)) {
+        return;
+    }
+    i = csane_tokens_next(&expression, condition.first - 1);
+    while (i < condition.end) {
+        Token *token = &view->tokens->tokens[i];
+        if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
+            || TOKEN_IS(token, "==") || TOKEN_IS(token, "!=")) {
+            return;
+        }
+        if (TOKEN_IS(token, "<") || TOKEN_IS(token, "<=")
+            || TOKEN_IS(token, ">") || TOKEN_IS(token, ">=")) {
+            if (comparison >= 0) {
+                return;
+            }
+            comparison = i;
+        }
+        if (token_is_open_delimiter(token)) {
+            int32 close = csane_tokens_match(&expression, i);
+            if (close < 0) {
+                return;
+            }
+            i = csane_tokens_next(&expression, close);
+        } else {
+            i = csane_tokens_next(&expression, i);
+        }
+    }
+    if (comparison < 0) {
+        return;
+    }
+    if (TOKEN_IS(&view->tokens->tokens[comparison], "<")
+        || TOKEN_IS(&view->tokens->tokens[comparison], "<=")) {
+        difference = (TokenRange){condition.first, comparison};
+    } else if (TOKEN_IS(&view->tokens->tokens[comparison], ">")
+               || TOKEN_IS(&view->tokens->tokens[comparison], ">=")) {
+        difference = (TokenRange){comparison + 1, condition.end};
+    } else {
+        return;
+    }
+    if (csane_style_fabs_difference(&expression, difference)) {
+        csane_rule_issue(file, view->tokens->tokens[name].offset,
+                         STRLIT("STYLE-ASSERT-CLOSE"),
+                         "use ASSERT_CLOSE(a, b, tol) for floating-point "
+                         "tolerance comparisons");
+    }
+}
+
 /* Accept plain C integer tokens, including octal/hex/binary forms and
  * the standard U/L/LL suffixes. Decimal and hexadecimal floating-point
  * literals must not be treated as integer arguments. */
@@ -825,6 +933,9 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
                 continue;
+            }
+            if (TOKEN_IS(token, "ASSERT")) {
+                csane_style_assert_tolerance(file, &local, i, next);
             }
             if (TOKEN_IS(token, "SIZEOF")) {
                 csane_style_sizeof_length(file, &local, i, next, close);
