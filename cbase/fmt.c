@@ -1993,7 +1993,7 @@ fmt_float_force_decimal_point(char *body, int32 body_len, int32 capacity) {
 
     ASSERT(body != NULL);
     ASSERT_GE(body_len, 0);
-    ASSERT(body_len < capacity);
+    ASSERT_GT_VAR(body_len, capacity);
 
     exponent_index = body_len;
     found_point = false;
@@ -2509,7 +2509,7 @@ fmt_ldouble_exp_exponent(FormatBinaryFloat *parts,
     ASSERT(parts != NULL);
     ASSERT(exponent != NULL);
     ASSERT(integer != NULL);
-    ASSERT(value >= 0.0L);
+    ASSERT_GE(value, 0.0L);
 
     if (parts->zero) {
         *exponent = 0;
