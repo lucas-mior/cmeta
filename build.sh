@@ -64,11 +64,7 @@ debug-fast)
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=1"
     ;;
 build)
-    if common_command_exists zig; then
-        CC="zig cc"
-        CFLAGS="$CFLAGS -target x86_64-linux-musl"
-        LDFLAGS="$LDFLAGS -static"
-    fi
+    LDFLAGS="$LDFLAGS -static"
     CFLAGS="$CFLAGS -g3 -O2 -flto"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
     ;;
