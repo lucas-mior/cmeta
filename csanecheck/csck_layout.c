@@ -9,6 +9,81 @@
 #include "csck_tokens.h"
 #include "csck_statements.h"
 
+/* Each token points to its sole declaration-relevant statement or top-level
+ * header. Overlapping ranges retain the original ordered scan, since separate
+ * preprocessor streams can describe the same source token differently. */
+static void
+csane_layout_index_range(int32 *index, int32 count, TokenRange range,
+                         int32 item) {
+    if (range.first < 0) {
+        range.first = 0;
+    }
+    if (range.end > count) {
+        range.end = count;
+    }
+    for (int32 i = range.first; i < range.end; i += 1) {
+        if (index[i] == -1) {
+            index[i] = item;
+        } else {
+            index[i] = -2;
+        }
+    }
+    return;
+}
+
+void
+csane_layout_index_init(CsaneFile *file) {
+    int32 count = ARRAY_LEN(file->tokens->tokens);
+
+    ARRAY_INIT_COUNT(file->layout_statement_index, count);
+    ARRAY_INIT_COUNT(file->layout_top_index, count);
+    for (int32 i = 0; i < count; i += 1) {
+        file->layout_statement_index[i] = -1;
+        file->layout_top_index[i] = -1;
+    }
+    if (file->statements != NULL) {
+        for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+            CsaneStatement *stmt = &file->statements->items[i];
+            TokenRange range = stmt->tokens;
+
+            if (stmt->kind == CSANE_STMT_FOR) {
+                if (range.end > stmt->header.end) {
+                    range.end = stmt->header.end;
+                }
+            } else if (stmt->kind != CSANE_STMT_SIMPLE) {
+                continue;
+            }
+            csane_layout_index_range(file->layout_statement_index, count,
+                                     range, i);
+        }
+    }
+    if (file->toplevel != NULL) {
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            TokenRange range = item->tokens;
+
+            if (item->kind != CSANE_TOP_DECLARATION
+                && item->kind != CSANE_TOP_TYPE_DECLARATION
+                && item->kind != CSANE_TOP_FUNCTION_DEFINITION
+                && item->kind != CSANE_TOP_FUNCTION_DECLARATION) {
+                continue;
+            }
+            if (range.end > item->header.end) {
+                range.end = item->header.end;
+            }
+            csane_layout_index_range(file->layout_top_index, count, range, i);
+        }
+    }
+    return;
+}
+
+void
+csane_layout_index_free(CsaneFile *file) {
+    ARRAY_FREE(file->layout_statement_index);
+    ARRAY_FREE(file->layout_top_index);
+    return;
+}
+
 /* Operator layout uses only borrowed source tokens. A bounded source region
  * keeps adjacent tokens in mutually exclusive #if branches from becoming
  * fake operands. The same classifier is used for rule coverage. */
@@ -256,8 +331,25 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
                               int32 index, int32 before) {
     Tokenization *tokens = view->tokens;
     CsaneStatements *statements = file->statements;
+    int32 statement_first = 0;
+    int32 statement_end = 0;
+    int32 top_first = 0;
+    int32 top_end = 0;
+
     if (statements != NULL) {
-        for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
+        statement_end = ARRAY_LEN(statements->items);
+        if (file->layout_statement_index != NULL
+            && index >= 0
+            && index < ARRAY_LEN(file->layout_statement_index)) {
+            int32 candidate = file->layout_statement_index[index];
+            if (candidate == -1) {
+                statement_end = 0;
+            } else if (candidate >= 0) {
+                statement_first = candidate;
+                statement_end = candidate + 1;
+            }
+        }
+        for (int32 i = statement_first; i < statement_end; i += 1) {
             CsaneStatement *stmt = &statements->items[i];
             if (index < stmt->tokens.first
                 || index >= stmt->tokens.end) {
@@ -301,7 +393,18 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
         }
     }
     if (file->toplevel != NULL) {
-        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+        top_end = ARRAY_LEN(file->toplevel->items);
+        if (file->layout_top_index != NULL
+            && index >= 0 && index < ARRAY_LEN(file->layout_top_index)) {
+            int32 candidate = file->layout_top_index[index];
+            if (candidate == -1) {
+                top_end = 0;
+            } else if (candidate >= 0) {
+                top_first = candidate;
+                top_end = candidate + 1;
+            }
+        }
+        for (int32 i = top_first; i < top_end; i += 1) {
             CsaneTopItem *item = &file->toplevel->items[i];
             if (index < item->tokens.first || index >= item->tokens.end) {
                 continue;

@@ -127,6 +127,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
     file.preprocessor_ok = pp_ok;
     file.regions = &regions;
     file.toplevel = &toplevel;
+    csane_layout_index_init(&file);
     csane_rules_run(&file, CSANE_PASS_TOKEN);
     coverage = csane_coverage_collect(&toplevel, &statements);
     violations = file.violations;
@@ -220,6 +221,7 @@ csane_analyze(char *path, int32 path_len, CsaneOptions *options,
         }
     }
 
+    csane_layout_index_free(&file);
     csane_type_hints_free(&type_hints);
     csane_statements_free(&statements);
     csane_toplevel_free(&toplevel);

@@ -185,6 +185,28 @@ int32 f(int32 custom_t, int32 p) {
 }
 """, [])
 
+    def test_indexed_statement_prefix_in_nested_and_branch_code(self):
+        self.check("""typedef int32 Small;
+Small *global_pointer;
+#if FIRST
+Small *conditional_one;
+#else
+Small *conditional_two;
+#endif
+void f(int32 x, int32 y) {
+    for (Small *current = global_pointer; current; current = 0) {
+        Small *local = current;
+#if FIRST
+        Small *branch_one = local;
+#else
+        Small *branch_two = local;
+#endif
+        int32 result = x *y;
+        use(result);
+    }
+}
+""", ["FMT-MULTIPLY"])
+
     def test_preprocessor_alternatives_and_macro_replacements(self):
         self.check("""#define ADD(a, b) ((a)+(b))
 #if 1

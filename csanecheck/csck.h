@@ -157,6 +157,8 @@ typedef struct CsaneFile {
     CsaneRegions *regions;
     CsaneTopLevels *toplevel;
     CsaneStatements *statements;
+    int32 *layout_statement_index; /* Candidate per token; -2 is overlap. */
+    int32 *layout_top_index; /* Candidate top-level header per token. */
     CsaneTypeHints *type_hints;
     int32 violations;
     int32 column_limit;
@@ -223,6 +225,8 @@ enum CsaneApiUse {
 };
 enum CsaneApiUse csane_api_classify(CsaneFile *, int32);
 enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
+void csane_layout_index_init(CsaneFile *);
+void csane_layout_index_free(CsaneFile *);
 void csane_layout_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
 bool csane_calls_code(CsaneFile *, int32);
