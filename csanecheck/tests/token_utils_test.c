@@ -46,6 +46,238 @@ test_find_token(Tokenization *tokens,
     return -1;
 }
 
+/* Independent linear references, deliberately not using navigation helpers. */
+static int32
+test_range_first_reference(Tokenization *tokens, TokenRange range) {
+    if (!token_range_is_valid(tokens, range)) {
+        return -1;
+    }
+    for (int32 i = range.first; i < range.end; i += 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int32
+test_range_last_reference(Tokenization *tokens, TokenRange range) {
+    if (!token_range_is_valid(tokens, range)) {
+        return -1;
+    }
+    for (int32 i = range.end - 1; i >= range.first; i -= 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int32
+test_range_next_reference(Tokenization *tokens, TokenRange range,
+                          int32 cursor) {
+    if (!token_range_is_valid(tokens, range)) {
+        return -1;
+    }
+    int32 first = range.first;
+    if (cursor >= range.first) {
+        if (cursor >= range.end - 1) {
+            return range.end;
+        }
+        first = cursor + 1;
+    }
+    for (int32 i = first; i < range.end; i += 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    return range.end;
+}
+
+static int32
+test_range_previous_reference(Tokenization *tokens, TokenRange range,
+                              int32 cursor) {
+    if (!token_range_is_valid(tokens, range)) {
+        return -1;
+    }
+    if (cursor <= range.first) {
+        return range.first - 1;
+    }
+    int32 last = range.end - 1;
+    if (cursor <= range.end) {
+        last = cursor - 1;
+    }
+    for (int32 i = last; i >= range.first; i -= 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    return range.first - 1;
+}
+
+static int32
+test_global_at_or_after_reference(Tokenization *tokens, int32 cursor) {
+    int32 end = ARRAY_LEN(tokens->tokens);
+    for (int32 i = cursor; i < end; i += 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    if (cursor > end) {
+        return cursor;
+    }
+    return end;
+}
+
+static int32
+test_global_previous_reference(Tokenization *tokens, int32 cursor) {
+    for (int32 i = cursor - 1; i >= 0; i -= 1) {
+        if (!token_is_trivia(&tokens->tokens[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void
+test_significant_index(Tokenization *tokens) {
+    int32 count = ARRAY_LEN(tokens->tokens);
+
+    CHECK(ARRAY_LEN(tokens->next_significant) == count + 1);
+    CHECK(ARRAY_LEN(tokens->previous_significant) == count + 1);
+    if ((ARRAY_LEN(tokens->next_significant) != count + 1)
+        || (ARRAY_LEN(tokens->previous_significant) != count + 1)) {
+        return;
+    }
+
+    for (int32 i = 0; i <= count; i += 1) {
+        CHECK(tokens->next_significant[i]
+              == test_global_at_or_after_reference(tokens, i));
+        CHECK(tokens->previous_significant[i]
+              == test_global_previous_reference(tokens, i));
+    }
+    return;
+}
+
+static void
+test_significant_index_modes(void) {
+    char *source = "  #define VALUE 2\nx /* comment */ y\n";
+    int32 flags[] = {
+        TOKENIZE_DEFAULT,
+        TOKENIZE_PREPROCESSOR_LINES,
+        TOKENIZE_SKIP_WHITESPACE,
+        TOKENIZE_PREPROCESSOR_LINES | TOKENIZE_SKIP_WHITESPACE,
+    };
+
+    for (int32 mode = 0; mode < LENGTH(flags); mode += 1) {
+        Tokenization tokens =
+            tokenize_with_flags(source, strlen32(source), flags[mode]);
+        test_significant_index(&tokens);
+        if (flags[mode] & TOKENIZE_PREPROCESSOR_LINES) {
+            CHECK(ARRAY_LEN(tokens.tokens) == 1);
+        }
+        free_tokenization(&tokens);
+        CHECK(tokens.next_significant == NULL);
+        CHECK(tokens.previous_significant == NULL);
+    }
+
+    Tokenization empty = tokenize("", 0);
+    test_significant_index(&empty);
+    free_tokenization(&empty);
+    CHECK(empty.next_significant == NULL);
+    CHECK(empty.previous_significant == NULL);
+    return;
+}
+
+static void
+test_significant_navigation(void) {
+    StrFlex *sources[] = {
+        SFLIT(""),
+        SFLIT(" \t\r\n"),
+        SFLIT("/* block */ // line\n"),
+        SFLIT("a"),
+        SFLIT("a+b;c"),
+        SFLIT(" \ta /* middle */ + b // end\n c \t"),
+        SFLIT("/* first */ x /* second */ y /* last */"),
+        SFLIT("#if X\nleft\n#else\nright\n#endif\nend\n"),
+    };
+    int32 flags[] = {TOKENIZE_DEFAULT, TOKENIZE_PREPROCESSOR_LINES};
+
+    for (int32 mode = 0; mode < LENGTH(flags); mode += 1) {
+        for (int32 sample = 0; sample < LENGTH(sources); sample += 1) {
+            Tokenization tokens =
+                tokenize_copy(sources[sample]->data, sources[sample]->len,
+                              flags[mode]);
+            int32 end = ARRAY_LEN(tokens.tokens);
+            CsaneTokenView full = csane_tokens_full(&tokens);
+
+            test_significant_index(&tokens);
+            for (int32 cursor = 0; cursor <= end + 2; cursor += 1) {
+                CHECK(tokenization_significant_at_or_after(&tokens, cursor)
+                      == test_global_at_or_after_reference(&tokens, cursor));
+            }
+            for (int32 cursor = -1; cursor <= end + 2; cursor += 1) {
+                CHECK(tokenization_next_significant(&tokens, cursor)
+                      == test_global_at_or_after_reference(&tokens,
+                                                           cursor + 1));
+            }
+            for (int32 cursor = 0; cursor <= end; cursor += 1) {
+                CHECK(tokenization_previous_significant(&tokens, cursor)
+                      == test_global_previous_reference(&tokens, cursor));
+            }
+            for (int32 first = 0; first <= end; first += 1) {
+                for (int32 last = first; last <= end; last += 1) {
+                    TokenRange range = {first, last};
+                    CsaneTokenView view;
+                    CHECK(csane_tokens_subview(&view, &full, range));
+                    CHECK(token_range_first_significant(&tokens, range)
+                          == test_range_first_reference(&tokens, range));
+                    CHECK(token_range_last_significant(&tokens, range)
+                          == test_range_last_reference(&tokens, range));
+                    for (int32 cursor = first - 2; cursor <= last + 2;
+                         cursor += 1) {
+                        int32 next =
+                            test_range_next_reference(&tokens, range, cursor);
+                        int32 previous =
+                            test_range_previous_reference(&tokens, range,
+                                                          cursor);
+                        CHECK(token_range_next_significant(&tokens, range,
+                                                           cursor) == next);
+                        CHECK(token_range_previous_significant(&tokens, range,
+                                                               cursor)
+                              == previous);
+                        CHECK(csane_tokens_next(&view, cursor) == next);
+                        CHECK(csane_tokens_previous(&view, cursor) == previous);
+                    }
+                }
+            }
+            TokenRange invalid[] = {
+                {-1, 0}, {0, end + 1}, {end, end - 1},
+                {end + 1, end + 1},
+            };
+            CHECK(token_range_first_significant(NULL, (TokenRange){0, 0})
+                  == -1);
+            CHECK(token_range_last_significant(NULL, (TokenRange){0, 0})
+                  == -1);
+            CHECK(token_range_next_significant(NULL, (TokenRange){0, 0}, 0)
+                  == -1);
+            CHECK(token_range_previous_significant(NULL,
+                                                   (TokenRange){0, 0}, 0)
+                  == -1);
+            for (int32 i = 0; i < LENGTH(invalid); i += 1) {
+                CHECK(token_range_first_significant(&tokens, invalid[i]) == -1);
+                CHECK(token_range_last_significant(&tokens, invalid[i]) == -1);
+                CHECK(token_range_next_significant(&tokens, invalid[i], 0)
+                      == -1);
+                CHECK(token_range_previous_significant(&tokens, invalid[i], 0)
+                      == -1);
+            }
+            free_tokenization(&tokens);
+        }
+    }
+    return;
+}
+
 static bool
 test_view_first_is(CsaneTokenView *view, char *text, int32 text_len) {
     int32 first = csane_tokens_next(view, view->range.first - 1);
@@ -428,7 +660,7 @@ test_path_next_reference(CsaneTokenView *view, int32 cursor) {
         if (part.first >= part.end || cursor >= part.end) {
             continue;
         }
-        int32 index = token_range_next_significant(view->tokens, part, cursor);
+        int32 index = test_range_next_reference(view->tokens, part, cursor);
         if (index < part.end) {
             return index;
         }
@@ -449,8 +681,7 @@ test_path_previous_reference(CsaneTokenView *view, int32 cursor) {
         if (part.first >= part.end || cursor <= part.first) {
             continue;
         }
-        int32 index =
-            token_range_previous_significant(view->tokens, part, cursor);
+        int32 index = test_range_previous_reference(view->tokens, part, cursor);
         if (index >= part.first) {
             return index;
         }
@@ -512,9 +743,74 @@ test_path_navigation(void) {
     return;
 }
 
+static void
+test_preprocessor_path_navigation(void) {
+    char *source =
+        "start;\n"
+        "#if FLAG\n"
+        "discarded_a + discarded_b;\n"
+        "#else\n"
+        "kept_a /* comment */ + kept_b;\n"
+        "#endif\n"
+        "finish;\n";
+    Tokenization tokens = tokenize_copy(source, strlen32(source),
+                                        TOKENIZE_DEFAULT);
+    int32 count = ARRAY_LEN(tokens.tokens);
+    int32 first_hash = test_find_token(&tokens, STRLIT("#"), 0);
+    int32 endif_hash = test_find_token(&tokens, STRLIT("#"), 2);
+    int32 discarded = test_find_token(&tokens, STRLIT("discarded_a"), 0);
+    int32 kept = test_find_token(&tokens, STRLIT("kept_a"), 0);
+    int32 finish = test_find_token(&tokens, STRLIT("finish"), 0);
+    CsaneTokenPath path;
+    CsaneTokenView view;
+
+    CHECK(first_hash >= 0 && endif_hash >= 0 && discarded >= 0);
+    CHECK(kept >= 0 && finish >= 0);
+    CHECK(csane_token_path_init(&path, &tokens, (TokenRange){0, count}));
+    CHECK(csane_token_path_append(&path, (TokenRange){0, first_hash}));
+    CHECK(csane_token_path_append(&path,
+                                  (TokenRange){first_hash, first_hash}));
+    CHECK(csane_token_path_append(&path, (TokenRange){kept, endif_hash}));
+    CHECK(csane_token_path_append(&path,
+                                  (TokenRange){endif_hash, endif_hash}));
+    CHECK(csane_token_path_append(&path, (TokenRange){finish, count}));
+    CHECK(ARRAY_LEN(path.parts) == 3);
+    CHECK(csane_tokens_path_view(&view, &path));
+
+    /* Global indices include discarded tokens, but path navigation must not. */
+    CHECK(tokenization_next_significant(&tokens, first_hash - 1) == first_hash);
+    CHECK(csane_tokens_next(&view, first_hash - 1) == kept);
+    CHECK(!csane_tokens_contains(&view, discarded));
+    CHECK(csane_tokens_contains(&view, kept));
+    CHECK(csane_tokens_contains(&view, finish));
+
+    for (int32 first = 0; first <= count; first += 1) {
+        for (int32 end = first; end <= count; end += 1) {
+            CsaneTokenView subview;
+            CHECK(csane_tokens_subview(&subview, &view,
+                                       (TokenRange){first, end}));
+            for (int32 cursor = first - 2; cursor <= end + 2;
+                 cursor += 1) {
+                CHECK(csane_tokens_next(&subview, cursor)
+                      == test_path_next_reference(&subview, cursor));
+                CHECK(csane_tokens_previous(&subview, cursor)
+                      == test_path_previous_reference(&subview, cursor));
+                CHECK(csane_tokens_contains(&subview, cursor)
+                      == test_path_contains_reference(&subview, cursor));
+            }
+        }
+    }
+
+    csane_token_path_free(&path);
+    free_tokenization(&tokens);
+    return;
+}
+
 int
 main(void) {
     test_bounded_expected_strings();
+    test_significant_navigation();
+    test_significant_index_modes();
     test_nested_arguments();
     test_empty_malformed_arguments();
     test_unwrap();
@@ -524,5 +820,6 @@ main(void) {
     test_conditional_path();
     test_nested_conditional_path();
     test_path_navigation();
+    test_preprocessor_path_navigation();
     return failures > 0;
 }

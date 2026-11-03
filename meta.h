@@ -334,6 +334,10 @@ typedef struct Tokenization {
     char *text;
     Token *tokens;
 
+    /* Significant-token navigation indices, including position n. */
+    int32 *next_significant;
+    int32 *previous_significant;
+
     int32 text_len;
 
     /* Lazily allocated physical-line index owned by this tokenization. */

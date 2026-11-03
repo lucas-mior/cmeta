@@ -393,6 +393,57 @@ char_is_operator_or_punct(char c) {
     }
 }
 
+bool
+token_is_trivia(Token *token) {
+    switch (token->kind) {
+    case TOKEN_SPACE:
+    case TOKEN_NEWLINE:
+    case TOKEN_COMMENT:
+        return true;
+    case TOKEN_UNKNOWN:
+    case TOKEN_IDENT:
+    case TOKEN_LITERAL:
+    case TOKEN_OPERATOR:
+    case TOKEN_PUNCT:
+    case TOKEN_PREPROC:
+    case TOKEN_COUNT:
+    default:
+        return false;
+    }
+}
+
+static void
+tokenization_build_significant_index(Tokenization *tokenization) {
+    int32 count = ARRAY_LEN(tokenization->tokens);
+    int32 next = count;
+    int32 previous = -1;
+
+    if (count == INT32_MAX) {
+        error("Too many tokens for a significant-token index.\n");
+        fatal(EXIT_FAILURE);
+    }
+
+    ARRAY_INIT_COUNT(tokenization->next_significant, count + 1);
+    ARRAY_INIT_COUNT(tokenization->previous_significant, count + 1);
+
+    tokenization->next_significant[count] = count;
+    for (int32 i = count - 1; i >= 0; i -= 1) {
+        if (!token_is_trivia(&tokenization->tokens[i])) {
+            next = i;
+        }
+        tokenization->next_significant[i] = next;
+    }
+
+    tokenization->previous_significant[0] = -1;
+    for (int32 i = 1; i <= count; i += 1) {
+        if (!token_is_trivia(&tokenization->tokens[i - 1])) {
+            previous = i - 1;
+        }
+        tokenization->previous_significant[i] = previous;
+    }
+    return;
+}
+
 Tokenization
 tokenize_with_flags(char *text, int32 text_len, int32 flags) {
     Tokenization result = {0};
@@ -405,6 +456,7 @@ tokenize_with_flags(char *text, int32 text_len, int32 flags) {
     if ((flags & TOKENIZE_PREPROCESSOR_LINES)
         && line_starts_preprocessor(text, text_len)) {
         tokenization_add_token(&result, TOKEN_PREPROC, text, text_len, 0);
+        tokenization_build_significant_index(&result);
         return result;
     }
 
@@ -540,26 +592,8 @@ tokenize_with_flags(char *text, int32 text_len, int32 flags) {
             }
         }
     }
+    tokenization_build_significant_index(&result);
     return result;
-}
-
-bool
-token_is_trivia(Token *token) {
-    switch (token->kind) {
-    case TOKEN_SPACE:
-    case TOKEN_NEWLINE:
-    case TOKEN_COMMENT:
-        return true;
-    case TOKEN_UNKNOWN:
-    case TOKEN_IDENT:
-    case TOKEN_LITERAL:
-    case TOKEN_OPERATOR:
-    case TOKEN_PUNCT:
-    case TOKEN_PREPROC:
-    case TOKEN_COUNT:
-    default:
-        return false;
-    }
 }
 
 enum TokenDelimiterKind {
@@ -790,28 +824,30 @@ token_range_is_valid(Tokenization *tokenization, TokenRange range) {
 
 int32
 token_range_first_significant(Tokenization *tokenization, TokenRange range) {
+    int32 i;
+
     if (!token_range_is_valid(tokenization, range)) {
         return -1;
     }
-    for (int32 i = range.first; i < range.end; i += 1) {
-        if (!token_is_trivia(&tokenization->tokens[i])) {
-            return i;
-        }
+    i = tokenization->next_significant[range.first];
+    if (i >= range.end) {
+        return -1;
     }
-    return -1;
+    return i;
 }
 
 int32
 token_range_last_significant(Tokenization *tokenization, TokenRange range) {
+    int32 i;
+
     if (!token_range_is_valid(tokenization, range)) {
         return -1;
     }
-    for (int32 i = range.end - 1; i >= range.first; i -= 1) {
-        if (!token_is_trivia(&tokenization->tokens[i])) {
-            return i;
-        }
+    i = tokenization->previous_significant[range.end];
+    if (i < range.first) {
+        return -1;
     }
-    return -1;
+    return i;
 }
 
 /*
@@ -851,8 +887,9 @@ token_range_next_significant(Tokenization *tokenization, TokenRange range,
         return -1;
     }
     i = token_range_next_start(range, token_index);
-    while ((i < range.end) && token_is_trivia(&tokenization->tokens[i])) {
-        i += 1;
+    i = tokenization->next_significant[i];
+    if (i > range.end) {
+        return range.end;
     }
     return i;
 }
@@ -866,8 +903,12 @@ token_range_previous_significant(Tokenization *tokenization, TokenRange range,
         return -1;
     }
     i = token_range_previous_start(range, token_index);
-    while ((i >= range.first) && token_is_trivia(&tokenization->tokens[i])) {
-        i -= 1;
+    if (i < range.first) {
+        return range.first - 1;
+    }
+    i = tokenization->previous_significant[i + 1];
+    if (i < range.first) {
+        return range.first - 1;
     }
     return i;
 }
@@ -1482,13 +1523,11 @@ tokenization_token_location(Tokenization *tokenization, int32 token_index) {
 int32
 tokenization_significant_at_or_after(Tokenization *tokenization,
                                      int32 token_index) {
-    int32 result = token_index;
     ASSERT_GE(token_index, 0);
-    while ((result < ARRAY_LEN(tokenization->tokens))
-           && token_is_trivia(&tokenization->tokens[result])) {
-        result += 1;
+    if (token_index >= ARRAY_LEN(tokenization->tokens)) {
+        return token_index;
     }
-    return result;
+    return tokenization->next_significant[token_index];
 }
 
 int32
@@ -1499,13 +1538,10 @@ tokenization_next_significant(Tokenization *tokenization, int32 token_index) {
 int32
 tokenization_previous_significant(Tokenization *tokenization,
                                   int32 token_index) {
-    int32 result;
-
-    result = token_index - 1;
-    while ((result >= 0) && token_is_trivia(&tokenization->tokens[result])) {
-        result -= 1;
+    if (token_index <= 0 || token_index > ARRAY_LEN(tokenization->tokens)) {
+        return token_index - 1;
     }
-    return result;
+    return tokenization->previous_significant[token_index];
 }
 
 int32
@@ -1643,6 +1679,8 @@ free_tokenization(Tokenization *tokenization) {
     }
 
     ARRAY_FREE(tokenization->tokens);
+    ARRAY_FREE(tokenization->next_significant);
+    ARRAY_FREE(tokenization->previous_significant);
     free2(tokenization->line_starts,
           tokenization->line_capacity*SIZEOF(*tokenization->line_starts));
     if (tokenization->owned_text != NULL) {
