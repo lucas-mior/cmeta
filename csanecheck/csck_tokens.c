@@ -186,9 +186,7 @@ csane_tokens_next(CsaneTokenView *view, int32 cursor) {
     int32 next;
     int32 first = 0;
     int32 end;
-    if (view == NULL || view->tokens == NULL) {
-        return -1;
-    }
+
     if (view->path == NULL) {
         return token_range_next_significant(view->tokens, view->range, cursor);
     }
