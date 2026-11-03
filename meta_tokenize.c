@@ -596,9 +596,6 @@ token_open_delimiter_kind(Token *token) {
 
 static enum TokenDelimiterKind
 token_close_delimiter_kind(Token *token) {
-    if (token == NULL) {
-        return TOKEN_DELIMITER_NONE;
-    }
     if (TOKEN_IS(token, ")")) {
         return TOKEN_DELIMITER_PAREN;
     }
