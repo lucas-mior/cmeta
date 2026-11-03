@@ -1080,8 +1080,10 @@ if (enum & ENUM_BITFLAG) {
 - Do not use `ASSERT_EQ` for enums.
   * Use `ASSERT(enumvalue1 == enumvalue2)` instead, so that the compiler does
     not complain.
-- Use `ASSERT_EQ(a, b)` instead of `ASSERT_CLOSE(a, b, 0.0)`. A zero
+- For floats, Use `ASSERT_EQ(a, b)` instead of `ASSERT_CLOSE(a, b, 0.0)`. A zero
   tolerance requires exact equality, not a closeness assertion.
+  * For tolerance equality, use `ASSERT_CLOSE(a, b, tol);`. Don't do stupid shit
+    like: `ASSERT(fabs(a - b) < tol);`.
 - For asserting that a function did or didn't fail/return NULL:
   ```c
   // bad
