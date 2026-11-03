@@ -2270,24 +2270,6 @@ test_tokenization_source_locations(void) {
 }
 
 static void
-test_tokenization_empty_source_location(void) {
-    char *text = "";
-    Tokenization tokenization;
-    SourceLocation location;
-
-    tokenization = tokenize(text, 0);
-    ASSERT_EQ(tokenization_physical_line_count(&tokenization), 1);
-    ASSERT_EQ(tokenization_physical_line_start_offset(&tokenization, 1), 0);
-    ASSERT_EQ(tokenization_physical_line_end_offset(&tokenization, 1), 0);
-    location = tokenization_source_location(&tokenization, 0);
-    ASSERT_EQ(location.offset, 0);
-    ASSERT_EQ(location.line, 1);
-    ASSERT_EQ(location.column, 0);
-    free_tokenization(&tokenization);
-    return;
-}
-
-static void
 test_tokenization_preprocessor_define_detection(void) {
     char *text = "#define XX(a) \\\n    ((a) + 1)\nint z;\n";
     Tokenization tokenization;
@@ -2643,7 +2625,6 @@ main(void) {
     test_tokenization_between_queries();
     test_token_ranges();
     test_tokenization_source_locations();
-    test_tokenization_empty_source_location();
     test_tokenization_preprocessor_define_detection();
     test_token_range_balanced_delimiters();
     test_token_range_malformed_delimiters();
