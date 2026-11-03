@@ -196,7 +196,7 @@ int32 f(int32 x) {
 }
 """, ["STYLE-ASSERT-CLOSE"]*7)
 
-    def test_assert_close_unrelated_conditions_are_allowed(self):
+    def test_assert_close_unrelated_patterns_use_ordered_rule(self):
         self.check("""void f(double a, double b, double c, double tol,
        bool flag) {
     ASSERT_CLOSE(a, b, tol);
@@ -216,7 +216,7 @@ int32 f(int32 x) {
     // ASSERT(fabs(a - b) < tol);
     char *message = "ASSERT(fabs(a - b) < tol)";
 }
-""", [])
+""", ["STYLE-ASSERT-REL"]*6)
 
     def test_assert_close_macros_and_preprocessor_branches(self):
         self.check("""#define CHECK_NEAR(a, b, tol) ASSERT(fabs((a) - (b)) < tol)

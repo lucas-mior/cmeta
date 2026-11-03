@@ -29,49 +29,6 @@ csane_style_string_start(CsaneFile *file, TokenRange range) {
            && token->text[0] == '"';
 }
 
-static bool
-csane_style_decimal(CsaneFile *file, TokenRange range) {
-    int32 first = csane_style_first(file, range);
-    Token *token;
-
-    if (first >= range.end
-        || tokenization_next_significant(file->tokens, first) < range.end) {
-        return false;
-    }
-    token = &file->tokens->tokens[first];
-    if (token->kind != TOKEN_LITERAL || token->len == 0) {
-        return false;
-    }
-    for (int32 i = 0; i < token->len; i += 1) {
-        if (token->text[i] < '0' || token->text[i] > '9') {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool
-csane_style_lower_name(CsaneFile *file, TokenRange range) {
-    int32 first = csane_style_first(file, range);
-    Token *token;
-
-    if (first >= range.end
-        || tokenization_next_significant(file->tokens, first) < range.end) {
-        return false;
-    }
-    token = &file->tokens->tokens[first];
-    if (token->kind != TOKEN_IDENT || token->len == 0) {
-        return false;
-    }
-    for (int32 i = 0; i < token->len; i += 1) {
-        char c = token->text[i];
-        if ((c < 'a' || c > 'z') && c != '_') {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* Only one conversion, with the same grammar as Perl's format_spec.
  * The caller separately verifies that this token is the entire argument. */
 static bool
@@ -177,30 +134,6 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     if (count < 0) {
         return;
     }
-    if (TOKEN_IS(token, "ASSERT") && count == 1) {
-        /* The legacy idiom is ASSERT(lowercase_name OP decimal); with
-         * no additional expression or parenthesized operand. */
-        int32 first = csane_style_first(file, args[0]);
-        int32 op = tokenization_next_significant(tokens, first);
-        if (op < args[0].end
-            && (TOKEN_IS(&tokens->tokens[op], ">")
-                || TOKEN_IS(&tokens->tokens[op], ">=")
-                || TOKEN_IS(&tokens->tokens[op], "<")
-                || TOKEN_IS(&tokens->tokens[op], "<="))
-            && csane_style_lower_name(file, (TokenRange){first, op})
-            && csane_style_decimal(file, (TokenRange){op + 1,
-                                                     args[0].end})) {
-            CsaneTokenView view = csane_tokens_full(tokens);
-            int32 semicolon = csane_tokens_next(&view, close);
-            if (semicolon < ARRAY_LEN(tokens->tokens)
-                && TOKEN_IS(&tokens->tokens[semicolon], ";")) {
-                csane_rule_issue(file, token->offset,
-                                 STRLIT("STYLE-ASSERT-REL"),
-                                 "use ASSERT_GE/GT/LE/LT for integer "
-                                 "comparison");
-            }
-        }
-    }
     if (TOKEN_IS(token, "ASSERT_CLOSE") && count == 3) {
         int32 tolerance = csane_style_first(file, args[2]);
         if (tolerance < args[2].end
@@ -305,7 +238,7 @@ csane_style_fabs_difference(CsaneTokenView *view, TokenRange range) {
            == range.end;
 }
 
-static void
+static bool
 csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
                              int32 name, int32 open) {
     TokenRange args[1];
@@ -314,6 +247,71 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     CsaneTokenView expression;
     int32 comparison = -1;
     int32 i;
+
+    if (csane_tokens_arguments(view, open, args, 1) != 1) {
+        return false;
+    }
+    condition = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&expression, view, condition)) {
+        return false;
+    }
+    i = csane_tokens_next(&expression, condition.first - 1);
+    while (i < condition.end) {
+        Token *token = &view->tokens->tokens[i];
+        if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
+            || TOKEN_IS(token, "==") || TOKEN_IS(token, "!=")) {
+            return false;
+        }
+        if (TOKEN_IS(token, "<") || TOKEN_IS(token, "<=")
+            || TOKEN_IS(token, ">") || TOKEN_IS(token, ">=")) {
+            if (comparison >= 0) {
+                return false;
+            }
+            comparison = i;
+        }
+        if (token_is_open_delimiter(token)) {
+            int32 close = csane_tokens_match(&expression, i);
+            if (close < 0) {
+                return false;
+            }
+            i = csane_tokens_next(&expression, close);
+        } else {
+            i = csane_tokens_next(&expression, i);
+        }
+    }
+    if (comparison < 0) {
+        return false;
+    }
+    if (TOKEN_IS(&view->tokens->tokens[comparison], "<")
+        || TOKEN_IS(&view->tokens->tokens[comparison], "<=")) {
+        difference = (TokenRange){condition.first, comparison};
+    } else if (TOKEN_IS(&view->tokens->tokens[comparison], ">")
+               || TOKEN_IS(&view->tokens->tokens[comparison], ">=")) {
+        difference = (TokenRange){comparison + 1, condition.end};
+    } else {
+        return false;
+    }
+    if (csane_style_fabs_difference(&expression, difference)) {
+        csane_rule_issue(file, view->tokens->tokens[name].offset,
+                         STRLIT("STYLE-ASSERT-CLOSE"),
+                         "use ASSERT_CLOSE(a, b, tol) for floating-point "
+                         "tolerance comparisons");
+        return true;
+    }
+    return false;
+}
+
+/* Only replace a standalone top-level ordered comparison. A relational
+ * operator nested inside another expression is not the assertion condition. */
+static void
+csane_style_assert_rel(CsaneFile *file, CsaneTokenView *view,
+                       int32 name, int32 open) {
+    TokenRange args[1];
+    TokenRange condition;
+    CsaneTokenView expression;
+    int32 comparison = -1;
+    int32 i;
+    char *message;
 
     if (csane_tokens_arguments(view, open, args, 1) != 1) {
         return;
@@ -326,7 +324,9 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     while (i < condition.end) {
         Token *token = &view->tokens->tokens[i];
         if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
-            || TOKEN_IS(token, "==") || TOKEN_IS(token, "!=")) {
+            || TOKEN_IS(token, "==") || TOKEN_IS(token, "!=")
+            || TOKEN_IS(token, "?") || TOKEN_IS(token, ":")
+            || TOKEN_IS(token, "=")) {
             return;
         }
         if (TOKEN_IS(token, "<") || TOKEN_IS(token, "<=")
@@ -346,24 +346,25 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
             i = csane_tokens_next(&expression, i);
         }
     }
-    if (comparison < 0) {
+    if (comparison <= csane_tokens_next(&expression, condition.first - 1)
+        || csane_tokens_next(&expression, comparison) >= condition.end) {
         return;
     }
-    if (TOKEN_IS(&view->tokens->tokens[comparison], "<")
-        || TOKEN_IS(&view->tokens->tokens[comparison], "<=")) {
-        difference = (TokenRange){condition.first, comparison};
-    } else if (TOKEN_IS(&view->tokens->tokens[comparison], ">")
-               || TOKEN_IS(&view->tokens->tokens[comparison], ">=")) {
-        difference = (TokenRange){comparison + 1, condition.end};
+    if (TOKEN_IS(&view->tokens->tokens[comparison], ">")) {
+        message = "use ASSERT_GT(lhs, rhs) for constant rhs, otherwise "
+                  "ASSERT_GT_VAR(lhs, rhs)";
+    } else if (TOKEN_IS(&view->tokens->tokens[comparison], ">=")) {
+        message = "use ASSERT_GE(lhs, rhs) for constant rhs, otherwise "
+                  "ASSERT_GE_VAR(lhs, rhs)";
+    } else if (TOKEN_IS(&view->tokens->tokens[comparison], "<")) {
+        message = "use ASSERT_LT(lhs, rhs) for constant rhs, otherwise "
+                  "ASSERT_LT_VAR(lhs, rhs)";
     } else {
-        return;
+        message = "use ASSERT_LE(lhs, rhs) for constant rhs, otherwise "
+                  "ASSERT_LE_VAR(lhs, rhs)";
     }
-    if (csane_style_fabs_difference(&expression, difference)) {
-        csane_rule_issue(file, view->tokens->tokens[name].offset,
-                         STRLIT("STYLE-ASSERT-CLOSE"),
-                         "use ASSERT_CLOSE(a, b, tol) for floating-point "
-                         "tolerance comparisons");
-    }
+    csane_rule_issue(file, view->tokens->tokens[name].offset,
+                     STRLIT("STYLE-ASSERT-REL"), message);
 }
 
 /* Accept plain C integer tokens, including octal/hex/binary forms and
@@ -935,7 +936,9 @@ csane_expression_style_check(CsaneFile *file) {
                 continue;
             }
             if (TOKEN_IS(token, "ASSERT")) {
-                csane_style_assert_tolerance(file, &local, i, next);
+                if (!csane_style_assert_tolerance(file, &local, i, next)) {
+                    csane_style_assert_rel(file, &local, i, next);
+                }
             }
             if (TOKEN_IS(token, "SIZEOF")) {
                 csane_style_sizeof_length(file, &local, i, next, close);
