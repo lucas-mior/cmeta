@@ -9,14 +9,28 @@
 
 bool
 csane_token_name_in(Token *token, CsanePaths *names) {
+    int32 first = 0;
+    int32 end = strflex_list_len(&names->strings);
+
     if (token->kind != TOKEN_IDENT) {
         return false;
     }
-    for (int32 i = 0; i < strflex_list_len(&names->strings); i += 1) {
-        int32 len = names->strings.items[i]->len;
-        if (len == token->len
-            && !memcmp64(token->text, names->strings.items[i]->data, len)) {
-            return true;
+    while (first < end) {
+        int32 mid = first + (end - first)/2;
+        StrFlex *name = names->strings.items[mid];
+        int32 length = token->len < name->len ? token->len : name->len;
+        int cmp = memcmp64(token->text, name->data, length);
+
+        if (cmp == 0) {
+            if (token->len == name->len) {
+                return true;
+            }
+            cmp = token->len < name->len ? -1 : 1;
+        }
+        if (cmp < 0) {
+            end = mid;
+        } else {
+            first = mid + 1;
         }
     }
     return false;

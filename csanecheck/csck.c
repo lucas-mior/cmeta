@@ -511,6 +511,8 @@ csane_run(int32 argc, char **argv) {
     csane_paths_sort_unique(&options.files);
     csane_paths_sort_unique(&options.policy.cbase_roots);
     csane_paths_sort_unique(&options.policy.project_roots);
+    csane_paths_sort_unique(&options.policy.never_names);
+    csane_paths_sort_unique(&options.policy.cbase_names);
 #if OS_UNIX
     cache_fingerprint = csane_cache_fingerprint(argc, argv, &options.policy);
     (void)mkdir(".cache", 0700);

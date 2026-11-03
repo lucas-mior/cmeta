@@ -439,11 +439,17 @@ static void
 csane_rule_calls(CsaneFile *file) {
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
-        bool never = csane_token_name_in(token, &file->policy->never_names);
+        bool never;
         CsanePaths *names = &file->policy->cbase_names;
-        bool restricted = !file->in_cbase
-                          && csane_token_name_in(token, names);
-        bool libc_printf = !file->in_cbase && csane_libc_printf(token);
+        bool restricted;
+        bool libc_printf;
+
+        if (token->kind != TOKEN_IDENT) {
+            continue;
+        }
+        never = csane_token_name_in(token, &file->policy->never_names);
+        restricted = !file->in_cbase && csane_token_name_in(token, names);
+        libc_printf = !file->in_cbase && csane_libc_printf(token);
         if ((!never && !restricted && !libc_printf)
             || csane_api_classify(file, i) != CSANE_API_DIRECT_CALL) {
             continue;
