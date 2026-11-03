@@ -582,30 +582,36 @@ typedef struct TokenDelimiterStack {
 
 static enum TokenDelimiterKind
 token_open_delimiter_kind(Token *token) {
-    if (TOKEN_IS(token, "(")) {
+    if (token->len != 1) {
+        return TOKEN_DELIMITER_NONE;
+    }
+    switch (token->text[0]) {
+    case '(':
         return TOKEN_DELIMITER_PAREN;
-    }
-    if (TOKEN_IS(token, "[")) {
+    case '[':
         return TOKEN_DELIMITER_BRACKET;
-    }
-    if (TOKEN_IS(token, "{")) {
+    case '{':
         return TOKEN_DELIMITER_BRACE;
+    default:
+        return TOKEN_DELIMITER_NONE;
     }
-    return TOKEN_DELIMITER_NONE;
 }
 
 static enum TokenDelimiterKind
 token_close_delimiter_kind(Token *token) {
-    if (TOKEN_IS(token, ")")) {
+    if (token->len != 1) {
+        return TOKEN_DELIMITER_NONE;
+    }
+    switch (token->text[0]) {
+    case ')':
         return TOKEN_DELIMITER_PAREN;
-    }
-    if (TOKEN_IS(token, "]")) {
+    case ']':
         return TOKEN_DELIMITER_BRACKET;
-    }
-    if (TOKEN_IS(token, "}")) {
+    case '}':
         return TOKEN_DELIMITER_BRACE;
+    default:
+        return TOKEN_DELIMITER_NONE;
     }
-    return TOKEN_DELIMITER_NONE;
 }
 
 bool
@@ -724,6 +730,9 @@ token_delimiter_stack_consume_forward(TokenDelimiterStack *stack,
                                       Token *token) {
     enum TokenDelimiterKind kind;
 
+    if (token->len != 1) {
+        return true;
+    }
     kind = token_open_delimiter_kind(token);
     if (kind != TOKEN_DELIMITER_NONE) {
         if (!token_delimiter_stack_push(stack, kind)) {
@@ -750,6 +759,9 @@ token_delimiter_stack_consume_reverse(TokenDelimiterStack *stack,
                                       Token *token) {
     enum TokenDelimiterKind kind;
 
+    if (token->len != 1) {
+        return true;
+    }
     kind = token_close_delimiter_kind(token);
     if (kind != TOKEN_DELIMITER_NONE) {
         return token_delimiter_stack_push(stack, kind);
@@ -1740,6 +1752,47 @@ test_token_predicates(void) {
 }
 
 static void
+test_delimiter_classification_fast_path(void) {
+    char *opens[] = {"(", "[", "{"};
+    char *closes[] = {")", "]", "}"};
+    Token token = {0};
+    TokenDelimiterStack stack;
+    TokenDelimiterDepth depth = {0};
+
+    token.kind = TOKEN_PUNCT;
+    token.len = 1;
+    for (int32 i = 0; i < LENGTH(opens); i += 1) {
+        token.text = opens[i];
+        ASSERT(token_is_open_delimiter(&token));
+        ASSERT(!token_is_close_delimiter(&token));
+        token.text = closes[i];
+        ASSERT(token_is_close_delimiter(&token));
+        ASSERT(!token_is_open_delimiter(&token));
+    }
+
+    token.text = "(multi";
+    token.len = 6;
+    ASSERT(!token_is_open_delimiter(&token));
+    ASSERT(!token_is_close_delimiter(&token));
+    token_delimiter_stack_init(&stack, 4);
+    ASSERT(token_delimiter_stack_consume_forward(&stack, &depth, &token));
+    ASSERT(token_delimiter_stack_consume_reverse(&stack, &token));
+    ASSERT_EQ(stack.count, 0);
+    ASSERT(token_delimiter_depth_is_zero(depth));
+
+    token.text = "(";
+    token.len = 1;
+    ASSERT(token_delimiter_stack_consume_forward(&stack, &depth, &token));
+    ASSERT_EQ(stack.count, 1);
+    token.text = ")";
+    ASSERT(token_delimiter_stack_consume_forward(&stack, &depth, &token));
+    ASSERT_EQ(stack.count, 0);
+    ASSERT(token_delimiter_depth_is_zero(depth));
+    token_delimiter_stack_free(&stack);
+    return;
+}
+
+static void
 test_character_classifiers(void) {
     ASSERT(is_alpha('a'));
     ASSERT(is_alpha('Z'));
@@ -2609,6 +2662,7 @@ test_tokenization_define_digraph_and_continuation(void) {
 int
 main(void) {
     test_token_predicates();
+    test_delimiter_classification_fast_path();
     test_character_classifiers();
     test_scan_number_literal();
     test_literal_scanners();
