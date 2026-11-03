@@ -1058,7 +1058,6 @@ if (enum & ENUM_BITFLAG) {
 - Use the assertions defined in `cbase/assertions.c`.
   - `ASSERT(expression)`
   - `ASSERT_NULL(pointer)`
-  - `ASSERT_ZERO(integer expression)`
   - `ASSERT_EQ(value1, value2)`
   - `ASSERT_NE(value1, value2)`
   - `ASSERT_EQ(string, string_len, other_string)`
