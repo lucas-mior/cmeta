@@ -3462,7 +3462,7 @@ fmt_float_generate_general_body(FormatSpec *spec, double value,
     ASSERT(buffer != NULL);
     ASSERT_GT(capacity, 0);
     ASSERT(fmt_float_is_general(spec->conversion));
-    ASSERT(spec->precision >= 1);
+    ASSERT_GE(spec->precision, 1);
 
     work_spec = *spec;
     if (fmt_float_is_upper(spec->conversion)) {
