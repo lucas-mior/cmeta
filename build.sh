@@ -69,7 +69,7 @@ build)
         CFLAGS="$CFLAGS -target x86_64-linux-musl"
         LDFLAGS="$LDFLAGS -static"
     fi
-    CFLAGS="$CFLAGS -g -O2 -flto"
+    CFLAGS="$CFLAGS -g3 -O2 -flto"
     CPPFLAGS="$CPPFLAGS -DDEBUGGING=0"
     ;;
 install)
