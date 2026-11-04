@@ -703,6 +703,300 @@ test_path_contains_reference(CsaneTokenView *view, int32 index) {
     return false;
 }
 
+/* Delimiter oracle scans tokens directly and does not call matching or
+ * significant-token navigation helpers. Positive kinds open, negative close. */
+static int32
+test_delimiter_kind_reference(Token *token) {
+    if (token->len != 1) {
+        return 0;
+    }
+    switch (token->text[0]) {
+    case '(':
+        return 1;
+    case '[':
+        return 2;
+    case '{':
+        return 3;
+    case ')':
+        return -1;
+    case ']':
+        return -2;
+    case '}':
+        return -3;
+    default:
+        return 0;
+    }
+}
+
+static bool
+test_delimiter_visible_reference(CsaneTokenView *view, int32 index) {
+    if (view == NULL || view->tokens == NULL
+        || index < view->range.first || index >= view->range.end) {
+        return false;
+    }
+    if (view->path == NULL) {
+        return true;
+    }
+    return test_path_contains_reference(view, index);
+}
+
+static int32
+test_delimiter_match_reference(CsaneTokenView *view, int32 index) {
+    int32 *stack = NULL;
+    int32 depth = 0;
+    int32 result = -1;
+    int32 first_kind;
+    int32 step;
+
+    if (!test_delimiter_visible_reference(view, index)) {
+        return -1;
+    }
+    first_kind = test_delimiter_kind_reference(&view->tokens->tokens[index]);
+    if (first_kind == 0) {
+        return -1;
+    }
+    step = 1;
+    if (first_kind < 0) {
+        step = -1;
+    }
+    ARRAY_INIT_COUNT(stack, view->range.end - view->range.first);
+    for (int32 i = index; (i >= view->range.first)
+                        && (i < view->range.end); i += step) {
+        int32 kind;
+
+        if (!test_delimiter_visible_reference(view, i)) {
+            continue;
+        }
+        kind = test_delimiter_kind_reference(&view->tokens->tokens[i]);
+        if (kind == 0) {
+            continue;
+        }
+        if ((kind > 0) == (step > 0)) {
+            stack[depth] = kind*step;
+            depth += 1;
+            continue;
+        }
+        if (depth == 0 || stack[depth - 1] != -kind*step) {
+            break;
+        }
+        depth -= 1;
+        if (depth == 0) {
+            result = i;
+            break;
+        }
+    }
+    ARRAY_FREE(stack);
+    return result;
+}
+
+static void
+test_delimiter_match_view(CsaneTokenView *view) {
+    for (int32 i = view->range.first - 1; i <= view->range.end; i += 1) {
+        int32 expected = test_delimiter_match_reference(view, i);
+        CHECK(csane_tokens_match(view, i) == expected);
+        if (view->path == NULL) {
+            int32 forward = -1;
+            int32 reverse = -1;
+
+            if (test_delimiter_visible_reference(view, i)) {
+                Token *token = &view->tokens->tokens[i];
+                int32 kind = test_delimiter_kind_reference(token);
+                if (kind > 0) {
+                    forward = expected;
+                } else if (kind < 0) {
+                    reverse = expected;
+                }
+            }
+            CHECK(token_range_matching_delimiter_forward(view->tokens,
+                                                         view->range, i)
+                  == forward);
+            CHECK(token_range_matching_delimiter_reverse(view->tokens,
+                                                         view->range, i)
+                  == reverse);
+        }
+    }
+    return;
+}
+
+static void
+test_delimiter_match_ranges(void) {
+    StrFlex *sources[] = {
+        SFLIT(""),
+        SFLIT("  /* no delimiters */  "),
+        SFLIT("() [] {}"),
+        SFLIT("call(a[0], (b + (C){.x = 1}));"),
+        SFLIT("(a) (unclosed"),
+        SFLIT("(a) ]"),
+        SFLIT(") (a)"),
+        SFLIT("(] (b)"),
+        SFLIT("[)"),
+        SFLIT("([)]"),
+        SFLIT("({[a]})"),
+        SFLIT("((a) [b {c}]) )"),
+        SFLIT("'(' \"( [ { ) ] }\" /* [({ })] */ (ok)"),
+        SFLIT("#if X\n(a)\n#else\n[b]\n#endif\n"),
+    };
+    int32 flags[] = {
+        TOKENIZE_DEFAULT,
+        TOKENIZE_SKIP_WHITESPACE,
+        TOKENIZE_PREPROCESSOR_LINES,
+    };
+
+    for (int32 mode = 0; mode < LENGTH(flags); mode += 1) {
+        for (int32 sample = 0; sample < LENGTH(sources); sample += 1) {
+            Tokenization tokens =
+                tokenize_copy(sources[sample]->data, sources[sample]->len,
+                              flags[mode]);
+            int32 count = ARRAY_LEN(tokens.tokens);
+
+            for (int32 first = 0; first <= count; first += 1) {
+                for (int32 end = first; end <= count; end += 1) {
+                    CsaneTokenView view;
+                    CHECK(csane_tokens_view(&view, &tokens,
+                                            (TokenRange){first, end}));
+                    test_delimiter_match_view(&view);
+                }
+            }
+            free_tokenization(&tokens);
+        }
+    }
+    return;
+}
+
+static void
+test_delimiter_match_invalid_ranges(void) {
+    Tokenization tokens = tokenize_copy(STRLIT("(x)"), TOKENIZE_DEFAULT);
+    TokenRange invalid[] = {
+        {-1, 1},
+        {0, ARRAY_LEN(tokens.tokens) + 1},
+        {ARRAY_LEN(tokens.tokens), 0},
+    };
+
+    for (int32 i = 0; i < LENGTH(invalid); i += 1) {
+        CHECK(token_range_matching_delimiter_forward(&tokens, invalid[i], 0)
+              == -1);
+        CHECK(token_range_matching_delimiter_reverse(&tokens, invalid[i], 0)
+              == -1);
+    }
+    CHECK(token_range_matching_delimiter_forward(NULL, (TokenRange){0, 0}, 0)
+          == -1);
+    CHECK(token_range_matching_delimiter_reverse(NULL, (TokenRange){0, 0}, 0)
+          == -1);
+    free_tokenization(&tokens);
+    return;
+}
+
+static void
+test_delimiter_match_combinations(void) {
+    char alphabet[] = "()[]{}";
+    int32 combinations = LENGTH(alphabet) - 1;
+
+    /* Every delimiter-only string of length 1 through 4, including errors. */
+    for (int32 length = 1; length <= 4; length += 1) {
+        for (int32 sample = 0; sample < combinations; sample += 1) {
+            char source[5] = {0};
+            int32 value = sample;
+            Tokenization tokens;
+            int32 count;
+
+            for (int32 i = 0; i < length; i += 1) {
+                source[i] = alphabet[value % 6];
+                value /= 6;
+            }
+            tokens = tokenize_copy(source, length, TOKENIZE_DEFAULT);
+            count = ARRAY_LEN(tokens.tokens);
+
+            for (int32 first = 0; first <= count; first += 1) {
+                for (int32 end = first; end <= count; end += 1) {
+                    CsaneTokenView view;
+                    CHECK(csane_tokens_view(&view, &tokens,
+                                            (TokenRange){first, end}));
+                    test_delimiter_match_view(&view);
+                }
+            }
+            free_tokenization(&tokens);
+        }
+        combinations *= 6;
+    }
+    return;
+}
+
+static void
+test_delimiter_match_paths(void) {
+    char *source =
+        "call(prefix,\n"
+        "#if FLAG\n"
+        "    (bad],\n"
+        "#else\n"
+        "    nested([kept], {x}),\n"
+        "#endif\n"
+        "    suffix);\n";
+    Tokenization tokens = tokenize_copy(source, strlen32(source),
+                                        TOKENIZE_DEFAULT);
+    int32 count = ARRAY_LEN(tokens.tokens);
+    int32 first_hash = test_find_token(&tokens, STRLIT("#"), 0);
+    int32 endif_hash = test_find_token(&tokens, STRLIT("#"), 2);
+    int32 kept = test_find_token(&tokens, STRLIT("nested"), 0);
+    int32 suffix = test_find_token(&tokens, STRLIT("suffix"), 0);
+    int32 outer_open = test_find_token(&tokens, STRLIT("("), 0);
+    int32 outer_close = test_find_token(&tokens, STRLIT(")"), 1);
+    CsaneTokenPath path;
+    CsaneTokenView view;
+    CsaneTokenView full = csane_tokens_full(&tokens);
+
+    CHECK(first_hash >= 0 && endif_hash >= 0 && kept >= 0 && suffix >= 0);
+    CHECK(outer_open >= 0 && outer_close >= 0);
+    CHECK(csane_tokens_match(&full, outer_open) == -1);
+    CHECK(csane_token_path_init(&path, &tokens, (TokenRange){0, count}));
+    CHECK(csane_token_path_append(&path, (TokenRange){0, first_hash}));
+    CHECK(csane_token_path_append(&path, (TokenRange){kept, endif_hash}));
+    CHECK(csane_token_path_append(&path, (TokenRange){suffix, count}));
+    CHECK(csane_tokens_path_view(&view, &path));
+    CHECK(csane_tokens_match(&view, outer_open) == outer_close);
+    CHECK(csane_tokens_match(&view, outer_close) == outer_open);
+    test_delimiter_match_view(&view);
+    for (int32 first = 0; first <= count; first += 1) {
+        for (int32 end = first; end <= count; end += 1) {
+            CsaneTokenView subview;
+
+            CHECK(csane_tokens_subview(&subview, &view,
+                                       (TokenRange){first, end}));
+            test_delimiter_match_view(&subview);
+        }
+    }
+    csane_token_path_free(&path);
+    free_tokenization(&tokens);
+
+    return;
+}
+
+static void
+test_delimiter_match_filtered_path(void) {
+    Tokenization malformed =
+        tokenize_copy(STRLIT("([)]"), TOKENIZE_DEFAULT);
+    CsaneTokenView raw = csane_tokens_full(&malformed);
+    CsaneTokenPath filtered;
+    int32 paren_open = test_find_token(&malformed, STRLIT("("), 0);
+    int32 bracket_open = test_find_token(&malformed, STRLIT("["), 0);
+    int32 paren_close = test_find_token(&malformed, STRLIT(")"), 0);
+    int32 bracket_close = test_find_token(&malformed, STRLIT("]"), 0);
+
+    CHECK(csane_tokens_match(&raw, paren_open) == -1);
+    CHECK(csane_token_path_init(&filtered, &malformed,
+                                (TokenRange){0, ARRAY_LEN(malformed.tokens)}));
+    CHECK(csane_token_path_append(&filtered,
+                                  (TokenRange){paren_open, bracket_open}));
+    CHECK(csane_token_path_append(&filtered,
+                                  (TokenRange){paren_close, bracket_close}));
+    CHECK(csane_tokens_path_view(&raw, &filtered));
+    CHECK(csane_tokens_match(&raw, paren_open) == paren_close);
+    CHECK(csane_tokens_match(&raw, paren_close) == paren_open);
+    test_delimiter_match_view(&raw);
+    csane_token_path_free(&filtered);
+    free_tokenization(&malformed);
+    return;
+}
+
 static void
 test_path_navigation(void) {
     Tokenization tokens =
@@ -821,5 +1115,10 @@ main(void) {
     test_nested_conditional_path();
     test_path_navigation();
     test_preprocessor_path_navigation();
+    test_delimiter_match_ranges();
+    test_delimiter_match_invalid_ranges();
+    test_delimiter_match_combinations();
+    test_delimiter_match_paths();
+    test_delimiter_match_filtered_path();
     return failures > 0;
 }
