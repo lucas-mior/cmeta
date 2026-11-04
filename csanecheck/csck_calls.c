@@ -758,6 +758,98 @@ csane_call_top_macro(CsaneFile *file, int32 name) {
     return false;
 }
 
+/* A free2 size computed with strlen32(pointer) cannot be evaluated when
+ * pointer is NULL, even though free2 itself accepts NULL. Match complete
+ * argument expressions rather than similarly named variables. */
+static bool
+csane_call_free2_strlen_operand(CsaneFile *file, CsaneTokenView *view,
+                                TokenRange pointer, TokenRange operand) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView expression;
+    TokenRange argument;
+    int32 name;
+    int32 open;
+    int32 close;
+
+    operand = csane_tokens_unwrap(view, operand);
+    if (!csane_tokens_subview(&expression, view, operand)) {
+        return false;
+    }
+    name = csane_call_next(file, operand, operand.first - 1);
+    if (name >= operand.end
+        || !TOKEN_IS(&tokens->tokens[name], "strlen32")) {
+        return false;
+    }
+    open = csane_call_next(file, operand, name);
+    if (open >= operand.end || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return false;
+    }
+    close = csane_tokens_match(&expression, open);
+    if (close < 0 || csane_call_next(file, operand, close) < operand.end) {
+        return false;
+    }
+    argument = (TokenRange){open + 1, close};
+    argument = csane_tokens_unwrap(&expression, argument);
+    return csane_call_equal_tokens(file, pointer, argument);
+}
+
+static bool
+csane_call_free2_strlen_size(CsaneFile *file, CsaneTokenView *view,
+                             TokenRange pointer, TokenRange size) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView expression;
+    TokenRange first;
+    TokenRange second;
+    int32 plus;
+    int32 one;
+
+    size = csane_tokens_unwrap(view, size);
+    if (!csane_tokens_subview(&expression, view, size)) {
+        return false;
+    }
+    plus = csane_tokens_top_level(&expression, size.first - 1, STRLIT("+"));
+    if (plus < size.first || plus >= size.end) {
+        return false;
+    }
+    first = csane_tokens_unwrap(&expression,
+                                (TokenRange){size.first, plus});
+    second = csane_tokens_unwrap(&expression,
+                                 (TokenRange){plus + 1, size.end});
+    one = csane_call_next(file, second, second.first - 1);
+    if (one < second.end && TOKEN_IS(&tokens->tokens[one], "1")
+        && csane_call_next(file, second, one) >= second.end) {
+        return csane_call_free2_strlen_operand(file, &expression,
+                                               pointer, first);
+    }
+    one = csane_call_next(file, first, first.first - 1);
+    return one < first.end && TOKEN_IS(&tokens->tokens[one], "1")
+           && csane_call_next(file, first, one) >= first.end
+           && csane_call_free2_strlen_operand(file, &expression,
+                                              pointer, second);
+}
+
+static void
+csane_call_free2_strlen(CsaneFile *file, CsaneTokenView *view,
+                        int32 name, int32 open) {
+    TokenRange args[2];
+    int32 count;
+
+    if (!TOKEN_IS(&file->tokens->tokens[name], "free2")) {
+        return;
+    }
+    count = csane_tokens_arguments(view, open, args, LENGTH(args));
+    if (count != 2) {
+        return;
+    }
+    args[0] = csane_tokens_unwrap(view, args[0]);
+    if (!csane_call_free2_strlen_size(file, view, args[0], args[1])) {
+        return;
+    }
+    csane_rule_issue(file, file->tokens->tokens[name].offset,
+                     STRLIT("STYLE-FREE2-STRLEN"),
+                     "use opt_strlen32(pointer) in the free2 size argument");
+}
+
 static void
 csane_call_token_one(CsaneFile *file, int32 name, int32 open,
                      int32 close, bool macro) {
@@ -1028,6 +1120,7 @@ csane_calls_token_check(CsaneFile *file) {
         if (close < 0) {
             continue;
         }
+        csane_call_free2_strlen(file, &local, name, i);
         macro = file->preprocessor->token_roles != NULL
                 && file->preprocessor->token_roles[i]
                    == C_PP_TOKEN_MACRO_REPLACEMENT;
