@@ -338,6 +338,9 @@ typedef struct Tokenization {
     int32 *next_significant;
     int32 *previous_significant;
 
+    /* Physical-source delimiter pairs, or -1 when unmatched. */
+    int32 *matching_delimiter;
+
     int32 text_len;
 
     /* Lazily allocated physical-line index owned by this tokenization. */

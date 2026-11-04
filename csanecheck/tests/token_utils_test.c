@@ -789,6 +789,81 @@ test_delimiter_match_reference(CsaneTokenView *view, int32 index) {
     return result;
 }
 
+/* The index is conservative on malformed input: recorded pairs must be
+ * valid in both directions, even if some recoverable pairs remain unindexed. */
+static void
+test_delimiter_index(Tokenization *tokens) {
+    int32 count = ARRAY_LEN(tokens->tokens);
+    CsaneTokenView full = csane_tokens_full(tokens);
+    bool balanced = token_range_is_balanced(tokens, full.range);
+
+    CHECK(ARRAY_LEN(tokens->matching_delimiter) == count);
+    if (ARRAY_LEN(tokens->matching_delimiter) != count) {
+        return;
+    }
+    for (int32 i = 0; i < count; i += 1) {
+        int32 match = tokens->matching_delimiter[i];
+        int32 kind = test_delimiter_kind_reference(&tokens->tokens[i]);
+        int32 expected = test_delimiter_match_reference(&full, i);
+
+        if (kind == 0) {
+            CHECK(match == -1);
+        }
+        CHECK(match >= -1 && match < count);
+        if (match >= 0 && match < count) {
+            int32 other = test_delimiter_kind_reference(&tokens->tokens[match]);
+
+            CHECK(tokens->matching_delimiter[match] == i);
+            CHECK(other == -kind);
+            CHECK(expected == match);
+        }
+        if (balanced) {
+            CHECK(match == expected);
+        }
+    }
+    return;
+}
+
+static void
+test_delimiter_index_modes(void) {
+    StrFlex *sources[] = {
+        SFLIT(""),
+        SFLIT("  /* just trivia */  "),
+        SFLIT("(x[2] + {y})"),
+        SFLIT("([)] {}"),
+        SFLIT("'(' \"[)\" /* { ] */ (x)"),
+        SFLIT("  #define X (broken]\n"),
+    };
+    int32 flags[] = {
+        TOKENIZE_DEFAULT,
+        TOKENIZE_SKIP_WHITESPACE,
+        TOKENIZE_PREPROCESSOR_LINES,
+        TOKENIZE_PREPROCESSOR_LINES | TOKENIZE_SKIP_WHITESPACE,
+    };
+    Tokenization malformed;
+
+    for (int32 mode = 0; mode < LENGTH(flags); mode += 1) {
+        for (int32 sample = 0; sample < LENGTH(sources); sample += 1) {
+            Tokenization tokens =
+                tokenize_copy(sources[sample]->data, sources[sample]->len,
+                              flags[mode]);
+            test_delimiter_index(&tokens);
+            free_tokenization(&tokens);
+            CHECK(tokens.matching_delimiter == NULL);
+        }
+    }
+
+    malformed = tokenize_copy(STRLIT("([)] {}"), TOKENIZE_DEFAULT);
+    CHECK(malformed.matching_delimiter[0] == -1);
+    CHECK(malformed.matching_delimiter[1] == -1);
+    CHECK(malformed.matching_delimiter[2] == -1);
+    CHECK(malformed.matching_delimiter[3] == -1);
+    CHECK(malformed.matching_delimiter[5] == 6);
+    CHECK(malformed.matching_delimiter[6] == 5);
+    free_tokenization(&malformed);
+    return;
+}
+
 static void
 test_delimiter_match_view(CsaneTokenView *view) {
     for (int32 i = view->range.first - 1; i <= view->range.end; i += 1) {
@@ -849,6 +924,7 @@ test_delimiter_match_ranges(void) {
                               flags[mode]);
             int32 count = ARRAY_LEN(tokens.tokens);
 
+            test_delimiter_index(&tokens);
             for (int32 first = 0; first <= count; first += 1) {
                 for (int32 end = first; end <= count; end += 1) {
                     CsaneTokenView view;
@@ -906,6 +982,7 @@ test_delimiter_match_combinations(void) {
             tokens = tokenize_copy(source, length, TOKENIZE_DEFAULT);
             count = ARRAY_LEN(tokens.tokens);
 
+            test_delimiter_index(&tokens);
             for (int32 first = 0; first <= count; first += 1) {
                 for (int32 end = first; end <= count; end += 1) {
                     CsaneTokenView view;
@@ -1115,6 +1192,7 @@ main(void) {
     test_nested_conditional_path();
     test_path_navigation();
     test_preprocessor_path_navigation();
+    test_delimiter_index_modes();
     test_delimiter_match_ranges();
     test_delimiter_match_invalid_ranges();
     test_delimiter_match_combinations();

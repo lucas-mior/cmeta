@@ -444,6 +444,8 @@ tokenization_build_significant_index(Tokenization *tokenization) {
     return;
 }
 
+static void tokenization_build_delimiter_index(Tokenization *tokenization);
+
 Tokenization
 tokenize_with_flags(char *text, int32 text_len, int32 flags) {
     Tokenization result = {0};
@@ -457,6 +459,7 @@ tokenize_with_flags(char *text, int32 text_len, int32 flags) {
         && line_starts_preprocessor(text, text_len)) {
         tokenization_add_token(&result, TOKEN_PREPROC, text, text_len, 0);
         tokenization_build_significant_index(&result);
+        tokenization_build_delimiter_index(&result);
         return result;
     }
 
@@ -593,6 +596,7 @@ tokenize_with_flags(char *text, int32 text_len, int32 flags) {
         }
     }
     tokenization_build_significant_index(&result);
+    tokenization_build_delimiter_index(&result);
     return result;
 }
 
@@ -646,6 +650,46 @@ token_close_delimiter_kind(Token *token) {
     default:
         return TOKEN_DELIMITER_NONE;
     }
+}
+
+/* Match only well-nested physical-source pairs. A mismatched closing
+ * delimiter invalidates the current stack; later independent pairs recover.
+ * Logical token paths may pair differently and must not use this index. */
+static void
+tokenization_build_delimiter_index(Tokenization *tokenization) {
+    int32 count = ARRAY_LEN(tokenization->tokens);
+    int32 *stack = NULL;
+
+    ARRAY_INIT_COUNT(tokenization->matching_delimiter, count);
+    for (int32 i = 0; i < count; i += 1) {
+        tokenization->matching_delimiter[i] = -1;
+    }
+
+    for (int32 i = 0; i < count; i += 1) {
+        Token *token = &tokenization->tokens[i];
+        enum TokenDelimiterKind kind = token_open_delimiter_kind(token);
+        int32 open_index;
+
+        if (kind != TOKEN_DELIMITER_NONE) {
+            ARRAY_PUSH(stack, i);
+            continue;
+        }
+        kind = token_close_delimiter_kind(token);
+        if ((kind == TOKEN_DELIMITER_NONE) || (ARRAY_LEN(stack) == 0)) {
+            continue;
+        }
+        open_index = stack[ARRAY_LEN(stack) - 1];
+        if (token_open_delimiter_kind(&tokenization->tokens[open_index])
+            != kind) {
+            ARRAY_CLEAR(stack);
+            continue;
+        }
+        ARRAY_SET_COUNT(stack, ARRAY_LEN(stack) - 1);
+        tokenization->matching_delimiter[open_index] = i;
+        tokenization->matching_delimiter[i] = open_index;
+    }
+    ARRAY_FREE(stack);
+    return;
 }
 
 bool
@@ -1681,6 +1725,7 @@ free_tokenization(Tokenization *tokenization) {
     ARRAY_FREE(tokenization->tokens);
     ARRAY_FREE(tokenization->next_significant);
     ARRAY_FREE(tokenization->previous_significant);
+    ARRAY_FREE(tokenization->matching_delimiter);
     free2(tokenization->line_starts,
           tokenization->line_capacity*SIZEOF(*tokenization->line_starts));
     if (tokenization->owned_text != NULL) {
