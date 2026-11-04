@@ -1812,6 +1812,232 @@ csane_layout_local_style_check(CsaneFile *file, int32 index,
     }
 }
 
+/* Arithmetic operators in simple assignment RHS expressions are checked
+ * against the first token of their precedence group. Calls and subscripts
+ * are opaque operands; arithmetic in their arguments belongs to other rules.
+ * A bounded expression parse avoids diagnosing ambiguous C syntax. */
+typedef struct CsaneArithFinding {
+    int32 token;
+    bool alignment;
+} CsaneArithFinding;
+
+typedef struct CsaneArithParser {
+    CsaneTokenView view;
+    int32 current;
+    int32 end;
+    CsaneArithFinding *findings;
+} CsaneArithParser;
+
+static int32
+csane_layout_arith_precedence(Token *token) {
+    if (TOKEN_IS(token, "+") || TOKEN_IS(token, "-")) {
+        return 1;
+    }
+    if (TOKEN_IS(token, "*") || TOKEN_IS(token, "/")
+        || TOKEN_IS(token, "%")) {
+        return 2;
+    }
+    return 0;
+}
+
+static bool
+csane_layout_arith_consume(CsaneArithParser *parser, char *text,
+                           int32 text_len) {
+    if (parser->current >= parser->end
+        || !csane_layout_is(parser->view.tokens, parser->current,
+                            text, text_len)) {
+        return false;
+    }
+    parser->current = csane_tokens_next(&parser->view, parser->current);
+    return true;
+}
+
+static int32 csane_layout_arith_expression(CsaneArithParser *, int32, int32);
+
+static int32
+csane_layout_arith_operand(CsaneArithParser *parser, int32 depth) {
+    Tokenization *tokens = parser->view.tokens;
+    int32 first = parser->current;
+    int32 close;
+
+    if (first >= parser->end || depth > 64) {
+        return -1;
+    }
+    if (csane_layout_is(tokens, first, STRLIT("+"))
+        || csane_layout_is(tokens, first, STRLIT("-"))
+        || csane_layout_is(tokens, first, STRLIT("*"))
+        || csane_layout_is(tokens, first, STRLIT("&"))
+        || csane_layout_is(tokens, first, STRLIT("!"))
+        || csane_layout_is(tokens, first, STRLIT("~"))) {
+        parser->current = csane_tokens_next(&parser->view, first);
+        if (csane_layout_arith_operand(parser, depth + 1) < 0) {
+            return -1;
+        }
+    } else if (csane_layout_arith_consume(parser, STRLIT("("))) {
+        if (csane_layout_arith_expression(parser, 1, depth + 1) < 0
+            || !csane_layout_arith_consume(parser, STRLIT(")"))) {
+            return -1;
+        }
+    } else if (tokens->tokens[first].kind == TOKEN_IDENT
+               || tokens->tokens[first].kind == TOKEN_LITERAL) {
+        parser->current = csane_tokens_next(&parser->view, first);
+    } else {
+        return -1;
+    }
+
+    while (parser->current < parser->end) {
+        int32 index = parser->current;
+        if (csane_layout_is(tokens, index, STRLIT("("))
+            || csane_layout_is(tokens, index, STRLIT("["))) {
+            close = csane_tokens_match(&parser->view, index);
+            if (close <= index || close >= parser->end) {
+                return -1;
+            }
+            parser->current = csane_tokens_next(&parser->view, close);
+        } else if (csane_layout_is(tokens, index, STRLIT("."))
+                   || csane_layout_is(tokens, index, STRLIT("->"))) {
+            int32 field = csane_tokens_next(&parser->view, index);
+            if (field >= parser->end
+                || tokens->tokens[field].kind != TOKEN_IDENT) {
+                return -1;
+            }
+            parser->current = csane_tokens_next(&parser->view, field);
+        } else {
+            break;
+        }
+    }
+    return first;
+}
+
+static void
+csane_layout_arith_operator(CsaneArithParser *parser, int32 index,
+                            int32 anchor, int32 right) {
+    Tokenization *tokens = parser->view.tokens;
+    int32 previous = csane_tokens_previous(&parser->view, index);
+    SourceLocation op = tokenization_token_location(tokens, index);
+    SourceLocation start = tokenization_token_location(tokens, anchor);
+    SourceLocation operand = tokenization_token_location(tokens, right);
+
+    if (op.line < operand.line) {
+        ARRAY_PUSH(parser->findings,
+                   ((CsaneArithFinding){index, false}));
+    }
+    if (previous >= parser->view.range.first
+        && op.line > tokenization_token_location(tokens, previous).line
+        && op.column != start.column) {
+        ARRAY_PUSH(parser->findings,
+                   ((CsaneArithFinding){index, true}));
+    }
+    return;
+}
+
+static int32
+csane_layout_arith_expression(CsaneArithParser *parser, int32 precedence,
+                              int32 depth) {
+    int32 first = csane_layout_arith_operand(parser, depth);
+    if (first < 0) {
+        return -1;
+    }
+    while (parser->current < parser->end) {
+        int32 index = parser->current;
+        Token *token = &parser->view.tokens->tokens[index];
+        int32 rank = csane_layout_arith_precedence(token);
+        int32 right;
+        if (rank < precedence) {
+            break;
+        }
+        parser->current = csane_tokens_next(&parser->view, index);
+        right = parser->current;
+        if (right >= parser->end) {
+            return -1;
+        }
+        csane_layout_arith_operator(parser, index, first, right);
+        if (csane_layout_arith_expression(parser, rank + 1, depth + 1) < 0) {
+            return -1;
+        }
+    }
+    return first;
+}
+
+static void
+csane_layout_arith_assignment_check(CsaneFile *file, int32 equal) {
+    Tokenization *tokens = file->tokens;
+    TokenRange statement = {0};
+    CsaneTokenView view;
+    CsaneArithParser parser = {0};
+    int32 region;
+    int32 before;
+    int32 first;
+    int32 semicolon;
+
+    if (!csane_layout_code(file, equal)
+        || !csane_layout_is(tokens, equal, STRLIT("="))) {
+        return;
+    }
+    if (file->layout_statement_index != NULL
+        && equal < ARRAY_LEN(file->layout_statement_index)) {
+        int32 item = file->layout_statement_index[equal];
+        if (item >= 0
+            && file->statements->items[item].kind == CSANE_STMT_SIMPLE) {
+            statement = file->statements->items[item].tokens;
+        }
+    }
+    if (statement.end == 0 && file->layout_top_index != NULL
+        && equal < ARRAY_LEN(file->layout_top_index)) {
+        int32 item = file->layout_top_index[equal];
+        if (item >= 0
+            && file->toplevel->items[item].kind == CSANE_TOP_DECLARATION) {
+            statement = file->toplevel->items[item].header;
+        }
+    }
+    region = csane_regions_at_token(file->regions, equal);
+    if (statement.end <= equal || region < 0) {
+        return;
+    }
+    if (statement.first < file->regions->items[region].tokens.first
+        || statement.end > file->regions->items[region].tokens.end
+        || !csane_tokens_view(&view, tokens, statement)) {
+        return;
+    }
+    before = csane_tokens_previous(&view, equal);
+    if (before < view.range.first
+        || tokens->tokens[before].kind != TOKEN_IDENT
+        || csane_tokens_top_level(&view, view.range.first - 1,
+                                  STRLIT("=")) != equal) {
+        return;
+    }
+    first = csane_tokens_next(&view, equal);
+    semicolon = csane_tokens_previous(&view, view.range.end);
+    if (first >= semicolon
+        || !csane_layout_is(tokens, semicolon, STRLIT(";"))) {
+        return;
+    }
+    /* Comma-separated declarations and compound/conditional expressions
+     * are intentionally excluded from this first, narrow rule. */
+    parser.view = view;
+    parser.current = first;
+    parser.end = semicolon;
+    if (csane_layout_arith_expression(&parser, 1, 0) >= 0
+        && parser.current == parser.end) {
+        for (int32 i = 0; i < ARRAY_LEN(parser.findings); i += 1) {
+            CsaneArithFinding *finding = &parser.findings[i];
+            if (finding->alignment) {
+                csane_rule_issue(file, tokens->tokens[finding->token].offset,
+                                 STRLIT("FMT-ARITH-ALIGN"),
+                                 "arithmetic operator must align with "
+                                 "its precedence group");
+            } else {
+                csane_rule_issue(file, tokens->tokens[finding->token].offset,
+                                 STRLIT("FMT-ARITH-WRAP"),
+                                 "break before arithmetic operator, "
+                                 "not after it");
+            }
+        }
+    }
+    ARRAY_FREE(parser.findings);
+    return;
+}
+
 void
 csane_layout_check(CsaneFile *file) {
     if (file->is_ryu || csane_layout_generated(file->path, file->path_len)) {
@@ -1825,6 +2051,7 @@ csane_layout_check(CsaneFile *file) {
         }
         csane_layout_nested_braces_check(file, i);
         csane_layout_array_first_check(file, i);
+        csane_layout_arith_assignment_check(file, i);
         csane_layout_local_style_check(file, i, kind);
         if (kind == CSANE_LAYOUT_MULTIPLY) {
             if (csane_layout_spacing(file, i, true)) {
