@@ -325,7 +325,10 @@ csane_tokens_match(CsaneTokenView *view, int32 index) {
     token = &view->tokens->tokens[index];
     tokens = view->tokens;
     range = view->range;
-    if (view->path == NULL) {
+    /* A single clipped path part is a contiguous physical token range. */
+    if (view->path == NULL
+        || (ARRAY_LEN(view->path->parts) == 1
+            && csane_tokens_part(view, 0, &range))) {
         if (token_is_open_delimiter(token)) {
             return token_range_matching_delimiter_forward(tokens, range, index);
         }

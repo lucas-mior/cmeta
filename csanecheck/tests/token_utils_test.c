@@ -1119,6 +1119,105 @@ test_delimiter_match_filtered_path(void) {
     return;
 }
 
+/* A one-part token path must behave exactly like its clipped physical range. */
+static void
+test_delimiter_match_single_path_part(void) {
+    Tokenization tokens =
+        tokenize_copy(STRLIT("x(a[b]+{c})y(d)"), TOKENIZE_DEFAULT);
+    int32 count = ARRAY_LEN(tokens.tokens);
+    int32 open = test_find_token(&tokens, STRLIT("("), 0);
+    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
+    int32 other_open = test_find_token(&tokens, STRLIT("("), 1);
+    CsaneTokenPath path;
+    CsaneTokenView view;
+    CsaneTokenView clipped;
+    int32 *index = tokens.matching_delimiter;
+
+    CHECK(open >= 0 && close > open && other_open > close);
+    CHECK(csane_token_path_init(&path, &tokens, (TokenRange){0, count}));
+    CHECK(csane_token_path_append(&path, (TokenRange){open, close + 1}));
+    CHECK(csane_tokens_path_view(&view, &path));
+    CHECK(csane_tokens_match(&view, open) == close);
+    CHECK(csane_tokens_match(&view, close) == open);
+    CHECK(csane_tokens_match(&view, other_open) == -1);
+    test_delimiter_match_view(&view);
+
+    CHECK(csane_tokens_subview(&clipped, &view,
+                               (TokenRange){open, close}));
+    CHECK(csane_tokens_match(&clipped, open) == -1);
+    CHECK(csane_tokens_subview(&clipped, &view,
+                               (TokenRange){open + 1, close + 1}));
+    CHECK(csane_tokens_match(&clipped, close) == -1);
+
+    /* A missing index must still use the bounded matching scanner. */
+    tokens.matching_delimiter = NULL;
+    CHECK(csane_tokens_match(&view, open) == close);
+    CHECK(csane_tokens_match(&view, close) == open);
+    tokens.matching_delimiter = index;
+
+    for (int32 first = 0; first <= count; first += 1) {
+        for (int32 end = first; end <= count; end += 1) {
+            CHECK(csane_tokens_subview(&clipped, &view,
+                                       (TokenRange){first, end}));
+            test_delimiter_match_view(&clipped);
+        }
+    }
+    csane_token_path_free(&path);
+    free_tokenization(&tokens);
+    return;
+}
+
+/* Paths with gaps must not trust physical pairs across excluded tokens. */
+static void
+test_delimiter_match_path_masks(void) {
+    StrFlex *sources[] = {
+        SFLIT("([])"),
+        SFLIT("([)]"),
+        SFLIT("{[()]}"),
+    };
+
+    for (int32 sample = 0; sample < LENGTH(sources); sample += 1) {
+        Tokenization tokens =
+            tokenize_copy(sources[sample]->data, sources[sample]->len,
+                          TOKENIZE_DEFAULT);
+        int32 count = ARRAY_LEN(tokens.tokens);
+        CHECK(count <= 6);
+        for (int32 mask = 0; mask < (1 << count); mask += 1) {
+            CsaneTokenPath path;
+            CsaneTokenView view;
+
+            CHECK(csane_token_path_init(&path, &tokens,
+                                        (TokenRange){0, count}));
+            for (int32 first = 0; first < count;) {
+                int32 end;
+                if ((mask & (1 << first)) == 0) {
+                    first += 1;
+                    continue;
+                }
+                end = first + 1;
+                while (end < count && (mask & (1 << end)) != 0) {
+                    end += 1;
+                }
+                CHECK(csane_token_path_append(&path,
+                                              (TokenRange){first, end}));
+                first = end;
+            }
+            CHECK(csane_tokens_path_view(&view, &path));
+            for (int32 first = 0; first <= count; first += 1) {
+                for (int32 end = first; end <= count; end += 1) {
+                    CsaneTokenView clipped;
+                    CHECK(csane_tokens_subview(&clipped, &view,
+                                               (TokenRange){first, end}));
+                    test_delimiter_match_view(&clipped);
+                }
+            }
+            csane_token_path_free(&path);
+        }
+        free_tokenization(&tokens);
+    }
+    return;
+}
+
 static void
 test_path_navigation(void) {
     Tokenization tokens =
@@ -1244,5 +1343,7 @@ main(void) {
     test_delimiter_match_combinations();
     test_delimiter_match_paths();
     test_delimiter_match_filtered_path();
+    test_delimiter_match_single_path_part();
+    test_delimiter_match_path_masks();
     return failures > 0;
 }
