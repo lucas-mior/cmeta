@@ -810,8 +810,7 @@ c_ast_parse_declaration(CAst *ast, TokenRange range) {
         || !token_range_is_valid(ast->tokenization, range)) {
         return result;
     }
-    if (token_range_first_significant(ast->tokenization, range)
-        >= range.end) {
+    if (token_range_first_significant(ast->tokenization, range) >= range.end) {
         result.status = C_DECL_PARSE_NOT_DECLARATION;
         return result;
     }
