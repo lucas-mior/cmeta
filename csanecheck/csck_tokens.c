@@ -124,7 +124,7 @@ csane_tokens_subview(CsaneTokenView *child, CsaneTokenView *parent,
 CsaneTokenView
 csane_tokens_full(Tokenization *tokens) {
     CsaneTokenView view = {0};
-    if (tokens != NULL) {
+    if (tokens) {
         (void)csane_tokens_view(&view, tokens,
                                 (TokenRange){0, ARRAY_LEN(tokens->tokens)});
     }
@@ -358,10 +358,10 @@ csane_tokens_group(CsaneTokenView *view, int32 open,
     if (close < 0) {
         return false;
     }
-    if (content != NULL) {
+    if (content) {
         *content = (TokenRange){open + 1, close};
     }
-    if (closing != NULL) {
+    if (closing) {
         *closing = close;
     }
     return true;
@@ -619,13 +619,13 @@ csane_tokens_assignment(CsaneTokenView *view, TokenRange *left,
         || csane_tokens_empty(&lhs_view) || csane_tokens_empty(&rhs_view)) {
         return false;
     }
-    if (left != NULL) {
+    if (left) {
         *left = lhs;
     }
-    if (right != NULL) {
+    if (right) {
         *right = rhs;
     }
-    if (operator_index != NULL) {
+    if (operator_index) {
         *operator_index = chosen;
     }
     return true;

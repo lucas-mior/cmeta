@@ -204,6 +204,7 @@ void csane_coverage_report_structural(char *, int32, Tokenization *,
 void csane_declarations_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
 void csane_control_check(CsaneFile *);
+void csane_pointer_check(CsaneFile *);
 void csane_bounds_check(CsaneFile *);
 void csane_status_check(CsaneFile *);
 void csane_expression_style_check(CsaneFile *);

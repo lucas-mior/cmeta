@@ -313,13 +313,13 @@ c_preprocessor_token_context(CPreprocessorAnalysis *analysis,
         || (token_index >= ARRAY_LEN(analysis->tokenization->tokens))) {
         return false;
     }
-    if (role != NULL) {
+    if (role) {
         *role = analysis->token_roles[token_index];
     }
-    if (directive_index != NULL) {
+    if (directive_index) {
         *directive_index = analysis->token_directives[token_index];
     }
-    if (branch_index != NULL) {
+    if (branch_index) {
         *branch_index = analysis->token_branches[token_index];
     }
     return true;

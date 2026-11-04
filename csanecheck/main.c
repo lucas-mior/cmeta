@@ -17,6 +17,7 @@
 #include "csck_config.c"
 #include "csck_structure.c"
 #include "csck_control.c"
+#include "csck_pointer.c"
 #include "csck_bounds.c"
 #include "csck_status.c"
 #include "csck_expression_style.c"

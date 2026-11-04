@@ -771,9 +771,7 @@ token_delimiter_stack_init(TokenDelimiterStack *stack, int32 max_capacity) {
 
 static void
 token_delimiter_stack_free(TokenDelimiterStack *stack) {
-    if (stack->heap != NULL) {
-        free2(stack->heap, stack->max_capacity*SIZEOF(*stack->heap));
-    }
+    free2(stack->heap, stack->max_capacity*SIZEOF(*stack->heap));
     stack->items = NULL;
     stack->heap = NULL;
     stack->count = 0;
@@ -1027,7 +1025,7 @@ token_range_delimiter_depth_before(Tokenization *tokenization,
     TokenDelimiterDepth depth = {0};
     bool valid = true;
 
-    if (result != NULL) {
+    if (result) {
         *result = (TokenDelimiterDepth){0};
     }
     if (!token_range_is_valid(tokenization, range) || (result == NULL)
@@ -1746,9 +1744,7 @@ free_tokenization(Tokenization *tokenization) {
     ARRAY_FREE(tokenization->matching_delimiter);
     free2(tokenization->line_starts,
           tokenization->line_capacity*SIZEOF(*tokenization->line_starts));
-    if (tokenization->owned_text != NULL) {
-        free2(tokenization->owned_text, (int64)tokenization->text_len + 1);
-    }
+    free2(tokenization->owned_text, (int64)tokenization->text_len + 1);
 
     tokenization->text = NULL;
     tokenization->text_len = 0;

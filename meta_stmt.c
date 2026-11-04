@@ -855,7 +855,7 @@ c_ast_parse_statement(CAst *ast, TokenRange range, CPreprocessorAnalysis *pp) {
     bool owned = false;
     if ((ast == NULL) || (ast->tokenization == NULL)
         || !token_range_is_valid(ast->tokenization, range)
-        || ((pp != NULL) && (pp->tokenization != ast->tokenization))) {
+        || ((pp) && (pp->tokenization != ast->tokenization))) {
         result.issue = C_PARSE_ISSUE_MALFORMED;
         return result;
     }

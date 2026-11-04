@@ -106,7 +106,7 @@ static int32
 decl_skip_to(DeclCursor *c, int32 start, char *a, char *b) {
     int32 i = decl_sig(c, start);
     while (i < c->range.end) {
-        if (decl_at(c, i, a) || ((b != NULL) && decl_at(c, i, b))) {
+        if (decl_at(c, i, a) || ((b) && decl_at(c, i, b))) {
             break;
         }
         if (token_is_open_delimiter(&c->ast->tokenization->tokens[i])) {

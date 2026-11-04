@@ -600,7 +600,7 @@ c_ast_parse_translation_unit(CAst *ast, TokenRange range,
     UnitCursor c;
     if ((ast == NULL) || (ast->tokenization == NULL)
         || !token_range_is_valid(ast->tokenization, range)
-        || ((pp != NULL) && (pp->tokenization != ast->tokenization))) {
+        || ((pp) && (pp->tokenization != ast->tokenization))) {
         return result;
     }
     if (pp == NULL) {

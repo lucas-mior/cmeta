@@ -301,20 +301,20 @@ csane_run(int32 argc, char **argv) {
         options.filter_len = strlen32(options.filter);
     }
     value = getenv("TEST_MAXDEPTH");
-    if (value != NULL) {
+    if (value) {
         value_len = strlen32(value);
     }
-    if (value != NULL && value_len > 0
+    if (value && value_len > 0
         && !csane_depth(value, value_len, &options.max_depth)) {
         error2("invalid TEST_MAXDEPTH: %.*s\n", value_len, value);
         exit_status = 2;
         goto cleanup;
     }
     value = getenv("TEST_EXCLUDE_PATTERN");
-    if (value != NULL) {
+    if (value) {
         value_len = strlen32(value);
     }
-    if (value != NULL && value[0] != '\0'
+    if (value && value[0] != '\0'
         && !csane_policy_add_regex(&options.policy.excludes, value, value_len,
                                    NULL, 0, NULL, 0, 0)) {
         exit_status = 2;

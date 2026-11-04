@@ -600,7 +600,7 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
                        counts.unresolved);
         }
     }
-    if (totals != NULL) {
+    if (totals) {
         *totals = sum;
     }
     return incomplete;

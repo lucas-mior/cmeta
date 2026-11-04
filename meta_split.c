@@ -72,10 +72,10 @@ token_range_split_next_spans(TokenRangeSplit *split, TokenRange *result,
             continue;
         }
         if (TOKEN_IS(token, split->separator, split->separator_len)) {
-            if (result != NULL) {
+            if (result) {
                 *result = (TokenRange){split->cursor, i};
             }
-            if (source_result != NULL) {
+            if (source_result) {
                 *source_result = (SourceRange){split->source_cursor,
                                                token->offset};
             }
@@ -84,10 +84,10 @@ token_range_split_next_spans(TokenRangeSplit *split, TokenRange *result,
             return true;
         }
     }
-    if (result != NULL) {
+    if (result) {
         *result = (TokenRange){split->cursor, range.end};
     }
-    if (source_result != NULL) {
+    if (source_result) {
         *source_result = (SourceRange){split->source_cursor,
                                        split->source_end};
     }

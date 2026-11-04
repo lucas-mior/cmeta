@@ -336,7 +336,7 @@ csane_layout_statement_prefix(CsaneFile *file, CsaneTokenView *view,
     int32 top_first = 0;
     int32 top_end = 0;
 
-    if (statements != NULL) {
+    if (statements) {
         statement_end = ARRAY_LEN(statements->items);
         if (file->layout_statement_index != NULL
             && index >= 0

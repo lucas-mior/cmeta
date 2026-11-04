@@ -599,6 +599,7 @@ csane_control_check(CsaneFile *file) {
         csane_control_artificial(file, stmt);
         csane_control_if_wrap(file, stmt, i);
     }
+    csane_pointer_check(file);
     return;
 }
 
