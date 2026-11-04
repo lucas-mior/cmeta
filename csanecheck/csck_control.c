@@ -412,6 +412,60 @@ csane_control_single_comparison(CsaneFile *file, int32 open, int32 close) {
     return false;
 }
 
+/* A single predicate or assignment can also be joined. Preserve compound
+ * boolean conditions and ternaries even when their flattened form fits: those
+ * breaks may communicate the logical structure of the expression. */
+static bool
+csane_control_simple_condition(CsaneFile *file, int32 open, int32 close) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    TokenRange condition = {open + 1, close};
+    int32 assignments = 0;
+
+    if (csane_control_single_comparison(file, open, close)) {
+        return true;
+    }
+    if (!csane_tokens_view(&view, tokens, condition)) {
+        return false;
+    }
+    condition = csane_tokens_unwrap(&view, condition);
+    for (int32 i = condition.first; i < condition.end; i += 1) {
+        Token *token = &tokens->tokens[i];
+
+        if (csane_control_comparator(token) || TOKEN_IS(token, "&&")
+            || TOKEN_IS(token, "||") || TOKEN_IS(token, "?")
+            || TOKEN_IS(token, ":")) {
+            return false;
+        }
+    }
+    if (!csane_tokens_view(&view, tokens, condition)) {
+        return false;
+    }
+    for (int32 i = csane_tokens_next(&view, condition.first - 1);
+         i < condition.end; i = csane_tokens_next(&view, i)) {
+        Token *token = &tokens->tokens[i];
+
+        if (TOKEN_IS(token, ",")) {
+            return false;
+        }
+        if (TOKEN_IS(token, "=")) {
+            assignments += 1;
+            if (assignments > 1) {
+                return false;
+            }
+        }
+        if (token_is_open_delimiter(token)) {
+            int32 match = csane_tokens_match(&view, i);
+
+            if (match < 0) {
+                return false;
+            }
+            i = match;
+        }
+    }
+    return true;
+}
+
 /* The source line may begin with indentation or with the closing brace and
  * else preceding an else-if. Do not join an unrelated statement or comment. */
 static bool
@@ -500,7 +554,7 @@ csane_control_if_wrap(CsaneFile *file, CsaneStatement *stmt, int32 index) {
         || tokenization_token_location(tokens, open).line
            == tokenization_token_location(tokens, close).line
         || !csane_wrap_safe(file, first, last, true)
-        || !csane_control_single_comparison(file, open, close)) {
+        || !csane_control_simple_condition(file, open, close)) {
         return;
     }
     start = tokens->tokens[first].offset;
@@ -528,7 +582,7 @@ csane_control_if_wrap(CsaneFile *file, CsaneStatement *stmt, int32 index) {
                        || width <= file->column_limit)) {
         csane_rule_issue(file, tokens->tokens[first].offset,
                          STRLIT("FMT-IF-WRAP"),
-                         "single-comparison if header fits on one line");
+                         "simple if header fits on one line");
     }
 }
 

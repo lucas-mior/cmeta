@@ -158,6 +158,103 @@ class IfWrapTests(unittest.TestCase):
 }
 """, [2, 6])
 
+    def test_assignment_condition_with_nested_call(self):
+        self.check("""void f(char *line, int32 line_len, char *p) {
+    if (outer) {
+        if (ready) {
+            work();
+        } else if ((p = BEGINS_WITH(line, line_len,
+                                    "CY_META_POLY2_VALUE"))) {
+            work();
+        }
+    }
+}
+""", [5])
+        self.check("""void f(char *line, int32 line_len, char *p) {
+    if (outer) {
+        if (ready) {
+            work();
+        } else if ((p = BEGINS_WITH(line, line_len, "CY_META_POLY2_VALUE"))) {
+            work();
+        }
+    }
+}
+""", [])
+
+    def test_simple_predicates_and_assignments(self):
+        self.check("""void f(void) {
+    if (ready
+        ) {
+        work();
+    }
+    if (check_ready(
+            value)) {
+        work();
+    }
+    if ((p = next_item(
+            cursor))) {
+        work();
+    }
+    if (value
+        = compute()) {
+        work();
+    }
+}
+""", [2, 6, 10, 14])
+
+    def test_compound_and_nested_conditions_are_not_forced_flat(self):
+        self.check("""void f(void) {
+    if ((a
+         && b)) {
+        work();
+    }
+    if ((a == b)
+        || enabled) {
+        work();
+    }
+    if (a
+        ? b : c) {
+        work();
+    }
+    if ((a = next())
+        , ready) {
+        work();
+    }
+    if (compare(a
+                > b)) {
+        work();
+    }
+}
+""", [])
+
+    def test_simple_assignment_column_limit_and_comments(self):
+        prefix = "    } else if ((p = check("
+        suffix = "))) {"
+        name = "v" * (80 - len(prefix) - len(suffix))
+        self.assertEqual(len(prefix + name + suffix), 80)
+        self.check(
+            "void f(void) {\n"
+            "    if (ready) {\n        work();\n"
+            f"{prefix}{name}\n                {suffix}\n"
+            "        work();\n    }\n}\n", [4],
+        )
+        self.check(
+            "void f(void) {\n"
+            "    if (ready) {\n        work();\n"
+            f"{prefix}{name}x\n                {suffix}\n"
+            "        work();\n    }\n}\n", [],
+        )
+        self.check("""void f(void) {
+    if ((p = next_item( /* reason */
+                cursor))) {
+        work();
+    }
+    if ((p = next_item(cursor))) { // trailing comment
+        work();
+    }
+}
+""", [])
+
     def test_preprocessor_and_generated_code_are_excluded(self):
         self.check("""void f(void) {
     if (a
