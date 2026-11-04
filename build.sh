@@ -85,7 +85,15 @@ mkdir -p bin
 case "$mode" in
 build|callgrind|debug|fast_feedback|debug-fast)
     trace_on
-    $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck/main.c $LDFLAGS
+    if [ "$mode" = build ] && [ "${CC##*/}" = tcc ]; then
+        tcc_libdir=$($CC -print-search-dirs | sed -n 's/^install: //p')
+        $CC $CPPFLAGS $CFLAGS -c -o bin/csanecheck.o csanecheck/main.c
+        ${TCC_LINK_CC:-cc} -o bin/csanecheck bin/csanecheck.o $LDFLAGS \
+            "$tcc_libdir/libtcc1.a"
+        rm -f bin/csanecheck.o
+    else
+        $CC $CPPFLAGS $CFLAGS -o bin/csanecheck csanecheck/main.c $LDFLAGS
+    fi
     cp -f bin/csanecheck cbase/csanecheck
     trace_off
     ;;
