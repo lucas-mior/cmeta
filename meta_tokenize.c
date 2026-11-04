@@ -1088,6 +1088,16 @@ token_range_matching_delimiter_forward(Tokenization *tokenization,
         return -1;
     }
 
+    /* An indexed pair is valid in every range containing both endpoints.
+     * Unindexed or clipped pairs require the original bounded scan. */
+    if (ARRAY_LEN(tokenization->matching_delimiter)
+        == ARRAY_LEN(tokenization->tokens)) {
+        int32 match = tokenization->matching_delimiter[open_index];
+        if ((match > open_index) && (match < range.end)) {
+            return match;
+        }
+    }
+
     token_delimiter_stack_init(&stack, range.end - open_index);
     for (int32 i = open_index; i < range.end; i += 1) {
         if (!token_delimiter_stack_consume_forward(&stack, &depth,
@@ -1113,6 +1123,14 @@ token_range_matching_delimiter_reverse(Tokenization *tokenization,
         || (close_index < range.first) || (close_index >= range.end)
         || !token_is_close_delimiter(&tokenization->tokens[close_index])) {
         return -1;
+    }
+
+    if (ARRAY_LEN(tokenization->matching_delimiter)
+        == ARRAY_LEN(tokenization->tokens)) {
+        int32 match = tokenization->matching_delimiter[close_index];
+        if ((match >= range.first) && (match < close_index)) {
+            return match;
+        }
     }
 
     token_delimiter_stack_init(&stack, close_index - range.first + 1);

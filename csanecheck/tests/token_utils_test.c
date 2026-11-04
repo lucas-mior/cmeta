@@ -939,6 +939,51 @@ test_delimiter_match_ranges(void) {
     return;
 }
 
+/* Indexed lookup, clipped ranges, and unavailable/unpaired index fallback. */
+static void
+test_delimiter_match_index_fallback(void) {
+    Tokenization tokens =
+        tokenize_copy(STRLIT("before (a[b]{c}) after"), TOKENIZE_DEFAULT);
+    TokenRange all = {0, ARRAY_LEN(tokens.tokens)};
+    int32 open = test_find_token(&tokens, STRLIT("("), 0);
+    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
+    int32 bracket = test_find_token(&tokens, STRLIT("["), 0);
+    int32 bracket_close = test_find_token(&tokens, STRLIT("]"), 0);
+    TokenRange bracket_range = {bracket, bracket_close + 1};
+    int32 saved_open = tokens.matching_delimiter[open];
+    int32 saved_close = tokens.matching_delimiter[close];
+    int32 *index = tokens.matching_delimiter;
+
+    CHECK(saved_open == close);
+    CHECK(saved_close == open);
+    CHECK(token_range_matching_delimiter_forward(&tokens, all, open) == close);
+    CHECK(token_range_matching_delimiter_reverse(&tokens, all, close) == open);
+    CHECK(token_range_matching_delimiter_forward(&tokens,
+                                                 (TokenRange){open, close},
+                                                 open) == -1);
+    CHECK(token_range_matching_delimiter_reverse(&tokens,
+                                                 (TokenRange){open + 1,
+                                                              close + 1},
+                                                 close) == -1);
+    CHECK(token_range_matching_delimiter_forward(&tokens, bracket_range,
+                                                 bracket) == bracket_close);
+
+    tokens.matching_delimiter[open] = -1;
+    tokens.matching_delimiter[close] = -1;
+    CHECK(token_range_matching_delimiter_forward(&tokens, all, open) == close);
+    CHECK(token_range_matching_delimiter_reverse(&tokens, all, close) == open);
+    tokens.matching_delimiter[open] = saved_open;
+    tokens.matching_delimiter[close] = saved_close;
+
+    tokens.matching_delimiter = NULL;
+    CHECK(token_range_matching_delimiter_forward(&tokens, all, open) == close);
+    CHECK(token_range_matching_delimiter_reverse(&tokens, all, close) == open);
+    tokens.matching_delimiter = index;
+
+    free_tokenization(&tokens);
+    return;
+}
+
 static void
 test_delimiter_match_invalid_ranges(void) {
     Tokenization tokens = tokenize_copy(STRLIT("(x)"), TOKENIZE_DEFAULT);
@@ -1194,6 +1239,7 @@ main(void) {
     test_preprocessor_path_navigation();
     test_delimiter_index_modes();
     test_delimiter_match_ranges();
+    test_delimiter_match_index_fallback();
     test_delimiter_match_invalid_ranges();
     test_delimiter_match_combinations();
     test_delimiter_match_paths();
