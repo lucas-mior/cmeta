@@ -354,6 +354,184 @@ csane_control_artificial(CsaneFile *file, CsaneStatement *stmt) {
                         "artificial block at nesting level 3 or more");
 }
 
+/* Only a comparison at the outermost expression level qualifies. Nested
+ * comparisons, compound boolean conditions, and ternaries remain outside
+ * this deliberately narrow formatting rule. */
+static bool
+csane_control_comparator(Token *token) {
+    return TOKEN_IS(token, "==") || TOKEN_IS(token, "!=")
+           || TOKEN_IS(token, "<") || TOKEN_IS(token, "<=")
+           || TOKEN_IS(token, ">") || TOKEN_IS(token, ">=");
+}
+
+static bool
+csane_control_single_comparison(CsaneFile *file, int32 open, int32 close) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    TokenRange condition = {open + 1, close};
+    int32 comparison = -1;
+
+    if (!csane_tokens_view(&view, tokens, condition)) {
+        return false;
+    }
+    condition = csane_tokens_unwrap(&view, condition);
+    for (int32 i = condition.first; i < condition.end; i += 1) {
+        Token *token = &tokens->tokens[i];
+
+        if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
+            || TOKEN_IS(token, "?") || TOKEN_IS(token, ":")) {
+            return false;
+        }
+        if (csane_control_comparator(token)) {
+            if (comparison >= 0) {
+                return false;
+            }
+            comparison = i;
+        }
+    }
+    if (comparison < 0
+        || !csane_tokens_view(&view, tokens, condition)) {
+        return false;
+    }
+    for (int32 i = csane_tokens_next(&view, condition.first - 1);
+         i < condition.end; i = csane_tokens_next(&view, i)) {
+        Token *token = &tokens->tokens[i];
+
+        if (i == comparison) {
+            return true;
+        }
+        if (token_is_open_delimiter(token)) {
+            int32 match = csane_tokens_match(&view, i);
+
+            if (match < 0) {
+                return false;
+            }
+            i = match;
+        }
+    }
+    return false;
+}
+
+/* The source line may begin with indentation or with the closing brace and
+ * else preceding an else-if. Do not join an unrelated statement or comment. */
+static bool
+csane_control_if_prefix(char *text, int32 start, int32 keyword) {
+    int32 i = start;
+
+    while (i < keyword && text[i] == ' ') {
+        i += 1;
+    }
+    if (i == keyword) {
+        return true;
+    }
+    if (text[i] == '}') {
+        i += 1;
+        while (i < keyword && text[i] == ' ') {
+            i += 1;
+        }
+    }
+    if (i + 4 >= keyword || memcmp64(text + i, "else", 4)
+        || text[i + 4] != ' ') {
+        return false;
+    }
+    i += 4;
+    while (i < keyword && text[i] == ' ') {
+        i += 1;
+    }
+    return i == keyword;
+}
+
+/* Require the closing brace on the same physical line as the header, and
+ * no trailing comment or other statement after it. */
+static bool
+csane_control_if_suffix(char *text, int32 close_end, int32 end) {
+    int32 i = close_end;
+
+    while (i < end && (text[i] == ' ' || text[i] == '\r')) {
+        i += 1;
+    }
+    if (i >= end || text[i] != '{') {
+        return false;
+    }
+    i += 1;
+    while (i < end && (text[i] == ' ' || text[i] == '\r')) {
+        i += 1;
+    }
+    return i == end;
+}
+
+static void
+csane_control_if_wrap(CsaneFile *file, CsaneStatement *stmt, int32 index) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    int32 first;
+    int32 last;
+    int32 open;
+    int32 close;
+    int32 start;
+    int32 end;
+    int32 width;
+    SourceLocation close_location;
+
+    if (stmt->kind != CSANE_STMT_IF
+        || !csane_tokens_view(&view, tokens, stmt->header)) {
+        return;
+    }
+    for (int32 i = 0; i < index; i += 1) {
+        CsaneStatement *previous = &file->statements->items[i];
+
+        if (previous->kind == CSANE_STMT_IF
+            && previous->header.first == stmt->header.first
+            && previous->header.end == stmt->header.end) {
+            return;
+        }
+    }
+    first = token_range_first_significant(tokens, stmt->header);
+    last = token_range_last_significant(tokens, stmt->header);
+    if (first < 0 || last <= first) {
+        return;
+    }
+    open = csane_tokens_next(&view, first);
+    if (open >= last || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return;
+    }
+    close = csane_tokens_match(&view, open);
+    if (close != last
+        || tokenization_token_location(tokens, open).line
+           == tokenization_token_location(tokens, close).line
+        || !csane_wrap_safe(file, first, last, true)
+        || !csane_control_single_comparison(file, open, close)) {
+        return;
+    }
+    start = tokens->tokens[first].offset;
+    while (start > 0 && tokens->text[start - 1] != '\n') {
+        start -= 1;
+    }
+    if (!csane_control_if_prefix(tokens->text, start,
+                                 tokens->tokens[first].offset)) {
+        return;
+    }
+    close_location = tokenization_token_location(tokens, close);
+    end = tokenization_physical_line_end_offset(tokens, close_location.line);
+    while (end > 0 && (tokens->text[end - 1] == '\n'
+                       || tokens->text[end - 1] == '\r')) {
+        end -= 1;
+    }
+    if (!csane_control_if_suffix(tokens->text,
+                                 tokens->tokens[close].offset
+                                 + tokens->tokens[close].len, end)) {
+        return;
+    }
+    width = csane_wrap_flat_length(tokens->text, start, end,
+                                   file->column_limit);
+    if (width >= 0 && (file->column_limit <= 0
+                       || width <= file->column_limit)) {
+        csane_rule_issue(file, tokens->tokens[first].offset,
+                         STRLIT("FMT-IF-WRAP"),
+                         "single-comparison if header fits on one line");
+    }
+}
+
 void
 csane_control_check(CsaneFile *file) {
     if (file->statements == NULL || file->is_ryu
@@ -365,7 +543,9 @@ csane_control_check(CsaneFile *file) {
         csane_control_braces(file, stmt);
         csane_control_switch(file, stmt);
         csane_control_artificial(file, stmt);
+        csane_control_if_wrap(file, stmt, i);
     }
+    return;
 }
 
 #endif /* CSANECHECK_CONTROL_C */
