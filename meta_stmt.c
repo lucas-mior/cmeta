@@ -343,8 +343,7 @@ static bool
 stmt_pp_shared_if_body(StmtCursor *c, CPreprocessorGroup *group) {
     for (int32 b = group->first_branch; b >= 0;
          b = c->pp->branches[b].next_branch) {
-        if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens)
-            < 0) {
+        if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens) < 0) {
             return false;
         }
     }
