@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FMT-ARRAY-FIRST: an array subscript starts on the '[' line."""
+"""Array subscripts start beside '[' and align continuation expressions."""
 
 from pathlib import Path
 import re
@@ -14,6 +14,11 @@ DIAGNOSTIC = re.compile(
     r":(\d+):(\d+): error\[FMT-ARRAY-FIRST\]: (.*)"
 )
 MESSAGE = "array index must begin on the opening bracket's line"
+ALIGN_DIAGNOSTIC = re.compile(
+    r":(\d+):(\d+): error\[FMT-ARRAY-ALIGN\]: (.*)"
+)
+ALIGN_MESSAGE = ("array index continuation is not aligned "
+                 "with the first index token")
 
 
 class ArrayIndexWrapTests(unittest.TestCase):
@@ -41,6 +46,79 @@ class ArrayIndexWrapTests(unittest.TestCase):
                          [(line, column, MESSAGE)
                           for line, column in expected],
                          result.stdout + result.stderr)
+
+    def check_alignment(self, source, expected, config="", name=None):
+        path = self.source_path if name is None else self.root / name
+        path.write_text(source, encoding="utf-8")
+        self.config_path.write_text(config, encoding="utf-8")
+        result = subprocess.run(
+            [str(CHECKER), "--config", str(self.config_path),
+             "--file", str(path)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+        found = [(int(line), int(column), message)
+                 for line, column, message in ALIGN_DIAGNOSTIC.findall(
+                     result.stdout)]
+        self.assertEqual(found,
+                         [(line, column, ALIGN_MESSAGE)
+                          for line, column in expected],
+                         result.stdout + result.stderr)
+
+    def test_alignment_bad_and_good_arithmetic(self):
+        bad = "    int32 bad = my_array_has_a_long_name[variable_long_name*cols"
+        good = "    int32 good = my_array_has_a_long_name[variable_long_name*cols"
+        source = ("void f(void) {\n" + bad + "\n"
+                  "        + another_variable];\n" + good + "\n"
+                  + " "*(good.index("[") + 1)
+                  + "+ another_variable];\n}\n")
+        self.check_alignment(source, [(3, 9)])
+
+    def test_alignment_nested_calls_and_parentheses(self):
+        with_call = "    int32 value = a[compute(first,"
+        with_group = "    int32 value2 = a[(x +"
+        source = ("void f(void) {\n" + with_call + "\n"
+                  + " "*(with_call.index("first")) + "second)\n"
+                  + "     + offset];\n" + with_group + "\n"
+                  + " "*(with_group.index("(", with_group.index("[")) + 1)
+                  + "y)\n"
+                  + " "*(with_group.index("[") + 1) + "+ offset];\n}\n")
+        self.check_alignment(source, [(4, 6)])
+
+    def test_alignment_nested_indices_have_independent_anchors(self):
+        source = ("void f(void) {\n"
+                  "    int32 value = a[b[i +\n"
+                  "        j]\n"
+                  "      + offset];\n"
+                  "}\n")
+        self.check_alignment(source, [(4, 7), (3, 9)])
+
+    def test_alignment_comments_and_directives(self):
+        good = "    int32 good = a[first + /* note */"
+        bad = "    int32 bad = a[first + /* note */"
+        source = ("#if defined(A)\nvoid f(void) {\n" + bad + "\n"
+                  "        second];\n}\n"
+                  "#else\nvoid f(void) {\n" + good + "\n"
+                  + " "*(good.index("[") + 1) + "second];\n}\n"
+                  "#endif\n")
+        self.check_alignment(source, [(4, 9)])
+        self.check_alignment(source, [], "allow-rule FMT-ARRAY-ALIGN .*\n")
+        self.check_alignment(source, [], name="generated.meta.h")
+
+    def test_alignment_macro_continuations(self):
+        bad = "#define BAD(A, I) A[I + \\"
+        good = "#define GOOD(A, I) A[I + \\"
+        source = (bad + "\n    OFFSET]\n" + good + "\n"
+                  + " "*(good.index("[") + 1) + "OFFSET]\n")
+        self.check_alignment(source, [(2, 5)])
+
+    def test_alignment_declarators_and_designators(self):
+        source = ("int32 global[2 +\n    2];\n"
+                  "int32 f(void) {\n"
+                  "    int32 local[2 +\n        2];\n"
+                  "    int32 *ptr = (int32[2]){[0 +\n        1] = 3};\n"
+                  "    return local[0];\n}\n")
+        self.check_alignment(source, [])
 
     def test_bad_examples_and_good_alternatives(self):
         self.check("""int32 f(int32 *my_array_has_a_long_name,

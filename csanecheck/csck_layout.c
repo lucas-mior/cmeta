@@ -1623,6 +1623,54 @@ csane_layout_array_declaration(CsaneFile *file, CsaneTokenView *view,
                || csane_layout_local_prefix(view, type));
 }
 
+/* Each top-level continuation line in a subscript starts at the same
+ * column as the first index token. Nested calls and bracketed expressions
+ * own their own continuation alignment, so skip balanced nested groups. */
+static void
+csane_layout_array_alignment_check(CsaneFile *file, CsaneTokenView *view,
+                                   int32 first, int32 close) {
+    Tokenization *tokens = file->tokens;
+    SourceLocation anchor = tokenization_token_location(tokens, first);
+
+    for (int32 i = first; i < close; i = csane_tokens_next(view, i)) {
+        SourceLocation current;
+        SourceLocation previous_location;
+        int32 previous;
+
+        if (csane_layout_is(tokens, i, STRLIT("\\"))) {
+            continue;
+        }
+        if (csane_layout_is(tokens, i, STRLIT("("))
+            || csane_layout_is(tokens, i, STRLIT("["))
+            || csane_layout_is(tokens, i, STRLIT("{"))) {
+            int32 match = csane_tokens_match(view, i);
+            if (match <= i || match >= close) {
+                return;
+            }
+            i = match;
+            continue;
+        }
+        if (i == first) {
+            continue;
+        }
+        previous = tokenization_previous_significant(tokens, i);
+        if (previous < 0) {
+            continue;
+        }
+        current = tokenization_token_location(tokens, i);
+        previous_location = tokenization_token_location(tokens, previous);
+        if (current.line > previous_location.line
+            && current.column != anchor.column) {
+            csane_rule_issue(file, tokens->tokens[i].offset,
+                             STRLIT("FMT-ARRAY-ALIGN"),
+                             "array index continuation is not aligned "
+                             "with the first index token");
+            return;
+        }
+    }
+    return;
+}
+
 static void
 csane_layout_array_first_check(CsaneFile *file, int32 index) {
     Tokenization *tokens = file->tokens;
@@ -1678,7 +1726,9 @@ csane_layout_array_first_check(CsaneFile *file, int32 index) {
                          STRLIT("FMT-ARRAY-FIRST"),
                          "array index must begin on the opening "
                          "bracket's line");
+        return;
     }
+    csane_layout_array_alignment_check(file, &view, first, close);
     return;
 }
 

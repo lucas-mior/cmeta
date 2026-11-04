@@ -697,6 +697,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("FMT-ASSIGN-EQ"),
     SFLIT("FMT-CALL-FIRST"),
     SFLIT("FMT-ARRAY-FIRST"),
+    SFLIT("FMT-ARRAY-ALIGN"),
     SFLIT("FMT-CALL-FIRST-TOPLEVEL"),
     SFLIT("FMT-FUNC-ALIGN"),
     SFLIT("FMT-FUNC-WRAP"),
