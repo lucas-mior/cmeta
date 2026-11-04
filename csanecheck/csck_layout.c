@@ -1522,6 +1522,166 @@ csane_layout_nested_braces_check(CsaneFile *file, int32 index) {
     }
 }
 
+/* Distinguish later array declarators in a comma-separated declaration
+ * from subscripts in an initializer. Delimiters enclosing the bracket mean
+ * the bracket is inside an expression instead of a declarator. */
+static bool
+csane_layout_array_declaration_list(CsaneFile *file, CsaneTokenView *view,
+                                    int32 index) {
+    Tokenization *tokens = view->tokens;
+    TokenRange range = {0};
+    int32 first;
+    bool initializer = false;
+
+    if (file->layout_statement_index != NULL
+        && index < ARRAY_LEN(file->layout_statement_index)) {
+        int32 candidate = file->layout_statement_index[index];
+        if (candidate >= 0) {
+            CsaneStatement *stmt = &file->statements->items[candidate];
+            if (stmt->kind == CSANE_STMT_SIMPLE) {
+                range = stmt->tokens;
+            }
+        }
+    }
+    if (range.end == 0 && file->layout_top_index != NULL
+        && index < ARRAY_LEN(file->layout_top_index)) {
+        int32 candidate = file->layout_top_index[index];
+        if (candidate >= 0) {
+            range = file->toplevel->items[candidate].header;
+        }
+    }
+    if (range.end <= index) {
+        return false;
+    }
+    first = csane_tokens_next(view, range.first - 1);
+    while (first < index && !csane_layout_known_type(file, view, first)
+           && (csane_layout_qualifier(&tokens->tokens[first])
+               || csane_layout_is(tokens, first, STRLIT("signed"))
+               || csane_layout_is(tokens, first, STRLIT("unsigned")))) {
+        first = csane_tokens_next(view, first);
+    }
+    if (first >= index || !csane_layout_known_type(file, view, first)) {
+        return false;
+    }
+    for (int32 i = csane_tokens_next(view, first); i < index;) {
+        if (csane_layout_is(tokens, i, STRLIT("="))) {
+            initializer = true;
+        } else if (csane_layout_is(tokens, i, STRLIT(","))) {
+            initializer = false;
+        } else if (csane_layout_is(tokens, i, STRLIT("("))
+                   || csane_layout_is(tokens, i, STRLIT("["))
+                   || csane_layout_is(tokens, i, STRLIT("{"))) {
+            int32 match = csane_tokens_match(view, i);
+            if (match < 0 || match >= index) {
+                return false;
+            }
+            i = match;
+        }
+        i = csane_tokens_next(view, i);
+    }
+    return !initializer;
+}
+
+/* Array subscripts must start on the opening bracket's line. Keep the
+ * diagnostic local to a balanced bracket pair and its source region; a
+ * conditional branch or directive must not supply a missing index. */
+static bool
+csane_layout_array_declaration(CsaneFile *file, CsaneTokenView *view,
+                               int32 index, int32 before) {
+    Tokenization *tokens = view->tokens;
+    int32 type;
+
+    /* Walk back through earlier dimensions of the same declarator. */
+    while (csane_layout_is(tokens, before, STRLIT("]"))) {
+        int32 open = csane_tokens_match(view, before);
+        if (open < 0) {
+            return false;
+        }
+        before = csane_tokens_previous(view, open);
+    }
+    /* Parenthesized pointer-to-array declarators: int32 (*p)[N]. */
+    if (csane_layout_is(tokens, before, STRLIT(")"))) {
+        int32 open = csane_tokens_match(view, before);
+        int32 star = csane_tokens_next(view, open);
+        if (open < 0 || !csane_layout_is(tokens, star, STRLIT("*"))) {
+            return false;
+        }
+        type = csane_tokens_previous(view, open);
+    } else {
+        if (before < view->range.first
+            || tokens->tokens[before].kind != TOKEN_IDENT) {
+            return false;
+        }
+        type = csane_tokens_previous(view, before);
+        while (csane_layout_is(tokens, type, STRLIT("*"))) {
+            type = csane_tokens_previous(view, type);
+        }
+    }
+    return type >= view->range.first
+           && csane_layout_known_type(file, view, type)
+           && (csane_layout_statement_prefix(file, view, index, type)
+               || csane_layout_local_prefix(view, type));
+}
+
+static void
+csane_layout_array_first_check(CsaneFile *file, int32 index) {
+    Tokenization *tokens = file->tokens;
+    int32 region;
+    CsaneTokenView view;
+    int32 before;
+    int32 first;
+    int32 close;
+    SourceLocation start;
+    SourceLocation argument;
+
+    if (!csane_layout_is(tokens, index, STRLIT("["))
+        || (!csane_layout_code(file, index)
+            && (file->preprocessor->token_roles == NULL
+                || file->preprocessor->token_roles[index]
+                   != C_PP_TOKEN_MACRO_REPLACEMENT))) {
+        return;
+    }
+    region = csane_regions_at_token(file->regions, index);
+    if (region < 0
+        || !csane_tokens_view(&view, tokens,
+                              file->regions->items[region].tokens)) {
+        return;
+    }
+    before = csane_tokens_previous(&view, index);
+    if (before < view.range.first
+        || (tokens->tokens[before].kind != TOKEN_IDENT
+            && !csane_layout_is(tokens, before, STRLIT(")"))
+            && !csane_layout_is(tokens, before, STRLIT("]")))) {
+        return;
+    }
+    close = csane_tokens_match(&view, index);
+    first = csane_tokens_next(&view, index);
+    /* Macro continuation backslashes are source tokens, not indices. */
+    if (file->preprocessor->token_roles != NULL
+        && file->preprocessor->token_roles[index]
+           == C_PP_TOKEN_MACRO_REPLACEMENT) {
+        while (first < close
+               && csane_layout_is(tokens, first, STRLIT("\\"))) {
+            first = csane_tokens_next(&view, first);
+        }
+    }
+    if (close <= first || first >= view.range.end
+        || csane_layout_is(tokens, first, STRLIT("["))
+        || csane_layout_array_declaration(file, &view, index, before)
+        || csane_layout_array_declaration_list(file, &view, index)) {
+        return;
+    }
+    start = tokenization_token_location(tokens, index);
+    argument = tokenization_token_location(tokens, first);
+    if (start.line != argument.line) {
+        csane_rule_issue(file, tokens->tokens[index].offset,
+                         STRLIT("FMT-ARRAY-FIRST"),
+                         "array index must begin on the opening "
+                         "bracket's line");
+    }
+    return;
+}
+
 static void
 csane_layout_local_style_check(CsaneFile *file, int32 index,
                                enum CsaneLayoutOperator kind) {
@@ -1614,6 +1774,7 @@ csane_layout_check(CsaneFile *file) {
             kind = csane_layout_classify(file, i);
         }
         csane_layout_nested_braces_check(file, i);
+        csane_layout_array_first_check(file, i);
         csane_layout_local_style_check(file, i, kind);
         if (kind == CSANE_LAYOUT_MULTIPLY) {
             if (csane_layout_spacing(file, i, true)) {

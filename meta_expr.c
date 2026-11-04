@@ -630,6 +630,7 @@ expr_test_precedence(void) {
     int32 shift;
     int32 sub;
     int32 add;
+    int32 right;
     int32 op;
     ASSERT(c_ast_init(&ast, &t));
     result = c_ast_parse_expression(&ast, (TokenRange){0, ARRAY_LEN(t.tokens)});
@@ -651,8 +652,8 @@ expr_test_precedence(void) {
     ASSERT(TOKEN_IS(&t.tokens[ast.expressions[sub].operator_token], "-"));
     add = ast.expressions[sub].left;
     ASSERT(TOKEN_IS(&t.tokens[ast.expressions[add].operator_token], "+"));
-    ASSERT(TOKEN_IS(&t.tokens[ast.expressions[
-        ast.expressions[add].right].operator_token], "*"));
+    right = ast.expressions[add].right;
+    ASSERT(TOKEN_IS(&t.tokens[ast.expressions[right].operator_token], "*"));
     assign = ast.expressions[comma].right;
     ASSERT_EQ(ast.expressions[assign].kind, C_EXPR_ASSIGN);
     ASSERT_EQ(ast.expressions[ast.expressions[assign].right].kind,

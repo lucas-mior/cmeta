@@ -20,8 +20,8 @@ typedef struct CsaneStatementStream {
 
 static Token *
 csane_stmt_token(CsaneStatementStream *stream, int32 position) {
-    return &stream->statements->toplevel->regions->tokens->tokens[
-        stream->indices[position]];
+    int32 index = stream->indices[position];
+    return &stream->statements->toplevel->regions->tokens->tokens[index];
 }
 
 static bool
@@ -493,10 +493,10 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
             }
         }
         if (id >= 0) {
-            Token *last = csane_stmt_token(stream,
-                                           end > first ? end - 1 : first);
-            stream->statements->items[id].tokens.end = stream->indices[
-                end > first ? end - 1 : first] + 1;
+            int32 last_index = end > first ? end - 1 : first;
+            Token *last = csane_stmt_token(stream, last_index);
+            stream->statements->items[id].tokens.end =
+                stream->indices[last_index] + 1;
             stream->statements->items[id].source.end = last->offset
                                                        + last->len;
         }
