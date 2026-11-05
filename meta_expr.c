@@ -35,8 +35,9 @@ enum {
 };
 
 static int32
-expr_sig(ExprCursor *c, int32 i) {
-    return token_range_next_significant(c->ast->tokenization, c->range, i - 1);
+expr_sig(ExprCursor *c, int32 token_index) {
+    return token_range_next_significant(c->ast->tokenization, c->range,
+                                        token_index - 1);
 }
 
 static int32
@@ -45,9 +46,9 @@ expr_next(ExprCursor *c) {
 }
 
 static bool
-expr_at(ExprCursor *c, int32 i, char *text) {
-    return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
+expr_at(ExprCursor *c, int32 token_index, char *text) {
+    return (token_index < c->range.end)
+           && TOKEN_IS(&c->ast->tokenization->tokens[token_index], text,
                        strlen32(text));
 }
 

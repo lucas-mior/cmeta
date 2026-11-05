@@ -101,9 +101,10 @@ csane_layout_code(CsaneFile *file, int32 index) {
 }
 
 static bool
-csane_layout_is(Tokenization *tokens, int32 i, char *name, int32 name_len) {
-    return i >= 0 && i < ARRAY_LEN(tokens->tokens)
-           && TOKEN_IS(&tokens->tokens[i], name, name_len);
+csane_layout_is(Tokenization *tokens, int32 token_index,
+                char *name, int32 name_len) {
+    return token_index >= 0 && token_index < ARRAY_LEN(tokens->tokens)
+           && TOKEN_IS(&tokens->tokens[token_index], name, name_len);
 }
 
 static StrFlex *csane_layout_keywords[] = {

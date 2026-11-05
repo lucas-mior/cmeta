@@ -31,9 +31,9 @@ stmt_sig(StmtCursor *c, int32 start) {
 }
 
 static bool
-stmt_at(StmtCursor *c, int32 i, char *text) {
-    return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
+stmt_at(StmtCursor *c, int32 token_index, char *text) {
+    return (token_index < c->range.end)
+           && TOKEN_IS(&c->ast->tokenization->tokens[token_index], text,
                        strlen32(text));
 }
 

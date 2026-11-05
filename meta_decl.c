@@ -33,9 +33,9 @@ decl_sig(DeclCursor *c, int32 pos) {
 }
 
 static bool
-decl_at(DeclCursor *c, int32 i, char *text) {
-    return (i < c->range.end)
-           && TOKEN_IS(&c->ast->tokenization->tokens[i], text,
+decl_at(DeclCursor *c, int32 token_index, char *text) {
+    return (token_index < c->range.end)
+           && TOKEN_IS(&c->ast->tokenization->tokens[token_index], text,
                        strlen32(text));
 }
 
@@ -123,24 +123,24 @@ decl_skip_to(DeclCursor *c, int32 start, char *a, char *b) {
 }
 
 static bool
-decl_is_extension(DeclCursor *c, int32 i) {
-    return decl_at(c, i, "__attribute__")
-           || decl_at(c, i, "__declspec")
-           || decl_at(c, i, "typeof")
-           || decl_at(c, i, "__typeof__");
+decl_is_extension(DeclCursor *c, int32 token_index) {
+    return decl_at(c, token_index, "__attribute__")
+           || decl_at(c, token_index, "__declspec")
+           || decl_at(c, token_index, "typeof")
+           || decl_at(c, token_index, "__typeof__");
 }
 
 /* Macro annotations are common in the supported codebases. They must
  * not be confused with a typedef or with a declarator's actual name. */
 static bool
-decl_upper_macro(DeclCursor *c, int32 i) {
+decl_upper_macro(DeclCursor *c, int32 token_index) {
     Token *token;
     bool has_letter = false;
-    if (i >= c->range.end) {
+    if (token_index >= c->range.end) {
         return false;
     }
-    token = &c->ast->tokenization->tokens[i];
-    if (token->kind != TOKEN_IDENT || c_ast_lookup(c->ast, i)
+    token = &c->ast->tokenization->tokens[token_index];
+    if (token->kind != TOKEN_IDENT || c_ast_lookup(c->ast, token_index)
                                       != C_NAME_UNKNOWN) {
         return false;
     }
@@ -159,25 +159,26 @@ decl_upper_macro(DeclCursor *c, int32 i) {
  * Ordinary declarators, expressions and macro calls are never expanded.
  * Attribute arguments are opaque balanced ranges. */
 static int32
-decl_annotation_end(DeclCursor *c, int32 i) {
+decl_annotation_end(DeclCursor *c, int32 token_index) {
     int32 next;
     int32 close;
-    if (i >= c->range.end) {
+    if (token_index >= c->range.end) {
         return -1;
     }
-    if (decl_at(c, i, "__attribute__")
-        || decl_at(c, i, "__declspec")) {
-        next = decl_sig(c, i + 1);
+    if (decl_at(c, token_index, "__attribute__")
+        || decl_at(c, token_index, "__declspec")) {
+        next = decl_sig(c, token_index + 1);
         if (!decl_at(c, next, "(")) {
             return -1;
         }
         close = decl_match(c, next);
         return close >= 0 ? decl_sig(c, close + 1) : -1;
     }
-    if (!decl_upper_macro(c, i) && !decl_at(c, i, "noreturn")) {
+    if (!decl_upper_macro(c, token_index)
+        && !decl_at(c, token_index, "noreturn")) {
         return -1;
     }
-    next = decl_sig(c, i + 1);
+    next = decl_sig(c, token_index + 1);
     if (decl_at(c, next, "(")) {
         close = decl_match(c, next);
         return close >= 0 ? decl_sig(c, close + 1) : -1;
@@ -186,27 +187,29 @@ decl_annotation_end(DeclCursor *c, int32 i) {
 }
 
 static bool
-decl_is_storage(enum CKeyword k) {
-    return (k == C_KEYWORD_TYPEDEF) || (k == C_KEYWORD_STATIC)
-           || (k == C_KEYWORD_EXTERN) || (k == C_KEYWORD_REGISTER)
-           || (k == C_KEYWORD_AUTO) || (k == C_KEYWORD_INLINE)
-           || (k == C_KEYWORD_THREAD_LOCAL) || (k == C_KEYWORD_NORETURN);
+decl_is_storage(enum CKeyword keyword) {
+    return (keyword == C_KEYWORD_TYPEDEF) || (keyword == C_KEYWORD_STATIC)
+           || (keyword == C_KEYWORD_EXTERN) || (keyword == C_KEYWORD_REGISTER)
+           || (keyword == C_KEYWORD_AUTO) || (keyword == C_KEYWORD_INLINE)
+           || (keyword == C_KEYWORD_THREAD_LOCAL)
+           || (keyword == C_KEYWORD_NORETURN);
 }
 
 static bool
-decl_is_builtin(enum CKeyword k) {
-    return (k == C_KEYWORD_VOID) || (k == C_KEYWORD_CHAR)
-           || (k == C_KEYWORD_SHORT) || (k == C_KEYWORD_INT)
-           || (k == C_KEYWORD_LONG) || (k == C_KEYWORD_SIGNED)
-           || (k == C_KEYWORD_UNSIGNED) || (k == C_KEYWORD_FLOAT)
-           || (k == C_KEYWORD_DOUBLE) || (k == C_KEYWORD_BOOL)
-           || (k == C_KEYWORD_COMPLEX) || (k == C_KEYWORD_IMAGINARY);
+decl_is_builtin(enum CKeyword keyword) {
+    return (keyword == C_KEYWORD_VOID) || (keyword == C_KEYWORD_CHAR)
+           || (keyword == C_KEYWORD_SHORT) || (keyword == C_KEYWORD_INT)
+           || (keyword == C_KEYWORD_LONG) || (keyword == C_KEYWORD_SIGNED)
+           || (keyword == C_KEYWORD_UNSIGNED) || (keyword == C_KEYWORD_FLOAT)
+           || (keyword == C_KEYWORD_DOUBLE) || (keyword == C_KEYWORD_BOOL)
+           || (keyword == C_KEYWORD_COMPLEX)
+           || (keyword == C_KEYWORD_IMAGINARY);
 }
 
 static bool
-decl_is_qualifier(enum CKeyword k) {
-    return (k == C_KEYWORD_CONST) || (k == C_KEYWORD_VOLATILE)
-           || (k == C_KEYWORD_RESTRICT);
+decl_is_qualifier(enum CKeyword keyword) {
+    return (keyword == C_KEYWORD_CONST) || (keyword == C_KEYWORD_VOLATILE)
+           || (keyword == C_KEYWORD_RESTRICT);
 }
 
 static int32 decl_parse_one(DeclCursor *, enum CDeclarationKind, bool);

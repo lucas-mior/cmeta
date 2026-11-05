@@ -47,17 +47,17 @@ csane_decl_next(CsaneFile *file, TokenRange range, int32 after) {
 }
 
 static bool
-csane_decl_is(CsaneFile *file, int32 i, char *name, int32 name_len) {
-    return i >= 0 && i < ARRAY_LEN(file->tokens->tokens)
-           && TOKEN_IS(&file->tokens->tokens[i], name, name_len);
+csane_decl_is(CsaneFile *file, int32 token_index, char *name, int32 name_len) {
+    return token_index >= 0 && token_index < ARRAY_LEN(file->tokens->tokens)
+           && TOKEN_IS(&file->tokens->tokens[token_index], name, name_len);
 }
 
 static bool
-csane_decl_qualifier(CsaneFile *file, int32 i) {
+csane_decl_qualifier(CsaneFile *file, int32 token_index) {
     int32 count = LENGTH(csane_decl_qualifiers);
     for (int32 j = 0; j < count; j += 1) {
         StrFlex *word = csane_decl_qualifiers[j];
-        if (csane_decl_is(file, i, word->data, word->len)) {
+        if (csane_decl_is(file, token_index, word->data, word->len)) {
             return true;
         }
     }
@@ -513,8 +513,60 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     }
 }
 
+/* Parameter declarators may contain pointer and callback syntax. Only a
+ * declarator identifier, never a type tag or array bound, is an argument
+ * name. Inspect the original tokens instead of matching raw source text. */
 static void
-csane_decl_parameter_checks(CsaneFile *file, TokenRange args) {
+csane_decl_parameter_name_check(CsaneFile *file, TokenRange parameter) {
+    CsaneTokenView view;
+    int32 brackets = 0;
+    int32 token;
+
+    if (!csane_tokens_view(&view, file->tokens, parameter)) {
+        return;
+    }
+    token = csane_tokens_next(&view, parameter.first - 1);
+    while (token >= parameter.first && token < parameter.end) {
+        Token *word = &file->tokens->tokens[token];
+        int32 previous;
+        int32 next;
+
+        if (csane_decl_is(file, token, STRLIT("["))) {
+            brackets += 1;
+        } else if (csane_decl_is(file, token, STRLIT("]"))) {
+            brackets -= brackets > 0;
+        }
+        if (brackets != 0 || word->kind != TOKEN_IDENT || word->len != 1
+            || (word->text[0] != 'i' && word->text[0] != 'j'
+                && word->text[0] != 'k')) {
+            token = csane_tokens_next(&view, token);
+            continue;
+        }
+        previous = csane_tokens_previous(&view, token);
+        next = csane_tokens_next(&view, token);
+        if (previous < parameter.first
+            || (file->tokens->tokens[previous].kind != TOKEN_IDENT
+                && !csane_decl_is(file, previous, STRLIT("*")))
+            || csane_decl_is(file, previous, STRLIT("struct"))
+            || csane_decl_is(file, previous, STRLIT("union"))
+            || csane_decl_is(file, previous, STRLIT("enum"))
+            || (next < parameter.end
+                && !csane_decl_is(file, next, STRLIT(")"))
+                && !csane_decl_is(file, next, STRLIT("["))
+                && !csane_decl_is(file, next, STRLIT("(")))) {
+            token = csane_tokens_next(&view, token);
+            continue;
+        }
+        csane_rule_issue(file, word->offset, STRLIT("STYLE-PARAM-IJK"),
+                         "i, j and k are forbidden as function parameter "
+                         "names");
+        token = csane_tokens_next(&view, token);
+    }
+}
+
+static void
+csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
+                            bool check_types) {
     CsaneTokenView view;
     int32 first;
 
@@ -531,11 +583,55 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args) {
         if (comma >= first && comma < args.end) {
             parameter.end = comma;
         }
-        csane_decl_type_prefix_check(file, parameter);
+        if (check_types) {
+            csane_decl_type_prefix_check(file, parameter);
+        }
+        csane_decl_parameter_name_check(file, parameter);
         if (comma < first || comma >= args.end) {
             break;
         }
         first = csane_tokens_next(&view, comma);
+    }
+}
+
+/* Function-pointer declarations also carry formal parameter names, even
+ * though their declarator has no direct function-name/parameter pair. */
+static void
+csane_decl_pointer_parameter_checks(CsaneFile *file, TokenRange range) {
+    CsaneTokenView view;
+    int32 token;
+
+    if (!csane_tokens_view(&view, file->tokens, range)) {
+        return;
+    }
+    token = csane_tokens_next(&view, range.first - 1);
+    while (token >= range.first && token < range.end) {
+        if (csane_decl_is(file, token, STRLIT("{"))) {
+            int32 close = csane_tokens_match(&view, token);
+
+            if (close > token) {
+                token = csane_tokens_next(&view, close);
+                continue;
+            }
+        }
+        if (csane_decl_is(file, token, STRLIT("("))) {
+            int32 pointer = csane_tokens_next(&view, token);
+            int32 close = csane_tokens_match(&view, token);
+
+            if (csane_decl_is(file, pointer, STRLIT("*"))
+                && close > pointer) {
+                int32 args = csane_tokens_next(&view, close);
+                int32 args_close = csane_tokens_match(&view, args);
+
+                if (csane_decl_is(file, args, STRLIT("("))
+                    && args_close > args) {
+                    TokenRange callback_args = {args + 1, args_close};
+
+                    csane_decl_parameter_checks(file, callback_args, false);
+                }
+            }
+        }
+        token = csane_tokens_next(&view, token);
     }
 }
 
@@ -562,8 +658,9 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
     args = (TokenRange){open + 1, close};
     if (!csane_decl_word(file, name, STRLIT("main"))) {
         csane_decl_type_prefix_check(file, result);
-        csane_decl_parameter_checks(file, args);
     }
+    csane_decl_parameter_checks(file, args,
+                                !csane_decl_word(file, name, STRLIT("main")));
     token = csane_tokens_next(&view, range.first - 1);
     while (token >= range.first && token < close) {
         if (csane_decl_word(file, token, STRLIT("const"))) {
@@ -596,6 +693,7 @@ csane_decl_style_check(CsaneFile *file, TokenRange range) {
     }
     csane_decl_type_prefix_check(file, range);
     csane_decl_typedef_check(file, range);
+    csane_decl_pointer_parameter_checks(file, range);
 }
 
 static int32

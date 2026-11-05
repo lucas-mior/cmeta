@@ -103,17 +103,17 @@ csane_stmt_pair(CsaneStatementStream *stream, int32 a, int32 b) {
 }
 
 static bool
-csane_stmt_open(CsaneStatementStream *stream, int32 i) {
-    return csane_stmt_is(stream, i, STRLIT("("))
-           || csane_stmt_is(stream, i, STRLIT("["))
-           || csane_stmt_is(stream, i, STRLIT("{"));
+csane_stmt_open(CsaneStatementStream *stream, int32 position) {
+    return csane_stmt_is(stream, position, STRLIT("("))
+           || csane_stmt_is(stream, position, STRLIT("["))
+           || csane_stmt_is(stream, position, STRLIT("{"));
 }
 
 static bool
-csane_stmt_close(CsaneStatementStream *stream, int32 i) {
-    return csane_stmt_is(stream, i, STRLIT(")"))
-           || csane_stmt_is(stream, i, STRLIT("]"))
-           || csane_stmt_is(stream, i, STRLIT("}"));
+csane_stmt_close(CsaneStatementStream *stream, int32 position) {
+    return csane_stmt_is(stream, position, STRLIT(")"))
+           || csane_stmt_is(stream, position, STRLIT("]"))
+           || csane_stmt_is(stream, position, STRLIT("}"));
 }
 
 static bool csane_stmt_branch_needs_context(CsaneRegions *, int32);
@@ -279,23 +279,23 @@ csane_stmt_match(CsaneStatementStream *stream) {
 }
 
 static enum CsaneStatementKind
-csane_stmt_control(CsaneStatementStream *stream, int32 i) {
-    if (csane_stmt_is(stream, i, STRLIT("if"))) {
+csane_stmt_control(CsaneStatementStream *stream, int32 position) {
+    if (csane_stmt_is(stream, position, STRLIT("if"))) {
         return CSANE_STMT_IF;
     }
-    if (csane_stmt_is(stream, i, STRLIT("else"))) {
+    if (csane_stmt_is(stream, position, STRLIT("else"))) {
         return CSANE_STMT_ELSE;
     }
-    if (csane_stmt_is(stream, i, STRLIT("for"))) {
+    if (csane_stmt_is(stream, position, STRLIT("for"))) {
         return CSANE_STMT_FOR;
     }
-    if (csane_stmt_is(stream, i, STRLIT("while"))) {
+    if (csane_stmt_is(stream, position, STRLIT("while"))) {
         return CSANE_STMT_WHILE;
     }
-    if (csane_stmt_is(stream, i, STRLIT("do"))) {
+    if (csane_stmt_is(stream, position, STRLIT("do"))) {
         return CSANE_STMT_DO;
     }
-    if (csane_stmt_is(stream, i, STRLIT("switch"))) {
+    if (csane_stmt_is(stream, position, STRLIT("switch"))) {
         return CSANE_STMT_SWITCH;
     }
     return CSANE_STMT_SIMPLE;

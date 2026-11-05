@@ -9,17 +9,18 @@
 #include "csck_tokens.h"
 
 static bool
-csane_status_is(CsaneFile *file, int32 i, char *text, int32 text_len) {
-    return i >= 0 && i < ARRAY_LEN(file->tokens->tokens)
-           && TOKEN_IS(&file->tokens->tokens[i], text, text_len);
+csane_status_is(CsaneFile *file, int32 token_index,
+                char *text, int32 text_len) {
+    return token_index >= 0 && token_index < ARRAY_LEN(file->tokens->tokens)
+           && TOKEN_IS(&file->tokens->tokens[token_index], text, text_len);
 }
 
 /* A status member, label, or preprocessor occurrence is not a reference to
  * the local variable. Keep the source-order references independently of the
  * statement parser: uses in if/return and nested blocks must be visible. */
 static bool
-csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
-    Token *token = &file->tokens->tokens[i];
+csane_status_reference(CsaneFile *file, int32 token_index, TokenRange body) {
+    Token *token = &file->tokens->tokens[token_index];
     int32 previous;
     int32 next;
 
@@ -27,11 +28,11 @@ csane_status_reference(CsaneFile *file, int32 i, TokenRange body) {
         return false;
     }
     if (file->preprocessor->token_directives != NULL
-        && file->preprocessor->token_directives[i] >= 0) {
+        && file->preprocessor->token_directives[token_index] >= 0) {
         return false;
     }
-    previous = tokenization_previous_significant(file->tokens, i);
-    next = tokenization_next_significant(file->tokens, i);
+    previous = tokenization_previous_significant(file->tokens, token_index);
+    next = tokenization_next_significant(file->tokens, token_index);
     if ((previous >= body.first
          && (csane_status_is(file, previous, STRLIT("."))
              || csane_status_is(file, previous, STRLIT("->"))))
