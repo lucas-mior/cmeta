@@ -537,8 +537,7 @@ csane_decl_parameter_name_check(CsaneFile *file, TokenRange parameter) {
             brackets -= brackets > 0;
         }
         if (brackets != 0 || word->kind != TOKEN_IDENT || word->len != 1
-            || (word->text[0] != 'i' && word->text[0] != 'j'
-                && word->text[0] != 'k')) {
+            || (word->text[0] != 'i' && word->text[0] != 'j')) {
             token = csane_tokens_next(&view, token);
             continue;
         }
