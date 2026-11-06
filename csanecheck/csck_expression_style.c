@@ -828,6 +828,119 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
+/* strcmp is a three-way comparator, not a string equality predicate.
+ * Permit its value only when a simple statement directly returns it or
+ * stores it in a variable. In particular, assignment inside an if condition
+ * is not a standalone assignment statement. */
+static bool
+csane_style_strcmp_value(CsaneTokenView *view, TokenRange expression,
+                         int32 start, int32 close) {
+    CsaneTokenView local;
+    int32 first;
+    int32 after;
+
+    expression = csane_tokens_unwrap(view, expression);
+    if (!csane_tokens_subview(&local, view, expression)) {
+        return false;
+    }
+    first = csane_tokens_next(&local, expression.first - 1);
+    after = csane_tokens_next(&local, close);
+    return first == start && after >= expression.end;
+}
+
+static bool
+csane_style_strcmp_simple(CsaneFile *file, CsaneStatement *statement,
+                          int32 start, int32 close) {
+    CsaneTokenView view;
+    CsaneTokenView segment;
+    TokenRange ranges[64];
+    TokenRange expression;
+    TokenRange span = statement->tokens;
+    int32 last;
+    int32 first;
+    int32 count;
+
+    if (statement->kind != CSANE_STMT_SIMPLE
+        || !csane_tokens_view(&view, file->tokens, span)) {
+        return false;
+    }
+    last = csane_tokens_previous(&view, span.end);
+    if (last < span.first
+        || !TOKEN_IS(&file->tokens->tokens[last], ";")) {
+        return false;
+    }
+    span.end = last;
+    if (!csane_tokens_view(&view, file->tokens, span)) {
+        return false;
+    }
+    first = csane_tokens_next(&view, span.first - 1);
+    if (first < span.end
+        && TOKEN_IS(&file->tokens->tokens[first], "return")) {
+        expression = (TokenRange){first + 1, span.end};
+        return csane_style_strcmp_value(&view, expression, start, close);
+    }
+    count = csane_tokens_split(&view, STRLIT(","), ranges, LENGTH(ranges));
+    if (count < 0 || count > LENGTH(ranges)) {
+        return false;
+    }
+    for (int32 i = 0; i < count; i += 1) {
+        int32 equal;
+        int32 before;
+        if (start < ranges[i].first || close >= ranges[i].end
+            || !csane_tokens_subview(&segment, &view, ranges[i])) {
+            continue;
+        }
+        equal = csane_tokens_top_level(&segment, ranges[i].first - 1,
+                                       STRLIT("="));
+        if (equal < ranges[i].first || equal >= ranges[i].end) {
+            continue;
+        }
+        before = csane_tokens_previous(&segment, equal);
+        if (before < ranges[i].first) {
+            continue;
+        }
+        expression = (TokenRange){equal + 1, ranges[i].end};
+        if (csane_style_strcmp_value(&segment, expression, start, close)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+csane_style_strcmp_allowed(CsaneFile *file, int32 name, int32 start,
+                           int32 close) {
+    int32 count;
+    int32 index = -1;
+
+    if (file->statements == NULL) {
+        return false;
+    }
+    if (file->layout_statement_index != NULL
+        && name < ARRAY_LEN(file->layout_statement_index)) {
+        index = file->layout_statement_index[name];
+    }
+    if (index >= 0) {
+        return csane_style_strcmp_simple(file,
+                                         &file->statements->items[index],
+                                         start, close);
+    }
+    /* An overlapping #if stream has no unique statement index. */
+    if (index != -2) {
+        return false;
+    }
+    count = ARRAY_LEN(file->statements->items);
+    for (int32 i = 0; i < count; i += 1) {
+        CsaneStatement *statement = &file->statements->items[i];
+        if (name >= statement->tokens.first
+            && close < statement->tokens.end
+            && csane_style_strcmp_simple(file, statement, start, close)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 csane_expression_style_check(CsaneFile *file) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
@@ -836,6 +949,8 @@ csane_expression_style_check(CsaneFile *file) {
         Token *token = &tokens->tokens[i];
         int32 next;
         int32 previous;
+        int32 call_start = i;
+        bool wrapped_strcmp = false;
         CsaneTokenView local;
         CsaneRegions *r;
         int32 region;
@@ -851,11 +966,22 @@ csane_expression_style_check(CsaneFile *file) {
             continue;
         }
         next = csane_tokens_next(&view, i);
+        previous = csane_tokens_previous(&view, i);
+        if (TOKEN_IS(token, "strcmp")) {
+            while (previous >= 0 && next < ARRAY_LEN(tokens->tokens)
+                   && TOKEN_IS(&tokens->tokens[previous], "(")
+                   && TOKEN_IS(&tokens->tokens[next], ")")
+                   && csane_tokens_match(&view, previous) == next) {
+                call_start = previous;
+                next = csane_tokens_next(&view, next);
+                previous = csane_tokens_previous(&view, call_start);
+                wrapped_strcmp = true;
+            }
+        }
         if (next >= ARRAY_LEN(tokens->tokens)
             || !TOKEN_IS(&tokens->tokens[next], "(")) {
             continue;
         }
-        previous = csane_tokens_previous(&view, i);
         if (previous >= 0
             && csane_type_name(&tokens->tokens[previous])) {
             continue;
@@ -922,7 +1048,8 @@ csane_expression_style_check(CsaneFile *file) {
             continue;
         }
         range = (TokenRange){0, ARRAY_LEN(tokens->tokens)};
-        kind = csane_classify_invocation(tokens, range, i);
+        kind = wrapped_strcmp ? CSANE_LOCAL_CALL
+                              : csane_classify_invocation(tokens, range, i);
         if (kind == CSANE_LOCAL_CALL
             || kind == CSANE_LOCAL_MACRO_INVOCATION) {
             if (TOKEN_IS(token, "MAXOF") || TOKEN_IS(token, "MINOF")) {
@@ -934,6 +1061,14 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
                 continue;
+            }
+            if (TOKEN_IS(token, "strcmp")
+                && !csane_style_strcmp_allowed(file, i, call_start, close)) {
+                csane_rule_issue(file, token->offset,
+                                 STRLIT("STYLE-STRCMP"),
+                                 "use STREQUAL or strequal for equality; "
+                                 "strcmp is only allowed as a direct "
+                                 "return or assignment value");
             }
             if (TOKEN_IS(token, "ASSERT")) {
                 if (!csane_style_assert_tolerance(file, &local, i, next)) {

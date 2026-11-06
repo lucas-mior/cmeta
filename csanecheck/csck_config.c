@@ -690,6 +690,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("STYLE-ASSERT-CLOSE"),
     SFLIT("STYLE-STRLIT-LEN"),
     SFLIT("STYLE-STREQUAL"),
+    SFLIT("STYLE-STRCMP"),
     SFLIT("STYLE-PRINTF"),
     SFLIT("STYLE-STATUS-TEMP"),
     SFLIT("STYLE-STATUS-IF"),

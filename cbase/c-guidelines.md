@@ -693,7 +693,10 @@ In general, avoid `strcmp()`, use the alternatives below instead:
 - For strings that we know the length of both (they might be null terminated,
   but not necessarly):
   * use `STREQUAL(s1, s1_len, s2, s2_len)`
-- Use `strcmp()` when comparing strings for sorting purposes.
+- Use `strcmp()` when comparing strings for sorting purposes, but only
+  as the direct value of a `return` statement or a variable assignment.
+  Never use `strcmp()` in `if` conditions or other boolean comparisons,
+  including `strcmp(a, b) == 0`. Use `STREQUAL` or `strequal` for equality.
 
 ## Checking if a string begins or ends with something:
 Don't use `strncmp` to check if a string begins or ends with something.
