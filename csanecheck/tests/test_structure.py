@@ -201,8 +201,8 @@ class StructureTests(unittest.TestCase):
                   "enum Tags {\n#if FIRST\n    TAG_A = 1,\n"
                   "#else\n    TAG_B = 2,\n#endif\n};\n"
                   "int32 test(int32 a\n#if FIRST\n"
-                  "           , int32 b\n#else\n"
-                  "           , int32 c\n#endif\n"
+                  "         , int32 b\n#else\n"
+                  "         , int32 c\n#endif\n"
                   "           ) { return a; }\n")
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "guarded.c"

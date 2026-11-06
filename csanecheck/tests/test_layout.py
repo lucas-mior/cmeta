@@ -300,8 +300,7 @@ int32 f(int32 a, int32 b) {
 """, ["FMT-MULTIPLY"])
 
     def test_parameter_context_distinguishes_pointers_from_array_math(self):
-        self.check("""void f(char *, int32 *named,
-       int32 (*compare)(void *, const char *));
+        self.check("""void f(char *, int32 *named, int32 (*compare)(void *, const char *));
 """, [])
         self.check("""typedef void *AllocatorMalloc(int64 size,
                                        void *context);

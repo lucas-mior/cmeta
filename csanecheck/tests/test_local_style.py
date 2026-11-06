@@ -197,8 +197,7 @@ int32 f(int32 x) {
 """, ["STYLE-ASSERT-CLOSE"]*7)
 
     def test_assert_close_unrelated_patterns_use_ordered_rule(self):
-        self.check("""void f(double a, double b, double c, double tol,
-       bool flag) {
+        self.check("""void f(double a, double b, double c, double tol, bool flag) {
     ASSERT_CLOSE(a, b, tol);
     ASSERT_EQ(a, b);
     ASSERT(fabs(a - b) > tol);

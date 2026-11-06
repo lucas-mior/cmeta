@@ -47,6 +47,78 @@ class CallLayoutTests(unittest.TestCase):
         self.assertEqual(findings, ["2", "5"],
                          result.stdout + result.stderr)
 
+    def test_inline_function_header_parameter_alignment(self):
+        path = self.root / "src" / "inline_headers.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "CY_RUNTIME_SCOPE void cy_dynamics_state_sparsity(CySystemRuntime *,\n"
+            "                                               CySparsity *);\n"
+            "CY_RUNTIME_SCOPE void cy_dynamics_input_sparsity(CySystemRuntime *,\n"
+            "                                               CySparsity *);\n"
+            "CY_RUNTIME_SCOPE void cy_output_state_sparsity(CySystemRuntime *,\n"
+            "                                             CySparsity *);\n"
+            "CY_RUNTIME_SCOPE void cy_output_input_sparsity(CySystemRuntime *,\n"
+            "                                             CySparsity *);\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        findings = re.findall(
+            r":(\d+):\d+: error\[(FMT-FUNC-ALIGN|FMT-FUNC-WRAP)\]",
+            result.stdout,
+        )
+        self.assertEqual(findings, [
+            ("2", "FMT-FUNC-ALIGN"),
+            ("4", "FMT-FUNC-ALIGN"),
+            ("5", "FMT-FUNC-WRAP"),
+            ("6", "FMT-FUNC-ALIGN"),
+            ("7", "FMT-FUNC-WRAP"),
+            ("8", "FMT-FUNC-ALIGN"),
+        ], result.stdout + result.stderr)
+
+    def test_inline_function_header_wrap_counts_prefix_and_indentation(self):
+        path = self.root / "src" / "inline_wrap.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "void short_prototype(int32 first,\n"
+            "                     int32 second);\n"
+            "CY_RUNTIME_SCOPE void very_long_function_name_with_prefix(\n"
+            "    CySystemRuntime *first, CySparsity *second);\n"
+            "CY_RUNTIME_SCOPE void cy_dynamics_state_sparsity(CySystemRuntime *,\n"
+            "                                                 CySparsity *);\n"
+            "    void indented_function_with_very_long_name_and_arguments(int32 first,\n"
+            "                                                             int32 second);\n"
+            "static int32 same_line_definition(int32 first,\n"
+            "                                  int32 second) {\n"
+            "    return first + second;\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        align = re.findall(r":(\d+):\d+: error\[FMT-FUNC-ALIGN\]",
+                           result.stdout)
+        wrap = re.findall(r":(\d+):\d+: error\[FMT-FUNC-WRAP\]",
+                          result.stdout)
+        self.assertEqual(align, [], result.stdout + result.stderr)
+        self.assertEqual(wrap, ["1", "9"], result.stdout + result.stderr)
+
+    def test_inline_function_definition_alignment(self):
+        path = self.root / "src" / "inline_definition.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "static int32 inline_definition(int32 first,\n"
+            "           int32 second) {\n"
+            "    return first + second;\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        align = re.findall(r":(\d+):\d+: error\[FMT-FUNC-ALIGN\]",
+                           result.stdout)
+        self.assertEqual(align, ["2"], result.stdout + result.stderr)
+
     def test_format_arguments_unnecessarily_wrap(self):
         path = self.root / "src" / "format_args_wrap.c"
         path.parent.mkdir(parents=True, exist_ok=True)

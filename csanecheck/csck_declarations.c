@@ -837,13 +837,62 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
     }
 }
 
+/* Wrapping depends on the width of the entire physical header line,
+ * including qualifiers and return types preceding an inline function name. */
+static void
+csane_decl_header_wrap(CsaneFile *file, TokenRange range, int32 name,
+                       int32 close) {
+    CsaneTokenView full;
+    int32 first;
+    int32 suffix;
+    int32 start;
+    int32 end;
+    int32 width;
+
+    if (name < range.first
+        || csane_local_decl_line(file, name)
+           >= csane_local_decl_line(file, close)) {
+        return;
+    }
+    first = name;
+    while (first > range.first
+           && csane_local_decl_line(file, first - 1)
+              == csane_local_decl_line(file, name)) {
+        first -= 1;
+    }
+    if (!csane_wrap_safe(file, first, close, false)) {
+        return;
+    }
+    full = csane_tokens_full(file->tokens);
+    suffix = csane_tokens_next(&full, close);
+    if (suffix >= ARRAY_LEN(file->tokens->tokens)
+        || (!csane_decl_is(file, suffix, STRLIT(";"))
+            && !csane_decl_is(file, suffix, STRLIT("{")))) {
+        return;
+    }
+    start = file->tokens->tokens[first].offset;
+    while (start > 0 && file->tokens->text[start - 1] != '\n') {
+        start -= 1;
+    }
+    end = file->tokens->tokens[suffix].offset
+          + file->tokens->tokens[suffix].len;
+    width = csane_wrap_flat_length(file->tokens->text, start, end,
+                                   file->column_limit);
+    if (width >= 0 && (file->column_limit <= 0
+                       || width <= file->column_limit)) {
+        csane_rule_issue(file, file->tokens->tokens[name].offset,
+                         STRLIT("FMT-FUNC-WRAP"),
+                         "function header fits on one line but its "
+                         "parameters are split across multiple lines");
+    }
+}
+
 static void
 csane_decl_header(CsaneFile *file, TokenRange range) {
     int32 open;
     CsaneTokenView view;
     int32 close;
     int32 name;
-    int32 suffix;
     TokenRange args;
     int32 first;
     int32 previous;
@@ -862,29 +911,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
         return;
     }
     name = csane_tokens_previous(&view, open);
-    if (name >= range.first
-        && csane_local_decl_line(file, name)
-           < csane_local_decl_line(file, close)
-        && csane_wrap_safe(file, name, close, false)) {
-        CsaneTokenView full = csane_tokens_full(file->tokens);
-        suffix = csane_tokens_next(&full, close);
-        if (suffix < ARRAY_LEN(file->tokens->tokens)
-            && (csane_decl_is(file, suffix, STRLIT(";"))
-                || csane_decl_is(file, suffix, STRLIT("{")))) {
-            int32 start = file->tokens->tokens[name].offset;
-            int32 end = file->tokens->tokens[suffix].offset
-                        + file->tokens->tokens[suffix].len;
-            int32 width = csane_wrap_flat_length(file->tokens->text,
-                                                 start, end,
-                                                 file->column_limit);
-            if (width >= 0 && (file->column_limit <= 0
-                               || width <= file->column_limit)) {
-                csane_rule_issue(file, start, STRLIT("FMT-FUNC-WRAP"),
-                                 "function header fits on one line but its "
-                                 "parameters are split across multiple lines");
-            }
-        }
-    }
+    csane_decl_header_wrap(file, range, name, close);
     args = (TokenRange){open + 1, close};
     first = csane_decl_next(file, args, args.first - 1);
     previous = first;
@@ -984,8 +1011,7 @@ csane_declarations_headers(CsaneFile *file) {
         if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
             || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {
             int32 name = item->name_token;
-            if (name < 0 || !csane_calls_code(file, name)
-                || csane_calls_location(file, name).column != 0) {
+            if (name < 0 || !csane_calls_code(file, name)) {
                 continue;
             }
             csane_decl_header(file, item->header);
