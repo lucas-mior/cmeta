@@ -1067,8 +1067,7 @@ csane_expression_style_check(CsaneFile *file) {
                 csane_rule_issue(file, token->offset,
                                  STRLIT("STYLE-STRCMP"),
                                  "use STREQUAL or strequal for equality; "
-                                 "strcmp is only allowed as a direct "
-                                 "return or assignment value");
+                                 "strcmp only allowed for sorting purposes.");
             }
             if (TOKEN_IS(token, "ASSERT")) {
                 if (!csane_style_assert_tolerance(file, &local, i, next)) {
