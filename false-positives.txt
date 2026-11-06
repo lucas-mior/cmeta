@@ -1,0 +1,2 @@
+cbase/cbase.h:920: FMT-FUNC-WRAP for cmd_windows_argv0 conflicts with the
+80-column limit; the flattened declaration is 81 columns long.

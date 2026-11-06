@@ -917,7 +917,8 @@ noreturn void cmd_child_exec(
 );
 #if OS_WINDOWS
 void cmd_windows_cmd_line(Command *command, char *cmdline, int64 cmdline_len);
-char *cmd_windows_argv0(Command *command, char *argv0_windows, int32 *argv0_len);
+char *cmd_windows_argv0(Command *command, char *argv0_windows,
+                        int32 *argv0_len);
 int32 cmd_windows_run_process(Command *command, enum CommandFlag flags);
 #endif
 void cmd_cwd_clear(Command *);
