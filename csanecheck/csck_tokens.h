@@ -51,8 +51,7 @@ int32 csane_tokens_top_level(CsaneTokenView *, int32, char *, int32);
 /* Separates on depth-zero delimiters. The result is borrowed token ranges.
  * Returns -1 for malformed nesting or invalid arguments.
  */
-int32 csane_tokens_split(CsaneTokenView *, char *, int32,
-                         TokenRange *, int32);
+int32 csane_tokens_split(CsaneTokenView *, char *, int32, TokenRange *, int32);
 /* Split arguments in a bounded parenthesized group. Empty () has zero
  * arguments. Returns -1 for malformed groups/arguments or overflow.
  */

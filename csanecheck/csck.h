@@ -197,8 +197,7 @@ bool csane_policy_typedef_allowed(CsanePolicy *, char *, int32,
 int32 csane_policy_columns(CsanePolicy *, char *, int32);
 bool csane_policy_filter(char *, int32, char *, int32);
 bool csane_policy_selected(CsanePolicy *, char *, int32, char *, int32);
-CsaneCoverage csane_coverage_collect(CsaneTopLevels *,
-                                     CsaneStatements *);
+CsaneCoverage csane_coverage_collect(CsaneTopLevels *, CsaneStatements *);
 void csane_coverage_report_structural(char *, int32, Tokenization *,
                                       CsaneTopLevels *, CsaneStatements *);
 void csane_declarations_check(CsaneFile *);
@@ -242,7 +241,7 @@ void csane_rules_prepare(CsaneFile *);
 void csane_rules_run(CsaneFile *, enum CsanePass);
 int32 csane_rules_incomplete(CsaneFile *, bool, bool, CsaneRuleCounts *);
 CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
-                                     char *, int32, bool);
+                                    char *, int32, bool);
 bool csane_token_name_in(Token *, CsanePaths *);
 void csane_rule_issue(CsaneFile *, int32, char *, int32, char *);
 

@@ -56,7 +56,6 @@ void csane_regions_free(CsaneRegions *);
 int32 csane_regions_at_offset(CsaneRegions *, int32);
 int32 csane_regions_at_token(CsaneRegions *, int32);
 /* This lookup includes the given region itself. */
-int32 csane_regions_enclosing(CsaneRegions *, int32,
-                              enum CsaneRegionKind);
+int32 csane_regions_enclosing(CsaneRegions *, int32, enum CsaneRegionKind);
 
 #endif /* CSANECHECK_REGIONS_H */

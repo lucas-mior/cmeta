@@ -420,11 +420,9 @@ int32 token_range_last_significant(Tokenization *, TokenRange);
  * Range navigation is cursor-based. Forward searches return range.end when
  * exhausted; reverse searches return range.first - 1.
  */
-int32 token_range_next_kind(Tokenization *, TokenRange, int32,
-                            enum TokenKind);
+int32 token_range_next_kind(Tokenization *, TokenRange, int32, enum TokenKind);
 int32 token_range_next_significant(Tokenization *, TokenRange, int32);
-int32 token_range_next_text(Tokenization *, TokenRange, int32,
-                            char *, int32);
+int32 token_range_next_text(Tokenization *, TokenRange, int32, char *, int32);
 int32 token_range_previous_kind(Tokenization *, TokenRange, int32,
                                 enum TokenKind);
 int32 token_range_previous_significant(Tokenization *, TokenRange, int32);
@@ -437,10 +435,8 @@ int32 token_range_previous_text(Tokenization *, TokenRange, int32,
 bool token_range_delimiter_depth_before(Tokenization *, TokenRange, int32,
                                         TokenDelimiterDepth *);
 bool token_range_is_balanced(Tokenization *, TokenRange);
-int32 token_range_matching_delimiter_forward(Tokenization *, TokenRange,
-                                             int32);
-int32 token_range_matching_delimiter_reverse(Tokenization *, TokenRange,
-                                             int32);
+int32 token_range_matching_delimiter_forward(Tokenization *, TokenRange, int32);
+int32 token_range_matching_delimiter_reverse(Tokenization *, TokenRange, int32);
 int32 token_range_next_kind_at_depth(Tokenization *, TokenRange, int32,
                                      TokenDelimiterDepth, enum TokenKind);
 int32 token_range_next_text_at_depth(Tokenization *, TokenRange, int32,

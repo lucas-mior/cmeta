@@ -28,6 +28,6 @@ enum CsaneNameKind csane_name_kind(Token *);
 bool csane_type_name(Token *);
 enum CsaneLocalKind csane_classify_statement(Tokenization *, TokenRange);
 enum CsaneLocalKind csane_classify_invocation(Tokenization *, TokenRange,
-                                                int32);
+                                              int32);
 
 #endif /* CSANECHECK_CLASSIFY_H */
