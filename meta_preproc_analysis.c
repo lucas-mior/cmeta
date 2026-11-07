@@ -126,8 +126,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                 if (define.function_like) {
                     for (int32 j = define.parameter_list.first;
                          j < define.parameter_list.end; j += 1) {
-                        analysis->token_roles[j] =
-                            C_PP_TOKEN_MACRO_PARAMETERS;
+                        analysis->token_roles[j] = C_PP_TOKEN_MACRO_PARAMETERS;
                     }
                 }
                 content_end = define.replacement_source.end;
@@ -139,8 +138,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                         break;
                     }
                     if (token->offset >= define.replacement_source.start) {
-                        analysis->token_roles[j] =
-                            C_PP_TOKEN_MACRO_REPLACEMENT;
+                        analysis->token_roles[j] = C_PP_TOKEN_MACRO_REPLACEMENT;
                     }
                 }
             }
@@ -171,8 +169,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                 issue = C_PP_ISSUE_STRAY_ENDIF;
                 if (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELIF) {
                     issue = C_PP_ISSUE_STRAY_ELIF;
-                } else if (directive.kind
-                           == C_PREPROCESSOR_DIRECTIVE_ELSE) {
+                } else if (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELSE) {
                     issue = C_PP_ISSUE_STRAY_ELSE;
                 }
                 preproc_analysis_add_issue(analysis, issue, directive_index);
@@ -195,8 +192,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                     ASSERT_GE(current_branch, 0);
                     analysis->branches[current_branch].body_source.end =
                         analysis->directives[directive_index].source.start;
-                    if (directive.kind
-                        == C_PREPROCESSOR_DIRECTIVE_ENDIF) {
+                    if (directive.kind == C_PREPROCESSOR_DIRECTIVE_ENDIF) {
                         int32 parent = group->parent_branch;
 
                         group->endif_directive = directive_index;
@@ -207,12 +203,13 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                             ? analysis->branches[parent].group_index : -1;
                         current_branch = parent;
                     } else {
-                        if (directive.kind
-                            == C_PREPROCESSOR_DIRECTIVE_ELSE) {
+                        if (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELSE) {
                             group->has_else = true;
                         }
-                        current_branch = preproc_analysis_append_branch(
-                            analysis, current_group, directive_index);
+                        current_branch =
+                            preproc_analysis_append_branch(analysis,
+                                                           current_group,
+                                                           directive_index);
                     }
                 }
             }

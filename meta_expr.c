@@ -75,24 +75,6 @@ expr_make(ExprCursor *c, enum CExpressionKind kind, TokenRange range,
     return i;
 }
 
-static void
-expr_append_arg(ExprCursor *c, int32 list, int32 *tail, int32 value,
-                TokenRange designator) {
-    CAst *ast = c->ast;
-    int32 i = ARRAY_LEN(ast->arguments);
-    ARRAY_PUSH(ast->arguments, (CExprArgument){
-        .designator = designator, .expression = value, .next = -1,
-    });
-    if (*tail < 0) {
-        ast->expressions[list].first_argument = i;
-    } else {
-        ast->arguments[*tail].next = i;
-    }
-    *tail = i;
-    ast->expressions[list].argument_count += 1;
-    return;
-}
-
 static int32
 expr_match(ExprCursor *c, int32 open) {
     Tokenization *t = c->ast->tokenization;
@@ -173,7 +155,20 @@ expr_parse_list(ExprCursor *c, int32 open, bool initializer, int32 callee) {
         if (value < 0) {
             return -1;
         }
-        expr_append_arg(c, node, &tail, value, designator);
+        {
+            int32 argument = ARRAY_LEN(ast->arguments);
+
+            ARRAY_PUSH(ast->arguments, (CExprArgument){
+                .designator = designator, .expression = value, .next = -1,
+            });
+            if (tail < 0) {
+                ast->expressions[node].first_argument = argument;
+            } else {
+                ast->arguments[tail].next = argument;
+            }
+            tail = argument;
+            ast->expressions[node].argument_count += 1;
+        }
         i = expr_next(c);
         if (expr_at(c, i, closer)) {
             c->pos = expr_sig(c, i + 1);
@@ -208,246 +203,240 @@ expr_string_literal(Token *token) {
 }
 
 static int32
-expr_parse_primary(ExprCursor *c) {
-    CAst *ast = c->ast;
-    int32 i = expr_next(c);
-    Token *token;
-    int32 node;
-    if (i >= c->range.end) {
-        expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
-        return -1;
-    }
-    token = &ast->tokenization->tokens[i];
-    if (token->kind == TOKEN_LITERAL) {
-        int32 end = i + 1;
-        if (expr_string_literal(token)) {
-            int32 next = expr_sig(c, end);
-            while ((next < c->range.end)
-                   && expr_string_literal(&ast->tokenization->tokens[next])) {
-                end = next + 1;
-                next = expr_sig(c, end);
-            }
-        }
-        node = expr_make(c, C_EXPR_LITERAL, (TokenRange){i, end},
-                         -1, -1, -1);
-        c->pos = expr_sig(c, end);
-        return node;
-    }
-    if (token->kind == TOKEN_IDENT) {
-        if (TOKEN_IS(token, "_Generic") || TOKEN_IS(token, "__extension__")
-            || TOKEN_IS(token, "typeof")
-            || TOKEN_IS(token, "__typeof__")) {
-            expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
-            return -1;
-        }
-        if (c_token_keyword(token) != 0) {
-            expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
-            return -1;
-        }
-        node = expr_make(c, C_EXPR_IDENTIFIER, (TokenRange){i, i + 1},
-                         -1, -1, -1);
-        c->pos = expr_sig(c, i + 1);
-        return node;
-    }
-    if (expr_at(c, i, "(")) {
-        int32 close = expr_match(c, i);
-        int32 next;
-        int32 value;
-        if (close < 0) {
-            return -1;
-        }
-        if (expr_at(c, expr_sig(c, i + 1), "{")) {
-            expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
-            return -1;
-        }
-        if (c_ast_is_type_name(ast, (TokenRange){i + 1, close})) {
-            TokenRange type = {i + 1, close};
-            next = expr_sig(c, close + 1);
-            c->pos = next;
-            if (expr_at(c, next, "{")) {
-                value = expr_parse_initializer(c);
-                if (value < 0) {
-                    return -1;
-                }
-                node = expr_make(c, C_EXPR_COMPOUND_LITERAL,
-                                 (TokenRange){i,
-                                     ast->expressions[value].tokens.end},
-                                 i, value, -1);
-            } else {
-                value = expr_parse_prec(c, EXPR_PREC_PREFIX);
-                if (value < 0) {
-                    return -1;
-                }
-                node = expr_make(c, C_EXPR_CAST,
-                                 (TokenRange){i,
-                                     ast->expressions[value].tokens.end},
-                                 i, value, -1);
-            }
-            ast->expressions[node].type_tokens = type;
-            return node;
-        }
-        c->pos = expr_sig(c, i + 1);
-        value = expr_parse_prec(c, EXPR_PREC_COMMA);
-        if (value < 0) {
-            return -1;
-        }
-        next = expr_next(c);
-        if (!expr_at(c, next, ")")) {
-            expr_fail(c, C_EXPR_PARSE_MALFORMED, next);
-            return -1;
-        }
-        c->pos = expr_sig(c, next + 1);
-        return expr_make(c, C_EXPR_PAREN, (TokenRange){i, next + 1},
-                         i, value, -1);
-    }
-    if (expr_at(c, i, "#") || expr_at(c, i, "{")) {
-        expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
-    } else {
-        expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
-    }
-    return -1;
-}
-
-static int32
-expr_parse_prefix(ExprCursor *c) {
+expr_parse_prec(ExprCursor *c, int32 min_prec) {
     CAst *ast = c->ast;
     int32 i = expr_next(c);
     int32 node;
+    int32 lhs;
     int32 operand;
+    Token *token = &ast->tokenization->tokens[i];
     enum CUnaryOp unary;
     bool size = expr_at(c, i, "sizeof");
     bool align = expr_at(c, i, "_Alignof");
 
+    if (c->depth >= 128) {
+        expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
+        return -1;
+    }
+    c->depth += 1;
+    node = -1;
     if (size || align) {
         int32 open = expr_sig(c, i + 1);
         int32 close = -1;
         int32 after;
         enum CExpressionKind kind;
+
         if (expr_at(c, open, "(")) {
             close = expr_match(c, open);
-            if (close < 0) {
-                return -1;
-            }
-            after = expr_sig(c, close + 1);
-            if (!expr_at(c, after, "{")
-                && c_ast_is_type_name(ast, (TokenRange){open + 1, close})) {
-                c->pos = expr_sig(c, close + 1);
-                kind = C_EXPR_SIZEOF_TYPE;
-                if (align) {
-                    kind = C_EXPR_ALIGNOF_TYPE;
+            if (close >= 0) {
+                after = expr_sig(c, close + 1);
+                if (!expr_at(c, after, "{")
+                    && c_ast_is_type_name(ast,
+                                          (TokenRange){open + 1, close})) {
+                    c->pos = expr_sig(c, close + 1);
+                    kind = C_EXPR_SIZEOF_TYPE;
+                    if (align) {
+                        kind = C_EXPR_ALIGNOF_TYPE;
+                    }
+                    node = expr_make(c, kind, (TokenRange){i, close + 1},
+                                     i, -1, -1);
+                    ast->expressions[node].type_tokens =
+                        (TokenRange){open + 1, close};
                 }
-                node = expr_make(c, kind, (TokenRange){i, close + 1},
-                                 i, -1, -1);
-                ast->expressions[node].type_tokens =
-                    (TokenRange){open + 1, close};
-                return node;
             }
         }
-        if (align) {
-            expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
-            return -1;
+        if ((node < 0) && (c->status == C_EXPR_PARSE_OK)) {
+            if (align) {
+                expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
+            } else {
+                c->pos = open;
+                operand = expr_parse_prec(c, EXPR_PREC_PREFIX);
+                if (operand >= 0) {
+                    node = expr_make(c, C_EXPR_SIZEOF_EXPR,
+                                     (TokenRange){i,
+                                         ast->expressions[operand].tokens.end},
+                                     i, operand, -1);
+                }
+            }
         }
-        c->pos = open;
+    } else if ((i < c->range.end)
+               && ((unary = c_token_unary_op(token)) != 0)) {
+        c->pos = expr_sig(c, i + 1);
         operand = expr_parse_prec(c, EXPR_PREC_PREFIX);
-        if (operand < 0) {
-            return -1;
-        }
-        return expr_make(c, C_EXPR_SIZEOF_EXPR,
-                         (TokenRange){i, ast->expressions[operand].tokens.end},
-                         i, operand, -1);
-    }
-    if (i < c->range.end) {
-        unary = c_token_unary_op(&ast->tokenization->tokens[i]);
-        if (unary != 0) {
-            c->pos = expr_sig(c, i + 1);
-            operand = expr_parse_prec(c, EXPR_PREC_PREFIX);
-            if (operand < 0) {
-                return -1;
-            }
-            return expr_make(c, C_EXPR_UNARY,
+        if (operand >= 0) {
+            node = expr_make(c, C_EXPR_UNARY,
                              (TokenRange){i,
                                  ast->expressions[operand].tokens.end},
                              i, operand, -1);
         }
-    }
-    node = expr_parse_primary(c);
-    if (node < 0) {
-        return -1;
-    }
-    while (c->status == C_EXPR_PARSE_OK) {
-        int32 next = expr_next(c);
-        int32 value;
-        if (expr_at(c, next, "(")) {
-            int32 close = expr_match(c, next);
-            if (close < 0) {
-                return -1;
-            }
-            node = expr_parse_list(c, next, false, node);
-            if (node < 0) {
-                return -1;
-            }
-            continue;
-        }
-        if (expr_at(c, next, "[")) {
-            int32 close = expr_match(c, next);
-            if (close < 0) {
-                return -1;
-            }
-            c->pos = expr_sig(c, next + 1);
-            value = expr_parse_prec(c, EXPR_PREC_COMMA);
-            if (value < 0) {
-                return -1;
-            }
-            if (!expr_at(c, expr_next(c), "]")) {
-                expr_fail(c, C_EXPR_PARSE_MALFORMED, expr_next(c));
-                return -1;
-            }
-            c->pos = expr_sig(c, close + 1);
-            node = expr_make(c, C_EXPR_SUBSCRIPT,
-                             (TokenRange){ast->expressions[node].tokens.first,
-                                          close + 1},
-                             next, node, value);
-            continue;
-        }
-        if (expr_at(c, next, ".") || expr_at(c, next, "->")) {
-            int32 member = expr_sig(c, next + 1);
-            if ((member >= c->range.end)
-                || (ast->tokenization->tokens[member].kind != TOKEN_IDENT)) {
-                expr_fail(c, C_EXPR_PARSE_MALFORMED, member);
-                return -1;
-            }
-            node = expr_make(c, C_EXPR_MEMBER,
-                             (TokenRange){ast->expressions[node].tokens.first,
-                                          member + 1},
-                             next, node, -1);
-            /* The member name itself is a token, not a lookup expression. */
-            ast->expressions[node].right = member;
-            c->pos = expr_sig(c, member + 1);
-            continue;
-        }
-        if (expr_at(c, next, "++") || expr_at(c, next, "--")) {
-            node = expr_make(c, C_EXPR_POSTFIX,
-                             (TokenRange){ast->expressions[node].tokens.first,
-                                          next + 1},
-                             next, node, -1);
-            c->pos = expr_sig(c, next + 1);
-            continue;
-        }
-        break;
-    }
-    return node;
-}
+    } else if (i >= c->range.end) {
+        expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
+    } else {
+        if (token->kind == TOKEN_LITERAL) {
+            int32 end = i + 1;
 
-static int32
-expr_parse_prec(ExprCursor *c, int32 min_prec) {
-    CAst *ast = c->ast;
-    int32 lhs;
-    if (c->depth >= 128) {
-        expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, expr_next(c));
-        return -1;
+            if (expr_string_literal(token)) {
+                int32 next = expr_sig(c, end);
+
+                while (next < c->range.end) {
+                    Token *next_token = &ast->tokenization->tokens[next];
+
+                    if (!expr_string_literal(next_token)) {
+                        break;
+                    }
+                    end = next + 1;
+                    next = expr_sig(c, end);
+                }
+            }
+            node = expr_make(c, C_EXPR_LITERAL, (TokenRange){i, end},
+                             -1, -1, -1);
+            c->pos = expr_sig(c, end);
+        } else if (token->kind == TOKEN_IDENT) {
+            if (TOKEN_IS(token, "_Generic")
+                || TOKEN_IS(token, "__extension__")
+                || TOKEN_IS(token, "typeof")
+                || TOKEN_IS(token, "__typeof__")) {
+                expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
+            } else if (c_token_keyword(token) != 0) {
+                expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
+            } else {
+                node = expr_make(c, C_EXPR_IDENTIFIER,
+                                 (TokenRange){i, i + 1}, -1, -1, -1);
+                c->pos = expr_sig(c, i + 1);
+            }
+        } else if (expr_at(c, i, "(")) {
+            int32 close = expr_match(c, i);
+
+            if (close >= 0) {
+                int32 next;
+                int32 value;
+
+                if (expr_at(c, expr_sig(c, i + 1), "{")) {
+                    expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
+                } else if (c_ast_is_type_name(ast,
+                                              (TokenRange){i + 1, close})) {
+                    TokenRange type = {i + 1, close};
+
+                    next = expr_sig(c, close + 1);
+                    c->pos = next;
+                    if (expr_at(c, next, "{")) {
+                        value = expr_parse_initializer(c);
+                        if (value >= 0) {
+                            node =
+                                expr_make(c, C_EXPR_COMPOUND_LITERAL,
+                                          (TokenRange){i,
+                                              ast->expressions[value]
+                                                  .tokens.end},
+                                          i, value, -1);
+                        }
+                    } else {
+                        value = expr_parse_prec(c, EXPR_PREC_PREFIX);
+                        if (value >= 0) {
+                            node = expr_make(c, C_EXPR_CAST,
+                                             (TokenRange){i,
+                                                 ast->expressions[value]
+                                                     .tokens.end},
+                                             i, value, -1);
+                        }
+                    }
+                    if (node >= 0) {
+                        ast->expressions[node].type_tokens = type;
+                    }
+                } else {
+                    c->pos = expr_sig(c, i + 1);
+                    value = expr_parse_prec(c, EXPR_PREC_COMMA);
+                    if (value >= 0) {
+                        next = expr_next(c);
+                        if (!expr_at(c, next, ")")) {
+                            expr_fail(c, C_EXPR_PARSE_MALFORMED, next);
+                        } else {
+                            c->pos = expr_sig(c, next + 1);
+                            node = expr_make(c, C_EXPR_PAREN,
+                                             (TokenRange){i, next + 1},
+                                             i, value, -1);
+                        }
+                    }
+                }
+            }
+        } else if (expr_at(c, i, "#") || expr_at(c, i, "{")) {
+            expr_fail(c, C_EXPR_PARSE_UNSUPPORTED, i);
+        } else {
+            expr_fail(c, C_EXPR_PARSE_MALFORMED, i);
+        }
+
+        while ((node >= 0) && (c->status == C_EXPR_PARSE_OK)) {
+            int32 next = expr_next(c);
+            int32 value;
+
+            if (expr_at(c, next, "(")) {
+                int32 close = expr_match(c, next);
+
+                if (close < 0) {
+                    node = -1;
+                    break;
+                }
+                node = expr_parse_list(c, next, false, node);
+                continue;
+            }
+            if (expr_at(c, next, "[")) {
+                int32 close = expr_match(c, next);
+
+                if (close < 0) {
+                    node = -1;
+                    break;
+                }
+                c->pos = expr_sig(c, next + 1);
+                value = expr_parse_prec(c, EXPR_PREC_COMMA);
+                if (value < 0) {
+                    node = -1;
+                    break;
+                }
+                if (!expr_at(c, expr_next(c), "]")) {
+                    expr_fail(c, C_EXPR_PARSE_MALFORMED, expr_next(c));
+                    node = -1;
+                    break;
+                }
+                c->pos = expr_sig(c, close + 1);
+                node = expr_make(c, C_EXPR_SUBSCRIPT,
+                                 (TokenRange){
+                                     ast->expressions[node].tokens.first,
+                                     close + 1},
+                                 next, node, value);
+                continue;
+            }
+            if (expr_at(c, next, ".") || expr_at(c, next, "->")) {
+                int32 member = expr_sig(c, next + 1);
+
+                if ((member >= c->range.end)
+                    || (ast->tokenization->tokens[member].kind
+                        != TOKEN_IDENT)) {
+                    expr_fail(c, C_EXPR_PARSE_MALFORMED, member);
+                    node = -1;
+                    break;
+                }
+                node = expr_make(c, C_EXPR_MEMBER,
+                                 (TokenRange){
+                                     ast->expressions[node].tokens.first,
+                                     member + 1},
+                                 next, node, -1);
+                /* The member name is a token, not a lookup expression. */
+                ast->expressions[node].right = member;
+                c->pos = expr_sig(c, member + 1);
+                continue;
+            }
+            if (expr_at(c, next, "++") || expr_at(c, next, "--")) {
+                node = expr_make(c, C_EXPR_POSTFIX,
+                                 (TokenRange){
+                                     ast->expressions[node].tokens.first,
+                                     next + 1},
+                                 next, node, -1);
+                c->pos = expr_sig(c, next + 1);
+                continue;
+            }
+            break;
+        }
     }
-    c->depth += 1;
-    lhs = expr_parse_prefix(c);
+    lhs = node;
     while ((lhs >= 0) && (c->status == C_EXPR_PARSE_OK)) {
         int32 op = expr_next(c);
         int32 prec = 0;

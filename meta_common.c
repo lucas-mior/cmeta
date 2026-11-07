@@ -185,8 +185,19 @@ c_text_is_type_qualifier(char *text, int32 text_len) {
     return false;
 }
 
-static bool
-c_text_is_type_identifier(char *text, int32 text_len) {
+bool
+c_token_is_type_qualifier(Token *token) {
+    if (token->kind != TOKEN_IDENT) {
+        return false;
+    }
+    return c_text_is_type_qualifier(token->text, token->len);
+}
+
+bool
+c_text_is_type_word(char *text, int32 text_len) {
+    if (c_text_is_type_qualifier(text, text_len)) {
+        return true;
+    }
     if (STREQUAL(text, text_len, "void")) {
         return true;
     }
@@ -302,25 +313,6 @@ c_text_is_type_identifier(char *text, int32 text_len) {
         return true;
     }
     if (STREQUAL(text, text_len, "ldouble")) {
-        return true;
-    }
-    return false;
-}
-
-bool
-c_token_is_type_qualifier(Token *token) {
-    if (token->kind != TOKEN_IDENT) {
-        return false;
-    }
-    return c_text_is_type_qualifier(token->text, token->len);
-}
-
-bool
-c_text_is_type_word(char *text, int32 text_len) {
-    if (c_text_is_type_qualifier(text, text_len)) {
-        return true;
-    }
-    if (c_text_is_type_identifier(text, text_len)) {
         return true;
     }
     return false;

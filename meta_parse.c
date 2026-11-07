@@ -79,22 +79,10 @@ unit_name(CAst *ast, int32 root) {
 }
 
 static int32
-unit_function_declarator(CAst *ast, int32 root) {
-    while (root >= 0) {
-        CDeclaratorNode *d = &ast->declarators[root];
-        if (d->kind == C_DECL_FUNCTION) {
-            return root;
-        }
-        root = d->inner;
-    }
-    return -1;
-}
-
-static int32
 unit_function_body(UnitCursor *c, int32 declaration) {
     CAst *ast = c->ast;
     CDeclaration *decl = &ast->declarations[declaration];
-    int32 function = unit_function_declarator(ast, decl->first_declarator);
+    int32 function = decl->first_declarator;
     int32 param;
     int32 open = decl->body.first;
     int32 close = decl->body.end - 1;
@@ -105,6 +93,11 @@ unit_function_body(UnitCursor *c, int32 declaration) {
         .pos = open + 1,
     };
     int32 node = stmt_new(&stmts, C_STMT_COMPOUND, open);
+
+    while ((function >= 0)
+           && (ast->declarators[function].kind != C_DECL_FUNCTION)) {
+        function = ast->declarators[function].inner;
+    }
     ast->statements[node].tokens = decl->body;
     c_ast_scope_push(ast);
     /* Parameter names are visible in the function body, not outside it. */
@@ -129,19 +122,25 @@ unit_function_body(UnitCursor *c, int32 declaration) {
  * safe synchronization point. Do not search for arbitrary later semicolons.
  */
 static int32
-unit_recover(UnitCursor *c, int32 first) {
+unit_unsupported(UnitCursor *c, int32 first,
+                 enum CParseIssueKind kind, int32 at) {
     Tokenization *tokens = c->ast->tokenization;
     int32 boundary = unit_boundary(c, first);
     int32 parens = 0;
     int32 brackets = 0;
+    int32 end = boundary;
+    int32 node;
+    StmtCursor issue = {.ast = c->ast};
     StmtCursor view = {
         .ast = c->ast,
         .pp = c->pp,
         .range = c->range,
     };
+
     for (int32 i = unit_sig(c, first); i < boundary;
          i = unit_sig(c, i + 1)) {
         Token *token = &tokens->tokens[i];
+
         if (TOKEN_IS(token, "(")) {
             parens += 1;
         } else if (TOKEN_IS(token, ")")) {
@@ -152,27 +151,21 @@ unit_recover(UnitCursor *c, int32 first) {
             brackets = MAX(0, brackets - 1);
         } else if (TOKEN_IS(token, "{") && brackets == 0) {
             int32 close = stmt_match(&view, i);
+
             if (close >= 0) {
-                return unit_sig(c, close + 1);
+                end = unit_sig(c, close + 1);
             }
-            return boundary;
+            break;
         } else if (TOKEN_IS(token, ";") && parens == 0
                    && brackets == 0) {
-            return unit_sig(c, i + 1);
+            end = unit_sig(c, i + 1);
+            break;
         } else if (TOKEN_IS(token, "}") && parens == 0
                    && brackets == 0) {
-            return unit_sig(c, i + 1);
+            end = unit_sig(c, i + 1);
+            break;
         }
     }
-    return boundary;
-}
-
-static int32
-unit_unsupported(UnitCursor *c, int32 first,
-                 enum CParseIssueKind kind, int32 at) {
-    int32 end = unit_recover(c, first);
-    int32 node;
-    StmtCursor issue = {.ast = c->ast};
     if (end <= first) {
         end = unit_sig(c, first + 1);
     }
@@ -523,16 +516,17 @@ unit_parse_region(UnitCursor *c, int32 parent, int32 *head, int32 *tail) {
                     Tokenization *tokens = c->ast->tokenization;
                     TokenRange limit = {open, end};
 
-                    close = token_range_matching_delimiter_forward(
-                        tokens, limit, open);
+                    close = token_range_matching_delimiter_forward(tokens,
+                                                                   limit, open);
                 }
                 if (close >= 0) {
                     semi = unit_sig(c, close + 1);
                 }
                 args = (TokenRange){open + 1, close};
                 if (close > open + 1) {
-                    comma = token_range_next_text_at_depth(
-                        c->ast->tokenization, args, open, depth, ",", 1);
+                    comma = token_range_next_text_at_depth(c->ast->tokenization,
+                                                           args, open, depth,
+                                                           ",", 1);
                 }
                 if (comma > open + 1 && comma < close - 1 && semi < end
                     && TOKEN_IS(&c->ast->tokenization->tokens[semi], ";")) {
@@ -552,8 +546,9 @@ unit_parse_region(UnitCursor *c, int32 parent, int32 *head, int32 *tail) {
             if (result.status != C_DECL_PARSE_OK && end < c->range.end
                 && unit_maybe_function_body(c, first, end)) {
                 /* The initial parse rolled back its bindings and nodes. */
-                result = c_ast_parse_declaration(
-                    c->ast, (TokenRange){first, c->range.end});
+                result = c_ast_parse_declaration(c->ast,
+                                                 (TokenRange){first,
+                                                     c->range.end});
             }
             c->ast->infer_external = previous;
             if (result.status != C_DECL_PARSE_OK) {
@@ -569,8 +564,7 @@ unit_parse_region(UnitCursor *c, int32 parent, int32 *head, int32 *tail) {
                     || result.status == C_DECL_PARSE_NOT_DECLARATION) {
                     issue = C_PARSE_ISSUE_UNSUPPORTED;
                 }
-                node = unit_unsupported(c, first, issue,
-                                        result.issue_token);
+                node = unit_unsupported(c, first, issue, result.issue_token);
                 break;
             }
             node = unit_new(c, C_EXTERNAL_DECLARATION,

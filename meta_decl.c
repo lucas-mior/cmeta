@@ -79,17 +79,6 @@ decl_make_declaration(DeclCursor *c, enum CDeclarationKind kind) {
 }
 
 static int32
-decl_make_record(DeclCursor *c, enum CRecordKind kind, int32 first, int32 tag) {
-    CAst *ast = c->ast;
-    int32 index = ARRAY_LEN(ast->records);
-    ARRAY_PUSH(ast->records, (CRecord){
-        .tokens = {first, first}, .body = {first, first}, .kind = kind,
-        .tag_token = tag, .first_member = -1, .first_enumerator = -1,
-    });
-    return index;
-}
-
-static int32
 decl_match(DeclCursor *c, int32 open) {
     Tokenization *tokens = c->ast->tokenization;
     int32 close = token_range_matching_delimiter_forward(tokens, c->range,
@@ -325,7 +314,11 @@ decl_parse_record(DeclCursor *c) {
         decl_fail(c, C_DECL_PARSE_MALFORMED, i);
         return -1;
     }
-    record = decl_make_record(c, kind, start, tag);
+    record = ARRAY_LEN(c->ast->records);
+    ARRAY_PUSH(c->ast->records, (CRecord){
+        .tokens = {start, start}, .body = {start, start}, .kind = kind,
+        .tag_token = tag, .first_member = -1, .first_enumerator = -1,
+    });
     if (tag >= 0) {
         c_ast_bind(c->ast, tag, tag_kind);
     }
@@ -645,23 +638,6 @@ decl_name(CAst *ast, int32 root) {
     return -1;
 }
 
-/* The operation nearest the identifier determines whether the declarator
- * denotes a function or a pointer to a function. Ignore parentheses. */
-static bool
-decl_is_function(CAst *ast, int32 root) {
-    enum CDeclaratorKind nearest = 0;
-    while (root >= 0) {
-        CDeclaratorNode *node = &ast->declarators[root];
-        if ((node->kind == C_DECL_FUNCTION)
-            || (node->kind == C_DECL_POINTER)
-            || (node->kind == C_DECL_ARRAY)) {
-            nearest = node->kind;
-        }
-        root = node->inner;
-    }
-    return nearest == C_DECL_FUNCTION;
-}
-
 static int32
 decl_parse_one(DeclCursor *c, enum CDeclarationKind kind, bool require_semi) {
     int32 first = decl_next(c);
@@ -758,10 +734,25 @@ decl_parse_one(DeclCursor *c, enum CDeclarationKind kind, bool require_semi) {
     {
         int32 i = decl_next(c);
         CAst *ast = c->ast;
+        int32 root = ast->declarations[d].first_declarator;
+        enum CDeclaratorKind nearest = 0;
+
+        /* The operation nearest the identifier determines whether the
+         * declarator denotes a function or a pointer to a function. */
+        while (root >= 0) {
+            CDeclaratorNode *node = &ast->declarators[root];
+
+            if ((node->kind == C_DECL_FUNCTION)
+                || (node->kind == C_DECL_POINTER)
+                || (node->kind == C_DECL_ARRAY)) {
+                nearest = node->kind;
+            }
+            root = node->inner;
+        }
         if (require_semi && decl_at(c, i, "{")
             && (kind == C_DECLARATION_NORMAL)
             && (ast->declarations[d].declarator_count == 1)
-            && decl_is_function(ast, ast->declarations[d].first_declarator)) {
+            && (nearest == C_DECL_FUNCTION)) {
             int32 close = decl_match(c, i);
             if (close < 0) {
                 return -1;
