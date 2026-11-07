@@ -721,46 +721,6 @@ token_delimiter_depth_is_valid(TokenDelimiterDepth depth) {
 }
 
 static void
-token_delimiter_depth_increment(TokenDelimiterDepth *depth,
-                                enum TokenDelimiterKind kind) {
-    switch (kind) {
-    case TOKEN_DELIMITER_PAREN:
-        depth->paren += 1;
-        break;
-    case TOKEN_DELIMITER_BRACKET:
-        depth->bracket += 1;
-        break;
-    case TOKEN_DELIMITER_BRACE:
-        depth->brace += 1;
-        break;
-    case TOKEN_DELIMITER_NONE:
-    default:
-        break;
-    }
-    return;
-}
-
-static void
-token_delimiter_depth_decrement(TokenDelimiterDepth *depth,
-                                enum TokenDelimiterKind kind) {
-    switch (kind) {
-    case TOKEN_DELIMITER_PAREN:
-        depth->paren -= 1;
-        break;
-    case TOKEN_DELIMITER_BRACKET:
-        depth->bracket -= 1;
-        break;
-    case TOKEN_DELIMITER_BRACE:
-        depth->brace -= 1;
-        break;
-    case TOKEN_DELIMITER_NONE:
-    default:
-        break;
-    }
-    return;
-}
-
-static void
 token_delimiter_stack_init(TokenDelimiterStack *stack, int32 max_capacity) {
     *stack = (TokenDelimiterStack){0};
     stack->items = stack->local;
@@ -814,7 +774,20 @@ token_delimiter_stack_consume_forward(TokenDelimiterStack *stack,
         if (!token_delimiter_stack_push(stack, kind)) {
             return false;
         }
-        token_delimiter_depth_increment(depth, kind);
+        switch (kind) {
+        case TOKEN_DELIMITER_PAREN:
+            depth->paren += 1;
+            break;
+        case TOKEN_DELIMITER_BRACKET:
+            depth->bracket += 1;
+            break;
+        case TOKEN_DELIMITER_BRACE:
+            depth->brace += 1;
+            break;
+        case TOKEN_DELIMITER_NONE:
+        default:
+            break;
+        }
         return true;
     }
 
@@ -826,7 +799,20 @@ token_delimiter_stack_consume_forward(TokenDelimiterStack *stack,
         return false;
     }
     stack->count -= 1;
-    token_delimiter_depth_decrement(depth, kind);
+    switch (kind) {
+    case TOKEN_DELIMITER_PAREN:
+        depth->paren -= 1;
+        break;
+    case TOKEN_DELIMITER_BRACKET:
+        depth->bracket -= 1;
+        break;
+    case TOKEN_DELIMITER_BRACE:
+        depth->brace -= 1;
+        break;
+    case TOKEN_DELIMITER_NONE:
+    default:
+        break;
+    }
     return true;
 }
 

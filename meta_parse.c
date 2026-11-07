@@ -476,102 +476,113 @@ unit_macro_invocation(UnitCursor *c, int32 first) {
     return node;
 }
 
-static int32
-unit_parse_one(UnitCursor *c) {
-    int32 first = unit_sig(c, c->pos);
-    int32 directive;
-    int32 end;
-    CDeclParseResult result;
-    int32 node;
-    bool previous;
-    if (first >= c->range.end) {
-        return -1;
-    }
-    if (c->depth >= 128) {
-        return unit_unsupported(c, first, C_PARSE_ISSUE_UNSUPPORTED, first);
-    }
-    directive = c->pp->token_directives[first];
-    if ((directive >= 0)
-        && (c->pp->directives[directive].hash_token == first)) {
-        return unit_preprocessor(c, first, directive);
-    }
-    node = unit_macro_invocation(c, first);
-    if (node >= 0) {
-        return node;
-    }
-    end = unit_boundary(c, first);
-    if (TOKEN_IS(&c->ast->tokenization->tokens[first], "_Static_assert")) {
-        int32 open = unit_sig(c, first + 1);
-        int32 close = -1;
-        int32 semi = -1;
-        TokenRange args;
-        TokenDelimiterDepth depth = {0};
-        int32 comma = -1;
-        if (open < end
-            && TOKEN_IS(&c->ast->tokenization->tokens[open], "(")) {
-            Tokenization *tokens = c->ast->tokenization;
-            TokenRange limit = {open, end};
-            close = token_range_matching_delimiter_forward(tokens, limit, open);
-        }
-        if (close >= 0) {
-            semi = unit_sig(c, close + 1);
-        }
-        args = (TokenRange){open + 1, close};
-        if (close > open + 1) {
-            comma = token_range_next_text_at_depth(c->ast->tokenization,
-                                                   args, open, depth, ",", 1);
-        }
-        if (comma > open + 1 && comma < close - 1 && semi < end
-            && TOKEN_IS(&c->ast->tokenization->tokens[semi], ";")) {
-            node = unit_new(c, C_EXTERNAL_STATIC_ASSERT,
-                            (TokenRange){first, semi + 1});
-            c->pos = unit_sig(c, semi + 1);
-            return node;
-        }
-        return unit_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, first);
-    }
-    previous = c->ast->infer_external;
-    c->ast->infer_external = true;
-    result = c_ast_parse_declaration(c->ast, (TokenRange){first, end});
-    if (result.status != C_DECL_PARSE_OK && end < c->range.end
-        && unit_maybe_function_body(c, first, end)) {
-        /* The initial parse rolled back its bindings and nodes. */
-        result = c_ast_parse_declaration(c->ast,
-                                         (TokenRange){first, c->range.end});
-    }
-    c->ast->infer_external = previous;
-    if (result.status != C_DECL_PARSE_OK) {
-        int32 open = unit_partial_function_open(c, first);
-        enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
-        if (open >= 0) {
-            return unit_partial_function(c, first, open, result.issue_token);
-        }
-        if (result.status == C_DECL_PARSE_UNSUPPORTED
-            || result.status == C_DECL_PARSE_NOT_DECLARATION) {
-            issue = C_PARSE_ISSUE_UNSUPPORTED;
-        }
-        return unit_unsupported(c, first, issue, result.issue_token);
-    }
-    node = unit_new(c, C_EXTERNAL_DECLARATION,
-                    c->ast->declarations[result.declaration].tokens);
-    c->ast->externals[node].declaration = result.declaration;
-    if (c->ast->declarations[result.declaration].is_function_definition) {
-        c->ast->externals[node].function_body =
-            unit_function_body(c, result.declaration);
-    }
-    c->pos = result.next_token;
-    return node;
-}
-
 static void
 unit_parse_region(UnitCursor *c, int32 parent, int32 *head, int32 *tail) {
     int32 local_head = -1;
     int32 local_tail = -1;
     while (unit_sig(c, c->pos) < c->range.end) {
         int32 first = unit_sig(c, c->pos);
-        int32 node;
+        int32 node = -1;
         c->pos = first;
-        node = unit_parse_one(c);
+        do {
+            int32 directive;
+            int32 end;
+            CDeclParseResult result;
+            bool previous;
+
+            if (first >= c->range.end) {
+                break;
+            }
+            if (c->depth >= 128) {
+                node = unit_unsupported(c, first, C_PARSE_ISSUE_UNSUPPORTED,
+                                        first);
+                break;
+            }
+            directive = c->pp->token_directives[first];
+            if ((directive >= 0)
+                && (c->pp->directives[directive].hash_token == first)) {
+                node = unit_preprocessor(c, first, directive);
+                break;
+            }
+            node = unit_macro_invocation(c, first);
+            if (node >= 0) {
+                break;
+            }
+            end = unit_boundary(c, first);
+            if (TOKEN_IS(&c->ast->tokenization->tokens[first],
+                         "_Static_assert")) {
+                int32 open = unit_sig(c, first + 1);
+                int32 close = -1;
+                int32 semi = -1;
+                TokenRange args;
+                TokenDelimiterDepth depth = {0};
+                int32 comma = -1;
+
+                if (open < end
+                    && TOKEN_IS(&c->ast->tokenization->tokens[open], "(")) {
+                    Tokenization *tokens = c->ast->tokenization;
+                    TokenRange limit = {open, end};
+
+                    close = token_range_matching_delimiter_forward(
+                        tokens, limit, open);
+                }
+                if (close >= 0) {
+                    semi = unit_sig(c, close + 1);
+                }
+                args = (TokenRange){open + 1, close};
+                if (close > open + 1) {
+                    comma = token_range_next_text_at_depth(
+                        c->ast->tokenization, args, open, depth, ",", 1);
+                }
+                if (comma > open + 1 && comma < close - 1 && semi < end
+                    && TOKEN_IS(&c->ast->tokenization->tokens[semi], ";")) {
+                    node = unit_new(c, C_EXTERNAL_STATIC_ASSERT,
+                                    (TokenRange){first, semi + 1});
+                    c->pos = unit_sig(c, semi + 1);
+                    break;
+                }
+                node = unit_unsupported(c, first, C_PARSE_ISSUE_MALFORMED,
+                                        first);
+                break;
+            }
+            previous = c->ast->infer_external;
+            c->ast->infer_external = true;
+            result = c_ast_parse_declaration(c->ast,
+                                             (TokenRange){first, end});
+            if (result.status != C_DECL_PARSE_OK && end < c->range.end
+                && unit_maybe_function_body(c, first, end)) {
+                /* The initial parse rolled back its bindings and nodes. */
+                result = c_ast_parse_declaration(
+                    c->ast, (TokenRange){first, c->range.end});
+            }
+            c->ast->infer_external = previous;
+            if (result.status != C_DECL_PARSE_OK) {
+                int32 open = unit_partial_function_open(c, first);
+                enum CParseIssueKind issue = C_PARSE_ISSUE_MALFORMED;
+
+                if (open >= 0) {
+                    node = unit_partial_function(c, first, open,
+                                                 result.issue_token);
+                    break;
+                }
+                if (result.status == C_DECL_PARSE_UNSUPPORTED
+                    || result.status == C_DECL_PARSE_NOT_DECLARATION) {
+                    issue = C_PARSE_ISSUE_UNSUPPORTED;
+                }
+                node = unit_unsupported(c, first, issue,
+                                        result.issue_token);
+                break;
+            }
+            node = unit_new(c, C_EXTERNAL_DECLARATION,
+                            c->ast->declarations[result.declaration].tokens);
+            c->ast->externals[node].declaration = result.declaration;
+            if (c->ast->declarations[result.declaration]
+                    .is_function_definition) {
+                c->ast->externals[node].function_body =
+                    unit_function_body(c, result.declaration);
+            }
+            c->pos = result.next_token;
+        } while (false);
         if (node >= 0) {
             unit_append(c, parent, &local_head, &local_tail, node);
         }

@@ -157,31 +157,34 @@ stmt_semicolon(StmtCursor *c, int32 first) {
 }
 
 static int32
-stmt_recover(StmtCursor *c, int32 first) {
-    int32 semi = stmt_semicolon(c, first);
-    int32 end = stmt_boundary(c, first);
-    if (semi < end) {
-        return stmt_sig(c, semi + 1);
-    }
-    for (int32 i = stmt_sig(c, first); i < end; i = stmt_sig(c, i + 1)) {
-        if (stmt_at(c, i, ";")) {
-            return stmt_sig(c, i + 1);
-        }
-    }
-    /* A bad statement before a closing brace cannot swallow its parent. */
-    for (int32 i = stmt_sig(c, first); i < end; i = stmt_sig(c, i + 1)) {
-        if (stmt_at(c, i, "}")) {
-            return i;
-        }
-    }
-    return end;
-}
-
-static int32
 stmt_unsupported(StmtCursor *c, int32 first,
                  enum CParseIssueKind issue, int32 at) {
-    int32 next = stmt_recover(c, first);
+    int32 semi = stmt_semicolon(c, first);
+    int32 end = stmt_boundary(c, first);
+    int32 next = end;
     int32 node = stmt_new(c, C_STMT_UNSUPPORTED, first);
+    if (semi < end) {
+        next = stmt_sig(c, semi + 1);
+    } else {
+        for (int32 i = stmt_sig(c, first); i < end;
+             i = stmt_sig(c, i + 1)) {
+            if (stmt_at(c, i, ";")) {
+                next = stmt_sig(c, i + 1);
+                break;
+            }
+        }
+        if (next == end) {
+            /* A bad statement before a closing brace cannot swallow its
+             * parent. */
+            for (int32 i = stmt_sig(c, first); i < end;
+                 i = stmt_sig(c, i + 1)) {
+                if (stmt_at(c, i, "}")) {
+                    next = i;
+                    break;
+                }
+            }
+        }
+    }
     if (c->pos > next) {
         next = c->pos;
     }
@@ -339,106 +342,6 @@ stmt_pp_shared_if_start(StmtCursor *c, TokenRange range) {
     return -1;
 }
 
-static bool
-stmt_pp_shared_if_body(StmtCursor *c, CPreprocessorGroup *group) {
-    for (int32 b = group->first_branch; b >= 0;
-         b = c->pp->branches[b].next_branch) {
-        if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens) < 0) {
-            return false;
-        }
-    }
-    return group->first_branch >= 0;
-}
-
-static int32
-stmt_pp(StmtCursor *c, int32 first, int32 directive) {
-    CPreprocessorDirective *d = &c->pp->directives[directive];
-    int32 group = -1;
-    int32 node;
-    CPreprocessorGroup *g;
-    int32 tail;
-    int32 following;
-    bool shared;
-    for (int32 i = 0; i < ARRAY_LEN(c->pp->groups); i += 1) {
-        int32 branch = c->pp->groups[i].first_branch;
-        if ((branch >= 0)
-            && (c->pp->branches[branch].directive_index == directive)) {
-            group = i;
-            break;
-        }
-    }
-    if (group < 0) {
-        node = stmt_new(c, C_STMT_PP_DIRECTIVE, first);
-        c->ast->statements[node].directive = directive;
-        c->ast->statements[node].tokens.end = d->tokens.end;
-        c->pos = stmt_sig(c, d->tokens.end);
-        return node;
-    }
-    g = &c->pp->groups[group];
-    if ((g->endif_directive < 0)
-        || (c->pp->directives[g->endif_directive].tokens.end > c->range.end)) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, first);
-    }
-    node = stmt_new(c, C_STMT_PP_GROUP, first);
-    c->ast->statements[node].directive = group;
-    c->ast->statements[node].tokens.end =
-        c->pp->directives[g->endif_directive].tokens.end;
-    tail = -1;
-    following = stmt_sig(c, c->ast->statements[node].tokens.end);
-    shared = stmt_at(c, following, "{")
-             && stmt_pp_shared_if_body(c, g);
-    for (int32 b = g->first_branch; b >= 0;
-         b = c->pp->branches[b].next_branch) {
-        CPreprocessorBranch *branch = &c->pp->branches[b];
-        StmtCursor inner = *c;
-        int32 part = stmt_new(c, C_STMT_PP_BRANCH, branch->body_tokens.first);
-        int32 incomplete_if;
-        inner.range = branch->body_tokens;
-        inner.pos = inner.range.first;
-        inner.depth += 1;
-        c->ast->statements[part].directive = branch->directive_index;
-        c->ast->statements[part].tokens = branch->body_tokens;
-        stmt_append(c, node, &tail, part);
-        /* No conditional alternative can export a typedef to its siblings. */
-        c_ast_scope_push(c->ast);
-        incomplete_if = shared
-            ? stmt_pp_shared_if_start(c, branch->body_tokens) : -1;
-        if (incomplete_if >= 0) {
-            inner.range.end = incomplete_if;
-        }
-        stmt_parse_sequence(&inner, part);
-        if (incomplete_if >= 0) {
-            StmtCursor pending = inner;
-            int32 last_child = c->ast->statements[part].first_child;
-            int32 opaque = stmt_new(&pending, C_STMT_UNSUPPORTED,
-                                    incomplete_if);
-            c->ast->statements[opaque].tokens =
-                (TokenRange){incomplete_if, branch->body_tokens.end};
-            if (last_child < 0) {
-                c->ast->statements[part].first_child = opaque;
-            } else {
-                while (c->ast->statements[last_child].next >= 0) {
-                    last_child = c->ast->statements[last_child].next;
-                }
-                c->ast->statements[last_child].next = opaque;
-            }
-            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, incomplete_if,
-                       c->ast->statements[opaque].tokens);
-        }
-        c_ast_scope_pop(c->ast);
-    }
-    c->pos = stmt_sig(c, c->ast->statements[node].tokens.end);
-    if (shared) {
-        int32 body = stmt_parse_compound(c, c->pos);
-        if (body >= 0) {
-            c->ast->statements[node].else_child = body;
-            c->ast->statements[node].tokens.end =
-                c->ast->statements[body].tokens.end;
-        }
-    }
-    return node;
-}
-
 static int32
 stmt_parse_compound(StmtCursor *c, int32 first) {
     int32 end = stmt_match(c, first);
@@ -516,168 +419,6 @@ stmt_parse_control(StmtCursor *c, int32 first, enum CStatementKind kind) {
 }
 
 static int32
-stmt_parse_for(StmtCursor *c, int32 first) {
-    int32 open = stmt_sig(c, first + 1);
-    int32 close;
-    int32 a;
-    int32 b;
-    int32 node;
-    int32 body;
-    TokenDelimiterDepth zero = {0};
-    TokenRange header;
-    if (!stmt_at(c, open, "(")) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
-    }
-    close = stmt_match(c, open);
-    if (close < 0) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
-    }
-    if (stmt_boundary(c, open + 1) < close) {
-        /* A conditional header may contain different init/step clauses.
-         * Do not join branches or guess their expressions. Still parse its
-         * controlled statement as a genuine for-loop body. */
-        node = stmt_new(c, C_STMT_FOR, first);
-        c->ast->statements[node].condition = (TokenRange){open + 1, close};
-        stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
-                   (TokenRange){open + 1, close});
-        c_ast_scope_push(c->ast);
-        c->pos = stmt_sig(c, close + 1);
-        body = stmt_parse_body(c);
-        if (body >= 0) {
-            c->ast->statements[node].first_child = body;
-            c->ast->statements[node].tokens.end =
-                c->ast->statements[body].tokens.end;
-        } else {
-            stmt_issue(c, C_PARSE_ISSUE_MALFORMED, close,
-                       (TokenRange){first, close + 1});
-            c->ast->statements[node].tokens.end = close + 1;
-        }
-        c_ast_scope_pop(c->ast);
-        return node;
-    }
-    header = (TokenRange){open + 1, close};
-    a = token_range_next_text_at_depth(c->ast->tokenization, header,
-                                       open, zero, ";", 1);
-    if (a >= close) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
-    }
-    b = token_range_next_text_at_depth(c->ast->tokenization, header,
-                                       a, zero, ";", 1);
-    if (b >= close) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, a);
-    }
-    node = stmt_new(c, C_STMT_FOR, first);
-    c->ast->statements[node].for_init = (TokenRange){open + 1, a};
-    c->ast->statements[node].condition = (TokenRange){a + 1, b};
-    c->ast->statements[node].for_step = (TokenRange){b + 1, close};
-    c_ast_scope_push(c->ast);
-    if (stmt_sig(c, open + 1) < a) {
-        CDeclParseResult decl =
-            c_ast_parse_declaration(c->ast, (TokenRange){open + 1, a + 1});
-        if (decl.status == C_DECL_PARSE_OK) {
-            c->ast->statements[node].declaration = decl.declaration;
-        } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION
-                   && stmt_ambiguous_pointer_decl(c,
-                                                  stmt_sig(c, open + 1), a)) {
-            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
-                       (TokenRange){open + 1, a + 1});
-        } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION) {
-            CExprParseResult expr =
-                c_ast_parse_expression(c->ast, (TokenRange){open + 1, a});
-            if (expr.status == C_EXPR_PARSE_OK) {
-                c->ast->statements[node].for_init_expression = expr.expression;
-            } else {
-                stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
-                           ? C_PARSE_ISSUE_UNSUPPORTED
-                           : C_PARSE_ISSUE_MALFORMED,
-                           expr.issue_token, (TokenRange){open + 1, a});
-            }
-        } else {
-            stmt_issue(c, decl.status == C_DECL_PARSE_UNSUPPORTED
-                       ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
-                       decl.issue_token, (TokenRange){open + 1, a + 1});
-        }
-    }
-    /* The header's source spans are retained even when not analyzed here. */
-    if (stmt_sig(c, a + 1) < b) {
-        CExprParseResult expr =
-            c_ast_parse_expression(c->ast, (TokenRange){a + 1, b});
-        if (expr.status == C_EXPR_PARSE_OK) {
-            c->ast->statements[node].expression = expr.expression;
-        } else {
-            stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
-                       ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
-                       expr.issue_token, (TokenRange){a + 1, b});
-        }
-    }
-    if (stmt_sig(c, b + 1) < close) {
-        CExprParseResult expr =
-            c_ast_parse_expression(c->ast, (TokenRange){b + 1, close});
-        if (expr.status == C_EXPR_PARSE_OK) {
-            c->ast->statements[node].for_step_expression = expr.expression;
-        } else {
-            stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
-                       ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
-                       expr.issue_token, (TokenRange){b + 1, close});
-        }
-    }
-    c->pos = stmt_sig(c, close + 1);
-    body = stmt_parse_body(c);
-    if (body >= 0) {
-        c->ast->statements[node].first_child = body;
-        c->ast->statements[node].tokens.end =
-            c->ast->statements[body].tokens.end;
-    } else {
-        stmt_issue(c, C_PARSE_ISSUE_MALFORMED, close,
-                   (TokenRange){first, close + 1});
-        c->ast->statements[node].tokens.end = close + 1;
-    }
-    c_ast_scope_pop(c->ast);
-    return node;
-}
-
-static int32
-stmt_parse_do(StmtCursor *c, int32 first) {
-    int32 node;
-    int32 body;
-    int32 open;
-    int32 close;
-    int32 semi;
-    c->pos = stmt_sig(c, first + 1);
-    body = stmt_parse_body(c);
-    if (body < 0) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, c->pos);
-    }
-    if (!stmt_at(c, c->pos, "while")) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, c->pos);
-    }
-    open = stmt_sig(c, c->pos + 1);
-    close = stmt_at(c, open, "(") ? stmt_match(c, open) : -1;
-    if (close < 0) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
-    }
-    semi = stmt_sig(c, close + 1);
-    if (!stmt_at(c, semi, ";")) {
-        return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, semi);
-    }
-    node = stmt_new(c, C_STMT_DO, first);
-    c->ast->statements[node].first_child = body;
-    c->ast->statements[node].condition = (TokenRange){open + 1, close};
-    if (stmt_boundary(c, open + 1) < close) {
-        stmt_issue(c, C_PARSE_ISSUE_PREPROCESSOR, open,
-                   (TokenRange){open, close + 1});
-    } else if (stmt_sig(c, open + 1) == close) {
-        stmt_issue(c, C_PARSE_ISSUE_MALFORMED, open,
-                   (TokenRange){open, close + 1});
-    } else {
-        stmt_expression(c, node, (TokenRange){open + 1, close});
-    }
-    c->ast->statements[node].tokens.end = semi + 1;
-    c->pos = stmt_sig(c, semi + 1);
-    return node;
-}
-
-static int32
 stmt_parse_label(StmtCursor *c, int32 first,
                  enum CStatementKind kind, int32 colon) {
     int32 node = stmt_new(c, kind, first);
@@ -716,7 +457,101 @@ stmt_parse_one(StmtCursor *c) {
         return stmt_unsupported(c, first, C_PARSE_ISSUE_UNSUPPORTED, first);
     }
     if (stmt_directive(c, first) >= 0) {
-        return stmt_pp(c, first, stmt_directive(c, first));
+        {
+            int32 directive = stmt_directive(c, first);
+
+        CPreprocessorDirective *d = &c->pp->directives[directive];
+        int32 group = -1;
+        int32 node;
+        CPreprocessorGroup *g;
+        int32 tail;
+        int32 following;
+        bool shared;
+        for (int32 i = 0; i < ARRAY_LEN(c->pp->groups); i += 1) {
+            int32 branch = c->pp->groups[i].first_branch;
+            if ((branch >= 0)
+                && (c->pp->branches[branch].directive_index == directive)) {
+                group = i;
+                break;
+            }
+        }
+        if (group < 0) {
+            node = stmt_new(c, C_STMT_PP_DIRECTIVE, first);
+            c->ast->statements[node].directive = directive;
+            c->ast->statements[node].tokens.end = d->tokens.end;
+            c->pos = stmt_sig(c, d->tokens.end);
+            return node;
+        }
+        g = &c->pp->groups[group];
+        if ((g->endif_directive < 0)
+            || (c->pp->directives[g->endif_directive].tokens.end > c->range.end)) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, first);
+        }
+        node = stmt_new(c, C_STMT_PP_GROUP, first);
+        c->ast->statements[node].directive = group;
+        c->ast->statements[node].tokens.end =
+            c->pp->directives[g->endif_directive].tokens.end;
+        tail = -1;
+        following = stmt_sig(c, c->ast->statements[node].tokens.end);
+        shared = stmt_at(c, following, "{") && (g->first_branch >= 0);
+        for (int32 b = g->first_branch; shared && (b >= 0);
+             b = c->pp->branches[b].next_branch) {
+            if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens) < 0) {
+                shared = false;
+            }
+        }
+        for (int32 b = g->first_branch; b >= 0;
+             b = c->pp->branches[b].next_branch) {
+            CPreprocessorBranch *branch = &c->pp->branches[b];
+            StmtCursor inner = *c;
+            int32 part = stmt_new(c, C_STMT_PP_BRANCH, branch->body_tokens.first);
+            int32 incomplete_if;
+            inner.range = branch->body_tokens;
+            inner.pos = inner.range.first;
+            inner.depth += 1;
+            c->ast->statements[part].directive = branch->directive_index;
+            c->ast->statements[part].tokens = branch->body_tokens;
+            stmt_append(c, node, &tail, part);
+            /* No conditional alternative can export a typedef to its siblings. */
+            c_ast_scope_push(c->ast);
+            incomplete_if = shared
+                ? stmt_pp_shared_if_start(c, branch->body_tokens) : -1;
+            if (incomplete_if >= 0) {
+                inner.range.end = incomplete_if;
+            }
+            stmt_parse_sequence(&inner, part);
+            if (incomplete_if >= 0) {
+                StmtCursor pending = inner;
+                int32 last_child = c->ast->statements[part].first_child;
+                int32 opaque = stmt_new(&pending, C_STMT_UNSUPPORTED,
+                                        incomplete_if);
+                c->ast->statements[opaque].tokens =
+                    (TokenRange){incomplete_if, branch->body_tokens.end};
+                if (last_child < 0) {
+                    c->ast->statements[part].first_child = opaque;
+                } else {
+                    while (c->ast->statements[last_child].next >= 0) {
+                        last_child = c->ast->statements[last_child].next;
+                    }
+                    c->ast->statements[last_child].next = opaque;
+                }
+                stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, incomplete_if,
+                           c->ast->statements[opaque].tokens);
+            }
+            c_ast_scope_pop(c->ast);
+        }
+        c->pos = stmt_sig(c, c->ast->statements[node].tokens.end);
+        if (shared) {
+            int32 body = stmt_parse_compound(c, c->pos);
+            if (body >= 0) {
+                c->ast->statements[node].else_child = body;
+                c->ast->statements[node].tokens.end =
+                    c->ast->statements[body].tokens.end;
+            }
+        }
+        return node;
+
+        }
     }
     if (stmt_at(c, first, "{")) {
         return stmt_parse_compound(c, first);
@@ -765,10 +600,168 @@ stmt_parse_one(StmtCursor *c) {
         return stmt_parse_control(c, first, C_STMT_SWITCH);
     }
     if (stmt_at(c, first, "for")) {
-        return stmt_parse_for(c, first);
+        {
+        int32 open = stmt_sig(c, first + 1);
+        int32 close;
+        int32 a;
+        int32 b;
+        int32 node;
+        int32 body;
+        TokenDelimiterDepth zero = {0};
+        TokenRange header;
+        if (!stmt_at(c, open, "(")) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
+        }
+        close = stmt_match(c, open);
+        if (close < 0) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
+        }
+        if (stmt_boundary(c, open + 1) < close) {
+            /* A conditional header may contain different init/step clauses.
+             * Do not join branches or guess their expressions. Still parse its
+             * controlled statement as a genuine for-loop body. */
+            node = stmt_new(c, C_STMT_FOR, first);
+            c->ast->statements[node].condition = (TokenRange){open + 1, close};
+            stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
+                       (TokenRange){open + 1, close});
+            c_ast_scope_push(c->ast);
+            c->pos = stmt_sig(c, close + 1);
+            body = stmt_parse_body(c);
+            if (body >= 0) {
+                c->ast->statements[node].first_child = body;
+                c->ast->statements[node].tokens.end =
+                    c->ast->statements[body].tokens.end;
+            } else {
+                stmt_issue(c, C_PARSE_ISSUE_MALFORMED, close,
+                           (TokenRange){first, close + 1});
+                c->ast->statements[node].tokens.end = close + 1;
+            }
+            c_ast_scope_pop(c->ast);
+            return node;
+        }
+        header = (TokenRange){open + 1, close};
+        a = token_range_next_text_at_depth(c->ast->tokenization, header,
+                                           open, zero, ";", 1);
+        if (a >= close) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
+        }
+        b = token_range_next_text_at_depth(c->ast->tokenization, header,
+                                           a, zero, ";", 1);
+        if (b >= close) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, a);
+        }
+        node = stmt_new(c, C_STMT_FOR, first);
+        c->ast->statements[node].for_init = (TokenRange){open + 1, a};
+        c->ast->statements[node].condition = (TokenRange){a + 1, b};
+        c->ast->statements[node].for_step = (TokenRange){b + 1, close};
+        c_ast_scope_push(c->ast);
+        if (stmt_sig(c, open + 1) < a) {
+            CDeclParseResult decl =
+                c_ast_parse_declaration(c->ast, (TokenRange){open + 1, a + 1});
+            if (decl.status == C_DECL_PARSE_OK) {
+                c->ast->statements[node].declaration = decl.declaration;
+            } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION
+                       && stmt_ambiguous_pointer_decl(c,
+                                                      stmt_sig(c, open + 1), a)) {
+                stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
+                           (TokenRange){open + 1, a + 1});
+            } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION) {
+                CExprParseResult expr =
+                    c_ast_parse_expression(c->ast, (TokenRange){open + 1, a});
+                if (expr.status == C_EXPR_PARSE_OK) {
+                    c->ast->statements[node].for_init_expression = expr.expression;
+                } else {
+                    stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
+                               ? C_PARSE_ISSUE_UNSUPPORTED
+                               : C_PARSE_ISSUE_MALFORMED,
+                               expr.issue_token, (TokenRange){open + 1, a});
+                }
+            } else {
+                stmt_issue(c, decl.status == C_DECL_PARSE_UNSUPPORTED
+                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           decl.issue_token, (TokenRange){open + 1, a + 1});
+            }
+        }
+        /* The header's source spans are retained even when not analyzed here. */
+        if (stmt_sig(c, a + 1) < b) {
+            CExprParseResult expr =
+                c_ast_parse_expression(c->ast, (TokenRange){a + 1, b});
+            if (expr.status == C_EXPR_PARSE_OK) {
+                c->ast->statements[node].expression = expr.expression;
+            } else {
+                stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
+                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           expr.issue_token, (TokenRange){a + 1, b});
+            }
+        }
+        if (stmt_sig(c, b + 1) < close) {
+            CExprParseResult expr =
+                c_ast_parse_expression(c->ast, (TokenRange){b + 1, close});
+            if (expr.status == C_EXPR_PARSE_OK) {
+                c->ast->statements[node].for_step_expression = expr.expression;
+            } else {
+                stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
+                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           expr.issue_token, (TokenRange){b + 1, close});
+            }
+        }
+        c->pos = stmt_sig(c, close + 1);
+        body = stmt_parse_body(c);
+        if (body >= 0) {
+            c->ast->statements[node].first_child = body;
+            c->ast->statements[node].tokens.end =
+                c->ast->statements[body].tokens.end;
+        } else {
+            stmt_issue(c, C_PARSE_ISSUE_MALFORMED, close,
+                       (TokenRange){first, close + 1});
+            c->ast->statements[node].tokens.end = close + 1;
+        }
+        c_ast_scope_pop(c->ast);
+        return node;
+
+        }
     }
     if (stmt_at(c, first, "do")) {
-        return stmt_parse_do(c, first);
+        {
+        int32 node;
+        int32 body;
+        int32 open;
+        int32 close;
+        int32 semi;
+        c->pos = stmt_sig(c, first + 1);
+        body = stmt_parse_body(c);
+        if (body < 0) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, c->pos);
+        }
+        if (!stmt_at(c, c->pos, "while")) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, c->pos);
+        }
+        open = stmt_sig(c, c->pos + 1);
+        close = stmt_at(c, open, "(") ? stmt_match(c, open) : -1;
+        if (close < 0) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, open);
+        }
+        semi = stmt_sig(c, close + 1);
+        if (!stmt_at(c, semi, ";")) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_MALFORMED, semi);
+        }
+        node = stmt_new(c, C_STMT_DO, first);
+        c->ast->statements[node].first_child = body;
+        c->ast->statements[node].condition = (TokenRange){open + 1, close};
+        if (stmt_boundary(c, open + 1) < close) {
+            stmt_issue(c, C_PARSE_ISSUE_PREPROCESSOR, open,
+                       (TokenRange){open, close + 1});
+        } else if (stmt_sig(c, open + 1) == close) {
+            stmt_issue(c, C_PARSE_ISSUE_MALFORMED, open,
+                       (TokenRange){open, close + 1});
+        } else {
+            stmt_expression(c, node, (TokenRange){open + 1, close});
+        }
+        c->ast->statements[node].tokens.end = semi + 1;
+        c->pos = stmt_sig(c, semi + 1);
+        return node;
+
+        }
     }
     if (stmt_at(c, first, "case") || stmt_at(c, first, "default")) {
         TokenRange limited = {first, stmt_boundary(c, first)};

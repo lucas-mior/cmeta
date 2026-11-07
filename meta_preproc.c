@@ -40,34 +40,6 @@ preprocessor_logical_line_end_offset(Tokenization *tokenization, int32 offset) {
     return tokenization->text_len;
 }
 
-static int32
-preprocessor_directive_content_end(Tokenization *tokenization,
-                                   SourceRange source) {
-    int32 result;
-
-    result = source.end;
-    if ((result > source.start) && (tokenization->text[result - 1] == '\n')) {
-        result -= 1;
-        if ((result > source.start)
-            && (tokenization->text[result - 1] == '\r')) {
-            result -= 1;
-        }
-    }
-    return result;
-}
-
-static TokenRange
-preprocessor_source_token_range(Tokenization *tokenization,
-                                SourceRange source) {
-    TokenRange result;
-
-    result.first = tokenization_token_at_or_after_offset(tokenization,
-                                                         source.start);
-    result.end = tokenization_token_at_or_after_offset(tokenization,
-                                                       source.end);
-    return result;
-}
-
 static bool
 preprocessor_token_is_hash(Token *token) {
     return TOKEN_IS(token, "#") || TOKEN_IS(token, "%:");
@@ -125,26 +97,6 @@ preprocessor_next_token(Tokenization *tokenization, TokenRange range,
     return result;
 }
 
-static int32
-preprocessor_previous_token(Tokenization *tokenization, TokenRange range,
-                            int32 token_index) {
-    int32 result;
-
-    if (!token_range_is_valid(tokenization, range)) {
-        return -1;
-    }
-    if (token_index >= range.end) {
-        result = range.end - 1;
-    } else {
-        result = token_index - 1;
-    }
-    while ((result >= range.first)
-           && preprocessor_token_is_trivia(tokenization, result)) {
-        result -= 1;
-    }
-    return result;
-}
-
 static TokenRange
 preprocessor_trim_range(Tokenization *tokenization, TokenRange range) {
     int32 first;
@@ -157,33 +109,12 @@ preprocessor_trim_range(Tokenization *tokenization, TokenRange range) {
     if (first >= range.end) {
         return (TokenRange){range.end, range.end};
     }
-    last = preprocessor_previous_token(tokenization, range, range.end);
+    last = range.end - 1;
+    while ((last >= range.first)
+           && preprocessor_token_is_trivia(tokenization, last)) {
+        last -= 1;
+    }
     return (TokenRange){first, last + 1};
-}
-
-static bool
-preprocessor_source_is_only_line_splices(Tokenization *tokenization,
-                                         int32 start, int32 end) {
-    int32 i;
-
-    if ((start < 0) || (start > end) || (end > tokenization->text_len)) {
-        return false;
-    }
-    i = start;
-    while (i < end) {
-        if (tokenization->text[i] != '\\') {
-            return false;
-        }
-        i += 1;
-        if ((i < end) && (tokenization->text[i] == '\r')) {
-            i += 1;
-        }
-        if ((i >= end) || (tokenization->text[i] != '\n')) {
-            return false;
-        }
-        i += 1;
-    }
-    return true;
 }
 
 enum CPreprocessorDirectiveKind
@@ -245,7 +176,10 @@ preprocessor_directive_from_source(Tokenization *tokenization,
         || (source.end > tokenization->text_len)) {
         return false;
     }
-    tokens = preprocessor_source_token_range(tokenization, source);
+    tokens.first = tokenization_token_at_or_after_offset(tokenization,
+                                                         source.start);
+    tokens.end = tokenization_token_at_or_after_offset(tokenization,
+                                                       source.end);
     if (!token_range_is_valid(tokenization, tokens)) {
         return false;
     }
@@ -360,10 +294,27 @@ c_preprocessor_define_info(Tokenization *tokenization,
                + tokenization->tokens[name].len;
     adjacent = false;
     if (next < directive->tokens.end) {
+        int32 i;
+
         next_offset = tokenization->tokens[next].offset;
-        adjacent =
-            preprocessor_source_is_only_line_splices(tokenization, name_end,
-                                                     next_offset);
+        adjacent = (name_end >= 0) && (name_end <= next_offset)
+                   && (next_offset <= tokenization->text_len);
+        i = name_end;
+        while (adjacent && (i < next_offset)) {
+            if (tokenization->text[i] != '\\') {
+                adjacent = false;
+                break;
+            }
+            i += 1;
+            if ((i < next_offset) && (tokenization->text[i] == '\r')) {
+                i += 1;
+            }
+            if ((i >= next_offset) || (tokenization->text[i] != '\n')) {
+                adjacent = false;
+                break;
+            }
+            i += 1;
+        }
     }
     if ((next < directive->tokens.end)
         && TOKEN_IS(&tokenization->tokens[next], "(") && adjacent) {
@@ -386,8 +337,15 @@ c_preprocessor_define_info(Tokenization *tokenization,
 
     tail = (TokenRange){syntax_end + 1, directive->tokens.end};
     info.replacement = preprocessor_trim_range(tokenization, tail);
-    content_end = preprocessor_directive_content_end(tokenization,
-                                                     directive->source);
+    content_end = directive->source.end;
+    if ((content_end > directive->source.start)
+        && (tokenization->text[content_end - 1] == '\n')) {
+        content_end -= 1;
+        if ((content_end > directive->source.start)
+            && (tokenization->text[content_end - 1] == '\r')) {
+            content_end -= 1;
+        }
+    }
     info.replacement_source.start = tokenization->tokens[syntax_end].offset
                                     + tokenization->tokens[syntax_end].len;
     info.replacement_source.end = content_end;

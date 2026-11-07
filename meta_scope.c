@@ -64,13 +64,6 @@ c_ast_scope_pop(CAst *ast) {
     return true;
 }
 
-static bool
-ast_names_equal(CAst *ast, int32 a, int32 b) {
-    Token *x = &ast->tokenization->tokens[a];
-    Token *y = &ast->tokenization->tokens[b];
-    return (x->len == y->len) && (memcmp64(x->text, y->text, x->len) == 0);
-}
-
 bool
 c_ast_bind(CAst *ast, int32 name, enum CNameClass name_class) {
     if ((ast == NULL) || (ast->tokenization == NULL)
@@ -101,8 +94,11 @@ c_ast_lookup_internal(CAst *ast, int32 name, bool tag) {
             CBinding *binding = &ast->bindings[i];
             bool is_tag = binding->name_class >= C_NAME_TAG_STRUCT
                           && binding->name_class <= C_NAME_TAG_ENUM;
+            Token *x = &ast->tokenization->tokens[name];
+            Token *y = &ast->tokenization->tokens[binding->name_token];
             if ((binding->scope == scope) && (is_tag == tag)
-                && ast_names_equal(ast, name, binding->name_token)) {
+                && (x->len == y->len)
+                && (memcmp64(x->text, y->text, x->len) == 0)) {
                 return binding->name_class;
             }
         }

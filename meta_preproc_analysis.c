@@ -16,33 +16,6 @@
 #include "meta.h"
 
 static int32
-preproc_analysis_append_directive(CPreprocessorAnalysis *analysis,
-                                  CPreprocessorDirective directive) {
-    int32 index;
-
-    index = ARRAY_LEN(analysis->directives);
-    ARRAY_PUSH(analysis->directives, directive);
-    return index;
-}
-
-static int32
-preproc_analysis_append_group(CPreprocessorAnalysis *analysis,
-                              int32 parent_branch, int32 directive_index) {
-    CPreprocessorGroup group = {0};
-    int32 index;
-
-    index = ARRAY_LEN(analysis->groups);
-    group.source.start = analysis->directives[directive_index].source.start;
-    group.source.end = analysis->tokenization->text_len;
-    group.parent_branch = parent_branch;
-    group.first_branch = -1;
-    group.last_branch = -1;
-    group.endif_directive = -1;
-    ARRAY_PUSH(analysis->groups, group);
-    return index;
-}
-
-static int32
 preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
                                int32 group_index, int32 directive_index) {
     CPreprocessorGroup *group;
@@ -88,111 +61,6 @@ preproc_analysis_mark_tokens(CPreprocessorAnalysis *analysis,
     return;
 }
 
-static void
-preproc_analysis_mark_define(CPreprocessorAnalysis *analysis,
-                             int32 directive_index) {
-    CPreprocessorDirective *directive;
-    CPreprocessorDefine define;
-    Tokenization *tokenization;
-    int32 content_end;
-
-    tokenization = analysis->tokenization;
-    directive = &analysis->directives[directive_index];
-    if (!c_preprocessor_define_info(tokenization, directive, &define)) {
-        preproc_analysis_add_issue(analysis, C_PP_ISSUE_BAD_DEFINE,
-                                   directive_index);
-        return;
-    }
-    if (define.function_like) {
-        for (int32 i = define.parameter_list.first;
-             i < define.parameter_list.end; i += 1) {
-            analysis->token_roles[i] = C_PP_TOKEN_MACRO_PARAMETERS;
-        }
-    }
-    content_end = define.replacement_source.end;
-    for (int32 i = define.name_token + 1; i < directive->tokens.end;
-         i += 1) {
-        Token *token = &tokenization->tokens[i];
-
-        if (token->offset >= content_end) {
-            break;
-        }
-        if (token->offset >= define.replacement_source.start) {
-            analysis->token_roles[i] = C_PP_TOKEN_MACRO_REPLACEMENT;
-        }
-    }
-    return;
-}
-
-static int32
-preproc_analysis_advance_conditional(CPreprocessorAnalysis *analysis,
-                                     int32 directive_index,
-                                     int32 *current_group,
-                                     int32 current_branch) {
-    CPreprocessorDirective *directive;
-    CPreprocessorGroup *group;
-    enum CPreprocessorDirectiveKind kind;
-    int32 group_index;
-
-    directive = &analysis->directives[directive_index];
-    kind = directive->kind;
-    if ((kind == C_PREPROCESSOR_DIRECTIVE_IF)
-        || (kind == C_PREPROCESSOR_DIRECTIVE_IFDEF)
-        || (kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF)) {
-        group_index = preproc_analysis_append_group(analysis, current_branch,
-                                                    directive_index);
-        *current_group = group_index;
-        return preproc_analysis_append_branch(analysis, group_index,
-                                              directive_index);
-    }
-    if ((kind != C_PREPROCESSOR_DIRECTIVE_ELIF)
-        && (kind != C_PREPROCESSOR_DIRECTIVE_ELSE)
-        && (kind != C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
-        return current_branch;
-    }
-    if (*current_group < 0) {
-        enum CPreprocessorIssueKind issue;
-
-        issue = C_PP_ISSUE_STRAY_ENDIF;
-        if (kind == C_PREPROCESSOR_DIRECTIVE_ELIF) {
-            issue = C_PP_ISSUE_STRAY_ELIF;
-        } else if (kind == C_PREPROCESSOR_DIRECTIVE_ELSE) {
-            issue = C_PP_ISSUE_STRAY_ELSE;
-        }
-        preproc_analysis_add_issue(analysis, issue, directive_index);
-        return current_branch;
-    }
-
-    group_index = *current_group;
-    group = &analysis->groups[group_index];
-    if (group->has_else && (kind != C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
-        enum CPreprocessorIssueKind issue;
-
-        issue = (kind == C_PREPROCESSOR_DIRECTIVE_ELIF)
-                ? C_PP_ISSUE_ELIF_AFTER_ELSE : C_PP_ISSUE_DUPLICATE_ELSE;
-        preproc_analysis_add_issue(analysis, issue, directive_index);
-        return current_branch;
-    }
-    ASSERT_GE(current_branch, 0);
-    analysis->branches[current_branch].body_source.end =
-        directive->source.start;
-    if (kind == C_PREPROCESSOR_DIRECTIVE_ENDIF) {
-        int32 parent;
-
-        parent = group->parent_branch;
-        group->endif_directive = directive_index;
-        group->source.end = directive->source.end;
-        *current_group = (parent >= 0)
-                         ? analysis->branches[parent].group_index : -1;
-        return parent;
-    }
-    if (kind == C_PREPROCESSOR_DIRECTIVE_ELSE) {
-        group->has_else = true;
-    }
-    return preproc_analysis_append_branch(analysis, group_index,
-                                          directive_index);
-}
-
 bool
 c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                              Tokenization *tokenization) {
@@ -232,8 +100,8 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
         }
         preproc_analysis_mark_tokens(analysis, (TokenRange){cursor, i},
                                      C_PP_TOKEN_CODE, -1, current_branch);
-        directive_index = preproc_analysis_append_directive(analysis,
-                                                            directive);
+        directive_index = ARRAY_LEN(analysis->directives);
+        ARRAY_PUSH(analysis->directives, directive);
         directive_branch = current_branch;
         if (((directive.kind == C_PREPROCESSOR_DIRECTIVE_ELIF)
              || (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELSE)
@@ -245,12 +113,110 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                                      C_PP_TOKEN_DIRECTIVE, directive_index,
                                      directive_branch);
         if (directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE) {
-            preproc_analysis_mark_define(analysis, directive_index);
+            CPreprocessorDirective *define_directive;
+            CPreprocessorDefine define;
+            int32 content_end;
+
+            define_directive = &analysis->directives[directive_index];
+            if (!c_preprocessor_define_info(tokenization, define_directive,
+                                            &define)) {
+                preproc_analysis_add_issue(analysis, C_PP_ISSUE_BAD_DEFINE,
+                                           directive_index);
+            } else {
+                if (define.function_like) {
+                    for (int32 j = define.parameter_list.first;
+                         j < define.parameter_list.end; j += 1) {
+                        analysis->token_roles[j] =
+                            C_PP_TOKEN_MACRO_PARAMETERS;
+                    }
+                }
+                content_end = define.replacement_source.end;
+                for (int32 j = define.name_token + 1;
+                     j < define_directive->tokens.end; j += 1) {
+                    Token *token = &tokenization->tokens[j];
+
+                    if (token->offset >= content_end) {
+                        break;
+                    }
+                    if (token->offset >= define.replacement_source.start) {
+                        analysis->token_roles[j] =
+                            C_PP_TOKEN_MACRO_REPLACEMENT;
+                    }
+                }
+            }
         }
-        current_branch =
-            preproc_analysis_advance_conditional(analysis, directive_index,
-                                                 &current_group,
-                                                 current_branch);
+        if ((directive.kind == C_PREPROCESSOR_DIRECTIVE_IF)
+            || (directive.kind == C_PREPROCESSOR_DIRECTIVE_IFDEF)
+            || (directive.kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF)) {
+            CPreprocessorGroup group = {0};
+
+            current_group = ARRAY_LEN(analysis->groups);
+            group.source.start =
+                analysis->directives[directive_index].source.start;
+            group.source.end = analysis->tokenization->text_len;
+            group.parent_branch = current_branch;
+            group.first_branch = -1;
+            group.last_branch = -1;
+            group.endif_directive = -1;
+            ARRAY_PUSH(analysis->groups, group);
+            current_branch =
+                preproc_analysis_append_branch(analysis, current_group,
+                                               directive_index);
+        } else if ((directive.kind == C_PREPROCESSOR_DIRECTIVE_ELIF)
+                   || (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELSE)
+                   || (directive.kind == C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
+            if (current_group < 0) {
+                enum CPreprocessorIssueKind issue;
+
+                issue = C_PP_ISSUE_STRAY_ENDIF;
+                if (directive.kind == C_PREPROCESSOR_DIRECTIVE_ELIF) {
+                    issue = C_PP_ISSUE_STRAY_ELIF;
+                } else if (directive.kind
+                           == C_PREPROCESSOR_DIRECTIVE_ELSE) {
+                    issue = C_PP_ISSUE_STRAY_ELSE;
+                }
+                preproc_analysis_add_issue(analysis, issue, directive_index);
+            } else {
+                CPreprocessorGroup *group =
+                    &analysis->groups[current_group];
+
+                if (group->has_else
+                    && (directive.kind
+                        != C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
+                    enum CPreprocessorIssueKind issue;
+
+                    issue = (directive.kind
+                             == C_PREPROCESSOR_DIRECTIVE_ELIF)
+                            ? C_PP_ISSUE_ELIF_AFTER_ELSE
+                            : C_PP_ISSUE_DUPLICATE_ELSE;
+                    preproc_analysis_add_issue(analysis, issue,
+                                               directive_index);
+                } else {
+                    ASSERT_GE(current_branch, 0);
+                    analysis->branches[current_branch].body_source.end =
+                        analysis->directives[directive_index].source.start;
+                    if (directive.kind
+                        == C_PREPROCESSOR_DIRECTIVE_ENDIF) {
+                        int32 parent = group->parent_branch;
+
+                        group->endif_directive = directive_index;
+                        group->source.end =
+                            analysis->directives[directive_index].source.end;
+                        current_group =
+                            (parent >= 0)
+                            ? analysis->branches[parent].group_index : -1;
+                        current_branch = parent;
+                    } else {
+                        if (directive.kind
+                            == C_PREPROCESSOR_DIRECTIVE_ELSE) {
+                            group->has_else = true;
+                        }
+                        current_branch = preproc_analysis_append_branch(
+                            analysis, current_group, directive_index);
+                    }
+                }
+            }
+        }
         cursor = directive.tokens.end;
         i = cursor - 1;
     }
