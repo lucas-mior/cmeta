@@ -1,0 +1,221 @@
+// SPDX-License-Identifier: AGPL
+// Copyright (c) 2026 Lucas Mior
+
+#if !defined(CSANECHECK_SINGLE_USE_C)
+#define CSANECHECK_SINGLE_USE_C
+
+#include "cbase.h"
+#include "csck.h"
+
+/* Ignore conditional compilation except for a conventional, whole-file
+ * include guard. No alternative preprocessor branch is selected. */
+static bool
+csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
+    int32 region = csane_regions_at_token(file->regions, index);
+    int32 branch;
+
+    if (region < 0
+        || file->regions->items[region].kind != CSANE_REGION_CODE
+        || !file->regions->items[region].complete) {
+        return false;
+    }
+    branch = csane_regions_enclosing(file->regions, region,
+                                     CSANE_REGION_CONDITIONAL_BRANCH);
+    return branch < 0 || branch == guard_branch;
+}
+
+void
+csane_single_use_check(CsaneFile *file) {
+    Tokenization *tokens = file->tokens;
+    CPreprocessorAnalysis *pp = file->preprocessor;
+    int32 guard_branch = -1;
+
+    if (!ENDS_WITH(file->path, file->path_len, ".c") || file->is_ryu
+        || !file->preprocessor_ok) {
+        return;
+    }
+    /* A source file may be wrapped in #if !defined(NAME) / #define NAME.
+     * Recognize only a matching single-branch guard covering the file. */
+    for (int32 i = 0; i < ARRAY_LEN(pp->groups); i += 1) {
+        CPreprocessorGroup *group = &pp->groups[i];
+        CPreprocessorBranch *branch = NULL;
+        CPreprocessorDirective *opening = NULL;
+        CPreprocessorDirective *defining = NULL;
+        CPreprocessorDefine define;
+        int32 pos;
+        int32 macro;
+        bool whole = true;
+
+        if (group->parent_branch >= 0
+            || group->first_branch != group->last_branch
+            || group->first_branch < 0 || group->endif_directive < 0) {
+            continue;
+        }
+        for (int32 j = 0; j < ARRAY_LEN(tokens->tokens); j += 1) {
+            Token *token = &tokens->tokens[j];
+            if ((token->offset < group->source.start
+                 || token->offset >= group->source.end)
+                && !token_is_trivia(token)) {
+                whole = false;
+                break;
+            }
+        }
+        if (!whole) {
+            continue;
+        }
+        branch = &pp->branches[group->first_branch];
+        opening = &pp->directives[branch->directive_index];
+        if (opening->kind != C_PREPROCESSOR_DIRECTIVE_IF) {
+            continue;
+        }
+        pos = token_range_next_significant(tokens, opening->tokens,
+                                           opening->keyword_token);
+        if (pos >= opening->tokens.end
+            || !TOKEN_IS(&tokens->tokens[pos], "!")) {
+            continue;
+        }
+        pos = token_range_next_significant(tokens, opening->tokens, pos);
+        if (pos >= opening->tokens.end
+            || !TOKEN_IS(&tokens->tokens[pos], "defined")) {
+            continue;
+        }
+        pos = token_range_next_significant(tokens, opening->tokens, pos);
+        if (pos >= opening->tokens.end
+            || !TOKEN_IS(&tokens->tokens[pos], "(")) {
+            continue;
+        }
+        macro = token_range_next_significant(tokens, opening->tokens, pos);
+        if (macro >= opening->tokens.end
+            || tokens->tokens[macro].kind != TOKEN_IDENT) {
+            continue;
+        }
+        pos = token_range_next_significant(tokens, opening->tokens, macro);
+        if (pos >= opening->tokens.end
+            || !TOKEN_IS(&tokens->tokens[pos], ")")) {
+            continue;
+        }
+        pos = token_range_next_significant(tokens, opening->tokens, pos);
+        if (pos < opening->tokens.end) {
+            continue;
+        }
+        defining = NULL;
+        for (int32 j = branch->directive_index + 1;
+             j < ARRAY_LEN(pp->directives); j += 1) {
+            CPreprocessorDirective *candidate = &pp->directives[j];
+            if (candidate->source.start >= branch->body_source.end) {
+                break;
+            }
+            defining = candidate;
+            break;
+        }
+        if (defining == NULL
+            || defining->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
+            || !c_preprocessor_define_info(tokens, defining, &define)
+            || define.name_token < 0
+            || tokens->tokens[define.name_token].len
+               != tokens->tokens[macro].len
+            || memcmp64(tokens->tokens[define.name_token].text,
+                        tokens->tokens[macro].text,
+                        tokens->tokens[macro].len)) {
+            continue;
+        }
+        for (int32 j = 0; j < ARRAY_LEN(file->regions->items); j += 1) {
+            CsaneSourceRegion *region = &file->regions->items[j];
+            if (region->kind == CSANE_REGION_CONDITIONAL_BRANCH
+                && region->branch_index == group->first_branch) {
+                guard_branch = j;
+                break;
+            }
+        }
+        break;
+    }
+
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        Token *name = NULL;
+        bool is_static = false;
+        bool uncertain = false;
+        int32 count = 0;
+
+        if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
+            || item->name_token < 0
+            || !csane_single_use_code(file, item->name_token,
+                                      guard_branch)) {
+            continue;
+        }
+        for (int32 j = item->header.first; j < item->name_token; j += 1) {
+            if (TOKEN_IS(&tokens->tokens[j], "static")) {
+                is_static = true;
+                break;
+            }
+        }
+        if (!is_static) {
+            continue;
+        }
+        name = &tokens->tokens[item->name_token];
+        for (int32 j = 0; j < ARRAY_LEN(tokens->tokens); j += 1) {
+            Token *token = &tokens->tokens[j];
+            bool prototype = false;
+            bool direct = false;
+            int32 previous;
+            int32 next;
+
+            if (j == item->name_token || token->kind != TOKEN_IDENT
+                || token->len != name->len
+                || memcmp64(token->text, name->text, name->len)) {
+                continue;
+            }
+            if (!csane_single_use_code(file, j, guard_branch)) {
+                uncertain = true;
+                break;
+            }
+            for (int32 k = 0; k < ARRAY_LEN(file->toplevel->items); k += 1) {
+                CsaneTopItem *candidate = &file->toplevel->items[k];
+                if (candidate->kind == CSANE_TOP_FUNCTION_DECLARATION
+                    && candidate->name_token == j) {
+                    prototype = true;
+                    break;
+                }
+            }
+            if (prototype) {
+                continue;
+            }
+            next = tokenization_next_significant(tokens, j);
+            previous = tokenization_previous_significant(tokens, j);
+            if (next < ARRAY_LEN(tokens->tokens)
+                && TOKEN_IS(&tokens->tokens[next], "(")
+                && (previous < 0
+                    || (!TOKEN_IS(&tokens->tokens[previous], ".")
+                        && !TOKEN_IS(&tokens->tokens[previous], "->")
+                        && !TOKEN_IS(&tokens->tokens[previous], "&")))) {
+                for (int32 k = 0; k < ARRAY_LEN(file->toplevel->items);
+                     k += 1) {
+                    CsaneTopItem *caller = &file->toplevel->items[k];
+                    if (caller->kind == CSANE_TOP_FUNCTION_DEFINITION
+                        && caller != item && j >= caller->body.first
+                        && j < caller->body.end) {
+                        direct = true;
+                        break;
+                    }
+                }
+            }
+            if (!direct) {
+                uncertain = true;
+                break;
+            }
+            count += 1;
+            if (count > 1) {
+                break;
+            }
+        }
+        if (count == 1 && !uncertain) {
+            csane_rule_issue(file, name->offset, STRLIT("STYLE-STATIC-ONCE"),
+                             "static function called only once: inline its "
+                             "body at the call site and remove the function "
+                             "definition and any prototype");
+        }
+    }
+    return;
+}
+
+#endif /* CSANECHECK_SINGLE_USE_C */

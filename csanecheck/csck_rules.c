@@ -490,6 +490,8 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_ASSIGNMENTS, false},
     {STRLIT("FUNC-HEADERS"), csane_declarations_headers, CSANE_PASS_TOKEN,
      CSANE_TARGET_FUNC_HEADERS, false},
+    {STRLIT("STYLE-STATIC-ONCE"), csane_single_use_check, CSANE_PASS_TOKEN,
+     CSANE_TARGET_STATIC_SINGLE_USE, false},
     {STRLIT("CALL-BASIC"), csane_calls_token_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALLS, false},
     {STRLIT("STYLE-EXPRESSIONS"), csane_expression_style_check,

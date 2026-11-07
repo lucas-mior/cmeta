@@ -104,6 +104,7 @@ enum CsaneTargetKind {
     CSANE_TARGET_OPERATORS,
     CSANE_TARGET_DECL_ONE,
     CSANE_TARGET_FUNC_HEADERS,
+    CSANE_TARGET_STATIC_SINGLE_USE,
     CSANE_TARGET_CONTROL,
     CSANE_TARGET_STYLE_STATUS,
     CSANE_TARGET_CALL_WRAP,
@@ -202,6 +203,7 @@ void csane_coverage_report_structural(char *, int32, Tokenization *,
                                       CsaneTopLevels *, CsaneStatements *);
 void csane_declarations_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
+void csane_single_use_check(CsaneFile *);
 void csane_control_check(CsaneFile *);
 void csane_pointer_check(CsaneFile *);
 void csane_bounds_check(CsaneFile *);

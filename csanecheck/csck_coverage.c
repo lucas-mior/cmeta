@@ -508,6 +508,21 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
     Tokenization *tokens = file->tokens;
     if (kind == CSANE_TARGET_DECL_ONE) {
         csane_coverage_decl_one(file, &counts, group, group_len, report);
+    } else if (kind == CSANE_TARGET_STATIC_SINGLE_USE) {
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
+                || item->name_token < 0) {
+                continue;
+            }
+            for (int32 j = item->header.first; j < item->name_token;
+                 j += 1) {
+                if (TOKEN_IS(&tokens->tokens[j], "static")) {
+                    csane_coverage_target(&counts, true);
+                    break;
+                }
+            }
+        }
     } else if (kind == CSANE_TARGET_FUNC_HEADERS) {
         csane_coverage_func_headers(file, &counts, group, group_len, report);
     } else if (kind == CSANE_TARGET_CONTROL) {
