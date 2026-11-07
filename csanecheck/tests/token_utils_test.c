@@ -7,6 +7,9 @@
 #include "meta.h"
 #include "csanecheck/csck_tokens.c"
 
+#define TESTING_token_utils_test 1
+#if TESTING_token_utils_test
+
 static int32 failures = 0;
 
 static void
@@ -1347,3 +1350,5 @@ main(void) {
     test_delimiter_match_path_masks();
     return failures > 0;
 }
+
+#endif /* TESTING_token_utils_test */

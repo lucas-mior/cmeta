@@ -7,6 +7,9 @@
 #include "meta.h"
 #include "csanecheck/csck_regions.c"
 
+#define TESTING_regions_test 1
+#if TESTING_regions_test
+
 static int32 failures = 0;
 
 static void
@@ -277,3 +280,5 @@ main(void) {
     test_duplicate_branch_directives();
     return failures > 0;
 }
+
+#endif /* TESTING_regions_test */

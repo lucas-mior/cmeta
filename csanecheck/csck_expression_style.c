@@ -550,17 +550,6 @@ csane_style_literal_cast_arguments(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
-static bool
-csane_style_call_keyword(Token *token) {
-    return TOKEN_IS(token, "if") || TOKEN_IS(token, "for")
-           || TOKEN_IS(token, "while") || TOKEN_IS(token, "switch")
-           || TOKEN_IS(token, "sizeof") || TOKEN_IS(token, "_Alignof")
-           || TOKEN_IS(token, "_Generic")
-           || TOKEN_IS(token, "_Static_assert")
-           || TOKEN_IS(token, "typeof")
-           || TOKEN_IS(token, "__typeof__");
-}
-
 /* A cast immediately before a rounding call discards the checked
  * conversion provided by the project's int64 rounding wrappers. */
 static void
@@ -962,7 +951,13 @@ csane_expression_style_check(CsaneFile *file) {
         enum CsaneLocalKind kind;
 
         if (token->kind != TOKEN_IDENT
-            || csane_style_call_keyword(token)) {
+            || TOKEN_IS(token, "if") || TOKEN_IS(token, "for")
+            || TOKEN_IS(token, "while") || TOKEN_IS(token, "switch")
+            || TOKEN_IS(token, "sizeof") || TOKEN_IS(token, "_Alignof")
+            || TOKEN_IS(token, "_Generic")
+            || TOKEN_IS(token, "_Static_assert")
+            || TOKEN_IS(token, "typeof")
+            || TOKEN_IS(token, "__typeof__")) {
             continue;
         }
         next = csane_tokens_next(&view, i);

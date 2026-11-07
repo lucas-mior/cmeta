@@ -461,12 +461,6 @@ csane_decl_pointer_typedef(CsaneFile *file, TokenRange range) {
     return false;
 }
 
-static bool
-csane_decl_xenums(CsaneFile *file) {
-    return STREQUAL(file->path, file->path_len, "xenums.c")
-           || ENDS_WITH(file->path, file->path_len, "/xenums.c");
-}
-
 static void
 csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     int32 first;
@@ -483,7 +477,8 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
         type = csane_decl_next(file, range, type);
     }
     if (csane_decl_word(file, type, STRLIT("enum"))
-        && !csane_decl_xenums(file)) {
+        && !(STREQUAL(file->path, file->path_len, "xenums.c")
+             || ENDS_WITH(file->path, file->path_len, "/xenums.c"))) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
                          STRLIT("TYPE-ENUM-TYPEDEF"), "do not typedef enums");
     }

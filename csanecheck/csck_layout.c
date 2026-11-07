@@ -173,17 +173,6 @@ csane_layout_assignment(Token *op) {
 }
 
 static bool
-csane_layout_binary(Token *op) {
-    return TOKEN_IS(op, "+") || TOKEN_IS(op, "-")
-           || TOKEN_IS(op, "&") || TOKEN_IS(op, "<<")
-           || TOKEN_IS(op, ">>") || TOKEN_IS(op, "&&")
-           || TOKEN_IS(op, "||") || TOKEN_IS(op, "==")
-           || TOKEN_IS(op, "!=") || TOKEN_IS(op, "<")
-           || TOKEN_IS(op, "<=") || TOKEN_IS(op, ">")
-           || TOKEN_IS(op, ">=");
-}
-
-static bool
 csane_layout_qualifier(Token *token) {
     return TOKEN_IS(token, "const") || TOKEN_IS(token, "volatile")
            || TOKEN_IS(token, "restrict") || TOKEN_IS(token, "typedef")
@@ -847,7 +836,13 @@ csane_layout_classify(CsaneFile *file, int32 index) {
     }
     op = &tokens->tokens[index];
     multiply = TOKEN_IS(op, "*");
-    binary = csane_layout_binary(op);
+    binary = TOKEN_IS(op, "+") || TOKEN_IS(op, "-")
+             || TOKEN_IS(op, "&") || TOKEN_IS(op, "<<")
+             || TOKEN_IS(op, ">>") || TOKEN_IS(op, "&&")
+             || TOKEN_IS(op, "||") || TOKEN_IS(op, "==")
+             || TOKEN_IS(op, "!=") || TOKEN_IS(op, "<")
+             || TOKEN_IS(op, "<=") || TOKEN_IS(op, ">")
+             || TOKEN_IS(op, ">=");
     assign = csane_layout_assignment(op);
     if (!multiply && !binary && !assign) {
         return CSANE_LAYOUT_SKIP;
@@ -966,54 +961,6 @@ csane_layout_spacing(CsaneFile *file, int32 index, bool tight) {
     return !before_sep || !after_sep;
 }
 
-/* Unlike operator spacing, the placement of a continuation-line '=' must
- * also be checked in unsupported expressions, as long as it is C source and
- * not a preprocessor directive or macro replacement. */
-static void
-csane_layout_leading_assignment(CsaneFile *file) {
-    Tokenization *tokens = file->tokens;
-    char *text = tokens->text;
-    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
-        Token *token = &tokens->tokens[i];
-        int32 start;
-        int32 part_index;
-        if (!TOKEN_IS(token, "=") || !csane_layout_code(file, i)) {
-            continue;
-        }
-        start = token->offset;
-        while (start > 0 && text[start - 1] != '\n') {
-            start -= 1;
-        }
-        part_index = tokenization_token_at_or_after_offset(tokens, start);
-        for (int32 j = start; j < token->offset;) {
-            if (text[j] == ' ' || text[j] == '\t' || text[j] == '\r') {
-                j += 1;
-                continue;
-            }
-            while (part_index < ARRAY_LEN(tokens->tokens)
-                   && tokens->tokens[part_index].offset
-                      + tokens->tokens[part_index].len <= j) {
-                part_index += 1;
-            }
-            if (part_index < ARRAY_LEN(tokens->tokens)) {
-                Token *part = &tokens->tokens[part_index];
-
-                if (part->kind == TOKEN_COMMENT && part->offset <= j
-                    && part->offset + part->len <= token->offset) {
-                    j = part->offset + part->len;
-                    continue;
-                }
-            }
-            start = -1;
-            break;
-        }
-        if (start >= 0 && start < token->offset + 1) {
-            csane_rule_issue(file, token->offset, STRLIT("FMT-ASSIGN-EQ"),
-                             "assignment = must end the preceding line");
-        }
-    }
-    return;
-}
 
 static bool
 csane_layout_adjacent(Token *left, Token *right) {
@@ -1035,11 +982,6 @@ csane_layout_horizontal_gap(CsaneFile *file, Token *left, Token *right) {
     return horizontal;
 }
 
-static bool
-csane_layout_closing(Token *token) {
-    return TOKEN_IS(token, ")") || TOKEN_IS(token, "]") || TOKEN_IS(token, "}");
-}
-
 static void
 csane_layout_comma_check(CsaneFile *file, int32 index) {
     Tokenization *tokens = file->tokens;
@@ -1054,7 +996,9 @@ csane_layout_comma_check(CsaneFile *file, int32 index) {
         return;
     }
     next = csane_tokens_next(&view, index);
-    if (next >= view.range.end || csane_layout_closing(&tokens->tokens[next])) {
+    if (next >= view.range.end || TOKEN_IS(&tokens->tokens[next], ")")
+        || TOKEN_IS(&tokens->tokens[next], "]")
+        || TOKEN_IS(&tokens->tokens[next], "}")) {
         return;
     }
     after = comma->offset + comma->len;
@@ -2073,10 +2017,56 @@ csane_layout_check(CsaneFile *file) {
     }
 }
 
+/* Unlike operator spacing, the placement of a continuation-line '=' must
+ * also be checked in unsupported expressions, as long as it is C source and
+ * not a preprocessor directive or macro replacement. */
 void
 csane_layout_assignment_check(CsaneFile *file) {
     if (!file->is_ryu && !csane_layout_generated(file->path, file->path_len)) {
-        csane_layout_leading_assignment(file);
+        Tokenization *tokens = file->tokens;
+        char *text = tokens->text;
+        for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
+            Token *token = &tokens->tokens[i];
+            int32 start;
+            int32 part_index;
+            if (!TOKEN_IS(token, "=")
+                || !csane_layout_code(file, i)) {
+                continue;
+            }
+            start = token->offset;
+            while (start > 0 && text[start - 1] != '\n') {
+                start -= 1;
+            }
+            part_index = tokenization_token_at_or_after_offset(tokens, start);
+            for (int32 j = start; j < token->offset;) {
+                if (text[j] == ' ' || text[j] == '\t' || text[j] == '\r') {
+                    j += 1;
+                    continue;
+                }
+                while (part_index < ARRAY_LEN(tokens->tokens)
+                       && tokens->tokens[part_index].offset
+                          + tokens->tokens[part_index].len <= j) {
+                    part_index += 1;
+                }
+                if (part_index < ARRAY_LEN(tokens->tokens)) {
+                    Token *part = &tokens->tokens[part_index];
+
+                    if (part->kind == TOKEN_COMMENT && part->offset <= j
+                        && part->offset + part->len <= token->offset) {
+                        j = part->offset + part->len;
+                        continue;
+                    }
+                }
+                start = -1;
+                break;
+            }
+            if (start >= 0 && start < token->offset + 1) {
+                csane_rule_issue(file, token->offset,
+                                 STRLIT("FMT-ASSIGN-EQ"),
+                                 "assignment = must end "
+                                 "the preceding line");
+            }
+        }
     }
 }
 

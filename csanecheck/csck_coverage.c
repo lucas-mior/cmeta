@@ -37,21 +37,13 @@ csane_token_name_in(Token *token, CsanePaths *names) {
 }
 
 static void
-csane_coverage_result(CsaneRuleCounts *counts, enum CsaneCoverageState state) {
+csane_coverage_target(CsaneRuleCounts *counts, bool resolved) {
     counts->eligible += 1;
-    if (state == CSANE_COVERAGE_CHECKED) {
+    if (resolved) {
         counts->checked += 1;
-    } else if (state == CSANE_COVERAGE_EXCLUDED) {
-        counts->excluded += 1;
     } else {
         counts->unresolved += 1;
     }
-}
-
-static void
-csane_coverage_target(CsaneRuleCounts *counts, bool resolved) {
-    csane_coverage_result(counts, resolved ? CSANE_COVERAGE_CHECKED
-                                           : CSANE_COVERAGE_UNRESOLVED);
 }
 
 static void
@@ -104,33 +96,6 @@ csane_coverage_opaque(CsaneFile *file, TokenRange range) {
     return false;
 }
 
-static void
-csane_coverage_top(CsaneFile *file, CsaneRuleCounts *counts,
-                   enum CsaneTargetKind kind) {
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        bool selected = false;
-        if (kind == CSANE_TARGET_DECLARATIONS) {
-            selected = item->kind == CSANE_TOP_DECLARATION
-                       || item->kind == CSANE_TOP_MEMBER_DECLARATION
-                       || item->kind == CSANE_TOP_ENUMERATOR
-                       || item->kind == CSANE_TOP_PARAMETER_FRAGMENT
-                       || item->kind == CSANE_TOP_TYPE_DECLARATION
-                       || item->kind == CSANE_TOP_FUNCTION_DEFINITION;
-        } else if (kind == CSANE_TARGET_FUNCTIONS) {
-            selected = item->kind == CSANE_TOP_FUNCTION_DEFINITION
-                       || item->kind == CSANE_TOP_FUNCTION_DECLARATION;
-        } else {
-            selected = item->kind == CSANE_TOP_FUNCTION_DEFINITION;
-        }
-        if (item->kind == CSANE_TOP_OPAQUE) {
-            csane_coverage_target(counts, false);
-        } else if (selected) {
-            csane_coverage_target(counts,
-                                  !csane_coverage_opaque(file, item->tokens));
-        }
-    }
-}
 
 static void
 csane_coverage_statements(CsaneFile *file, CsaneRuleCounts *counts,
@@ -185,37 +150,6 @@ csane_coverage_declaration_start(CsaneFile *file, TokenRange range) {
 }
 
 static bool
-csane_coverage_contains(CsaneFile *file, TokenRange range,
-                        char *text, int32 text_len) {
-    for (int32 i = range.first; i < range.end; i += 1) {
-        if (csane_coverage_token(file, i, text, text_len)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void
-csane_coverage_decl_one(CsaneFile *file, CsaneRuleCounts *counts,
-                        char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if (item->kind == CSANE_TOP_DECLARATION
-            || item->kind == CSANE_TOP_TYPE_DECLARATION
-            || item->kind == CSANE_TOP_FUNCTION_DECLARATION
-            || item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
-            csane_coverage_target(counts, true);
-        } else if (item->kind == CSANE_TOP_OPAQUE
-                   && csane_coverage_declaration_start(file, item->tokens)) {
-            int32 first = csane_coverage_first(file, item->tokens);
-            csane_coverage_unresolved(file, counts, group, group_len, first,
-                                      "declaration-structure-unrecognized",
-                                      report);
-        }
-    }
-}
-
-static bool
 csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
     int32 first = csane_coverage_first(file, range);
     if (first < 0 || !csane_coverage_declaration_start(file, range)) {
@@ -237,31 +171,6 @@ csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
     return false;
 }
 
-static void
-csane_coverage_func_headers(CsaneFile *file, CsaneRuleCounts *counts,
-                            char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
-            || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {
-            csane_coverage_target(counts, true);
-        } else if (item->kind == CSANE_TOP_OPAQUE
-                   && csane_coverage_function_shape(file, item->tokens)) {
-            int32 first = csane_coverage_first(file, item->tokens);
-            csane_coverage_unresolved(file, counts, group, group_len, first,
-                                      "function-header-unrecognized",
-                                      report);
-        }
-    }
-}
-
-static bool
-csane_coverage_control_kind(enum CsaneStatementKind kind) {
-    return kind == CSANE_STMT_IF || kind == CSANE_STMT_FOR
-           || kind == CSANE_STMT_WHILE || kind == CSANE_STMT_DO
-           || kind == CSANE_STMT_SWITCH || kind == CSANE_STMT_CASE
-           || kind == CSANE_STMT_DEFAULT || kind == CSANE_STMT_BLOCK;
-}
 
 static bool
 csane_coverage_control_start(CsaneFile *file, int32 token) {
@@ -275,42 +184,7 @@ csane_coverage_control_start(CsaneFile *file, int32 token) {
            || csane_coverage_token(file, token, STRLIT("{"));
 }
 
-static void
-csane_coverage_control(CsaneFile *file, CsaneRuleCounts *counts,
-                       char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
-        CsaneStatement *stmt = &file->statements->items[i];
-        if (csane_coverage_control_kind(stmt->kind)) {
-            csane_coverage_target(counts, true);
-        } else if (stmt->kind == CSANE_STMT_OPAQUE) {
-            int32 first = csane_coverage_first(file, stmt->tokens);
-            if (first >= 0 && csane_coverage_control_start(file, first)) {
-                csane_coverage_unresolved(file, counts, group, group_len, first,
-                                          "control-structure-unrecognized",
-                                          report);
-            }
-        }
-    }
-}
 
-static void
-csane_coverage_status(CsaneFile *file, CsaneRuleCounts *counts,
-                      char *group, int32 group_len, bool report) {
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if (!csane_coverage_contains(file, item->tokens, STRLIT("status"))) {
-            continue;
-        }
-        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
-            csane_coverage_target(counts, true);
-        } else if (item->kind == CSANE_TOP_OPAQUE) {
-            int32 first = csane_coverage_first(file, item->tokens);
-            csane_coverage_unresolved(file, counts, group, group_len, first,
-                                      "status-function-unrecognized",
-                                      report);
-        }
-    }
-}
 
 static bool
 csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {
@@ -507,7 +381,27 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
     CsaneRuleCounts counts = {0};
     Tokenization *tokens = file->tokens;
     if (kind == CSANE_TARGET_DECL_ONE) {
-        csane_coverage_decl_one(file, &counts, group, group_len, report);
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            if (item->kind == CSANE_TOP_DECLARATION
+                || item->kind == CSANE_TOP_TYPE_DECLARATION
+                || item->kind == CSANE_TOP_FUNCTION_DECLARATION
+                || item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
+                csane_coverage_target(&counts, true);
+            } else if (item->kind == CSANE_TOP_OPAQUE) {
+                int32 first;
+
+                if (!csane_coverage_declaration_start(file, item->tokens)) {
+                    continue;
+                }
+                first = csane_coverage_first(file, item->tokens);
+                csane_coverage_unresolved(file, &counts,
+                                          group, group_len,
+                                          first,
+                                          "declaration-structure-unrecognized",
+                                          report);
+            }
+        }
     } else if (kind == CSANE_TARGET_STATIC_SINGLE_USE) {
         for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
             CsaneTopItem *item = &file->toplevel->items[i];
@@ -524,11 +418,72 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
             }
         }
     } else if (kind == CSANE_TARGET_FUNC_HEADERS) {
-        csane_coverage_func_headers(file, &counts, group, group_len, report);
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                || item->kind == CSANE_TOP_FUNCTION_DECLARATION) {
+                csane_coverage_target(&counts, true);
+            } else if (item->kind == CSANE_TOP_OPAQUE) {
+                int32 first;
+
+                if (!csane_coverage_function_shape(file, item->tokens)) {
+                    continue;
+                }
+                first = csane_coverage_first(file, item->tokens);
+                csane_coverage_unresolved(file, &counts,
+                                          group, group_len,
+                                          first,
+                                          "function-header-unrecognized",
+                                          report);
+            }
+        }
     } else if (kind == CSANE_TARGET_CONTROL) {
-        csane_coverage_control(file, &counts, group, group_len, report);
+        for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+            CsaneStatement *stmt = &file->statements->items[i];
+            if (stmt->kind == CSANE_STMT_IF || stmt->kind == CSANE_STMT_FOR
+                || stmt->kind == CSANE_STMT_WHILE || stmt->kind == CSANE_STMT_DO
+                || stmt->kind == CSANE_STMT_SWITCH
+                || stmt->kind == CSANE_STMT_CASE
+                || stmt->kind == CSANE_STMT_DEFAULT
+                || stmt->kind == CSANE_STMT_BLOCK) {
+                csane_coverage_target(&counts, true);
+            } else if (stmt->kind == CSANE_STMT_OPAQUE) {
+                int32 first = csane_coverage_first(file, stmt->tokens);
+                if (first >= 0 && csane_coverage_control_start(file, first)) {
+                    csane_coverage_unresolved(file, &counts,
+                                              group, group_len,
+                                              first,
+                                              "control-structure-unrecognized",
+                                              report);
+                }
+            }
+        }
     } else if (kind == CSANE_TARGET_STYLE_STATUS) {
-        csane_coverage_status(file, &counts, group, group_len, report);
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            bool contains_status = false;
+
+            for (int32 j = item->tokens.first; j < item->tokens.end;
+                 j += 1) {
+                if (csane_coverage_token(file, j, STRLIT("status"))) {
+                    contains_status = true;
+                    break;
+                }
+            }
+            if (!contains_status) {
+                continue;
+            }
+            if (item->kind == CSANE_TOP_FUNCTION_DEFINITION) {
+                csane_coverage_target(&counts, true);
+            } else if (item->kind == CSANE_TOP_OPAQUE) {
+                int32 first = csane_coverage_first(file, item->tokens);
+                csane_coverage_unresolved(file, &counts,
+                                          group, group_len,
+                                          first,
+                                          "status-function-unrecognized",
+                                          report);
+            }
+        }
     } else if (kind == CSANE_TARGET_CALL_WRAP) {
         csane_coverage_wrap_statements(file, &counts, group, group_len,
                                        report, true);
@@ -553,7 +508,30 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
     } else if (kind == CSANE_TARGET_DECLARATIONS
                || kind == CSANE_TARGET_STATEMENTS
                || kind == CSANE_TARGET_FUNCTIONS) {
-        csane_coverage_top(file, &counts, kind);
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            bool selected = false;
+            if (kind == CSANE_TARGET_DECLARATIONS) {
+                selected = item->kind == CSANE_TOP_DECLARATION
+                           || item->kind == CSANE_TOP_MEMBER_DECLARATION
+                           || item->kind == CSANE_TOP_ENUMERATOR
+                           || item->kind == CSANE_TOP_PARAMETER_FRAGMENT
+                           || item->kind == CSANE_TOP_TYPE_DECLARATION
+                           || item->kind == CSANE_TOP_FUNCTION_DEFINITION;
+            } else if (kind == CSANE_TARGET_FUNCTIONS) {
+                selected = item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                           || item->kind == CSANE_TOP_FUNCTION_DECLARATION;
+            } else {
+                selected = item->kind == CSANE_TOP_FUNCTION_DEFINITION;
+            }
+            if (item->kind == CSANE_TOP_OPAQUE) {
+                csane_coverage_target(&counts, false);
+            } else if (selected) {
+                csane_coverage_target(&counts,
+                                      !csane_coverage_opaque(file,
+                                                             item->tokens));
+            }
+        }
         if (kind != CSANE_TARGET_FUNCTIONS) {
             csane_coverage_statements(file, &counts, kind);
         }

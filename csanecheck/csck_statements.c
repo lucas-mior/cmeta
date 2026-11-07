@@ -245,38 +245,6 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
     return;
 }
 
-static void
-csane_stmt_match(CsaneStatementStream *stream) {
-    int32 *stack = malloc2(ARRAY_LEN(stream->indices)*SIZEOF(*stack));
-    int32 depth = 0;
-
-    stream->matches = malloc2(ARRAY_LEN(stream->indices)
-                              *SIZEOF(*stream->matches));
-    for (int32 i = 0; i < ARRAY_LEN(stream->indices); i += 1) {
-        stream->matches[i] = -1;
-        if (csane_stmt_open(stream, i)) {
-            stack[depth] = i;
-            depth += 1;
-        } else if (csane_stmt_close(stream, i)) {
-            int32 found = depth - 1;
-            int32 open;
-
-            while (found >= 0 && !csane_stmt_pair(stream, stack[found], i)) {
-                found -= 1;
-            }
-            if (found < 0) {
-                depth = 0;
-                continue;
-            }
-            open = stack[found];
-            stream->matches[open] = i;
-            stream->matches[i] = open;
-            depth = found;
-        }
-    }
-    free2(stack, ARRAY_LEN(stream->indices)*SIZEOF(*stack));
-    return;
-}
 
 static enum CsaneStatementKind
 csane_stmt_control(CsaneStatementStream *stream, int32 position) {
@@ -688,7 +656,37 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
             csane_stmt_drop_branch_closers(&stream);
         }
         end = ARRAY_LEN(stream.indices);
-        csane_stmt_match(&stream);
+
+        int32 *stack = malloc2(ARRAY_LEN(stream.indices)*SIZEOF(*stack));
+        int32 depth = 0;
+
+        stream.matches = malloc2(ARRAY_LEN(stream.indices)
+                                  *SIZEOF(*stream.matches));
+        for (int32 i = 0; i < ARRAY_LEN(stream.indices); i += 1) {
+            stream.matches[i] = -1;
+            if (csane_stmt_open(&stream, i)) {
+                stack[depth] = i;
+                depth += 1;
+            } else if (csane_stmt_close(&stream, i)) {
+                int32 found = depth - 1;
+                int32 open;
+
+                while (found >= 0
+                       && !csane_stmt_pair(&stream, stack[found], i)) {
+                    found -= 1;
+                }
+                if (found < 0) {
+                    depth = 0;
+                    continue;
+                }
+                open = stack[found];
+                stream.matches[open] = i;
+                stream.matches[i] = open;
+                depth = found;
+            }
+        }
+        free2(stack, ARRAY_LEN(stream.indices)*SIZEOF(*stack));
+
         /* A function's outermost braces belong to the base stream. Branch
          * streams may contain only fragments of the function body. */
         if (owner == top->owner_region

@@ -10,6 +10,9 @@
 #include "csanecheck/csck_toplevel.c"
 #include "csanecheck/csck_statements.c"
 
+#define TESTING_structure_test 1
+#if TESTING_structure_test
+
 static int32 failures;
 
 static void
@@ -742,3 +745,5 @@ main(void) {
     test_local_bad_statement();
     return failures > 0;
 }
+
+#endif /* TESTING_structure_test */

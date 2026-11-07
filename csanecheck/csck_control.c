@@ -7,11 +7,6 @@
 #include "cbase.h"
 #include "csck.h"
 
-static bool
-csane_control_generated(char *path, int32 path_len) {
-    return ENDS_WITH(path, path_len, ".meta.h");
-}
-
 static int32
 csane_control_first(CsaneFile *file, CsaneStatement *stmt) {
     int32 index = token_range_first_significant(file->tokens, stmt->tokens);
@@ -589,7 +584,7 @@ csane_control_if_wrap(CsaneFile *file, CsaneStatement *stmt, int32 index) {
 void
 csane_control_check(CsaneFile *file) {
     if (file->statements == NULL || file->is_ryu
-        || csane_control_generated(file->path, file->path_len)) {
+        || ENDS_WITH(file->path, file->path_len, ".meta.h")) {
         return;
     }
     for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
