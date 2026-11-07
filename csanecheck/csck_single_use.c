@@ -11,9 +11,54 @@
  * include guard. No alternative preprocessor branch is selected. */
 static bool
 csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
+    Tokenization *tokens = file->tokens;
+    CPreprocessorAnalysis *pp = file->preprocessor;
+    char *testing_prefix = "TESTING_";
+    int32 testing_prefix_len = strlen32(testing_prefix);
     int32 region = csane_regions_at_token(file->regions, index);
     int32 branch;
 
+    /* Test-only functions are permitted to have a single call. Exclude
+     * their definitions and call sites, even inside a file include guard. */
+    for (int32 current = pp->token_branches[index]; current >= 0;
+         current = pp->branches[current].parent_branch) {
+        CPreprocessorBranch *entry = &pp->branches[current];
+        CPreprocessorDirective *directive =
+            &pp->directives[entry->directive_index];
+        int32 macro;
+
+        if (directive->kind != C_PREPROCESSOR_DIRECTIVE_IF
+            && directive->kind != C_PREPROCESSOR_DIRECTIVE_IFDEF
+            && directive->kind != C_PREPROCESSOR_DIRECTIVE_ELIF) {
+            continue;
+        }
+        macro = token_range_next_significant(tokens, directive->tokens,
+                                             directive->keyword_token);
+        if (macro >= directive->tokens.end) {
+            continue;
+        }
+        if (TOKEN_IS(&tokens->tokens[macro], "defined")) {
+            macro = token_range_next_significant(tokens, directive->tokens,
+                                                 macro);
+            if (macro < directive->tokens.end
+                && TOKEN_IS(&tokens->tokens[macro], "(")) {
+                macro = token_range_next_significant(tokens,
+                                                     directive->tokens,
+                                                     macro);
+            }
+        }
+        if (macro >= directive->tokens.end) {
+            continue;
+        }
+        Token *name = &tokens->tokens[macro];
+        if (name->kind == TOKEN_IDENT
+            && ((name->len >= testing_prefix_len
+                 && !memcmp64(name->text,
+                              testing_prefix, testing_prefix_len))
+                || TOKEN_IS(name, "TESTING"))) {
+            return false;
+        }
+    }
     if (region < 0
         || file->regions->items[region].kind != CSANE_REGION_CODE
         || !file->regions->items[region].complete) {

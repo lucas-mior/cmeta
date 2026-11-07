@@ -20,17 +20,11 @@ class StaticSingleUseTests(unittest.TestCase):
         self.path = Path(self.temp.name) / "single_use.c"
         self.assertTrue(CHECKER.is_file(), "build csanecheck first")
 
-    def check(self, source, expected_lines, name="single_use.c", config=None):
+    def check(self, source, expected_lines, name="single_use.c"):
         self.path = Path(self.temp.name) / name
         self.path.write_text(source, encoding="utf-8")
-        command = [str(CHECKER)]
-        if config is not None:
-            policy = Path(self.temp.name) / "csanecheck.conf"
-            policy.write_text(config, encoding="utf-8")
-            command.extend(["--config", str(policy)])
-        command.extend(["--file", str(self.path)])
         result = subprocess.run(
-            command,
+            [str(CHECKER), "--file", str(self.path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         lines = [int(match) for match in FINDING.findall(result.stdout)]
@@ -101,11 +95,6 @@ int other(void) { return obj->action(); }
 int caller(void) { return helper(); }
 """, [], name="single_use.h")
 
-    def test_policy_exemption(self):
-        self.check("""static int helper(void) { return 1; }
-int caller(void) { return helper(); }
-""", [], config="allow-rule STYLE-STATIC-ONCE .*\\.c$\n")
-
     def test_whole_file_include_guard_is_allowed(self):
         self.check("""#if !defined(SINGLE_USE_C)
 #define SINGLE_USE_C
@@ -113,6 +102,46 @@ static int helper(void) { return 1; }
 int caller(void) { return helper(); }
 #endif /* SINGLE_USE_C */
 """, [3])
+
+    def test_testing_helpers_are_exempt_but_production_helpers_are_not(self):
+        self.check("""#if !defined(SINGLE_USE_C)
+#define SINGLE_USE_C
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#if TESTING_single_use
+static int test_helper(void) { return 2; }
+int main(void) { return test_helper(); }
+#endif /* TESTING_single_use */
+#endif /* SINGLE_USE_C */
+""", [3])
+
+    def test_nested_testing_blocks_are_exempt(self):
+        self.check("""#if TESTING_single_use
+#if defined(OTHER_FEATURE)
+static int nested_helper(void) { return 1; }
+int test(void) { return nested_helper(); }
+#endif
+#endif
+""", [])
+        self.check("""#ifdef TESTING_single_use
+static int helper(void) { return 1; }
+int test(void) { return helper(); }
+#endif
+""", [])
+        self.check("""#if defined(TESTING_single_use)
+static int helper(void) { return 1; }
+int test(void) { return helper(); }
+#endif
+""", [])
+
+    def test_non_testing_static_function_still_reported(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) { return helper(); }
+#if TESTING_single_use
+static int test_helper(void) { return 2; }
+int test(void) { return test_helper(); }
+#endif
+""", [1])
 
     def test_other_conditional_guard_is_not_allowed(self):
         self.check("""#if defined(FEATURE)

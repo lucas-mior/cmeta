@@ -1184,8 +1184,9 @@ if (enum & ENUM_BITFLAG) {
 - Define internal functions as `static`.
 - If a `static` function is called exactly once in its defining `.c` file,
   inline its body at that call site and remove its definition (and any
-  forward declaration). This does not apply when the function is referenced
-  as a callback or function pointer, is recursive, or has conditional or
+  forward declaration). This does not apply to functions inside
+  `#if TESTING_module` blocks, or when the function is referenced as a
+  callback or function pointer, is recursive, or has conditional or
   macro-dependent uses. `csanecheck` reports `STYLE-STATIC-ONCE` only when
   the single direct call can be established conservatively.
 
