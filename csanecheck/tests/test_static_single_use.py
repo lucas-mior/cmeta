@@ -25,7 +25,7 @@ class StaticSingleUseTests(unittest.TestCase):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path)],
+            [str(CHECKER), "--no-project-config", "--file", str(self.path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         lines = [int(match) for match in FINDING.findall(result.stdout)]
@@ -189,7 +189,9 @@ int caller(void) {
         source = """static int helper(void) { return 1; }
 int caller(void) { return helper(); }
 """
-        config = ROOT / "cbase/csanecheck.conf"
+        config = Path(self.temp.name) / "policy.conf"
+        config.write_text("allow-rule STYLE-STATIC-ONCE (^|/)cbase/.*\n",
+                          encoding="utf-8")
         for name, expected in (("cbase/sample.c", []),
                                ("src/sample.c", [1]),
                                ("cbase_fake/sample.c", [1])):
@@ -197,7 +199,8 @@ int caller(void) { return helper(); }
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source, encoding="utf-8")
             result = subprocess.run(
-                [str(CHECKER), "--config", str(config), "--file", str(path)],
+                [str(CHECKER), "--no-project-config", "--config",
+                 str(config), "--file", str(path)],
                 cwd=ROOT, capture_output=True, text=True, check=False,
             )
             lines = [int(match) for match in FINDING.findall(result.stdout)]

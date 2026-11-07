@@ -24,7 +24,8 @@ class FindingsSummaryTests(unittest.TestCase):
 
     def run_checker(self, *extra):
         return subprocess.run(
-            [str(CSANE), "--file", "first.c", "--file", "second.c", *extra],
+            [str(CSANE), "--no-project-config", "--file", "first.c",
+             "--file", "second.c", *extra],
             cwd=self.root, text=True, capture_output=True, check=False,
         )
 

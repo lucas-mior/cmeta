@@ -16,6 +16,39 @@ class SourcePolicyTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_project_configuration_can_be_skipped(self):
+        project = self.root / "project"
+        cbase = project / "cbase"
+        cbase.mkdir(parents=True)
+        (cbase / "functions_never_use.txt").write_text("", encoding="utf-8")
+        (cbase / "csanecheck.conf").write_text(
+            "allow-rule STYLE-STATIC-ONCE .*\n", encoding="utf-8")
+        source = project / "src/sample.c"
+        source.parent.mkdir(parents=True)
+        source.write_text("static int helper(void) { return 1; }\n"
+                          "int caller(void) { return helper(); }\n",
+                          encoding="utf-8")
+        checker = [str(CSANE), "--file", str(source)]
+        default = subprocess.run(checker, cwd=project, capture_output=True,
+                                 text=True, check=False)
+        isolated = subprocess.run(checker + ["--no-project-config"],
+                                  cwd=project, capture_output=True,
+                                  text=True, check=False)
+        self.assertNotIn("error[STYLE-STATIC-ONCE]", default.stdout)
+        self.assertIn("error[STYLE-STATIC-ONCE]", isolated.stdout)
+        self.assertIn(isolated.returncode, (0, 1), isolated.stderr)
+
+        policy = project / "explicit.conf"
+        policy.write_text("allow-rule STYLE-STATIC-ONCE .*\n",
+                          encoding="utf-8")
+        explicit = subprocess.run(checker + ["--no-project-config",
+                                             "--config", str(policy)],
+                                  cwd=project, capture_output=True,
+                                  text=True, check=False)
+        self.assertNotIn("error[STYLE-STATIC-ONCE]", explicit.stdout)
+        self.assertEqual(explicit.returncode, 0,
+                         explicit.stdout + explicit.stderr)
+
     def test_cecup_project_relative_sources_use_100_columns(self):
         project = self.root / "cecup"
         source = project / "src/limit.c"
@@ -32,7 +65,9 @@ class SourcePolicyTests(unittest.TestCase):
         ]
         for arguments in commands:
             with self.subTest(arguments=arguments):
-                result = subprocess.run([str(CSANE), *arguments], cwd=project,
+                result = subprocess.run(
+                    [str(CSANE), "--no-project-config", *arguments],
+                    cwd=project,
                                         capture_output=True, text=True,
                                         check=False)
                 self.assertEqual(result.returncode, 1, result.stderr)
@@ -46,7 +81,7 @@ class SourcePolicyTests(unittest.TestCase):
         source = project / "src/limit.c"
         source.parent.mkdir(parents=True)
         source.write_text("//" + "x" * 79 + "\n", encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--root", "."], cwd=project,
+        result = subprocess.run([str(CSANE), "--no-project-config", "--root", "."], cwd=project,
                                 capture_output=True, text=True,
                                 check=False)
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -60,7 +95,7 @@ class SourcePolicyTests(unittest.TestCase):
         config = project / "custom.conf"
         config.write_text("columns ^src/limit\\.c$ 120\n",
                           encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", "./src/limit.c",
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", "./src/limit.c",
                                  "--config", str(config)], cwd=project,
                                 capture_output=True, text=True,
                                 check=False)
@@ -70,11 +105,11 @@ class SourcePolicyTests(unittest.TestCase):
         path = self.root / "src/limit.c"
         path.parent.mkdir(parents=True)
         path.write_text("x" * 81 + "\n", encoding="utf-8")
-        command = [str(CSANE), "--file", str(path)]
+        command = [str(CSANE), "--no-project-config", "--file", str(path)]
         normal = subprocess.run(command, cwd=self.root, capture_output=True,
                                 text=True, check=False)
-        empty = subprocess.run([str(CSANE), "--no-column-limit", "",
-                                *command[1:]], cwd=self.root,
+        empty = subprocess.run([*command[:2], "--no-column-limit", "",
+                                *command[2:]], cwd=self.root,
                                capture_output=True, text=True, check=False)
         self.assertEqual(normal.returncode, 1, normal.stderr)
         self.assertIn("error[SRC-COLUMNS]", normal.stdout)
@@ -89,7 +124,7 @@ class SourcePolicyTests(unittest.TestCase):
             path = self.root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source, encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--root", str(self.root)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--root", str(self.root)],
                                 cwd=self.root, capture_output=True,
                                 text=True, check=False)
         self.assertEqual(result.returncode, 1, result.stderr)

@@ -128,7 +128,7 @@ class RelatedArgumentsTests(unittest.TestCase):
                     path.write_text("void f(void) {\n" + body + "}\n",
                                     encoding="utf-8")
                     result = subprocess.run(
-                        [str(CSANE), "--file", str(path)],
+                        [str(CSANE), "--no-project-config", "--file", str(path)],
                         cwd=tmp, text=True, capture_output=True,
                         check=False,
                     )

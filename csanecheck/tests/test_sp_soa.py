@@ -109,7 +109,7 @@ class SpanOfArraysTests(unittest.TestCase):
                     source = "void test(void) {\n    " + body + "\n}\n"
                     path.write_text(source, encoding="utf-8")
                     result = subprocess.run(
-                        [str(CHECKER), "--file", str(path)],
+                        [str(CHECKER), "--no-project-config", "--file", str(path)],
                         cwd=ROOT, text=True, capture_output=True,
                         check=False,
                     )

@@ -21,7 +21,7 @@ class StatusIfTests(unittest.TestCase):
         path = self.root / "sample.c"
         path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CSANE), "--file", str(path)],
+            [str(CSANE), "--no-project-config", "--file", str(path)],
             cwd=self.root, text=True, capture_output=True, check=False,
         )
         self.assertIn(result.returncode, (0, 1), result.stderr)

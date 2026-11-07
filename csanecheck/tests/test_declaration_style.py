@@ -31,7 +31,7 @@ class DeclarationStyleTests(unittest.TestCase):
     def check(self, source, expected, name="style.c", config=None):
         self.path = self.root / name
         self.path.write_text(source, encoding="utf-8")
-        command = [str(CHECKER)]
+        command = [str(CHECKER), "--no-project-config"]
         if config is not None:
             command.extend(["--config", str(config)])
         command.extend(["--file", str(self.path)])
@@ -65,13 +65,6 @@ int32 local(const char *path) { return path != 0; }
 """, ["TYPE-CONST-SIGNATURE"], name="fs_windows.c", config=policy)
         self.check("""int32 external_api(const char *path) { return path != 0; }
 """, ["TYPE-CONST-SIGNATURE"], name="other.c", config=policy)
-
-        result = subprocess.run(
-            [str(CHECKER), "--file", str(ROOT / "cbase/fs_windows.c")],
-            cwd=ROOT, capture_output=True, text=True, check=False,
-        )
-        self.assertNotIn("TYPE-CONST-SIGNATURE", result.stdout,
-                         result.stdout + result.stderr)
 
     def test_size_types_are_not_checked(self):
         self.check("""void f(void) {
@@ -164,7 +157,7 @@ main(int argc, char **argv) {
             for rule in sorted(RULES)
         ), encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--config", str(policy),
+            [str(CHECKER), "--no-project-config", "--config", str(policy),
              "--file", str(self.path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )

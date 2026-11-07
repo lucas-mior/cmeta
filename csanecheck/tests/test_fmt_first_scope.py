@@ -25,7 +25,8 @@ class FirstArgumentScopeTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8")
         conf = self.root / "cbase" / "csanecheck.conf"
         conf.write_text(config, encoding="utf-8")
-        command = [str(CHECKER), "--config", str(conf), "--file", str(path)]
+        command = [str(CHECKER), "--no-project-config", "--config",
+                   str(conf), "--file", str(path)]
         result = subprocess.run(command, cwd=self.root, capture_output=True,
                                 text=True, check=False)
         self.assertLessEqual(result.returncode, 1, result.stderr)
@@ -83,7 +84,8 @@ class FirstArgumentScopeTests(unittest.TestCase):
                 path.write_text(source, encoding="utf-8")
                 conf.write_text(config, encoding="utf-8")
                 result = subprocess.run(
-                    [str(CHECKER), "--config", str(conf), "--file", str(path)],
+                    [str(CHECKER), "--no-project-config", "--config",
+                     str(conf), "--file", str(path)],
                     cwd=self.root, capture_output=True, text=True,
                     check=False,
                 )

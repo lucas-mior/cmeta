@@ -121,6 +121,15 @@ csane_run(int32 argc, char **argv) {
         goto cleanup;
     }
 
+    /* Project policy discovery runs before regular argument parsing. */
+    for (int32 i = 1; i < argc; i += 1) {
+        if (STREQUAL(argv[i], arg_lens[i], "--no-project-config")) {
+            options.policy.skip_project_config = true;
+        } else if (csane_value_option(argv[i], arg_lens[i])) {
+            i += 1;
+        }
+    }
+
     /* Discover repository policy roots first. Explicit configuration can
      * then extend or override the imported project's default name lists.
      */
@@ -187,7 +196,7 @@ csane_run(int32 argc, char **argv) {
                    "                  [--strict-parse] [--require-coverage]\n"
                    "                  [--stats] [--coverage]\n"
                    "                  [--rule-coverage]\n"
-                   "                  [--config FILE]\n"
+                   "                  [--config FILE] [--no-project-config]\n"
                    "                  [--source-root DIR] [--skip-dir NAME]\n"
                    "                  [--clear-source-roots]\n"
                    "                  [--exclude REGEX] [--filter MODULE]\n"
@@ -205,6 +214,9 @@ csane_run(int32 argc, char **argv) {
         if (STREQUAL(arg, arg_len, "--version")) {
             fmt_printf("csanecheck token-local\n");
             goto cleanup;
+        }
+        if (STREQUAL(arg, arg_len, "--no-project-config")) {
+            continue;
         }
         if (STREQUAL(arg, arg_len, "--stats")) {
             options.statistics = true;

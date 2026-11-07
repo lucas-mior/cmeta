@@ -26,7 +26,7 @@ class ArithmeticWrapTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8")
         config_path.write_text(config, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--config", str(config_path),
+            [str(CHECKER), "--no-project-config", "--config", str(config_path),
              "--file", str(path)], cwd=ROOT, capture_output=True,
             text=True, check=False,
         )

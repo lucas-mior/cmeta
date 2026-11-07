@@ -28,7 +28,7 @@ class LibcPrintfTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(path)], cwd=ROOT,
+            [str(CHECKER), "--no-project-config", "--file", str(path)], cwd=ROOT,
             capture_output=True, text=True, check=False,
         )
         found = [(int(line), message) for line, message in

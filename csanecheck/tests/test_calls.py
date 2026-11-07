@@ -39,7 +39,7 @@ class CallLayoutTests(unittest.TestCase):
             "commented_header(int32 first, /* keep this split */\n"
             "                 int32 second);\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         findings = re.findall(r":(\d+):\d+: error\[FMT-FUNC-WRAP\]",
@@ -60,7 +60,7 @@ class CallLayoutTests(unittest.TestCase):
             "CY_RUNTIME_SCOPE void cy_output_input_sparsity(CySystemRuntime *,\n"
             "                                             CySparsity *);\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         findings = re.findall(
@@ -93,7 +93,7 @@ class CallLayoutTests(unittest.TestCase):
             "    return first + second;\n"
             "}\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         align = re.findall(r":(\d+):\d+: error\[FMT-FUNC-ALIGN\]",
@@ -112,7 +112,7 @@ class CallLayoutTests(unittest.TestCase):
             "    return first + second;\n"
             "}\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         align = re.findall(r":(\d+):\d+: error\[FMT-FUNC-ALIGN\]",
@@ -129,7 +129,7 @@ class CallLayoutTests(unittest.TestCase):
             "                   spec->name_len, spec->name);\n"
             "}\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -151,7 +151,7 @@ class CallLayoutTests(unittest.TestCase):
             "        third_argument_with_a_very_long_descriptive_name);\n"
             "}\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         self.assertNotIn("FMT-FORMAT-ARGS-WRAP", result.stdout)
@@ -165,7 +165,7 @@ class CallLayoutTests(unittest.TestCase):
             "        \"value: %d\");\n"
             "}\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True,
                                 capture_output=True, check=False)
         self.assertEqual(result.returncode, 1,
@@ -186,7 +186,7 @@ class CallLayoutTests(unittest.TestCase):
             "}\n"
             "#define COPY(dst, src, n) memcpy(dst, src, n)\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True, capture_output=True,
                                 check=False)
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -215,7 +215,7 @@ class CallLayoutTests(unittest.TestCase):
             "#define PASS(strcpy) strcpy\n"
             "#define COPY(dst, src) strcpy(dst, src)\n"
         ), encoding="utf-8")
-        result = subprocess.run([str(CSANE), "--file", str(path)],
+        result = subprocess.run([str(CSANE), "--no-project-config", "--file", str(path)],
                                 cwd=self.root, text=True, capture_output=True,
                                 check=False)
         self.assertEqual(result.returncode, 1, result.stderr)

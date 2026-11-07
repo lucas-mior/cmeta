@@ -27,7 +27,8 @@ class CoverageTests(unittest.TestCase):
         source = self.root / name
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text(text, encoding="utf-8")
-        command = [str(CHECKER), "--file", str(source), "--rule-coverage"]
+        command = [str(CHECKER), "--no-project-config", "--file",
+                   str(source), "--rule-coverage"]
         if coverage:
             command.append("--coverage")
         if require:
@@ -151,7 +152,7 @@ class CoverageTests(unittest.TestCase):
     def test_generated_header_is_excluded_before_rule_dispatch(self):
         source = self.root / "generated.meta.h"
         source.write_text("int32 generated(void);\n", encoding="utf-8")
-        result = subprocess.run([str(CHECKER), "--file", str(source),
+        result = subprocess.run([str(CHECKER), "--no-project-config", "--file", str(source),
                                  "--rule-coverage", "--require-coverage"],
                                 cwd=ROOT, capture_output=True, text=True,
                                 check=False)

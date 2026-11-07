@@ -24,7 +24,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "guarded.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path), "--coverage",
                                      "--require-coverage",
                                      "--report-parse-issues"],
@@ -41,7 +41,7 @@ class StructureTests(unittest.TestCase):
         self.assertIn("unresolved=0", result.stdout)
 
     def test_time_source_guards_have_no_artificial_externals(self):
-        result = subprocess.run([str(ROOT / "bin/csanecheck"), "--file",
+        result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config", "--file",
                                  "cbase/time.c", "--coverage",
                                  "--report-parse-issues", "--strict-parse"],
                                 cwd=ROOT, capture_output=True, text=True,
@@ -64,7 +64,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "split.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path), "--coverage",
                                      "--report-parse-issues",
                                      "--require-coverage"], cwd=ROOT,
@@ -105,7 +105,7 @@ class StructureTests(unittest.TestCase):
                     path = Path(directory) / f"{name}.c"
                     path.write_text(source, encoding="utf-8")
                     result = subprocess.run(
-                        [str(ROOT / "bin/csanecheck"), "--file",
+                        [str(ROOT / "bin/csanecheck"), "--no-project-config", "--file",
                          str(path), "--coverage", "--require-coverage",
                          "--report-parse-issues"],
                         cwd=ROOT, capture_output=True, text=True,
@@ -162,7 +162,7 @@ class StructureTests(unittest.TestCase):
                     path = Path(directory) / f"{name}.c"
                     path.write_text(source, encoding="utf-8")
                     result = subprocess.run(
-                        [str(ROOT / "bin/csanecheck"), "--file",
+                        [str(ROOT / "bin/csanecheck"), "--no-project-config", "--file",
                          str(path), "--coverage", "--require-coverage",
                          "--report-parse-issues"],
                         cwd=ROOT, capture_output=True, text=True,
@@ -183,7 +183,7 @@ class StructureTests(unittest.TestCase):
             path = Path(directory) / "malformed.c"
             path.write_text(source, encoding="utf-8")
             result = subprocess.run(
-                [str(ROOT / "bin/csanecheck"), "--file", str(path),
+                [str(ROOT / "bin/csanecheck"), "--no-project-config", "--file", str(path),
                  "--coverage", "--require-coverage",
                  "--report-parse-issues"],
                 cwd=ROOT, capture_output=True, text=True, check=False)
@@ -207,7 +207,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "guarded.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path), "--coverage",
                                      "--report-parse-issues",
                                      "--require-coverage"],
@@ -227,7 +227,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "members.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path), "--coverage",
                                      "--report-parse-issues"],
                                     cwd=ROOT, capture_output=True,
@@ -243,7 +243,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "invalid.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path),
                                      "--require-coverage",
                                      "--report-parse-issues"],
@@ -254,7 +254,7 @@ class StructureTests(unittest.TestCase):
         self.assertIn("COVERAGE-INCOMPLETE", result.stdout)
 
     def test_hash_guards_no_longer_create_top_level_opaque(self):
-        result = subprocess.run([str(ROOT / "bin/csanecheck"), "--file",
+        result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config", "--file",
                                  "cbase/hash.c", "--coverage",
                                  "--report-parse-issues"], cwd=ROOT,
                                 capture_output=True, text=True,
@@ -268,7 +268,7 @@ class StructureTests(unittest.TestCase):
                    "cbase/ryu/d2s.c", "cbase/ryu/ryu.h")
         for source in sources:
             with self.subTest(source=source):
-                result = subprocess.run([str(ROOT / "bin/csanecheck"),
+                result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                          "--file", source, "--coverage",
                                          "--report-parse-issues"], cwd=ROOT,
                                         capture_output=True, text=True,
@@ -286,7 +286,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ordered.c"
             path.write_text(source, encoding="utf-8")
-            command = [str(ROOT / "bin/csanecheck"), "--file", str(path),
+            command = [str(ROOT / "bin/csanecheck"), "--no-project-config", "--file", str(path),
                        "--coverage", "--require-coverage"]
             first = subprocess.run(command, cwd=ROOT, capture_output=True,
                                    text=True, check=False)
@@ -316,7 +316,7 @@ class StructureTests(unittest.TestCase):
             path = Path(directory) / "conditional.c"
             path.write_text(source, encoding="utf-8")
             result = subprocess.run(
-                [str(ROOT / "bin/csanecheck"), "--file", str(path),
+                [str(ROOT / "bin/csanecheck"), "--no-project-config", "--file", str(path),
                  "--require-coverage"], cwd=ROOT, capture_output=True,
                 text=True, check=False)
         self.assertEqual(result.returncode, 1, result.stdout)
@@ -338,7 +338,7 @@ class StructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "missing.c"
             path.write_text(source, encoding="utf-8")
-            result = subprocess.run([str(ROOT / "bin/csanecheck"),
+            result = subprocess.run([str(ROOT / "bin/csanecheck"), "--no-project-config",
                                      "--file", str(path),
                                      "--require-coverage",
                                      "--report-parse-issues"], cwd=ROOT,

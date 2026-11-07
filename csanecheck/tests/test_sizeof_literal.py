@@ -23,7 +23,7 @@ class SizeofLiteralTests(unittest.TestCase):
     def check(self, source, expected, extra=()):
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path), *extra],
+            [str(CHECKER), "--no-project-config", "--file", str(self.path), *extra],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         self.assertIn(result.returncode, (0, 1), result.stderr)

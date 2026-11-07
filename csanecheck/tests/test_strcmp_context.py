@@ -23,7 +23,7 @@ class StrcmpContextTests(unittest.TestCase):
     def check(self, source, expected_lines):
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path)],
+            [str(CHECKER), "--no-project-config", "--file", str(self.path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         found = [int(line) for line in DIAGNOSTIC.findall(result.stdout)]

@@ -19,7 +19,7 @@ class AstIndependenceTests(unittest.TestCase):
 
     def check(self, contents, *args):
         self.source.write_text(contents, encoding="utf-8")
-        return subprocess.run([str(CHECKER), "--file", str(self.source),
+        return subprocess.run([str(CHECKER), "--no-project-config", "--file", str(self.source),
                                *args], cwd=ROOT, capture_output=True,
                               text=True, check=False)
 

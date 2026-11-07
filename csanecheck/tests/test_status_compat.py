@@ -30,7 +30,7 @@ def legacy_findings(path):
 
 def csane_findings(path):
     result = subprocess.run(
-        [str(CSANE), "--file", str(path)],
+        [str(CSANE), "--no-project-config", "--file", str(path)],
         cwd=path.parent,
         text=True,
         capture_output=True,

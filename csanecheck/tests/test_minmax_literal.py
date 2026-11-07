@@ -32,7 +32,7 @@ class MinmaxLiteralTests(unittest.TestCase):
     def check(self, source, expected_lines, expected_call_cast_lines=()):
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path)], cwd=ROOT,
+            [str(CHECKER), "--no-project-config", "--file", str(self.path)], cwd=ROOT,
             capture_output=True, text=True, check=False,
         )
         found = [(int(line), message) for line, message in

@@ -22,7 +22,7 @@ class ApiNameLookupTests(unittest.TestCase):
         self.config = self.root / "policy.conf"
 
     def check(self, expected, coverage=False):
-        command = [str(CSANE), "--config", str(self.config),
+        command = [str(CSANE), "--no-project-config", "--config", str(self.config),
                    "--file", str(self.source)]
         if coverage:
             command.append("--rule-coverage")

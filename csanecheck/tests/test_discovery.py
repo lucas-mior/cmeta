@@ -24,7 +24,7 @@ class DiscoveryTests(unittest.TestCase):
         return path
 
     def discovered(self, *extra):
-        command = [str(CHECKER), "--root", str(self.root), "--coverage"]
+        command = [str(CHECKER), "--no-project-config", "--root", str(self.root), "--coverage"]
         command.extend(extra)
         result = subprocess.run(command, cwd=ROOT, capture_output=True,
                                 text=True, check=False)
@@ -91,10 +91,10 @@ class DiscoveryTests(unittest.TestCase):
         file_list.write_text("\n".join(str(path) for path in hidden)
                              + "\n", encoding="utf-8")
         commands = [
-            [str(CHECKER), "--file", str(hidden[0])],
-            [str(CHECKER), str(hidden[1])],
-            [str(CHECKER), "--file-list", str(file_list)],
-            [str(CHECKER), "--root", str(self.root)],
+            [str(CHECKER), "--no-project-config", "--file", str(hidden[0])],
+            [str(CHECKER), "--no-project-config", str(hidden[1])],
+            [str(CHECKER), "--no-project-config", "--file-list", str(file_list)],
+            [str(CHECKER), "--no-project-config", "--root", str(self.root)],
         ]
         for command in commands:
             with self.subTest(command=command):

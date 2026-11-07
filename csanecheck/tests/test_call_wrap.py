@@ -87,7 +87,7 @@ class CallWrapTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(source, encoding="utf-8")
                 result = subprocess.run(
-                    [str(CSANE), "--file", str(path)], cwd=self.root,
+                    [str(CSANE), "--no-project-config", "--file", str(path)], cwd=self.root,
                     text=True, capture_output=True, check=False,
                 )
                 self.assertIn(result.returncode, (0, 1), result.stderr)
@@ -132,7 +132,7 @@ class CallWrapTests(unittest.TestCase):
             "}\n"
         ), encoding="utf-8")
         result = subprocess.run(
-            [str(CSANE), "--file", str(path)], cwd=self.root,
+            [str(CSANE), "--no-project-config", "--file", str(path)], cwd=self.root,
             text=True, capture_output=True, check=False,
         )
         self.assertIn(result.returncode, (0, 1), result.stderr)

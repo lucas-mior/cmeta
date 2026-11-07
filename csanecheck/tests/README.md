@@ -9,6 +9,11 @@ python3 -m unittest discover -s csanecheck/tests -p 'test_*.py' -v
 `./build.sh test csanecheck` builds and runs these tests. Do not invoke
 `build.sh check` as part of the test suite.
 
+Checker invocations in the regression suite pass `--no-project-config` to
+ignore automatically discovered `cbase/csanecheck.conf` files. Tests that
+exercise policy directives create their own temporary config files and pass
+them explicitly with `--config`, so the checked-in policy is not a test input.
+
 The suite checks csanecheck directly. It covers source and preprocessor rules,
 formatting, calls and arguments, declarations, control flow, parser recovery,
 forbidden APIs, source discovery, coverage accounting, and

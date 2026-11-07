@@ -35,7 +35,7 @@ class ArrayIndexWrapTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8")
         self.config_path.write_text(config, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--config", str(self.config_path),
+            [str(CHECKER), "--no-project-config", "--config", str(self.config_path),
              "--file", str(path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
@@ -52,7 +52,7 @@ class ArrayIndexWrapTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8")
         self.config_path.write_text(config, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--config", str(self.config_path),
+            [str(CHECKER), "--no-project-config", "--config", str(self.config_path),
              "--file", str(path)],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )

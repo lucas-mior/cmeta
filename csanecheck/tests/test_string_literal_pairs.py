@@ -94,7 +94,7 @@ class StringLiteralPairTests(unittest.TestCase):
                     source = "void f(void) {\n" + body + "}\n"
                     path.write_text(source, encoding="utf-8")
                     result = subprocess.run(
-                        [str(CSANE), "--file", str(path)],
+                        [str(CSANE), "--no-project-config", "--file", str(path)],
                         cwd=tmp, text=True, capture_output=True,
                         check=False,
                     )

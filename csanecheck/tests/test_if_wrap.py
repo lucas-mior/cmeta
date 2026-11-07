@@ -20,7 +20,7 @@ class IfWrapTests(unittest.TestCase):
     def check(self, source, expected):
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path)],
+            [str(CHECKER), "--no-project-config", "--file", str(self.path)],
             cwd=ROOT, text=True, capture_output=True, check=False,
             timeout=5,
         )
@@ -275,7 +275,7 @@ class IfWrapTests(unittest.TestCase):
 }
 """, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(generated)],
+            [str(CHECKER), "--no-project-config", "--file", str(generated)],
             cwd=ROOT, text=True, capture_output=True, check=False,
             timeout=5,
         )

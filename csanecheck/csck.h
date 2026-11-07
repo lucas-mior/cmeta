@@ -46,6 +46,7 @@ typedef struct CsanePolicy {
     CsanePatterns macro_exemptions;
     CsanePatterns typedef_exemptions;
     int32 default_columns;
+    bool skip_project_config;
 } CsanePolicy;
 
 typedef struct CsaneOptions {

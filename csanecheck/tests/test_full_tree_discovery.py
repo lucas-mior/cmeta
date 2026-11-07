@@ -55,7 +55,7 @@ def legacy_selected_files(root):
 
 def csane_legacy_selected_files(root):
     """Ask csanecheck to discover using exactly the legacy source roots."""
-    args = [str(CSANE), "--root", ".", "--coverage",
+    args = [str(CSANE), "--no-project-config", "--root", ".", "--coverage",
             "--clear-source-roots"]
     for directory in LEGACY_ROOTS:
         args.extend(("--source-root", directory))

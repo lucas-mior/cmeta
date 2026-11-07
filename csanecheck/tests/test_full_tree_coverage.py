@@ -98,7 +98,7 @@ class FullTreeCoverageTests(unittest.TestCase):
     def setUpClass(cls):
         cls.allowed = load_allowlist()
         result = subprocess.run(
-            [str(CSANE), "--root", ".", "--require-coverage"],
+            [str(CSANE), "--no-project-config", "--root", ".", "--require-coverage"],
             cwd=PROJECT, text=True, capture_output=True, check=False,
         )
         if result.returncode not in (0, 1):

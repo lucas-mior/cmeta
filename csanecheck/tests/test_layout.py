@@ -25,7 +25,7 @@ class OperatorLayoutTests(unittest.TestCase):
 
     def check(self, source, expected, *, unresolved=0, require=False):
         self.path.write_text(source, encoding="utf-8")
-        command = [str(CHECKER), "--file", str(self.path),
+        command = [str(CHECKER), "--no-project-config", "--file", str(self.path),
                    "--rule-coverage"]
         if require:
             command.append("--require-coverage")
@@ -360,7 +360,7 @@ typedef void *AllocatorRealloc(void *pointer,
 
     def test_cbase_util_pointer_regression(self):
         util = ROOT / "cbase/util.c"
-        result = subprocess.run([str(CHECKER), "--file", str(util)],
+        result = subprocess.run([str(CHECKER), "--no-project-config", "--file", str(util)],
                                 cwd=ROOT, capture_output=True, text=True,
                                 check=False)
         self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)

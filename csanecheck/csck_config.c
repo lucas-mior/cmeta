@@ -454,7 +454,7 @@ csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
     free2(names, names_len + 1);
     names = csane_join_path(root, root_len, STRLIT("csanecheck.conf"),
                             &names_len);
-    if (csane_exists(names, names_len)) {
+    if (!policy->skip_project_config && csane_exists(names, names_len)) {
         char resolved_config[PATH_MAX];
         bool loaded = false;
 

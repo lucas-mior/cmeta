@@ -21,7 +21,7 @@ class PointerGuardTests(unittest.TestCase):
     def check(self, source, expected, extra=()):
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
-            [str(CHECKER), "--file", str(self.path), *extra],
+            [str(CHECKER), "--no-project-config", "--file", str(self.path), *extra],
             cwd=ROOT, text=True, capture_output=True, check=False,
             timeout=5,
         )
