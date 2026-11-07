@@ -961,7 +961,7 @@ csane_calls_token_check(CsaneFile *file) {
                                          "format-string line must contain all "
                                          "format arguments or none");
                     }
-                    if (!on_line && format + 2 < count) {
+                    if (!on_line && fmt_i + 2 < count) {
                         SourceLocation first_location =
                             csane_calls_location(file,
                                                  args[fmt_i + 1].first);

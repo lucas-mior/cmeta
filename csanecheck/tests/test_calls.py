@@ -156,6 +156,22 @@ class CallLayoutTests(unittest.TestCase):
                                 capture_output=True, check=False)
         self.assertNotIn("FMT-FORMAT-ARGS-WRAP", result.stdout)
 
+    def test_format_string_as_last_argument_does_not_crash(self):
+        path = self.root / "src" / "format_last.c"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((
+            "void f(void) {\n"
+            "    log(value,\n"
+            "        \"value: %d\");\n"
+            "}\n"
+        ), encoding="utf-8")
+        result = subprocess.run([str(CSANE), "--file", str(path)],
+                                cwd=self.root, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 1,
+                         result.stdout + result.stderr)
+        self.assertIn("error[FMT-CALL-WRAP]", result.stdout)
+
     def test_forbidden_api_only_direct_calls(self):
         path = self.root / "src/api_calls.c"
         path.parent.mkdir(parents=True, exist_ok=True)
