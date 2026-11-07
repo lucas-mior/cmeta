@@ -1187,7 +1187,8 @@ if (enum & ENUM_BITFLAG) {
   forward declaration). This does not apply to functions inside
   `#if TESTING_module` blocks, or when the function is referenced as a
   callback or function pointer, is recursive, or has conditional or
-  macro-dependent uses. `csanecheck` reports `STYLE-STATIC-ONCE` only when
+  macro-dependent uses, or when the call is indented three levels (12
+  spaces) or more. `csanecheck` reports `STYLE-STATIC-ONCE` only when
   the single direct call can be established conservatively.
 
 ## Magic numbers and magic literals

@@ -70,6 +70,30 @@ csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
     return branch < 0 || branch == guard_branch;
 }
 
+/* Count indentation at the containing statement, not at a wrapped call
+ * argument, whose alignment can be much farther to the right. */
+static bool
+csane_single_use_deep_call(CsaneFile *file, int32 function, int32 token) {
+    int32 statement = csane_statements_at_token(file->statements, function,
+                                                token);
+    int32 offset = file->tokens->tokens[token].offset;
+    char *text = file->tokens->text;
+    int32 start;
+    int32 indentation = 0;
+
+    if (statement >= 0) {
+        offset = file->statements->items[statement].source.start;
+    }
+    start = offset;
+    while (start > 0 && text[start - 1] != '\n') {
+        start -= 1;
+    }
+    while (start + indentation < offset && text[start + indentation] == ' ') {
+        indentation += 1;
+    }
+    return indentation >= 12;
+}
+
 void
 csane_single_use_check(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
@@ -181,6 +205,7 @@ csane_single_use_check(CsaneFile *file) {
         Token *name = NULL;
         bool is_static = false;
         bool uncertain = false;
+        bool deep_call = false;
         int32 count = 0;
 
         if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
@@ -241,6 +266,7 @@ csane_single_use_check(CsaneFile *file) {
                         && caller != item && j >= caller->body.first
                         && j < caller->body.end) {
                         direct = true;
+                        deep_call = csane_single_use_deep_call(file, k, j);
                         break;
                     }
                 }
@@ -254,7 +280,7 @@ csane_single_use_check(CsaneFile *file) {
                 break;
             }
         }
-        if (count == 1 && !uncertain) {
+        if (count == 1 && !uncertain && !deep_call) {
             csane_rule_issue(file, name->offset, STRLIT("STYLE-STATIC-ONCE"),
                              "static function called only once: inline its "
                              "body at the call site and remove the function "

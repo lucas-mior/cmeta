@@ -22,6 +22,7 @@ class StaticSingleUseTests(unittest.TestCase):
 
     def check(self, source, expected_lines, name="single_use.c"):
         self.path = Path(self.temp.name) / name
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(source, encoding="utf-8")
         result = subprocess.run(
             [str(CHECKER), "--file", str(self.path)],
@@ -142,6 +143,50 @@ static int test_helper(void) { return 2; }
 int test(void) { return test_helper(); }
 #endif
 """, [1])
+
+    def test_call_indentation_boundary(self):
+        self.check("""static int two_levels(void) { return 1; }
+int caller_two(void) {
+    if (1) {
+        return two_levels();
+    }
+}
+static int three_levels(void) { return 2; }
+int caller_three(void) {
+    if (1) {
+        if (1) {
+            return three_levels();
+        }
+    }
+}
+""", [1])
+
+    def test_wrapped_call_uses_statement_indentation(self):
+        self.check("""static int helper(int value) { return value; }
+int caller(void) {
+    return
+                helper(123);
+}
+""", [1])
+
+    def test_configuration_only_exempts_cbase(self):
+        source = """static int helper(void) { return 1; }
+int caller(void) { return helper(); }
+"""
+        config = ROOT / "cbase/csanecheck.conf"
+        for name, expected in (("cbase/sample.c", []),
+                               ("src/sample.c", [1]),
+                               ("cbase_fake/sample.c", [1])):
+            path = Path(self.temp.name) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run(
+                [str(CHECKER), "--config", str(config), "--file", str(path)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            lines = [int(match) for match in FINDING.findall(result.stdout)]
+            self.assertEqual(lines, expected, result.stdout + result.stderr)
+            self.assertLessEqual(result.returncode, 1, result.stderr)
 
     def test_other_conditional_guard_is_not_allowed(self):
         self.check("""#if defined(FEATURE)
