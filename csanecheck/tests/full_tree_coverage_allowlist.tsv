@@ -103,6 +103,7 @@ meta_parse.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *g;	1
 meta_parse.c	RULE:LAYOUT	ambiguous-operator-context	Token *candidate;	1
 meta_preproc.c	RULE:LAYOUT	ambiguous-operator-context	Token *keyword_token;	1
 meta_preproc.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
+meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *define_directive;	1
 meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *directive;	2
 meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorGroup *group;	2
 meta_preproc_analysis.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokenization;	1
