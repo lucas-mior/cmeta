@@ -773,9 +773,10 @@ decl_parse_one(DeclCursor *c, enum CDeclarationKind kind, bool require_semi) {
             && c_ast_lookup(ast, c->inferred_type) == C_NAME_UNKNOWN) {
             c_ast_bind(ast, c->inferred_type, C_NAME_INFERRED_TYPEDEF);
         }
-        for (int32 root = ast->declarations[d].first_declarator;
-             root >= 0; root = ast->declarators[root].next) {
-            int32 name = decl_name(ast, root);
+        for (int32 declarator = ast->declarations[d].first_declarator;
+             declarator >= 0;
+             declarator = ast->declarators[declarator].next) {
+            int32 name = decl_name(ast, declarator);
             if ((name >= 0) && (kind != C_DECLARATION_MEMBER)) {
                 enum CNameClass cls = C_NAME_ORDINARY;
                 if (ast->declarations[d].is_typedef) {
