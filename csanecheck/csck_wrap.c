@@ -193,6 +193,7 @@ csane_wrap_flat_length(char *text, int32 start, int32 end, int32 max_width) {
 static bool
 csane_wrap_adjacent(CsaneFile *file, CsaneWrapSpan *a,
                     CsaneWrapSpan *b, enum CsaneWrapKind kind) {
+                        bool _i63_result;
     if (a->indent != b->indent || b->start_line <= a->end_line) {
         return false;
     }
@@ -202,7 +203,6 @@ csane_wrap_adjacent(CsaneFile *file, CsaneWrapSpan *a,
     if (kind != CSANE_WRAP_ASSIGN) {
         return false;
     }
-    bool _i63_result;
     do {
         Tokenization *tokens = file->tokens;
         char *text = tokens->text;
@@ -286,97 +286,101 @@ csane_wrap_first_arg(CsaneTokenView *view, int32 name, TokenRange *arg) {
 
 static bool
 csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
-    Tokenization *tokens = file->tokens;
-    int32 first = token_range_first_significant(tokens, range);
-    int32 last = token_range_last_significant(tokens, range);
+    int32 in_result_call;
+    Tokenization *wrap_tokens = file->tokens;
+    int32 first = token_range_first_significant(wrap_tokens, range);
+    int32 last = token_range_last_significant(wrap_tokens, range);
     int32 name;
     char *text;
     int32 first_offset;
     int32 line_start;
-    int32 close;
+    int32 call_close_2;
     int32 line_end;
 
     if (first < 0 || last < first) {
         return false;
     }
-    int32 in_result_call;
     do {
         Tokenization *tokens = file->tokens;
         CsaneTokenView view = csane_tokens_full(tokens);
-        int32 first = csane_tokens_next(&view, range.first - 1);
-        int32 last = token_range_last_significant(tokens, range);
-        int32 name;
+        int32 nested_first = csane_tokens_next(&view, range.first - 1);
+        int32 nested_last = token_range_last_significant(tokens, range);
+        int32 nested_name;
         int32 open;
         int32 close;
         enum CsaneLocalKind kind;
 
-        if (first < 0 || last < first
-            || !csane_wrap_token_is(&tokens->tokens[last], STRLIT(";"))) {
+        if (nested_first < 0 || nested_last < nested_first
+            || !csane_wrap_token_is(&tokens->tokens[nested_last],
+                                    STRLIT(";"))) {
             in_result_call = -1;
             break;
         }
-        name = first;
-        if (csane_wrap_token_is(&tokens->tokens[name], STRLIT("return"))) {
-            name = csane_tokens_next(&view, name);
+        nested_name = nested_first;
+        if (csane_wrap_token_is(&tokens->tokens[nested_name],
+                                STRLIT("return"))) {
+            nested_name = csane_tokens_next(&view, nested_name);
         } else {
             /* A declaration initializer or plain assignment may precede the
              * invocation. Ignore operators nested within delimiters. */
             int32 equals = -1;
-            for (int32 i = first; i < last; i += 1) {
+            for (int32 i = nested_first; i < nested_last; i += 1) {
                 if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("="))) {
                     equals = i;
                 } else if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("("))
                            || csane_wrap_token_is(&tokens->tokens[i],
                                                   STRLIT("["))) {
                     int32 match = csane_tokens_match(&view, i);
-                    if (match > i && match < last) {
+                    if (match > i && match < nested_last) {
                         i = match;
                     }
                 }
             }
             if (equals >= 0) {
-                name = csane_tokens_next(&view, equals);
+                nested_name = csane_tokens_next(&view, equals);
             }
         }
-        if (name < 0 || name >= last
-            || tokens->tokens[name].kind != TOKEN_IDENT
-            || csane_wrap_token_is(&tokens->tokens[name], STRLIT("error_impl"))
-            || csane_wrap_token_is(&tokens->tokens[name],
+        if (nested_name < 0 || nested_name >= nested_last
+            || tokens->tokens[nested_name].kind != TOKEN_IDENT
+            || csane_wrap_token_is(&tokens->tokens[nested_name],
+                                   STRLIT("error_impl"))
+            || csane_wrap_token_is(&tokens->tokens[nested_name],
                                    STRLIT("assert_error"))) {
             in_result_call = -1;
             break;
         }
-        open = csane_tokens_next(&view, name);
-        if (open < 0 || open >= last
+        open = csane_tokens_next(&view, nested_name);
+        if (open < 0 || open >= nested_last
             || !csane_wrap_token_is(&tokens->tokens[open], STRLIT("("))) {
             in_result_call = -1;
             break;
         }
         close = csane_tokens_match(&view, open);
-        if (close < 0 || close >= last
-            || csane_tokens_next(&view, close) != last) {
+        if (close < 0 || close >= nested_last
+            || csane_tokens_next(&view, close) != nested_last) {
             in_result_call = -1;
             break;
         }
-        kind = csane_classify_invocation(tokens, range, name);
+        kind = csane_classify_invocation(tokens, range, nested_name);
         /* Capitalized function names resemble type names to the heuristic
          * classifier. A complete call statement has no type declarator here.
          */
         if (kind == CSANE_LOCAL_UNKNOWN
-            && csane_name_kind(&tokens->tokens[name]) == CSANE_NAME_TYPE) {
-            in_result_call = name;
+            && csane_name_kind(&tokens->tokens[nested_name])
+                == CSANE_NAME_TYPE) {
+            in_result_call = nested_name;
             break;
         }
         in_result_call = kind == CSANE_LOCAL_CALL
-               || kind == CSANE_LOCAL_MACRO_INVOCATION ? name : -1;
+               || kind == CSANE_LOCAL_MACRO_INVOCATION ? nested_name : -1;
     } while (false);
     name = in_result_call;
-    if (name < 0 || csane_wrap_location(tokens, name).line
-        != csane_wrap_location(tokens, first).line) {
+    if (name < 0 || csane_wrap_location(wrap_tokens, name).line
+        != csane_wrap_location(wrap_tokens, first).line) {
         return false;
     }
-    text = tokens->text;
-    first_offset = tokens->tokens[first].offset;
+    text = wrap_tokens->text;
+    first_offset = wrap_tokens->tokens[first].offset;
     line_start = csane_wrap_line_start(text, first_offset);
     if (line_start == first_offset) {
         return false;
@@ -420,21 +424,22 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
         span->first_arg = first_arg;
     } while (false);
     span->start = line_start;
-    span->end = tokens->tokens[last].offset + tokens->tokens[last].len;
+    span->end =
+        wrap_tokens->tokens[last].offset + wrap_tokens->tokens[last].len;
     span->indent = first_offset - line_start;
-    span->start_line = csane_wrap_location(tokens, first).line;
-    span->end_line = csane_wrap_location(tokens, last).line;
+    span->start_line = csane_wrap_location(wrap_tokens, first).line;
+    span->end_line = csane_wrap_location(wrap_tokens, last).line;
     /* Perl inspects the entire physical call statement and requires the
      * semicolon to be on the same line as its closing parenthesis. A second
      * statement or trailing comment also makes the candidate ineligible.
      */
-    close = tokenization_previous_significant(tokens, last);
-    if (close < 0 || csane_wrap_location(tokens, close).line
+    call_close_2 = tokenization_previous_significant(wrap_tokens, last);
+    if (call_close_2 < 0 || csane_wrap_location(wrap_tokens, call_close_2).line
         != span->end_line) {
         return false;
     }
     line_end = span->end;
-    while (line_end < tokens->text_len && text[line_end] != '\n') {
+    while (line_end < wrap_tokens->text_len && text[line_end] != '\n') {
         if (text[line_end] != ' ' && text[line_end] != '\t'
             && text[line_end] != '\r') {
             return false;
@@ -475,6 +480,7 @@ csane_wrap_compare_calls(void *left, void *right) {
 
 void
 csane_wrap_call_check(CsaneFile *file) {
+    int32 in_result_calls;
     int32 capacity = 0;
     CsaneWrapSpan *items;
     int32 count;
@@ -493,7 +499,6 @@ csane_wrap_call_check(CsaneFile *file) {
         return;
     }
     items = malloc2(capacity*SIZEOF(*items));
-    int32 in_result_calls;
     {
         int32 used = 0;
         if (file->statements != NULL) {
@@ -744,30 +749,40 @@ csane_wrap_call_check(CsaneFile *file) {
 static bool
 csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
                                  CsaneWrapSpan *span, bool require_indent) {
+    int32 after;
+    bool braced = false;
+    bool trailing_comment = false;
+    int32 line_end;
+    int32 end;
+    int32 start;
+    int32 offset;
+    char *text;
+    int32 op;
     Tokenization *tokens = file->tokens;
     int32 first = token_range_first_significant(tokens, range);
     int32 last = token_range_last_significant(tokens, range);
     int32 _i65_result;
     do {
-        Tokenization *tokens = file->tokens;
+        Tokenization *nested_tokens = file->tokens;
         CsaneTokenView view;
-        int32 first;
-        int32 last;
+        int32 nested_first_2;
+        int32 nested_last_2;
         int32 equals = -1;
 
-        if (!csane_tokens_view(&view, tokens, range)) {
+        if (!csane_tokens_view(&view, nested_tokens, range)) {
             _i65_result = -1;
             goto _i65_done;
         }
-        first = token_range_first_significant(tokens, range);
-        last = token_range_last_significant(tokens, range);
-        if (first < 0 || last <= first
-            || !csane_wrap_token_is(&tokens->tokens[last], STRLIT(";"))) {
+        nested_first_2 = token_range_first_significant(nested_tokens, range);
+        nested_last_2 = token_range_last_significant(nested_tokens, range);
+        if (nested_first_2 < 0 || nested_last_2 <= nested_first_2
+            || !csane_wrap_token_is(&nested_tokens->tokens[nested_last_2],
+                                    STRLIT(";"))) {
             _i65_result = -1;
             goto _i65_done;
         }
-        for (int32 i = first; i < last; i += 1) {
-            Token *token = &tokens->tokens[i];
+        for (int32 i = nested_first_2; i < nested_last_2; i += 1) {
+            Token *token = &nested_tokens->tokens[i];
             if (csane_wrap_token_is(token, STRLIT("="))) {
                 if (equals >= 0) {
                     _i65_result = -1;
@@ -778,7 +793,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
                        || csane_wrap_token_is(token, STRLIT("["))
                        || csane_wrap_token_is(token, STRLIT("{"))) {
                 int32 close = csane_tokens_match(&view, i);
-                if (close > i && close < last) {
+                if (close > i && close < nested_last_2) {
                     i = close;
                 }
             }
@@ -787,15 +802,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         goto _i65_done;
         _i65_done: ;
     } while (false);
-    int32 op = _i65_result;
-    char *text;
-    int32 offset;
-    int32 start;
-    int32 end;
-    int32 line_end;
-    bool trailing_comment = false;
-    bool braced = false;
-    int32 after;
+    op = _i65_result;
 
     if (op < 0 || first < 0 || last < first) {
         return false;
@@ -895,6 +902,8 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
 
 void
 csane_wrap_check(CsaneFile *file) {
+    int32 in_result_gaps;
+    int32 in_result_assignments;
     int32 capacity;
     CsaneWrapSpan *items;
     int32 count;
@@ -914,7 +923,6 @@ csane_wrap_check(CsaneFile *file) {
         return;
     }
     items = malloc2(capacity*SIZEOF(*items));
-    int32 in_result_assignments;
     {
         int32 used = 0;
         if (file->toplevel != NULL) {
@@ -947,7 +955,6 @@ csane_wrap_check(CsaneFile *file) {
         in_result_assignments = used;
     }
     count = in_result_assignments;
-    int32 in_result_gaps;
     do {
         CsaneFile *in_file = file;
         int32 in_used = count;

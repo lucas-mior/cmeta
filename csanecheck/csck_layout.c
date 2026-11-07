@@ -520,25 +520,25 @@ csane_layout_known_type(CsaneFile *file, CsaneTokenView *view, int32 index) {
 static enum CsaneLayoutOperator
 csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                      int32 before, int32 after) {
-    Tokenization *tokens = view->tokens;
-    Token *name = &tokens->tokens[after];
+                         bool _i34_result;
+                         bool _i34_predicate;
+    Tokenization *layout_tokens = view->tokens;
+    Token *name = &layout_tokens->tokens[after];
     int32 following;
     Token *tail;
 
     if (csane_layout_in_cast(file, view, index)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
-    if (TOKEN_IS(&tokens->tokens[before], ")")
+    if (TOKEN_IS(&layout_tokens->tokens[before], ")")
         && csane_type_hints_macro_typedef(file->type_hints, view, before)) {
         return CSANE_LAYOUT_DECLARATOR;
     }
     if (TOKEN_IS(name, ")")
-        && csane_layout_is(tokens, csane_tokens_previous(view, before),
+        && csane_layout_is(layout_tokens, csane_tokens_previous(view, before),
                            STRLIT("("))) {
         return CSANE_LAYOUT_DECLARATOR;
     }
-    bool _i34_predicate;
-    bool _i34_result;
     do {
         Tokenization *tokens = view->tokens;
         int32 open = -1;
@@ -551,7 +551,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
             int32 *_i33_open = &open;
             int32 *_i33_close = &close;
 
-            Tokenization *tokens = view->tokens;
+            Tokenization *nested_tokens = view->tokens;
             if (file->toplevel == NULL) {
                 _i33_result = false;
                 goto _i33_done;
@@ -574,7 +574,8 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                         int32 first;
                         int32 type;
 
-                        if (!csane_layout_is(tokens, p_open, STRLIT("("))) {
+                        if (!csane_layout_is(nested_tokens, p_open,
+                                             STRLIT("("))) {
                             continue;
                         }
                         p_close = csane_tokens_match(view, p_open);
@@ -584,15 +585,16 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                         }
                         declarator_close = csane_tokens_previous(view, p_open);
                         if (declarator_close >= item->header.first
-                            && tokens->tokens[declarator_close].kind
+                            && nested_tokens->tokens[declarator_close].kind
                                 == TOKEN_IDENT) {
                             type = csane_tokens_previous(view,
                                                          declarator_close);
-                            if (csane_layout_is(tokens, type, STRLIT("*"))) {
+                            if (csane_layout_is(nested_tokens, type,
+                                                STRLIT("*"))) {
                                 type = csane_tokens_previous(view, type);
                             }
                             if (type >= item->header.first) {
-                                Token *candidate = &tokens->tokens[type];
+                                Token *candidate = &nested_tokens->tokens[type];
                                 bool type_hint =
                                     csane_type_hints_typedef(file->type_hints,
                                                              candidate);
@@ -605,7 +607,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                                 }
                             }
                         }
-                        if (!csane_layout_is(tokens, declarator_close,
+                        if (!csane_layout_is(nested_tokens, declarator_close,
                                              STRLIT(")"))) {
                             continue;
                         }
@@ -614,7 +616,8 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                         first = csane_tokens_next(view, declarator_open);
                         if (declarator_open >= item->header.first
                             && first < declarator_close
-                            && csane_layout_is(tokens, first, STRLIT("*"))) {
+                            && csane_layout_is(nested_tokens, first,
+                                               STRLIT("*"))) {
                             *_i33_open = p_open;
                             *_i33_close = p_close;
                             _i33_result = true;
@@ -632,7 +635,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                     continue;
                 }
                 p_open = csane_tokens_next(view, item->name_token);
-                if (!csane_layout_is(tokens, p_open, STRLIT("("))) {
+                if (!csane_layout_is(nested_tokens, p_open, STRLIT("("))) {
                     continue;
                 }
                 p_close = csane_tokens_match(view, p_open);
@@ -747,20 +750,20 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
         int32 close = csane_tokens_next(view, declarator);
         int32 parameters = csane_tokens_next(view, close);
 
-        if (csane_layout_is(tokens, pointer, STRLIT("*"))
+        if (csane_layout_is(layout_tokens, pointer, STRLIT("*"))
             && declarator >= view->range.first
             && declarator < view->range.end
-            && tokens->tokens[declarator].kind == TOKEN_IDENT
-            && csane_layout_is(tokens, close, STRLIT(")"))
+            && layout_tokens->tokens[declarator].kind == TOKEN_IDENT
+            && csane_layout_is(layout_tokens, close, STRLIT(")"))
             && csane_tokens_match(view, after) == close
-            && csane_layout_is(tokens, parameters, STRLIT("("))) {
+            && csane_layout_is(layout_tokens, parameters, STRLIT("("))) {
             return CSANE_LAYOUT_DECLARATOR;
         }
     }
     if (name->kind != TOKEN_IDENT && !TOKEN_IS(name, "*")) {
         return CSANE_LAYOUT_MULTIPLY;
     }
-    if (csane_layout_is(tokens, csane_tokens_previous(view, before),
+    if (csane_layout_is(layout_tokens, csane_tokens_previous(view, before),
                         STRLIT("return"))) {
         return CSANE_LAYOUT_MULTIPLY;
     }
@@ -775,7 +778,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     if (following >= view->range.end) {
         return CSANE_LAYOUT_UNRESOLVED;
     }
-    tail = &tokens->tokens[following];
+    tail = &layout_tokens->tokens[following];
     if (TOKEN_IS(tail, "=") || TOKEN_IS(tail, ",")
         || TOKEN_IS(tail, "[") || TOKEN_IS(tail, "(")) {
         return CSANE_LAYOUT_DECLARATOR;
@@ -783,10 +786,10 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
     if (TOKEN_IS(tail, ";")) {
         /* A top-level declaration cannot instead be an expression
          * statement. Local "T *p;" remains syntactically ambiguous. */
-        if (csane_name_kind(&tokens->tokens[before])
+        if (csane_name_kind(&layout_tokens->tokens[before])
             == CSANE_NAME_PRIMITIVE
             || csane_type_hints_typedef(file->type_hints,
-                                        &tokens->tokens[before])
+                                        &layout_tokens->tokens[before])
             || csane_layout_tag_prefix(view, before)) {
             return CSANE_LAYOUT_DECLARATOR;
         }
@@ -833,6 +836,7 @@ csane_layout_control_close(CsaneTokenView *view, int32 before) {
  * expression is incomplete, return UNRESOLVED instead of certifying it. */
 enum CsaneLayoutOperator
 csane_layout_classify(CsaneFile *file, int32 index) {
+    bool _i32_result;
     Tokenization *tokens = file->tokens;
     Token *op;
     bool multiply;
@@ -857,7 +861,6 @@ csane_layout_classify(CsaneFile *file, int32 index) {
              || TOKEN_IS(op, "!=") || TOKEN_IS(op, "<")
              || TOKEN_IS(op, "<=") || TOKEN_IS(op, ">")
              || TOKEN_IS(op, ">=");
-    bool _i32_result;
     do {
         int32 count = LENGTH(csane_layout_assignments);
         for (int32 i = 0; i < count; i += 1) {
@@ -1427,6 +1430,8 @@ csane_layout_arith_expression(CsaneArithParser *parser, int32 precedence,
         return -1;
     }
     while (parser->current < parser->end) {
+        int32 right;
+        int32 rank;
         int32 index = parser->current;
         Token *token = &parser->view.tokens->tokens[index];
         int32 in_result_precedence;
@@ -1442,8 +1447,7 @@ csane_layout_arith_expression(CsaneArithParser *parser, int32 precedence,
             }
             in_result_precedence = 0;
         } while (false);
-        int32 rank = in_result_precedence;
-        int32 right;
+        rank = in_result_precedence;
         if (rank < precedence) {
             break;
         }
@@ -1488,9 +1492,9 @@ csane_layout_check(CsaneFile *file) {
         return;
     }
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
-        Token *op = &file->tokens->tokens[i];
+        Token *outer_op = &file->tokens->tokens[i];
         enum CsaneLayoutOperator kind = CSANE_LAYOUT_SKIP;
-        if (op->kind == TOKEN_OPERATOR) {
+        if (outer_op->kind == TOKEN_OPERATOR) {
             kind = csane_layout_classify(file, i);
         }
         do {
@@ -1670,8 +1674,9 @@ csane_layout_check(CsaneFile *file) {
             parser.end = semicolon;
             if (csane_layout_arith_expression(&parser, 1, 0) >= 0
                 && parser.current == parser.end) {
-                for (int32 i = 0; i < ARRAY_LEN(parser.findings); i += 1) {
-                    CsaneArithFinding *finding = &parser.findings[i];
+                for (int32 nested_i =
+                    0; nested_i < ARRAY_LEN(parser.findings); nested_i += 1) {
+                    CsaneArithFinding *finding = &parser.findings[nested_i];
                     if (finding->alignment) {
                         csane_rule_issue(file,
                                          tokens->tokens[finding->token].offset,
@@ -1926,6 +1931,7 @@ csane_layout_check(CsaneFile *file) {
                                && file->tokens->tokens[before].kind
                                    == TOKEN_IDENT
                                && TOKEN_IS(&file->tokens->tokens[after], ";")) {
+                        Token *ts = file->tokens->tokens;
                         int32 dereference = csane_tokens_previous(&view,
                                                                   before);
                         int32 equal = csane_tokens_previous(&view, dereference);
@@ -1935,7 +1941,6 @@ csane_layout_check(CsaneFile *file) {
                             int32 open = csane_tokens_match(&view, equal);
                             equal = csane_tokens_previous(&view, open);
                         }
-                        Token *ts = file->tokens->tokens;
                         allowed = dereference >= view.range.first
                                   && equal >= view.range.first
                                   && TOKEN_IS(&ts[dereference], "*")
@@ -1959,7 +1964,7 @@ csane_layout_check(CsaneFile *file) {
                     int32 equal;
                     int32 close;
                     int32 last;
-                    int32 token;
+                    int32 tok_i;
                     int32 match;
                     int32 elements;
                     bool array;
@@ -1989,20 +1994,21 @@ csane_layout_check(CsaneFile *file) {
                     array = csane_layout_array_initializer(&view, equal);
                     elements = 1;
                     if (array) {
-                        token = csane_tokens_next(&view, in_open);
-                        while (token < close) {
-                            if (TOKEN_IS(&tokens->tokens[token], ",")) {
+                        tok_i = csane_tokens_next(&view, in_open);
+                        while (tok_i < close) {
+                            if (TOKEN_IS(&tokens->tokens[tok_i], ",")) {
                                 elements += 1;
-                            } else if (TOKEN_IS(&tokens->tokens[token], "(")
-                                       || TOKEN_IS(&tokens->tokens[token], "[")
-                                       || TOKEN_IS(&tokens->tokens[token],
+                            } else if (TOKEN_IS(&tokens->tokens[tok_i],
+                                                "(")
+                                       || TOKEN_IS(&tokens->tokens[tok_i], "[")
+                                       || TOKEN_IS(&tokens->tokens[tok_i],
                                                    "{")) {
-                                match = csane_tokens_match(&view, token);
-                                if (match > token && match < close) {
-                                    token = match;
+                                match = csane_tokens_match(&view, tok_i);
+                                if (match > tok_i && match < close) {
+                                    tok_i = match;
                                 }
                             }
-                            token = csane_tokens_next(&view, token);
+                            tok_i = csane_tokens_next(&view, tok_i);
                         }
                     }
                     open_loc = tokenization_token_location(tokens, in_open);
@@ -2082,17 +2088,19 @@ csane_layout_check(CsaneFile *file) {
         } while (false);
         if (kind == CSANE_LAYOUT_MULTIPLY) {
             if (csane_layout_spacing(file, i, true)) {
-                csane_rule_issue(file, op->offset, STRLIT("FMT-MULTIPLY"),
+                csane_rule_issue(file, outer_op->offset, STRLIT("FMT-MULTIPLY"),
                                  "no spaces around multiplication");
             }
         } else if (kind == CSANE_LAYOUT_BINARY) {
             if (csane_layout_spacing(file, i, false)) {
-                csane_rule_issue(file, op->offset, STRLIT("FMT-BINARY-SPACING"),
+                csane_rule_issue(file, outer_op->offset,
+                                 STRLIT("FMT-BINARY-SPACING"),
                                  "spaces required around binary operator");
             }
         } else if (kind == CSANE_LAYOUT_ASSIGN) {
             if (csane_layout_spacing(file, i, false)) {
-                csane_rule_issue(file, op->offset, STRLIT("FMT-ASSIGN-SPACING"),
+                csane_rule_issue(file, outer_op->offset,
+                                 STRLIT("FMT-ASSIGN-SPACING"),
                                  "assignment requires surrounding whitespace");
             }
         }

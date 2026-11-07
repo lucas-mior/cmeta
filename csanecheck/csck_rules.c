@@ -149,29 +149,29 @@ csane_rule_preprocessor(CsaneFile *file) {
     int32 len = file->tokens->text_len;
     int32 cursor = 0;
     for (int32 start = 0; start < len;) {
+        int32 _i46_result;
         int32 end = start;
         int32 keyword;
 
         while (end < len && text[end] != '\n') {
             end += 1;
         }
-        int32 _i46_result;
         do {
             int32 *_i46_cursor = &cursor;
 
-            char *text = file->tokens->text;
+            char *nested_text = file->tokens->text;
             int32 i = start;
-            while (i < end && (csane_source_horizontal(text[i])
+            while (i < end && (csane_source_horizontal(nested_text[i])
                                || csane_source_masked(file->tokens,
                                                       _i46_cursor, i))) {
                 i += 1;
             }
-            if (i >= end || text[i] != '#') {
+            if (i >= end || nested_text[i] != '#') {
                 _i46_result = -1;
                 goto _i46_done;
             }
             i += 1;
-            while (i < end && (csane_source_horizontal(text[i])
+            while (i < end && (csane_source_horizontal(nested_text[i])
                                || csane_source_masked(file->tokens,
                                                       _i46_cursor, i))) {
                 i += 1;
@@ -281,7 +281,7 @@ csane_rule_sizeof(CsaneFile *file) {
 
                 Tokenization *tokens = file->tokens;
                 int32 next = tokenization_next_significant(tokens, _i48_index);
-                Token *token;
+                Token *nested_token = NULL;
                 if (next >= ARRAY_LEN(tokens->tokens)) {
                     _i48_result = false;
                     goto _i48_done;
@@ -294,19 +294,19 @@ csane_rule_sizeof(CsaneFile *file) {
                     _i48_result = false;
                     goto _i48_done;
                 }
-                token = &tokens->tokens[next];
-                if ((token->kind == TOKEN_IDENT)
-                    || (token->kind == TOKEN_LITERAL)) {
+                nested_token = &tokens->tokens[next];
+                if ((nested_token->kind == TOKEN_IDENT)
+                    || (nested_token->kind == TOKEN_LITERAL)) {
                     _i48_result = true;
                     goto _i48_done;
                 }
-                _i48_result = csane_token_text(token, STRLIT("("))
-                       || csane_token_text(token, STRLIT("*"))
-                       || csane_token_text(token, STRLIT("&"))
-                       || csane_token_text(token, STRLIT("+"))
-                       || csane_token_text(token, STRLIT("-"))
-                       || csane_token_text(token, STRLIT("!"))
-                       || csane_token_text(token, STRLIT("~"));
+                _i48_result = csane_token_text(nested_token, STRLIT("("))
+                       || csane_token_text(nested_token, STRLIT("*"))
+                       || csane_token_text(nested_token, STRLIT("&"))
+                       || csane_token_text(nested_token, STRLIT("+"))
+                       || csane_token_text(nested_token, STRLIT("-"))
+                       || csane_token_text(nested_token, STRLIT("!"))
+                       || csane_token_text(nested_token, STRLIT("~"));
                 goto _i48_done;
                 _i48_done: ;
             } while (false);
@@ -343,6 +343,7 @@ csane_api_known_type(CsaneFile *file, int32 index) {
 
 enum CsaneApiUse
 csane_api_classify(CsaneFile *file, int32 index) {
+    enum CsaneApiUse _i49_result;
     Tokenization *tokens = file->tokens;
     Token *name = &tokens->tokens[index];
     int32 next;
@@ -395,40 +396,42 @@ csane_api_classify(CsaneFile *file, int32 index) {
     if (token_range_matching_delimiter_forward(tokens, range, call_open) < 0) {
         return CSANE_API_UNRESOLVED;
     }
-    enum CsaneApiUse _i49_result;
     do {
+        int32 nested_before;
         int32 _i49_name = index;
 
-        Tokenization *tokens = file->tokens;
+        Tokenization *nested_tokens = file->tokens;
         int32 in_result_token;
         {
             CsaneFile *in_file = file;
             int32 in_index = _i49_name;
 
-            Tokenization *tokens = in_file->tokens;
-            int32 previous = tokenization_previous_significant(tokens,
+            Tokenization *nested_tokens_2 = in_file->tokens;
+            int32 previous = tokenization_previous_significant(nested_tokens_2,
                                                                in_index);
             while (previous >= 0 && in_file->preprocessor->token_roles != NULL
                    && in_file->preprocessor->token_roles[previous]
                           == C_PP_TOKEN_DIRECTIVE) {
-                previous = tokenization_previous_significant(tokens, previous);
+                previous = tokenization_previous_significant(nested_tokens_2,
+                                                             previous);
             }
             in_result_token = previous;
         }
-        int32 before = in_result_token;
-        if (before < 0) {
+        nested_before = in_result_token;
+        if (nested_before < 0) {
             _i49_result = CSANE_API_DIRECT_CALL;
             goto _i49_done;
         }
-        if (csane_api_known_type(file, before)) {
+        if (csane_api_known_type(file, nested_before)) {
             _i49_result = CSANE_API_NOT_CALL;
             goto _i49_done;
         }
-        if (TOKEN_IS(&tokens->tokens[before], "*")) {
-            int32 earlier = tokenization_previous_significant(tokens, before);
+        if (TOKEN_IS(&nested_tokens->tokens[nested_before], "*")) {
+            int32 earlier = tokenization_previous_significant(nested_tokens,
+                                                              nested_before);
             if (earlier >= 0
                 && (csane_api_known_type(file, earlier)
-                    || TOKEN_IS(&tokens->tokens[earlier], "("))) {
+                    || TOKEN_IS(&nested_tokens->tokens[earlier], "("))) {
                 _i49_result = CSANE_API_NOT_CALL;
                 goto _i49_done;
             }
@@ -442,10 +445,10 @@ csane_api_classify(CsaneFile *file, int32 index) {
                 goto _i49_done;
             }
         }
-        if (tokens->tokens[before].kind == TOKEN_IDENT
-            && !TOKEN_IS(&tokens->tokens[before], "return")
-            && !TOKEN_IS(&tokens->tokens[before], "case")
-            && !TOKEN_IS(&tokens->tokens[before], "sizeof")) {
+        if (nested_tokens->tokens[nested_before].kind == TOKEN_IDENT
+            && !TOKEN_IS(&nested_tokens->tokens[nested_before], "return")
+            && !TOKEN_IS(&nested_tokens->tokens[nested_before], "case")
+            && !TOKEN_IS(&nested_tokens->tokens[nested_before], "sizeof")) {
             _i49_result = CSANE_API_UNRESOLVED;
             goto _i49_done;
         }
@@ -586,6 +589,8 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
     int32 incomplete = 0;
     CsaneRuleCounts sum = {0};
     for (int32 i = 0; i < LENGTH(csane_rules); i += 1) {
+        char *status;
+        bool excluded;
         CsaneRule *rule = &csane_rules[i];
         CsaneRuleCounts counts =
             csane_coverage_rule(file, rule->target, rule->id,
@@ -622,8 +627,8 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
             }
             in_result_excluded = false;
         } while (false);
-        bool excluded = in_result_excluded;
-        char *status = "checked";
+        excluded = in_result_excluded;
+        status = "checked";
 
         if (excluded) {
             counts.excluded = counts.eligible;

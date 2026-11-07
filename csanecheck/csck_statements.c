@@ -130,8 +130,9 @@ csane_stmt_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
             do {
                 int32 _i50_branch = r;
 
-                for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
-                    if (r == _i50_branch) {
+                for (int32 nested_r = owner; nested_r >= 0; nested_r =
+                    regions->items[nested_r].parent) {
+                    if (nested_r == _i50_branch) {
                         _i50_result = true;
                         goto _i50_done;
                     }
@@ -300,6 +301,9 @@ csane_stmt_children(CsaneStatementStream *stream, int32 first, int32 end,
 static int32
 csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                  int32 parent, int32 *result, int32 depth) {
+    enum CsaneStatementKind in_result_control;
+    bool _i51_predicate;
+    int32 in_result_end;
     int32 macro_end;
     enum CsaneStatementKind control;
     bool malformed = false;
@@ -313,7 +317,6 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     limit, parent, first);
         return limit;
     }
-    int32 in_result_end;
     do {
         int32 close;
         if (!csane_token_macro_name(csane_stmt_token(stream, first))) {
@@ -333,7 +336,6 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         in_result_end = close + 1;
     } while (false);
     macro_end = in_result_end;
-    bool _i51_predicate;
     _i51_predicate = macro_end > first;
     if (_i51_predicate) {
         _i51_predicate = macro_end == limit;
@@ -351,12 +353,13 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                     int32 _i51_a = macro_end - 1;
                     int32 _i51_b = macro_end;
 
-                    Token *first = csane_stmt_token(stream, _i51_a);
+                    Token *nested_first = csane_stmt_token(stream, _i51_a);
                     Token *next = csane_stmt_token(stream, _i51_b);
                     Tokenization *tokens =
                         stream->statements->toplevel->regions->tokens;
                     for (int32 i =
-                        first->offset + first->len; i < next->offset; i += 1) {
+                        nested_first->offset + nested_first->len; i
+                            < next->offset; i += 1) {
                         if (tokens->text[i] == '\n') {
                             _i51_result = true;
                             goto _i51_done;
@@ -415,7 +418,6 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     first + 2, parent, first + 2);
         return first + 2;
     }
-    enum CsaneStatementKind in_result_control;
     do {
         int32 in_position = first;
 
@@ -596,7 +598,7 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
     };
     CsaneTokenPath path;
     CsaneTokenView view;
-    int32 i;
+    int32 stmt_i;
     int32 first_region;
     bool branch_owner;
 
@@ -615,13 +617,13 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         first_region = 0;
     }
     for (int32 r = first_region; r < ARRAY_LEN(regions->items); r += 1) {
+        bool _i52_predicate;
         CsaneSourceRegion *region = &regions->items[r];
         TokenRange part = region->tokens;
 
         if (part.first >= top->body.end) {
             break;
         }
-        bool _i52_predicate;
         _i52_predicate = region->kind != CSANE_REGION_CODE;
         if (!_i52_predicate) {
             _i52_predicate = part.end <= top->body.first;
@@ -630,6 +632,7 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
             _i52_predicate = part.first >= top->body.end;
         }
         if (!_i52_predicate) {
+            bool _i54_result;
             int32 _i52_result;
             do {
                 int32 _i52_region = r;
@@ -647,26 +650,27 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
                 goto _i52_done;
                 _i52_done: ;
             } while (false);
-                 bool _i54_result;
                  do {
                      int32 _i54_region = r;
 
                      bool has_branch = false;
-                     for (int32 r = _i54_region; r >= 0; r =
-                         regions->items[r].parent) {
-                         if (regions->items[r].kind
+                     for (int32 nested_r_2 =
+                         _i54_region; nested_r_2 >= 0; nested_r_2 =
+                         regions->items[nested_r_2].parent) {
+                             bool _i53_result;
+                             bool _i53_predicate;
+                         if (regions->items[nested_r_2].kind
                              != CSANE_REGION_CONDITIONAL_BRANCH) {
                              continue;
                          }
                          has_branch = true;
-                         bool _i53_predicate;
-                         bool _i53_result;
                          do {
-                             int32 _i53_branch = r;
+                             int32 _i53_branch = nested_r_2;
 
-                             for (int32 r = owner; r >= 0; r =
-                                 regions->items[r].parent) {
-                                 if (r == _i53_branch) {
+                             for (int32 nested_r_3 =
+                                 owner; nested_r_3 >= 0; nested_r_3 =
+                                 regions->items[nested_r_3].parent) {
+                                 if (nested_r_3 == _i53_branch) {
                                      _i53_result = true;
                                      goto _i53_done;
                                  }
@@ -712,16 +716,18 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         (void)csane_token_path_append(&path, part);
     }
     if (csane_tokens_path_view(&view, &path)) {
-        i = csane_tokens_next(&view, view.range.first - 1);
-        while (i >= view.range.first && i < view.range.end) {
-            if (tokens->tokens[i].kind != TOKEN_PREPROC) {
-                csane_stmt_push(&stream, i);
+        stmt_i = csane_tokens_next(&view, view.range.first - 1);
+        while (stmt_i >= view.range.first && stmt_i < view.range.end) {
+            if (tokens->tokens[stmt_i].kind != TOKEN_PREPROC) {
+                csane_stmt_push(&stream, stmt_i);
             }
-            i = csane_tokens_next(&view, i);
+            stmt_i = csane_tokens_next(&view, stmt_i);
         }
     }
     csane_token_path_free(&path);
     if (ARRAY_LEN(stream.indices) > 0) {
+        int32 depth = 0;
+        int32 *stack;
         int32 first = 0;
         int32 end;
         if (owner == top->owner_region) {
@@ -729,8 +735,7 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         }
         end = ARRAY_LEN(stream.indices);
 
-        int32 *stack = malloc2(ARRAY_LEN(stream.indices)*SIZEOF(*stack));
-        int32 depth = 0;
+        stack = malloc2(ARRAY_LEN(stream.indices)*SIZEOF(*stack));
 
         stream.matches = malloc2(ARRAY_LEN(stream.indices)
                                   *SIZEOF(*stream.matches));

@@ -80,9 +80,10 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
             do {
                 int32 _i25_token_index = type;
 
-                int32 count = LENGTH(csane_decl_qualifiers);
-                for (int32 j = 0; j < count; j += 1) {
-                    StrFlex *word = csane_decl_qualifiers[j];
+                int32 nested_count = LENGTH(csane_decl_qualifiers);
+                for (int32 nested_j =
+                    0; nested_j < nested_count; nested_j += 1) {
+                    StrFlex *word = csane_decl_qualifiers[nested_j];
                     if (csane_decl_is(file, _i25_token_index, word->data,
                                       word->len)) {
                         _i25_result = true;
@@ -347,6 +348,8 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
 
 static void
 csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
+    bool _i28_result;
+    bool _i28_predicate;
     int32 first;
     int32 type;
 
@@ -370,8 +373,6 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
         csane_rule_issue(file, file->tokens->tokens[type].offset,
                          STRLIT("TYPE-UNION-TYPEDEF"), "do not typedef unions");
     }
-    bool _i28_predicate;
-    bool _i28_result;
     do {
         CsaneTokenView view;
         int32 token;
@@ -381,39 +382,44 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
         if (!_i27_predicate) {
             bool _i27_result;
             do {
-                CsaneTokenView view;
-                int32 token;
+                CsaneTokenView nested_view;
+                int32 nested_token;
 
-                if (!csane_tokens_view(&view, file->tokens, range)) {
+                if (!csane_tokens_view(&nested_view, file->tokens, range)) {
                     _i27_result = false;
                     goto _i27_done;
                 }
-                token = csane_tokens_next(&view, range.first - 1);
-                while (token >= range.first && token < range.end) {
+                nested_token = csane_tokens_next(&nested_view, range.first - 1);
+                while (nested_token >= range.first
+                    && nested_token < range.end) {
                     int32 previous;
                     int32 close;
                     int32 after;
 
-                    if (!csane_decl_is(file, token, STRLIT("*"))) {
-                        token = csane_tokens_next(&view, token);
+                    if (!csane_decl_is(file, nested_token, STRLIT("*"))) {
+                        nested_token = csane_tokens_next(&nested_view,
+                                                         nested_token);
                         continue;
                     }
-                    previous = csane_tokens_previous(&view, token);
+                    previous = csane_tokens_previous(&nested_view,
+                                                     nested_token);
                     if (!csane_decl_is(file, previous, STRLIT("("))) {
-                        token = csane_tokens_next(&view, token);
+                        nested_token = csane_tokens_next(&nested_view,
+                                                         nested_token);
                         continue;
                     }
-                    close = csane_tokens_match(&view, previous);
+                    close = csane_tokens_match(&nested_view, previous);
                     if (close < 0) {
                         _i27_result = false;
                         goto _i27_done;
                     }
-                    after = csane_tokens_next(&view, close);
+                    after = csane_tokens_next(&nested_view, close);
                     if (csane_decl_is(file, after, STRLIT("("))) {
                         _i27_result = true;
                         goto _i27_done;
                     }
-                    token = csane_tokens_next(&view, token);
+                    nested_token = csane_tokens_next(&nested_view,
+                                                     nested_token);
                 }
                 _i27_result = false;
                 goto _i27_done;
@@ -522,14 +528,15 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
         do {
             CsaneFile *in_file = file;
 
-            CsaneTokenView view;
+            CsaneTokenView nested_view_2;
             int32 brackets = 0;
             int32 token;
 
-            if (!csane_tokens_view(&view, in_file->tokens, parameter)) {
+            if (!csane_tokens_view(&nested_view_2, in_file->tokens,
+                                   parameter)) {
                 break;
             }
-            token = csane_tokens_next(&view, parameter.first - 1);
+            token = csane_tokens_next(&nested_view_2, parameter.first - 1);
             while (token >= parameter.first && token < parameter.end) {
                 Token *word = &in_file->tokens->tokens[token];
                 int32 previous;
@@ -542,11 +549,11 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
                 }
                 if (brackets != 0 || word->kind != TOKEN_IDENT || word->len != 1
                     || (word->text[0] != 'i' && word->text[0] != 'j')) {
-                    token = csane_tokens_next(&view, token);
+                    token = csane_tokens_next(&nested_view_2, token);
                     continue;
                 }
-                previous = csane_tokens_previous(&view, token);
-                next = csane_tokens_next(&view, token);
+                previous = csane_tokens_previous(&nested_view_2, token);
+                next = csane_tokens_next(&nested_view_2, token);
                 if (previous < parameter.first
                     || (in_file->tokens->tokens[previous].kind != TOKEN_IDENT
                         && !csane_decl_is(in_file, previous, STRLIT("*")))
@@ -557,7 +564,7 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
                         && !csane_decl_is(in_file, next, STRLIT(")"))
                         && !csane_decl_is(in_file, next, STRLIT("["))
                         && !csane_decl_is(in_file, next, STRLIT("(")))) {
-                    token = csane_tokens_next(&view, token);
+                    token = csane_tokens_next(&nested_view_2, token);
                     continue;
                 }
                 csane_rule_issue(in_file, word->offset,
@@ -565,7 +572,7 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
                                  "i, j and k are forbidden "
                                  "as function parameter "
                                  "names");
-                token = csane_tokens_next(&view, token);
+                token = csane_tokens_next(&nested_view_2, token);
             }
         } while (false);
         if (comma < first || comma >= args.end) {
@@ -907,7 +914,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
         CsaneFile *in_file = file;
 
         CsaneTokenView full;
-        int32 first;
+        int32 nested_first;
         int32 suffix;
         int32 start;
         int32 end;
@@ -918,13 +925,13 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
                >= csane_local_decl_line(in_file, close)) {
             break;
         }
-        first = name;
-        while (first > range.first
-               && csane_local_decl_line(in_file, first - 1)
+        nested_first = name;
+        while (nested_first > range.first
+               && csane_local_decl_line(in_file, nested_first - 1)
                   == csane_local_decl_line(in_file, name)) {
-            first -= 1;
+            nested_first -= 1;
         }
-        if (!csane_wrap_safe(in_file, first, close, false)) {
+        if (!csane_wrap_safe(in_file, nested_first, close, false)) {
             break;
         }
         full = csane_tokens_full(in_file->tokens);
@@ -934,7 +941,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
                 && !csane_decl_is(in_file, suffix, STRLIT("{")))) {
             break;
         }
-        start = in_file->tokens->tokens[first].offset;
+        start = in_file->tokens->tokens[nested_first].offset;
         while (start > 0 && in_file->tokens->text[start - 1] != '\n') {
             start -= 1;
         }

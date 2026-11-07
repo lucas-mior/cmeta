@@ -61,9 +61,13 @@ csane_bounds_check(CsaneFile *file) {
     if (file->is_ryu || file->regions == NULL) {
         return;
     }
-    for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
+    for (int32 tok_i = 0; tok_i < ARRAY_LEN(file->tokens->tokens); tok_i += 1) {
         do {
-            int32 _i5_first = i;
+            bool _i1_predicate;
+            bool _i4_result;
+            bool _i4_predicate;
+            bool _i2_predicate;
+            int32 _i5_first = tok_i;
 
             Tokenization *tokens = file->tokens;
             CsaneTokenView view;
@@ -90,7 +94,6 @@ csane_bounds_check(CsaneFile *file) {
             if (close < 0) {
                 goto _i5_done;
             }
-            bool _i2_predicate;
             _i2_predicate =
                 !csane_bounds_call(file, (TokenRange){_i5_first, close + 1},
                                    STRLIT("ASSERT_GE"), lower);
@@ -121,7 +124,7 @@ csane_bounds_check(CsaneFile *file) {
                 do {
                     TokenRange _i2_range = lower[0];
 
-                    CsaneTokenView view;
+                    CsaneTokenView nested_view;
                     int32 i;
 
                     _i2_range = csane_bounds_unwrap(file, _i2_range);
@@ -132,9 +135,9 @@ csane_bounds_check(CsaneFile *file) {
                         goto _i2_done;
                     }
                     i = tokenization_next_significant(file->tokens, i);
-                    view = csane_tokens_full(file->tokens);
+                    nested_view = csane_tokens_full(file->tokens);
                     while (i < _i2_range.end) {
-                        int32 close;
+                        int32 nested_close;
                         int32 first;
                         Token *index;
 
@@ -154,16 +157,16 @@ csane_bounds_check(CsaneFile *file) {
                             _i2_result = false;
                             goto _i2_done;
                         }
-                        close = csane_tokens_match(&view, i);
-                        if (close < 0 || close >= _i2_range.end) {
+                        nested_close = csane_tokens_match(&nested_view, i);
+                        if (nested_close < 0 || nested_close >= _i2_range.end) {
                             _i2_result = false;
                             goto _i2_done;
                         }
                         first = tokenization_next_significant(file->tokens, i);
-                        if (first >= close
+                        if (first >= nested_close
                             || tokenization_next_significant(file->tokens,
                                                              first)
-                                              != close) {
+                                              != nested_close) {
                             _i2_result = false;
                             goto _i2_done;
                         }
@@ -179,7 +182,8 @@ csane_bounds_check(CsaneFile *file) {
                             _i2_result = false;
                             goto _i2_done;
                         }
-                        i = tokenization_next_significant(file->tokens, close);
+                        i = tokenization_next_significant(file->tokens,
+                                                          nested_close);
                     }
                     _i2_result = true;
                     goto _i2_done;
@@ -215,20 +219,18 @@ csane_bounds_check(CsaneFile *file) {
                 || region != csane_regions_at_token(file->regions, upper)) {
                 goto _i5_done;
             }
-            bool _i4_predicate;
-            bool _i4_result;
             do {
                 int32 _i4_next = upper;
 
-                Tokenization *tokens = file->tokens;
-                Token *last = &tokens->tokens[semicolon];
-                Token *first = &tokens->tokens[_i4_next];
-                SourceLocation a = tokenization_token_location(tokens,
+                Tokenization *nested_tokens = file->tokens;
+                Token *last = &nested_tokens->tokens[semicolon];
+                Token *first = &nested_tokens->tokens[_i4_next];
+                SourceLocation a = tokenization_token_location(nested_tokens,
                                                                semicolon);
-                SourceLocation b = tokenization_token_location(tokens,
+                SourceLocation b = tokenization_token_location(nested_tokens,
                                                                _i4_next);
                 int32 cursor;
-                int32 end;
+                int32 nested_end;
                 int32 newlines = 0;
 
                 if (b.line != a.line + 1) {
@@ -236,10 +238,10 @@ csane_bounds_check(CsaneFile *file) {
                     goto _i4_done;
                 }
                 cursor = last->offset + last->len;
-                end = first->offset;
+                nested_end = first->offset;
                 for (int32 i = semicolon + 1; i < _i4_next; i += 1) {
-                    Token *token = &tokens->tokens[i];
-                    if (token->offset < cursor || token->offset >= end) {
+                    Token *token = &nested_tokens->tokens[i];
+                    if (token->offset < cursor || token->offset >= nested_end) {
                         continue;
                     }
                     if (token->kind != TOKEN_COMMENT && !token_is_trivia(token)
@@ -251,8 +253,9 @@ csane_bounds_check(CsaneFile *file) {
                         cursor = token->offset + token->len;
                     }
                 }
-                for (int32 i = last->offset + last->len; i < end; i += 1) {
-                    if (tokens->text[i] == '\n') {
+                for (int32 i =
+                    last->offset + last->len; i < nested_end; i += 1) {
+                    if (nested_tokens->text[i] == '\n') {
                         newlines += 1;
                     }
                 }
@@ -272,7 +275,6 @@ csane_bounds_check(CsaneFile *file) {
             if (close < 0) {
                 goto _i5_done;
             }
-            bool _i1_predicate;
             _i1_predicate = !csane_bounds_call(file,
                                                (TokenRange){upper, close + 1},
                                                STRLIT("ASSERT_LT"),

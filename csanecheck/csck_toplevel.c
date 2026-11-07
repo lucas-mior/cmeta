@@ -160,8 +160,9 @@ csane_top_trailing_attribute(CsaneTopStream *stream, int32 first, int32 pos) {
 static bool
 csane_top_is_function(CsaneTopStream *stream, int32 first,
                       int32 end, int32 *name) {
-    *name = -1;
+    int32 in_result_name;
     bool _i56_predicate;
+    *name = -1;
     _i56_predicate = first >= end;
     if (!_i56_predicate) {
         _i56_predicate = csane_top_is(stream, first, STRLIT("typedef"));
@@ -190,12 +191,11 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
     if (_i56_predicate) {
         return false;
     }
-    int32 in_result_name;
     do {
         int32 in_end = end;
 
         int32 open;
-        int32 name;
+        int32 nested_name;
 
         /* Strip a mixture of attribute calls and object-like attributes in
          * reverse order. They may follow each other in either order. */
@@ -223,13 +223,13 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
             in_result_name = -1;
             break;
         }
-        name = open - 1;
-        if (csane_top_token(stream, name)->kind == TOKEN_IDENT) {
-            in_result_name = name;
+        nested_name = open - 1;
+        if (csane_top_token(stream, nested_name)->kind == TOKEN_IDENT) {
+            in_result_name = nested_name;
             break;
         }
-        if (csane_top_is(stream, name, STRLIT(")"))) {
-            int32 macro_open = stream->matches[name];
+        if (csane_top_is(stream, nested_name, STRLIT(")"))) {
+            int32 macro_open = stream->matches[nested_name];
             if (macro_open > first
                 && csane_top_macro_at(stream, macro_open - 1)) {
                 in_result_name = macro_open - 1;
@@ -260,12 +260,14 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
 static enum CsaneTopKind
 csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
                    int32 *name) {
+    bool _i58_result;
+    bool _i58_predicate;
+    bool _i59_result;
+    bool _i59_predicate;
     *name = -1;
     if (first >= end) {
         return CSANE_TOP_OPAQUE;
     }
-    bool _i59_predicate;
-    bool _i59_result;
     do {
         int32 close;
 
@@ -287,8 +289,6 @@ csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
         *name = first;
         return CSANE_TOP_MACRO_INVOCATION;
     }
-    bool _i58_predicate;
-    bool _i58_result;
     do {
         if (csane_top_is(stream, first, STRLIT("typedef"))) {
             _i58_result = true;
@@ -608,16 +608,16 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
 
         CsaneRegions *regions = in_stream->top->regions;
         Tokenization *tokens = regions->tokens;
-        CsaneSourceRegion *owner = &regions->items[in_stream->owner];
+        CsaneSourceRegion *nested_owner = &regions->items[in_stream->owner];
         CsaneTokenPath path;
         CsaneTokenView view;
         int32 child;
         int32 i;
 
-        if (!csane_token_path_init(&path, tokens, owner->tokens)) {
+        if (!csane_token_path_init(&path, tokens, nested_owner->tokens)) {
             break;
         }
-        child = owner->first_child;
+        child = nested_owner->first_child;
         for (; child >= 0; child = regions->items[child].next_sibling) {
             CsaneSourceRegion *region = &regions->items[child];
             if (region->kind == CSANE_REGION_CODE) {
@@ -822,6 +822,7 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
         }
         /* Complete body alternatives belong to the statement scanner. */
     } else if (enclosing->kind == CSANE_TOP_TYPE_DECLARATION) {
+        enum CsaneTopKind kind;
         enum CsaneTopKind _i60_result;
         do {
             CsaneTopStream *_i60_stream = &stream;
@@ -861,7 +862,7 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
             goto _i60_done;
             _i60_done: ;
         } while (false);
-        enum CsaneTopKind kind = _i60_result;
+        kind = _i60_result;
         if (kind == CSANE_TOP_OPAQUE) {
             csane_top_append(&stream, kind, 0, count, -1, -1);
         } else {
@@ -954,9 +955,10 @@ csane_top_branch_path(CsaneTopLevels *top, int32 owner, TokenRange bounds,
                         do {
                             int32 _i61_branch = r;
 
-                            for (int32 r = owner; r >= 0; r =
-                                regions->items[r].parent) {
-                                if (r == _i61_branch) {
+                            for (int32 nested_r =
+                                owner; nested_r >= 0; nested_r =
+                                regions->items[nested_r].parent) {
+                                if (nested_r == _i61_branch) {
                                     _i61_result = true;
                                     goto _i61_done;
                                 }

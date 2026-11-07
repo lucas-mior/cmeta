@@ -61,7 +61,9 @@ static void
 csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
                            TokenRange range, int32 function, int32 scope,
                            int32 region) {
-    Tokenization *tokens = file->tokens;
+    bool _i38_result;
+    bool _i38_predicate;
+    Tokenization *file_tokens = file->tokens;
     CsaneTokenView view;
     int32 first;
     int32 end;
@@ -69,23 +71,21 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
     bool alias_pointer;
     bool typedef_decl = false;
 
-    if (!csane_tokens_view(&view, tokens, range)) {
+    if (!csane_tokens_view(&view, file_tokens, range)) {
         return;
     }
     first = csane_tokens_next(&view, range.first - 1);
-    end = token_range_last_significant(tokens, range);
+    end = token_range_last_significant(file_tokens, range);
     if (end < first) {
         return;
     }
-    if (TOKEN_IS(&tokens->tokens[end], ";")) {
+    if (TOKEN_IS(&file_tokens->tokens[end], ";")) {
         view.range.end = end;
     }
-    if (TOKEN_IS(&tokens->tokens[first], "typedef")) {
+    if (TOKEN_IS(&file_tokens->tokens[first], "typedef")) {
         typedef_decl = true;
         first = csane_tokens_next(&view, first);
     }
-    bool _i38_predicate;
-    bool _i38_result;
     do {
         CsaneTokenView *_i38_view = &view;
         int32 *_i38_position = &first;
@@ -160,6 +160,7 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
     }
     part = first;
     while (part < view.range.end) {
+        int32 _i39_result;
         int32 comma = csane_tokens_top_level(&view, part, STRLIT(","));
         TokenRange segment;
         bool pointer;
@@ -169,31 +170,30 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
             return;
         }
         segment = (TokenRange){part, comma};
-        int32 _i39_result;
         do {
             CsaneTokenView *_i39_view = &view;
             bool *_i39_pointer = &pointer;
 
             Tokenization *tokens = file->tokens;
-            int32 end = csane_tokens_top_level(_i39_view, segment.first,
-                                               STRLIT("="));
+            int32 nested_end = csane_tokens_top_level(_i39_view, segment.first,
+                                                      STRLIT("="));
             int32 i = segment.first;
-            int32 name = -1;
+            int32 nested_name = -1;
             bool star = false;
             bool paren = false;
 
-            if (end < 0) {
+            if (nested_end < 0) {
                 _i39_result = -1;
                 goto _i39_done;
             }
-            if (end > segment.end) {
-                end = segment.end;
+            if (nested_end > segment.end) {
+                nested_end = segment.end;
             }
-            if (i < end && TOKEN_IS(&tokens->tokens[i], "(")) {
+            if (i < nested_end && TOKEN_IS(&tokens->tokens[i], "(")) {
                 paren = true;
                 i = csane_tokens_next(_i39_view, i);
             }
-            while (i < end) {
+            while (i < nested_end) {
                 Token *current = &tokens->tokens[i];
                 if (!TOKEN_IS(current, "*")
                     && !csane_pointer_qualifier(current)) {
@@ -204,33 +204,33 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
                 }
                 i = csane_tokens_next(_i39_view, i);
             }
-            if (i >= end || tokens->tokens[i].kind != TOKEN_IDENT) {
+            if (i >= nested_end || tokens->tokens[i].kind != TOKEN_IDENT) {
                 _i39_result = -1;
                 goto _i39_done;
             }
-            name = i;
+            nested_name = i;
             i = csane_tokens_next(_i39_view, i);
             if (paren) {
-                if (i >= end || !TOKEN_IS(&tokens->tokens[i], ")")) {
+                if (i >= nested_end || !TOKEN_IS(&tokens->tokens[i], ")")) {
                     _i39_result = -1;
                     goto _i39_done;
                 }
                 i = csane_tokens_next(_i39_view, i);
             }
             *_i39_pointer = star || alias_pointer;
-            if (!paren && i < end && TOKEN_IS(&tokens->tokens[i], "[")) {
+            if (!paren && i < nested_end && TOKEN_IS(&tokens->tokens[i], "[")) {
                 *_i39_pointer = false;
             }
-            while (i < end && (TOKEN_IS(&tokens->tokens[i], "[")
+            while (i < nested_end && (TOKEN_IS(&tokens->tokens[i], "[")
                                || TOKEN_IS(&tokens->tokens[i], "("))) {
                 int32 close = csane_tokens_match(_i39_view, i);
-                if (close < 0 || close >= end) {
+                if (close < 0 || close >= nested_end) {
                     _i39_result = -1;
                     goto _i39_done;
                 }
                 i = csane_tokens_next(_i39_view, close);
             }
-            _i39_result = i == end ? name : -1;
+            _i39_result = i == nested_end ? nested_name : -1;
             goto _i39_done;
             _i39_done: ;
         } while (false);
@@ -245,7 +245,7 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
                     .function = function,
                     .scope = scope,
                     .region = region,
-                    .position = tokens->tokens[name].offset,
+                    .position = file_tokens->tokens[name].offset,
                     .pointer = pointer,
                 });
             }
@@ -268,6 +268,7 @@ csane_pointer_known(CsaneFile *file, CsanePointerState *state,
                     CsaneStatement *stmt, int32 name) {
     Token *wanted = &file->tokens->tokens[name];
     for (int32 i = ARRAY_LEN(state->symbols) - 1; i >= 0; i -= 1) {
+        bool _i41_predicate;
         CsanePointerSymbol *symbol = &state->symbols[i];
         bool _i42_predicate;
         _i42_predicate = symbol->function != stmt->function;
@@ -287,9 +288,9 @@ csane_pointer_known(CsaneFile *file, CsanePointerState *state,
                     _i42_result = true;
                     goto _i42_done;
                 }
-                for (int32 i = _i42_region; i >= 0; i =
-                    file->regions->items[i].parent) {
-                    if (i == _i42_ancestor) {
+                for (int32 nested_i = _i42_region; nested_i >= 0; nested_i =
+                    file->regions->items[nested_i].parent) {
+                    if (nested_i == _i42_ancestor) {
                         _i42_result = true;
                         goto _i42_done;
                     }
@@ -307,7 +308,6 @@ csane_pointer_known(CsaneFile *file, CsanePointerState *state,
         if (_i42_predicate) {
             continue;
         }
-        bool _i41_predicate;
         _i41_predicate = symbol->function < 0;
         if (!_i41_predicate) {
             bool _i41_result;
@@ -579,11 +579,12 @@ csane_pointer_check(CsaneFile *file) {
             view.range = (TokenRange){open + 1, close};
             part = csane_tokens_next(&view, open);
             while (part < close) {
+                TokenRange segment;
                 int32 comma = csane_tokens_top_level(&view, part, STRLIT(","));
                 if (comma < 0) {
                     goto _i40_done;
                 }
-                TokenRange segment = {part, comma};
+                segment = (TokenRange){part, comma};
                 csane_pointer_declarations(file, _i40_state, segment,
                                            _i40_function, -1,
                                            top->owner_region);
@@ -596,6 +597,8 @@ csane_pointer_check(CsaneFile *file) {
         } while (false);
     }
     for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        bool _i43_result;
+        bool _i45_predicate;
         CsaneStatement *stmt = &file->statements->items[i];
         CsaneTokenView view;
         int32 first;
@@ -629,8 +632,6 @@ csane_pointer_check(CsaneFile *file) {
         }
         condition = (TokenRange){open + 1, close};
         csane_pointer_condition(file, &state, stmt, &view, condition);
-        bool _i45_predicate;
-        bool _i43_result;
         do {
             CsaneTokenView *_i43_view = &view;
             TokenRange _i43_range = condition;
@@ -680,13 +681,15 @@ csane_pointer_check(CsaneFile *file) {
         if (_i45_predicate) {
             bool _i45_result;
             do {
+                bool _i44_result;
+                int32 next;
                 CsaneStatement *body = NULL;
-                CsaneTokenView view;
+                CsaneTokenView nested_view;
                 Tokenization *tokens = file->tokens;
                 TokenRange args[3];
-                int32 first;
-                int32 open;
-                int32 close;
+                int32 nested_first;
+                int32 nested_open;
+                int32 nested_close;
                 int32 count;
                 int32 body_index = stmt->body;
 
@@ -704,66 +707,74 @@ csane_pointer_check(CsaneFile *file) {
                     body = &file->statements->items[body->first_child];
                 }
                 if (body->kind != CSANE_STMT_SIMPLE
-                    || !csane_tokens_view(&view, tokens, body->tokens)) {
+                    || !csane_tokens_view(&nested_view, tokens, body->tokens)) {
                     _i45_result = false;
                     goto _i45_done;
                 }
-                first = csane_tokens_next(&view, body->tokens.first - 1);
-                open = csane_tokens_next(&view, first);
-                if (first >= view.range.end || open >= view.range.end
-                    || !TOKEN_IS(&tokens->tokens[first], "free2")
-                    || !TOKEN_IS(&tokens->tokens[open], "(")) {
+                nested_first = csane_tokens_next(&nested_view,
+                                                 body->tokens.first - 1);
+                nested_open = csane_tokens_next(&nested_view, nested_first);
+                if (nested_first >= nested_view.range.end
+                    || nested_open >= nested_view.range.end
+                    || !TOKEN_IS(&tokens->tokens[nested_first], "free2")
+                    || !TOKEN_IS(&tokens->tokens[nested_open], "(")) {
                     _i45_result = false;
                     goto _i45_done;
                 }
-                close = csane_tokens_match(&view, open);
-                int32 next = close < 0 ? -1 : csane_tokens_next(&view, close);
-                if (close < 0 || next >= view.range.end
+                nested_close = csane_tokens_match(&nested_view, nested_open);
+                next = nested_close < 0 ? -1 : csane_tokens_next(&nested_view,
+                                                                 nested_close);
+                if (nested_close < 0 || next >= nested_view.range.end
                     || !TOKEN_IS(&tokens->tokens[next], ";")) {
                     _i45_result = false;
                     goto _i45_done;
                 }
-                count = csane_tokens_arguments(&view, open, args, LENGTH(args));
+                count = csane_tokens_arguments(&nested_view, nested_open,
+                                               args, LENGTH(args));
                 if (count != 2) {
                     _i45_result = false;
                     goto _i45_done;
                 }
-                       bool _i44_result;
                        do {
                            TokenRange _i44_a = guard;
                            TokenRange _i44_b = args[0];
 
-                           Tokenization *tokens = file->tokens;
+                           Tokenization *nested_tokens = file->tokens;
                            CsaneTokenView view_a;
                            CsaneTokenView view_b;
-                           int32 i;
+                           int32 nested_i_2;
                            int32 j;
 
-                           if (!csane_tokens_view(&view_a, tokens, _i44_a)
-                               || !csane_tokens_view(&view_b, tokens, _i44_b)) {
+                           if (!csane_tokens_view(&view_a, nested_tokens,
+                                                  _i44_a)
+                               || !csane_tokens_view(&view_b, nested_tokens,
+                                                     _i44_b)) {
                                _i44_result = false;
                                goto _i44_done;
                            }
                            _i44_a = csane_tokens_unwrap(&view_a, _i44_a);
                            _i44_b = csane_tokens_unwrap(&view_b, _i44_b);
-                           i = csane_tokens_next(&view_a, _i44_a.first - 1);
+                           nested_i_2 = csane_tokens_next(&view_a,
+                                                          _i44_a.first - 1);
                            j = csane_tokens_next(&view_b, _i44_b.first - 1);
-                           while (i < _i44_a.end && j < _i44_b.end) {
-                               Token *a = &tokens->tokens[i];
-                               Token *b = &tokens->tokens[j];
+                           while (nested_i_2 < _i44_a.end && j < _i44_b.end) {
+                               Token *a = &nested_tokens->tokens[nested_i_2];
+                               Token *b = &nested_tokens->tokens[j];
                                if (a->len != b->len
                                    || memcmp64(a->text, b->text, a->len)) {
                                    _i44_result = false;
                                    goto _i44_done;
                                }
-                               i = csane_tokens_next(&view_a, i);
+                               nested_i_2 = csane_tokens_next(&view_a,
+                                                              nested_i_2);
                                j = csane_tokens_next(&view_b, j);
                            }
-                           _i44_result = i >= _i44_a.end && j >= _i44_b.end;
+                           _i44_result = nested_i_2 >= _i44_a.end
+                                         && j >= _i44_b.end;
                            goto _i44_done;
                            _i44_done: ;
                        } while (false);
-                _i45_result = csane_pointer_lvalue(file, &view, args[0])
+                _i45_result = csane_pointer_lvalue(file, &nested_view, args[0])
                        && _i44_result;
                 goto _i45_done;
                 _i45_done: ;

@@ -59,6 +59,7 @@ csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
 
 static void
 csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
+    int32 count;
     Tokenization *tokens = file->tokens;
     Token *token = &tokens->tokens[name];
     TokenRange args[256];
@@ -74,7 +75,7 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
         in_result_arguments = csane_tokens_arguments(&view, open,
                                                      args, in_capacity);
     } while (false);
-    int32 count = in_result_arguments;
+    count = in_result_arguments;
     if (count < 0) {
         return;
     }
@@ -227,6 +228,8 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
 static bool
 csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
                              int32 name, int32 open) {
+                                 bool _i30_result;
+                                 bool _i30_predicate;
     TokenRange args[1];
     TokenRange condition;
     TokenRange difference;
@@ -277,59 +280,62 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     } else {
         return false;
     }
-    bool _i30_predicate;
-    bool _i30_result;
     do {
         CsaneTokenView *_i30_view = &expression;
         TokenRange _i30_range = difference;
 
-        CsaneTokenView expression;
-        CsaneTokenView difference;
-        TokenRange args[1];
-        int32 name;
-        int32 open;
+        CsaneTokenView nested_expression;
+        CsaneTokenView nested_difference;
+        TokenRange nested_args[1];
+        int32 nested_name;
+        int32 nested_open;
         int32 close;
         int32 minus;
 
         _i30_range = csane_tokens_unwrap(_i30_view, _i30_range);
-        if (!csane_tokens_subview(&expression, _i30_view, _i30_range)) {
+        if (!csane_tokens_subview(&nested_expression, _i30_view, _i30_range)) {
             _i30_result = false;
             goto _i30_done;
         }
-        name = csane_tokens_next(&expression, _i30_range.first - 1);
-        if (name >= _i30_range.end
-            || (!TOKEN_IS(&_i30_view->tokens->tokens[name], "fabs")
-                && !TOKEN_IS(&_i30_view->tokens->tokens[name], "fabsf"))) {
+        nested_name = csane_tokens_next(&nested_expression,
+                                        _i30_range.first - 1);
+        if (nested_name >= _i30_range.end
+            || (!TOKEN_IS(&_i30_view->tokens->tokens[nested_name], "fabs")
+                && !TOKEN_IS(&_i30_view->tokens->tokens[nested_name],
+                             "fabsf"))) {
             _i30_result = false;
             goto _i30_done;
         }
-        open = csane_tokens_next(&expression, name);
-        if (open >= _i30_range.end
-            || !TOKEN_IS(&_i30_view->tokens->tokens[open], "(")) {
+        nested_open = csane_tokens_next(&nested_expression, nested_name);
+        if (nested_open >= _i30_range.end
+            || !TOKEN_IS(&_i30_view->tokens->tokens[nested_open], "(")) {
             _i30_result = false;
             goto _i30_done;
         }
-        close = csane_tokens_match(&expression, open);
-        if (close < 0 || csane_tokens_next(&expression, close) < _i30_range.end
-            || csane_tokens_arguments(&expression, open, args, 1) != 1) {
+        close = csane_tokens_match(&nested_expression, nested_open);
+        if (close < 0 || csane_tokens_next(&nested_expression,
+                                           close) < _i30_range.end
+            || csane_tokens_arguments(&nested_expression, nested_open,
+                                      nested_args, 1) != 1) {
             _i30_result = false;
             goto _i30_done;
         }
-        _i30_range = csane_tokens_unwrap(&expression, args[0]);
-        if (!csane_tokens_subview(&difference, &expression, _i30_range)) {
+        _i30_range = csane_tokens_unwrap(&nested_expression, nested_args[0]);
+        if (!csane_tokens_subview(&nested_difference, &nested_expression,
+                                  _i30_range)) {
             _i30_result = false;
             goto _i30_done;
         }
-        minus = csane_tokens_top_level(&difference, _i30_range.first - 1,
+        minus = csane_tokens_top_level(&nested_difference, _i30_range.first - 1,
                                        "-", 1);
-        if (minus <= csane_tokens_next(&difference, _i30_range.first - 1)
+        if (minus <= csane_tokens_next(&nested_difference, _i30_range.first - 1)
             || minus >= _i30_range.end
-            || csane_tokens_next(&difference, minus) >= _i30_range.end) {
+            || csane_tokens_next(&nested_difference, minus) >= _i30_range.end) {
             _i30_result = false;
             goto _i30_done;
         }
         /* Chained subtraction is not a direct comparison of two operands. */
-        _i30_result = csane_tokens_top_level(&difference, minus, "-", 1)
+        _i30_result = csane_tokens_top_level(&nested_difference, minus, "-", 1)
                == _i30_range.end;
         goto _i30_done;
         _i30_done: ;
@@ -419,6 +425,7 @@ csane_style_assert_rel(CsaneFile *file, CsaneTokenView *view,
  * of a possibly signed/parenthesized integer constant. */
 static int32
 csane_style_integer_operand(CsaneTokenView *view, TokenRange range) {
+    bool _i31_predicate;
     CsaneTokenView local;
     Tokenization *tokens = view->tokens;
     int32 literal;
@@ -433,7 +440,6 @@ csane_style_integer_operand(CsaneTokenView *view, TokenRange range) {
             || TOKEN_IS(&tokens->tokens[literal], "-"))) {
         literal = csane_tokens_next(&local, literal);
     }
-    bool _i31_predicate;
     _i31_predicate = literal >= range.end;
     if (!_i31_predicate) {
         bool _i31_result;
@@ -767,13 +773,13 @@ csane_style_sizeof_cast_operand(CsaneTokenView *view, int32 first,
 static void
 csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
                               int32 name, int32 close) {
-    Tokenization *tokens = view->tokens;
+    Tokenization *expression_tokens = view->tokens;
     int32 before = csane_tokens_previous(view, name);
     int32 after = csane_tokens_next(view, close);
     int32 cast;
 
     if (before >= view->range.first
-        && TOKEN_IS(&tokens->tokens[before], "*")) {
+        && TOKEN_IS(&expression_tokens->tokens[before], "*")) {
         int32 in_result_before;
         do {
             int32 in_multiply = before;
@@ -824,14 +830,14 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
         } while (false);
         cast = in_result_before;
         if (cast >= 0) {
-            csane_rule_issue(file, tokens->tokens[cast].offset,
+            csane_rule_issue(file, expression_tokens->tokens[cast].offset,
                              STRLIT("STYLE-SIZEOF-INT64-CAST"),
                              "remove redundant int64 cast before "
                              "multiplication by SIZEOF");
         }
     }
     if (after < view->range.end
-        && TOKEN_IS(&tokens->tokens[after], "*")) {
+        && TOKEN_IS(&expression_tokens->tokens[after], "*")) {
         int32 in_result_after;
         do {
             int32 in_multiply = after;
@@ -884,7 +890,7 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
         } while (false);
         cast = in_result_after;
         if (cast >= 0) {
-            csane_rule_issue(file, tokens->tokens[cast].offset,
+            csane_rule_issue(file, expression_tokens->tokens[cast].offset,
                              STRLIT("STYLE-SIZEOF-INT64-CAST"),
                              "remove redundant int64 cast before "
                              "multiplication by SIZEOF");

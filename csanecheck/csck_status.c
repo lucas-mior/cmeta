@@ -63,12 +63,13 @@ csane_status_check(CsaneFile *file) {
     if (file->toplevel == NULL || file->regions == NULL) {
         return;
     }
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *top = &file->toplevel->items[i];
+    for (int32 top_i =
+        0; top_i < ARRAY_LEN(file->toplevel->items); top_i += 1) {
+        CsaneTopItem *top = &file->toplevel->items[top_i];
         TokenRange body;
 
         do {
-            TokenRange body;
+            TokenRange nested_body;
             int32 count = 0;
             int32 *refs;
             int32 used = 0;
@@ -78,9 +79,9 @@ csane_status_check(CsaneFile *file) {
             if (top->kind != CSANE_TOP_FUNCTION_DEFINITION) {
                 goto _i55_done;
             }
-            body = top->body;
-            for (int32 i = body.first; i < body.end; i += 1) {
-                count += csane_status_reference(file, i, body);
+            nested_body = top->body;
+            for (int32 i = nested_body.first; i < nested_body.end; i += 1) {
+                count += csane_status_reference(file, i, nested_body);
             }
             if (count < 3 || !(count & 1)) {
                 goto _i55_done;
@@ -89,16 +90,17 @@ csane_status_check(CsaneFile *file) {
             if (refs == NULL) {
                 goto _i55_done;
             }
-            for (int32 i = body.first; i < body.end; i += 1) {
-                if (csane_status_reference(file, i, body)) {
+            for (int32 i = nested_body.first; i < nested_body.end; i += 1) {
+                if (csane_status_reference(file, i, nested_body)) {
                     refs[used++] = i;
                 }
             }
             for (int32 i = 0; i < count; i += 1) {
-                declarations += csane_status_declaration(file, refs[i], body);
+                declarations += csane_status_declaration(file, refs[i],
+                                                         nested_body);
             }
             matches = declarations == 1
-                      && csane_status_declaration(file, refs[0], body);
+                      && csane_status_declaration(file, refs[0], nested_body);
             for (int32 i = 1; matches && i < count; i += 2) {
                 bool in_result_pair;
                 do {
@@ -112,13 +114,14 @@ csane_status_check(CsaneFile *file) {
                     SourceLocation a;
                     SourceLocation b;
 
-                    if (next >= body.end
+                    if (next >= nested_body.end
                         || !csane_status_is(file, next, STRLIT("="))) {
                         in_result_pair = false;
                         break;
                     }
-                    for (int32 i = next + 1; i < in_use; i += 1) {
-                        terminators += csane_status_is(file, i, STRLIT(";"));
+                    for (int32 sep_i = next + 1; sep_i < in_use; sep_i += 1) {
+                        terminators += csane_status_is(file, sep_i,
+                                                       STRLIT(";"));
                     }
                     /* A second completed statement can have side effects that
                      * would be

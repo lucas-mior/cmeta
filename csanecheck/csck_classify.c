@@ -33,13 +33,13 @@ csane_class_word(Token *token, char *word, int32 word_len) {
 
 enum CsaneNameKind
 csane_name_kind(Token *token) {
+    bool primitive = false;
     bool upper = false;
     bool lower = false;
 
     if ((token == NULL) || token->kind != TOKEN_IDENT || token->len <= 0) {
         return CSANE_NAME_OTHER;
     }
-    bool primitive = false;
     for (int32 i = 0; i < LENGTH(csane_class_primitives); i += 1) {
         StrFlex *word = csane_class_primitives[i];
         if (csane_class_word(token, word->data, word->len)) {

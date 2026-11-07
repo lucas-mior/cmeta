@@ -383,16 +383,18 @@ csane_tokens_unwrap(CsaneTokenView *view, TokenRange range) {
             CsaneTokenView *in_view = &local;
 
             TokenRange result;
-            int32 first = csane_tokens_next(in_view, in_view->range.first - 1);
-            int32 last;
-            if (first < in_view->range.first || first >= in_view->range.end) {
+            int32 nested_first = csane_tokens_next(in_view,
+                                                   in_view->range.first - 1);
+            int32 nested_last;
+            if (nested_first < in_view->range.first
+                || nested_first >= in_view->range.end) {
                 in_result_trim =
                     (TokenRange){in_view->range.end, in_view->range.end};
                 break;
             }
-            last = csane_tokens_previous(in_view, in_view->range.end);
-            result.first = first;
-            result.end = last + 1;
+            nested_last = csane_tokens_previous(in_view, in_view->range.end);
+            result.first = nested_first;
+            result.end = nested_last + 1;
             in_result_trim = result;
         } while (false);
         trimmed = in_result_trim;

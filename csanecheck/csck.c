@@ -336,8 +336,10 @@ csane_run(int32 argc, char **argv) {
     (void)mkdir(".cache", 0700);
     (void)mkdir(".cache/csanecheck", 0700);
 #endif
-    for (int32 i = 0; i < strflex_list_len(&options.files.strings); i += 1) {
-        StrFlex *entry = options.files.strings.items[i];
+    for (int32 file_i =
+        0; file_i < strflex_list_len(&options.files.strings); file_i += 1) {
+        int32 in_result_analyze;
+        StrFlex *entry = options.files.strings.items[file_i];
         char *path = entry->data;
         int32 status;
 #if OS_UNIX
@@ -384,7 +386,6 @@ csane_run(int32 argc, char **argv) {
             }
         }
 #endif
-        int32 in_result_analyze;
         do {
             char *in_path = path;
             int32 in_path_len = entry->len;

@@ -134,8 +134,9 @@ csane_control_check(CsaneFile *file) {
         || ENDS_WITH(file->path, file->path_len, ".meta.h")) {
         return;
     }
-    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
-        CsaneStatement *stmt = &file->statements->items[i];
+    for (int32 stmt_i =
+        0; stmt_i < ARRAY_LEN(file->statements->items); stmt_i += 1) {
+        CsaneStatement *stmt = &file->statements->items[stmt_i];
         do {
             CsaneFile *in_file = file;
             CsaneStatement *in_stmt = stmt;
@@ -174,6 +175,7 @@ csane_control_check(CsaneFile *file) {
                                 "else body must use curly braces");
         } while (false);
         do {
+            int32 in_result_switch;
             int32 parent;
             int32 label_token;
             CsaneStatement *sw;
@@ -185,7 +187,6 @@ csane_control_check(CsaneFile *file) {
                 && stmt->kind != CSANE_STMT_DEFAULT) {
                 goto _i16_done;
             }
-            int32 in_result_switch;
             do {
                 CsaneFile *in_file = file;
                 CsaneStatement *in_label = stmt;
@@ -229,7 +230,9 @@ csane_control_check(CsaneFile *file) {
             _i16_done: ;
         } while (false);
         do {
-            int32 token;
+            bool _i18_result;
+            bool _i17_predicate;
+            int32 guard_token;
             SourceLocation loc;
             int32 offset;
             char *text;
@@ -270,8 +273,6 @@ csane_control_check(CsaneFile *file) {
                     goto _i19_done;
                 }
             }
-            bool _i17_predicate;
-            bool _i18_result;
             do {
                 int32 first = csane_control_first(file, stmt);
                 int32 prev = csane_control_previous(file, stmt, first);
@@ -358,11 +359,11 @@ csane_control_check(CsaneFile *file) {
                     }
                     for (int32 i = first - 1; i >= 0; i -= 1) {
                         Token *token = &file->tokens->tokens[i];
-                        int32 start =
+                        int32 nested_start =
                             file->toplevel->items[stmt->function].source.start;
                         int32 region;
 
-                        if (token->offset < start) {
+                        if (token->offset < nested_start) {
                             break;
                         }
                         region = csane_regions_at_token(file->regions, i);
@@ -386,15 +387,15 @@ csane_control_check(CsaneFile *file) {
             if (_i17_predicate) {
                 goto _i19_done;
             }
-            token = csane_control_first(file, stmt);
-            if (token < 0) {
+            guard_token = csane_control_first(file, stmt);
+            if (guard_token < 0) {
                 goto _i19_done;
             }
-            loc = tokenization_token_location(file->tokens, token);
+            loc = tokenization_token_location(file->tokens, guard_token);
             if (loc.column < 12) {
                 goto _i19_done;
             }
-            offset = file->tokens->tokens[token].offset;
+            offset = file->tokens->tokens[guard_token].offset;
             text = file->tokens->text;
             start = offset;
             while (start > 0 && text[start - 1] != '\n') {
@@ -413,7 +414,12 @@ csane_control_check(CsaneFile *file) {
             _i19_done: ;
         } while (false);
         do {
-            int32 _i24_index = i;
+            bool _i23_result;
+            bool _i23_predicate;
+            bool _i22_result;
+            bool _i22_predicate;
+            bool _i21_predicate;
+            int32 _i24_index = stmt_i;
 
             Tokenization *tokens = file->tokens;
             CsaneTokenView view;
@@ -449,7 +455,6 @@ csane_control_check(CsaneFile *file) {
                 goto _i24_done;
             }
             close = csane_tokens_match(&view, open);
-            bool _i21_predicate;
             _i21_predicate = close != last;
             if (!_i21_predicate) {
                 _i21_predicate = tokenization_token_location(tokens, open).line
@@ -461,27 +466,28 @@ csane_control_check(CsaneFile *file) {
             if (!_i21_predicate) {
                 bool _i21_result;
                 do {
-                    Tokenization *tokens = file->tokens;
-                    CsaneTokenView view;
+                    Tokenization *nested_tokens = file->tokens;
+                    CsaneTokenView nested_view;
                     TokenRange condition = {open + 1, close};
                     int32 assignments = 0;
 
                     bool _i20_predicate;
                     bool _i20_result;
                     do {
-                        Tokenization *tokens = file->tokens;
-                        CsaneTokenView view;
-                        TokenRange condition = {open + 1, close};
+                        Tokenization *tokens2 = file->tokens;
+                        CsaneTokenView view2;
+                        TokenRange condition2 = {open + 1, close};
                         int32 comparison = -1;
 
-                        if (!csane_tokens_view(&view, tokens, condition)) {
+                        if (!csane_tokens_view(&view2, tokens2, condition2)) {
                             _i20_result = false;
                             goto _i20_done;
                         }
-                        condition = csane_tokens_unwrap(&view, condition);
+                        condition2 = csane_tokens_unwrap(&view2, condition2);
                         for (int32 i =
-                            condition.first; i < condition.end; i += 1) {
-                            Token *token = &tokens->tokens[i];
+                            condition2.first; i
+                                < condition2.end; i += 1) {
+                            Token *token = &tokens2->tokens[i];
 
                             if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
                                 || TOKEN_IS(token, "?")
@@ -498,22 +504,23 @@ csane_control_check(CsaneFile *file) {
                             }
                         }
                         if (comparison < 0
-                            || !csane_tokens_view(&view, tokens, condition)) {
+                            || !csane_tokens_view(&view2, tokens2,
+                                                  condition2)) {
                             _i20_result = false;
                             goto _i20_done;
                         }
-                        for (int32 i = csane_tokens_next(&view,
-                                                         condition.first - 1);
-                             i < condition.end; i = csane_tokens_next(&view,
-                                                                      i)) {
-                            Token *token = &tokens->tokens[i];
+                        for (int32 i = csane_tokens_next(&view2,
+                                                         condition2.first - 1);
+                             i < condition2.end; i =
+                                 csane_tokens_next(&view2, i)) {
+                            Token *token = &tokens2->tokens[i];
 
                             if (i == comparison) {
                                 _i20_result = true;
                                 goto _i20_done;
                             }
                             if (token_is_open_delimiter(token)) {
-                                int32 match = csane_tokens_match(&view, i);
+                                int32 match = csane_tokens_match(&view2, i);
 
                                 if (match < 0) {
                                     _i20_result = false;
@@ -531,13 +538,14 @@ csane_control_check(CsaneFile *file) {
                         _i21_result = true;
                         goto _i21_done;
                     }
-                    if (!csane_tokens_view(&view, tokens, condition)) {
+                    if (!csane_tokens_view(&nested_view, nested_tokens,
+                                           condition)) {
                         _i21_result = false;
                         goto _i21_done;
                     }
-                    condition = csane_tokens_unwrap(&view, condition);
+                    condition = csane_tokens_unwrap(&nested_view, condition);
                     for (int32 i = condition.first; i < condition.end; i += 1) {
-                        Token *token = &tokens->tokens[i];
+                        Token *token = &nested_tokens->tokens[i];
 
                         if (csane_control_comparator(token)
                             || TOKEN_IS(token, "&&")
@@ -547,14 +555,16 @@ csane_control_check(CsaneFile *file) {
                             goto _i21_done;
                         }
                     }
-                    if (!csane_tokens_view(&view, tokens, condition)) {
+                    if (!csane_tokens_view(&nested_view, nested_tokens,
+                                           condition)) {
                         _i21_result = false;
                         goto _i21_done;
                     }
-                    for (int32 i = csane_tokens_next(&view,
+                    for (int32 i = csane_tokens_next(&nested_view,
                                                      condition.first - 1);
-                         i < condition.end; i = csane_tokens_next(&view, i)) {
-                        Token *token = &tokens->tokens[i];
+                         i < condition.end; i = csane_tokens_next(&nested_view,
+                                                                  i)) {
+                        Token *token = &nested_tokens->tokens[i];
 
                         if (TOKEN_IS(token, ",")) {
                             _i21_result = false;
@@ -568,7 +578,7 @@ csane_control_check(CsaneFile *file) {
                             }
                         }
                         if (token_is_open_delimiter(token)) {
-                            int32 match = csane_tokens_match(&view, i);
+                            int32 match = csane_tokens_match(&nested_view, i);
 
                             if (match < 0) {
                                 _i21_result = false;
@@ -590,8 +600,6 @@ csane_control_check(CsaneFile *file) {
             while (start > 0 && tokens->text[start - 1] != '\n') {
                 start -= 1;
             }
-            bool _i22_predicate;
-            bool _i22_result;
             do {
                 char *_i22_text = tokens->text;
                 int32 _i22_keyword = tokens->tokens[first].offset;
@@ -635,8 +643,6 @@ csane_control_check(CsaneFile *file) {
                                || tokens->text[end - 1] == '\r')) {
                 end -= 1;
             }
-            bool _i23_predicate;
-            bool _i23_result;
             do {
                 char *_i23_text = tokens->text;
                 Token *close_token = &tokens->tokens[close];
