@@ -7,30 +7,6 @@
 #include "cbase.h"
 #include "csck.h"
 
-static void
-csane_usage(void) {
-    fmt_printf("usage: csanecheck [--root DIR] [--file PATH] "
-               "[--file-list PATH]\n"
-               "                  [--max-depth N] [--report-parse-issues]\n"
-               "                  [--strict-parse] [--require-coverage]\n"
-               "                  [--stats] [--coverage]\n"
-               "                  [--rule-coverage]\n"
-               "                  [--config FILE]\n"
-               "                  [--source-root DIR] [--skip-dir NAME]\n"
-               "                  [--clear-source-roots]\n"
-               "                  [--exclude REGEX] [--filter MODULE]\n"
-               "                  [--cbase-root DIR] "
-               "[--no-column-limit REGEX]\n"
-               "                  [--help]\n"
-               "       csanecheck PATH [PATH ...]\n"
-               "\n"
-               "Token-local source, structural, and contextual checks.\n"
-               "Without paths, search the current project directory.\n"
-               "Exit: 0 clean, 1 violations/required-coverage failure,\n"
-               "      2 usage/I/O error.\n");
-    return;
-}
-
 static bool
 csane_depth(char *text, int32 text_len, int32 *value) {
     char *end;
@@ -381,7 +357,25 @@ csane_run(int32 argc, char **argv) {
         char *arg = argv[i];
         int32 arg_len = arg_lens[i];
         if (STREQUAL(arg, arg_len, "--help") || STREQUAL(arg, arg_len, "-h")) {
-            csane_usage();
+        fmt_printf("usage: csanecheck [--root DIR] [--file PATH] "
+                   "[--file-list PATH]\n"
+                   "                  [--max-depth N] [--report-parse-issues]\n"
+                   "                  [--strict-parse] [--require-coverage]\n"
+                   "                  [--stats] [--coverage]\n"
+                   "                  [--rule-coverage]\n"
+                   "                  [--config FILE]\n"
+                   "                  [--source-root DIR] [--skip-dir NAME]\n"
+                   "                  [--clear-source-roots]\n"
+                   "                  [--exclude REGEX] [--filter MODULE]\n"
+                   "                  [--cbase-root DIR] "
+                   "[--no-column-limit REGEX]\n"
+                   "                  [--help]\n"
+                   "       csanecheck PATH [PATH ...]\n"
+                   "\n"
+                   "Token-local source, structural, and contextual checks.\n"
+                   "Without paths, search the current project directory.\n"
+                   "Exit: 0 clean, 1 violations/required-coverage failure,\n"
+                   "      2 usage/I/O error.\n");
             goto cleanup;
         }
         if (STREQUAL(arg, arg_len, "--version")) {
