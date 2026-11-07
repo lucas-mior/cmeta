@@ -116,41 +116,33 @@ csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
  * Search the stack for the nearest compatible opener and discard only the
  * damaged nesting above it. Matches outside the damaged span survive. */
 
-static bool
-csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
-              char *name, int32 name_len) {
-    for (int32 i = first; i < end; i += 1) {
-        if (csane_top_is(stream, i, name, name_len)) {
-            return true;
-        }
-        if (csane_top_open(stream, i) && stream->matches[i] > i) {
-            i = stream->matches[i];
-        }
-    }
-    return false;
-}
 
-static bool
-csane_top_attribute(CsaneTopStream *stream, int32 pos) {
-    Token *token;
-
-    if (pos < 0 || pos >= ARRAY_LEN(stream->indices)) {
-        return false;
-    }
-    token = csane_top_token(stream, pos);
-    return csane_top_is(stream, pos, STRLIT("__attribute__"))
-           || csane_top_is(stream, pos, STRLIT("__attribute"))
-           || csane_top_is(stream, pos, STRLIT("__declspec"))
-           || csane_top_is(stream, pos, STRLIT("__asm__"))
-           || (token->kind == TOKEN_IDENT && token->len > 5
-               && BEGINS_WITH(token->text, token->len, "ATTR_"));
-}
 
 /* ATTR_* can itself be a macro-generated function name. Treat it as a
  * trailing annotation only after an earlier parameter list has closed. */
 static bool
 csane_top_trailing_attribute(CsaneTopStream *stream, int32 first, int32 pos) {
-    if (!csane_top_attribute(stream, pos)) {
+    bool _i57_predicate;
+    bool _i57_result;
+    do {
+        Token *token;
+
+        if (pos < 0 || pos >= ARRAY_LEN(stream->indices)) {
+            _i57_result = false;
+            goto _i57_done;
+        }
+        token = csane_top_token(stream, pos);
+        _i57_result = csane_top_is(stream, pos, STRLIT("__attribute__"))
+               || csane_top_is(stream, pos, STRLIT("__attribute"))
+               || csane_top_is(stream, pos, STRLIT("__declspec"))
+               || csane_top_is(stream, pos, STRLIT("__asm__"))
+               || (token->kind == TOKEN_IDENT && token->len > 5
+                   && BEGINS_WITH(token->text, token->len, "ATTR_"));
+        goto _i57_done;
+        _i57_done: ;
+    } while (false);
+    _i57_predicate = !_i57_result;
+    if (_i57_predicate) {
         return false;
     }
     for (int32 i = first; i < pos; i += 1) {
@@ -169,8 +161,33 @@ static bool
 csane_top_is_function(CsaneTopStream *stream, int32 first,
                       int32 end, int32 *name) {
     *name = -1;
-    if (first >= end || csane_top_is(stream, first, STRLIT("typedef"))
-        || csane_top_has(stream, first, end, STRLIT("="))) {
+    bool _i56_predicate;
+    _i56_predicate = first >= end;
+    if (!_i56_predicate) {
+        _i56_predicate = csane_top_is(stream, first, STRLIT("typedef"));
+    }
+    if (!_i56_predicate) {
+        bool _i56_result;
+        do {
+            char *_i56_name = "=";
+            int32 _i56_name_len = 1;
+
+            for (int32 i = first; i < end; i += 1) {
+                if (csane_top_is(stream, i, _i56_name, _i56_name_len)) {
+                    _i56_result = true;
+                    goto _i56_done;
+                }
+                if (csane_top_open(stream, i) && stream->matches[i] > i) {
+                    i = stream->matches[i];
+                }
+            }
+            _i56_result = false;
+            goto _i56_done;
+            _i56_done: ;
+        } while (false);
+        _i56_predicate = _i56_result;
+    }
+    if (_i56_predicate) {
         return false;
     }
     int32 in_result_name;
@@ -238,42 +255,7 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
     return true;
 }
 
-static bool
-csane_top_type(CsaneTopStream *stream, int32 first, int32 end) {
-    if (csane_top_is(stream, first, STRLIT("typedef"))) {
-        return true;
-    }
-    for (int32 i = first; i < end && i < first + 3; i += 1) {
-        if (csane_top_is(stream, i, STRLIT("struct"))
-            || csane_top_is(stream, i, STRLIT("union"))
-            || csane_top_is(stream, i, STRLIT("enum"))) {
-            for (int32 j = i + 1; j < end; j += 1) {
-                if (csane_top_is(stream, j, STRLIT("{"))) {
-                    return true;
-                }
-                if (csane_top_is(stream, j, STRLIT(";"))) {
-                    break;
-                }
-            }
-        }
-    }
-    return false;
-}
 
-static bool
-csane_top_macro_statement(CsaneTopStream *stream, int32 first, int32 end) {
-    int32 close;
-
-    if (!csane_token_macro_name(csane_top_token(stream, first))
-        || !csane_top_is(stream, first + 1, STRLIT("("))) {
-        return false;
-    }
-    close = stream->matches[first + 1];
-    return close >= first + 2
-           && (close + 1 == end
-               || (close + 2 == end
-               && csane_top_is(stream, end - 1, STRLIT(";"))));
-}
 
 static enum CsaneTopKind
 csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
@@ -282,11 +264,57 @@ csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
     if (first >= end) {
         return CSANE_TOP_OPAQUE;
     }
-    if (csane_top_macro_statement(stream, first, end)) {
+    bool _i59_predicate;
+    bool _i59_result;
+    do {
+        int32 close;
+
+        if (!csane_token_macro_name(csane_top_token(stream, first))
+            || !csane_top_is(stream, first + 1, STRLIT("("))) {
+            _i59_result = false;
+            goto _i59_done;
+        }
+        close = stream->matches[first + 1];
+        _i59_result = close >= first + 2
+               && (close + 1 == end
+                   || (close + 2 == end
+                   && csane_top_is(stream, end - 1, STRLIT(";"))));
+        goto _i59_done;
+        _i59_done: ;
+    } while (false);
+    _i59_predicate = _i59_result;
+    if (_i59_predicate) {
         *name = first;
         return CSANE_TOP_MACRO_INVOCATION;
     }
-    if (csane_top_type(stream, first, end)) {
+    bool _i58_predicate;
+    bool _i58_result;
+    do {
+        if (csane_top_is(stream, first, STRLIT("typedef"))) {
+            _i58_result = true;
+            goto _i58_done;
+        }
+        for (int32 i = first; i < end && i < first + 3; i += 1) {
+            if (csane_top_is(stream, i, STRLIT("struct"))
+                || csane_top_is(stream, i, STRLIT("union"))
+                || csane_top_is(stream, i, STRLIT("enum"))) {
+                for (int32 j = i + 1; j < end; j += 1) {
+                    if (csane_top_is(stream, j, STRLIT("{"))) {
+                        _i58_result = true;
+                        goto _i58_done;
+                    }
+                    if (csane_top_is(stream, j, STRLIT(";"))) {
+                        break;
+                    }
+                }
+            }
+        }
+        _i58_result = false;
+        goto _i58_done;
+        _i58_done: ;
+    } while (false);
+    _i58_predicate = _i58_result;
+    if (_i58_predicate) {
         return CSANE_TOP_TYPE_DECLARATION;
     }
     if (csane_top_is_function(stream, first, end - 1, name)
@@ -388,36 +416,6 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
 /* Find an aggregate's opening brace before the branch. The enclosing
  * type declaration must itself have been recognized by the parent stream.
  * Other compound constructs inside its body are not guessed to be fields. */
-static enum CsaneTopKind
-csane_top_aggregate(CsaneTopStream *stream, CsaneTopItem *item) {
-    Tokenization *tokens = stream->top->regions->tokens;
-    int32 offset = stream->top->regions->items[stream->owner].source.start;
-    bool struct_or_union = false;
-    bool is_enum = false;
-    for (int32 i = item->tokens.first; i < item->tokens.end; i += 1) {
-        Token *token = &tokens->tokens[i];
-        if (token->offset >= offset) {
-            break;
-        }
-        if (TOKEN_IS(token, "struct") || TOKEN_IS(token, "union")) {
-            struct_or_union = true;
-            is_enum = false;
-        } else if (TOKEN_IS(token, "enum")) {
-            struct_or_union = false;
-            is_enum = true;
-        } else if (TOKEN_IS(token, "{")) {
-            if (struct_or_union || is_enum) {
-                return is_enum ? CSANE_TOP_ENUMERATOR
-                               : CSANE_TOP_MEMBER_DECLARATION;
-            }
-            break;
-        } else if (TOKEN_IS(token, ";")) {
-            struct_or_union = false;
-            is_enum = false;
-        }
-    }
-    return CSANE_TOP_OPAQUE;
-}
 
 /* A fragment of a function header must be enclosed by a real parameter
  * pair. In particular, a guard before the return type is not a parameter. */
@@ -824,7 +822,46 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
         }
         /* Complete body alternatives belong to the statement scanner. */
     } else if (enclosing->kind == CSANE_TOP_TYPE_DECLARATION) {
-        enum CsaneTopKind kind = csane_top_aggregate(&stream, enclosing);
+        enum CsaneTopKind _i60_result;
+        do {
+            CsaneTopStream *_i60_stream = &stream;
+            CsaneTopItem *_i60_item = enclosing;
+
+            Tokenization *tokens = _i60_stream->top->regions->tokens;
+            CsaneSourceRegion *owner_region =
+                    &_i60_stream->top->regions->items[_i60_stream->owner];
+                int32 offset = owner_region->source.start;
+            bool struct_or_union = false;
+            bool is_enum = false;
+            for (int32 i =
+                _i60_item->tokens.first; i < _i60_item->tokens.end; i += 1) {
+                Token *token = &tokens->tokens[i];
+                if (token->offset >= offset) {
+                    break;
+                }
+                if (TOKEN_IS(token, "struct") || TOKEN_IS(token, "union")) {
+                    struct_or_union = true;
+                    is_enum = false;
+                } else if (TOKEN_IS(token, "enum")) {
+                    struct_or_union = false;
+                    is_enum = true;
+                } else if (TOKEN_IS(token, "{")) {
+                    if (struct_or_union || is_enum) {
+                        _i60_result = is_enum ? CSANE_TOP_ENUMERATOR
+                                       : CSANE_TOP_MEMBER_DECLARATION;
+                        goto _i60_done;
+                    }
+                    break;
+                } else if (TOKEN_IS(token, ";")) {
+                    struct_or_union = false;
+                    is_enum = false;
+                }
+            }
+            _i60_result = CSANE_TOP_OPAQUE;
+            goto _i60_done;
+            _i60_done: ;
+        } while (false);
+        enum CsaneTopKind kind = _i60_result;
         if (kind == CSANE_TOP_OPAQUE) {
             csane_top_append(&stream, kind, 0, count, -1, -1);
         } else {
@@ -878,26 +915,7 @@ csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
                     STRLIT("__cplusplus")) != NULL;
 }
 
-static bool
-csane_top_path_has_branch(CsaneRegions *regions, int32 branch, int32 owner) {
-    for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
-        if (r == branch) {
-            return true;
-        }
-    }
-    return false;
-}
 
-static bool
-csane_top_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
-    for (int32 r = region; r >= 0; r = regions->items[r].parent) {
-        if (regions->items[r].kind == CSANE_REGION_CONDITIONAL_BRANCH
-            && !csane_top_path_has_branch(regions, r, owner)) {
-            return false;
-        }
-    }
-    return true;
-}
 
 /* A code region is a leaf of the source partition. Its token range is
  * contiguous, so branch selection is needed only once per region. */
@@ -913,10 +931,54 @@ csane_top_branch_path(CsaneTopLevels *top, int32 owner, TokenRange bounds,
         CsaneSourceRegion *region = &regions->items[i];
         TokenRange part = region->tokens;
 
-        if (region->kind != CSANE_REGION_CODE
-            || (part.end <= bounds.first)
-            || (part.first >= bounds.end)
-            || !csane_top_path_selects(regions, i, owner)) {
+        bool _i62_predicate;
+        _i62_predicate = region->kind != CSANE_REGION_CODE;
+        if (!_i62_predicate) {
+            _i62_predicate = part.end <= bounds.first;
+        }
+        if (!_i62_predicate) {
+            _i62_predicate = part.first >= bounds.end;
+        }
+        if (!_i62_predicate) {
+            bool _i62_result;
+            do {
+                int32 _i62_region = i;
+
+                for (int32 r = _i62_region; r >= 0; r =
+                    regions->items[r].parent) {
+                    bool _i61_predicate;
+                    _i61_predicate = regions->items[r].kind
+                        == CSANE_REGION_CONDITIONAL_BRANCH;
+                    if (_i61_predicate) {
+                        bool _i61_result;
+                        do {
+                            int32 _i61_branch = r;
+
+                            for (int32 r = owner; r >= 0; r =
+                                regions->items[r].parent) {
+                                if (r == _i61_branch) {
+                                    _i61_result = true;
+                                    goto _i61_done;
+                                }
+                            }
+                            _i61_result = false;
+                            goto _i61_done;
+                            _i61_done: ;
+                        } while (false);
+                        _i61_predicate = !_i61_result;
+                    }
+                    if (_i61_predicate) {
+                        _i62_result = false;
+                        goto _i62_done;
+                    }
+                }
+                _i62_result = true;
+                goto _i62_done;
+                _i62_done: ;
+            } while (false);
+            _i62_predicate = !_i62_result;
+        }
+        if (_i62_predicate) {
             continue;
         }
         if (part.first < bounds.first) {

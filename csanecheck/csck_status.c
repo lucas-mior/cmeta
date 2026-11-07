@@ -52,77 +52,6 @@ csane_status_declaration(CsaneFile *file, int32 token, TokenRange body) {
 }
 
 
-static void
-csane_status_function(CsaneFile *file, CsaneTopItem *top) {
-    TokenRange body;
-    int32 count = 0;
-    int32 *refs;
-    int32 used = 0;
-    int32 declarations = 0;
-    bool matches;
-
-    if (top->kind != CSANE_TOP_FUNCTION_DEFINITION) {
-        return;
-    }
-    body = top->body;
-    for (int32 i = body.first; i < body.end; i += 1) {
-        count += csane_status_reference(file, i, body);
-    }
-    if (count < 3 || !(count & 1)) {
-        return;
-    }
-    refs = malloc2(count*SIZEOF(*refs));
-    if (refs == NULL) {
-        return;
-    }
-    for (int32 i = body.first; i < body.end; i += 1) {
-        if (csane_status_reference(file, i, body)) {
-            refs[used++] = i;
-        }
-    }
-    for (int32 i = 0; i < count; i += 1) {
-        declarations += csane_status_declaration(file, refs[i], body);
-    }
-    matches = declarations == 1
-              && csane_status_declaration(file, refs[0], body);
-    for (int32 i = 1; matches && i < count; i += 2) {
-        bool in_result_pair;
-        do {
-            int32 in_assignment = refs[i];
-            int32 in_use = refs[i + 1];
-
-            int32 next =
-                tokenization_next_significant(file->tokens, in_assignment);
-            int32 terminators = 0;
-            SourceLocation a;
-            SourceLocation b;
-
-            if (next >= body.end || !csane_status_is(file, next, STRLIT("="))) {
-                in_result_pair = false;
-                break;
-            }
-            for (int32 i = next + 1; i < in_use; i += 1) {
-                terminators += csane_status_is(file, i, STRLIT(";"));
-            }
-            /* A second completed statement can have side effects that would be
-             * reordered by inlining the assignment into the following use. */
-            if (terminators != 1) {
-                in_result_pair = false;
-                break;
-            }
-            a = tokenization_token_location(file->tokens, in_assignment);
-            b = tokenization_token_location(file->tokens, in_use);
-            in_result_pair = b.line == a.line + 1;
-        } while (false);
-        matches = in_result_pair;
-    }
-    if (matches) {
-        csane_rule_issue(file, file->tokens->tokens[refs[0]].offset,
-                         STRLIT("STYLE-STATUS-TEMP"),
-                         "inline int32 status assignment/use pairs");
-    }
-    free2(refs, count*SIZEOF(*refs));
-}
 
 /* Find the adjacent call/check pair in source tokens. Statement parsing can
  * lose sibling relationships near conditional branches and large functions,
@@ -138,7 +67,82 @@ csane_status_check(CsaneFile *file) {
         CsaneTopItem *top = &file->toplevel->items[i];
         TokenRange body;
 
-        csane_status_function(file, top);
+        do {
+            TokenRange body;
+            int32 count = 0;
+            int32 *refs;
+            int32 used = 0;
+            int32 declarations = 0;
+            bool matches;
+
+            if (top->kind != CSANE_TOP_FUNCTION_DEFINITION) {
+                goto _i55_done;
+            }
+            body = top->body;
+            for (int32 i = body.first; i < body.end; i += 1) {
+                count += csane_status_reference(file, i, body);
+            }
+            if (count < 3 || !(count & 1)) {
+                goto _i55_done;
+            }
+            refs = malloc2(count*SIZEOF(*refs));
+            if (refs == NULL) {
+                goto _i55_done;
+            }
+            for (int32 i = body.first; i < body.end; i += 1) {
+                if (csane_status_reference(file, i, body)) {
+                    refs[used++] = i;
+                }
+            }
+            for (int32 i = 0; i < count; i += 1) {
+                declarations += csane_status_declaration(file, refs[i], body);
+            }
+            matches = declarations == 1
+                      && csane_status_declaration(file, refs[0], body);
+            for (int32 i = 1; matches && i < count; i += 2) {
+                bool in_result_pair;
+                do {
+                    int32 in_assignment = refs[i];
+                    int32 in_use = refs[i + 1];
+
+                    int32 next =
+                        tokenization_next_significant(file->tokens,
+                                                      in_assignment);
+                    int32 terminators = 0;
+                    SourceLocation a;
+                    SourceLocation b;
+
+                    if (next >= body.end
+                        || !csane_status_is(file, next, STRLIT("="))) {
+                        in_result_pair = false;
+                        break;
+                    }
+                    for (int32 i = next + 1; i < in_use; i += 1) {
+                        terminators += csane_status_is(file, i, STRLIT(";"));
+                    }
+                    /* A second completed statement can have side effects that
+                     * would be
+                      * reordered by inlining the assignment into the following
+                      * use. */
+                    if (terminators != 1) {
+                        in_result_pair = false;
+                        break;
+                    }
+                    a = tokenization_token_location(file->tokens,
+                                                    in_assignment);
+                    b = tokenization_token_location(file->tokens, in_use);
+                    in_result_pair = b.line == a.line + 1;
+                } while (false);
+                matches = in_result_pair;
+            }
+            if (matches) {
+                csane_rule_issue(file, file->tokens->tokens[refs[0]].offset,
+                                 STRLIT("STYLE-STATUS-TEMP"),
+                                 "inline int32 status assignment/use pairs");
+            }
+            free2(refs, count*SIZEOF(*refs));
+            _i55_done: ;
+        } while (false);
         if (top->kind != CSANE_TOP_FUNCTION_DEFINITION) {
             continue;
         }

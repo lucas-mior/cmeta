@@ -133,27 +133,6 @@ csane_source_horizontal(char c) {
 }
 
 /* Return the first character of the directive keyword, or -1. */
-static int32
-csane_source_directive(CsaneFile *file, int32 start, int32 end, int32 *cursor) {
-    char *text = file->tokens->text;
-    int32 i = start;
-    while (i < end && (csane_source_horizontal(text[i])
-                       || csane_source_masked(file->tokens, cursor, i))) {
-        i += 1;
-    }
-    if (i >= end || text[i] != '#') {
-        return -1;
-    }
-    i += 1;
-    while (i < end && (csane_source_horizontal(text[i])
-                       || csane_source_masked(file->tokens, cursor, i))) {
-        i += 1;
-    }
-    if (i >= end || csane_source_masked(file->tokens, cursor, i)) {
-        return -1;
-    }
-    return i;
-}
 
 static bool
 csane_source_keyword(char *text, int32 end, int32 index,
@@ -176,7 +155,36 @@ csane_rule_preprocessor(CsaneFile *file) {
         while (end < len && text[end] != '\n') {
             end += 1;
         }
-        keyword = csane_source_directive(file, start, end, &cursor);
+        int32 _i46_result;
+        do {
+            int32 *_i46_cursor = &cursor;
+
+            char *text = file->tokens->text;
+            int32 i = start;
+            while (i < end && (csane_source_horizontal(text[i])
+                               || csane_source_masked(file->tokens,
+                                                      _i46_cursor, i))) {
+                i += 1;
+            }
+            if (i >= end || text[i] != '#') {
+                _i46_result = -1;
+                goto _i46_done;
+            }
+            i += 1;
+            while (i < end && (csane_source_horizontal(text[i])
+                               || csane_source_masked(file->tokens,
+                                                      _i46_cursor, i))) {
+                i += 1;
+            }
+            if (i >= end || csane_source_masked(file->tokens, _i46_cursor, i)) {
+                _i46_result = -1;
+                goto _i46_done;
+            }
+            _i46_result = i;
+            goto _i46_done;
+            _i46_done: ;
+        } while (false);
+        keyword = _i46_result;
         if (csane_source_keyword(text, end, keyword, STRLIT("ifdef"))
             || csane_source_keyword(text, end, keyword, STRLIT("ifndef"))) {
             csane_rule_issue(file, start, STRLIT("PP-DEFINED"),
@@ -213,61 +221,10 @@ csane_rule_preprocessor(CsaneFile *file) {
     return;
 }
 
-static bool
-csane_in_sizeof_definition(CsaneFile *file, int32 token_index) {
-    CPreprocessorAnalysis *pp = file->preprocessor;
-    int32 directive_index;
-    CPreprocessorDirective *directive;
-    CPreprocessorDefine define;
-    Token *name;
-
-    if (pp->token_directives == NULL) {
-        return false;
-    }
-    directive_index = pp->token_directives[token_index];
-    if (directive_index < 0 || directive_index >= ARRAY_LEN(pp->directives)) {
-        return false;
-    }
-    directive = &pp->directives[directive_index];
-    if (directive->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
-        || !c_preprocessor_define_info(file->tokens, directive, &define)
-        || define.name_token < 0) {
-        return false;
-    }
-    name = &file->tokens->tokens[define.name_token];
-    return csane_token_text(name, STRLIT("SIZEOF"));
-}
 
 /* Avoid treating an isolated macro alias or keyword table entry as a
  * sizeof operator. The next token must be a plausible unary operand.
  */
-static bool
-csane_sizeof_has_operand(CsaneFile *file, int32 index) {
-    Tokenization *tokens = file->tokens;
-    int32 next = tokenization_next_significant(tokens, index);
-    Token *token;
-    if (next >= ARRAY_LEN(tokens->tokens)) {
-        return false;
-    }
-    if ((file->preprocessor->token_roles != NULL)
-        && (file->preprocessor->token_roles[index]
-            == C_PP_TOKEN_MACRO_REPLACEMENT)
-        && (file->preprocessor->token_directives[index]
-            != file->preprocessor->token_directives[next])) {
-        return false;
-    }
-    token = &tokens->tokens[next];
-    if ((token->kind == TOKEN_IDENT) || (token->kind == TOKEN_LITERAL)) {
-        return true;
-    }
-    return csane_token_text(token, STRLIT("("))
-           || csane_token_text(token, STRLIT("*"))
-           || csane_token_text(token, STRLIT("&"))
-           || csane_token_text(token, STRLIT("+"))
-           || csane_token_text(token, STRLIT("-"))
-           || csane_token_text(token, STRLIT("!"))
-           || csane_token_text(token, STRLIT("~"));
-}
 
 static void
 csane_rule_sizeof(CsaneFile *file) {
@@ -276,10 +233,86 @@ csane_rule_sizeof(CsaneFile *file) {
     }
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
-        if (!csane_token_text(token, STRLIT("sizeof"))
-            || (token->kind != TOKEN_IDENT)
-            || csane_in_sizeof_definition(file, i)
-            || !csane_sizeof_has_operand(file, i)) {
+        bool _i47_predicate;
+        _i47_predicate = !csane_token_text(token, STRLIT("sizeof"));
+        if (!_i47_predicate) {
+            _i47_predicate = token->kind != TOKEN_IDENT;
+        }
+        if (!_i47_predicate) {
+            bool _i47_result;
+            do {
+                int32 _i47_token_index = i;
+
+                CPreprocessorAnalysis *pp = file->preprocessor;
+                int32 directive_index;
+                CPreprocessorDirective *directive;
+                CPreprocessorDefine define;
+                Token *name;
+
+                if (pp->token_directives == NULL) {
+                    _i47_result = false;
+                    goto _i47_done;
+                }
+                directive_index = pp->token_directives[_i47_token_index];
+                if (directive_index < 0
+                    || directive_index >= ARRAY_LEN(pp->directives)) {
+                    _i47_result = false;
+                    goto _i47_done;
+                }
+                directive = &pp->directives[directive_index];
+                if (directive->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
+                    || !c_preprocessor_define_info(file->tokens, directive,
+                                                   &define)
+                    || define.name_token < 0) {
+                    _i47_result = false;
+                    goto _i47_done;
+                }
+                name = &file->tokens->tokens[define.name_token];
+                _i47_result = csane_token_text(name, STRLIT("SIZEOF"));
+                goto _i47_done;
+                _i47_done: ;
+            } while (false);
+            _i47_predicate = _i47_result;
+        }
+        if (!_i47_predicate) {
+            bool _i48_result;
+            do {
+                int32 _i48_index = i;
+
+                Tokenization *tokens = file->tokens;
+                int32 next = tokenization_next_significant(tokens, _i48_index);
+                Token *token;
+                if (next >= ARRAY_LEN(tokens->tokens)) {
+                    _i48_result = false;
+                    goto _i48_done;
+                }
+                if ((file->preprocessor->token_roles != NULL)
+                    && (file->preprocessor->token_roles[_i48_index]
+                        == C_PP_TOKEN_MACRO_REPLACEMENT)
+                    && (file->preprocessor->token_directives[_i48_index]
+                        != file->preprocessor->token_directives[next])) {
+                    _i48_result = false;
+                    goto _i48_done;
+                }
+                token = &tokens->tokens[next];
+                if ((token->kind == TOKEN_IDENT)
+                    || (token->kind == TOKEN_LITERAL)) {
+                    _i48_result = true;
+                    goto _i48_done;
+                }
+                _i48_result = csane_token_text(token, STRLIT("("))
+                       || csane_token_text(token, STRLIT("*"))
+                       || csane_token_text(token, STRLIT("&"))
+                       || csane_token_text(token, STRLIT("+"))
+                       || csane_token_text(token, STRLIT("-"))
+                       || csane_token_text(token, STRLIT("!"))
+                       || csane_token_text(token, STRLIT("~"));
+                goto _i48_done;
+                _i48_done: ;
+            } while (false);
+            _i47_predicate = !_i48_result;
+        }
+        if (_i47_predicate) {
             continue;
         }
         /* Perl checks directive conditions and macro names as raw code too.
@@ -307,54 +340,6 @@ csane_api_known_type(CsaneFile *file, int32 index) {
 }
 
 
-static enum CsaneApiUse
-csane_api_declarator(CsaneFile *file, int32 name) {
-    Tokenization *tokens = file->tokens;
-    int32 in_result_token;
-    {
-        CsaneFile *in_file = file;
-        int32 in_index = name;
-
-        Tokenization *tokens = in_file->tokens;
-        int32 previous = tokenization_previous_significant(tokens, in_index);
-        while (previous >= 0 && in_file->preprocessor->token_roles != NULL
-               && in_file->preprocessor->token_roles[previous]
-                      == C_PP_TOKEN_DIRECTIVE) {
-            previous = tokenization_previous_significant(tokens, previous);
-        }
-        in_result_token = previous;
-    }
-    int32 before = in_result_token;
-    if (before < 0) {
-        return CSANE_API_DIRECT_CALL;
-    }
-    if (csane_api_known_type(file, before)) {
-        return CSANE_API_NOT_CALL;
-    }
-    if (TOKEN_IS(&tokens->tokens[before], "*")) {
-        int32 earlier = tokenization_previous_significant(tokens, before);
-        if (earlier >= 0
-            && (csane_api_known_type(file, earlier)
-                || TOKEN_IS(&tokens->tokens[earlier], "("))) {
-            return CSANE_API_NOT_CALL;
-        }
-    }
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if (item->name_token == name
-            && (item->kind == CSANE_TOP_FUNCTION_DEFINITION
-                || item->kind == CSANE_TOP_FUNCTION_DECLARATION)) {
-            return CSANE_API_NOT_CALL;
-        }
-    }
-    if (tokens->tokens[before].kind == TOKEN_IDENT
-        && !TOKEN_IS(&tokens->tokens[before], "return")
-        && !TOKEN_IS(&tokens->tokens[before], "case")
-        && !TOKEN_IS(&tokens->tokens[before], "sizeof")) {
-        return CSANE_API_UNRESOLVED;
-    }
-    return CSANE_API_DIRECT_CALL;
-}
 
 enum CsaneApiUse
 csane_api_classify(CsaneFile *file, int32 index) {
@@ -410,7 +395,65 @@ csane_api_classify(CsaneFile *file, int32 index) {
     if (token_range_matching_delimiter_forward(tokens, range, call_open) < 0) {
         return CSANE_API_UNRESOLVED;
     }
-    return csane_api_declarator(file, index);
+    enum CsaneApiUse _i49_result;
+    do {
+        int32 _i49_name = index;
+
+        Tokenization *tokens = file->tokens;
+        int32 in_result_token;
+        {
+            CsaneFile *in_file = file;
+            int32 in_index = _i49_name;
+
+            Tokenization *tokens = in_file->tokens;
+            int32 previous = tokenization_previous_significant(tokens,
+                                                               in_index);
+            while (previous >= 0 && in_file->preprocessor->token_roles != NULL
+                   && in_file->preprocessor->token_roles[previous]
+                          == C_PP_TOKEN_DIRECTIVE) {
+                previous = tokenization_previous_significant(tokens, previous);
+            }
+            in_result_token = previous;
+        }
+        int32 before = in_result_token;
+        if (before < 0) {
+            _i49_result = CSANE_API_DIRECT_CALL;
+            goto _i49_done;
+        }
+        if (csane_api_known_type(file, before)) {
+            _i49_result = CSANE_API_NOT_CALL;
+            goto _i49_done;
+        }
+        if (TOKEN_IS(&tokens->tokens[before], "*")) {
+            int32 earlier = tokenization_previous_significant(tokens, before);
+            if (earlier >= 0
+                && (csane_api_known_type(file, earlier)
+                    || TOKEN_IS(&tokens->tokens[earlier], "("))) {
+                _i49_result = CSANE_API_NOT_CALL;
+                goto _i49_done;
+            }
+        }
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            if (item->name_token == _i49_name
+                && (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+                    || item->kind == CSANE_TOP_FUNCTION_DECLARATION)) {
+                _i49_result = CSANE_API_NOT_CALL;
+                goto _i49_done;
+            }
+        }
+        if (tokens->tokens[before].kind == TOKEN_IDENT
+            && !TOKEN_IS(&tokens->tokens[before], "return")
+            && !TOKEN_IS(&tokens->tokens[before], "case")
+            && !TOKEN_IS(&tokens->tokens[before], "sizeof")) {
+            _i49_result = CSANE_API_UNRESOLVED;
+            goto _i49_done;
+        }
+        _i49_result = CSANE_API_DIRECT_CALL;
+        goto _i49_done;
+        _i49_done: ;
+    } while (false);
+    return _i49_result;
 }
 
 /* CG039: libc's printf-family calls belong in cbase wrappers, not in

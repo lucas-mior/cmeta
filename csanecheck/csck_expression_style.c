@@ -31,65 +31,6 @@ csane_style_string_start(CsaneFile *file, TokenRange range) {
 
 /* Only one conversion, with the same grammar as Perl's format_spec.
  * The caller separately verifies that this token is the entire argument. */
-static bool
-csane_style_conversion(Token *token) {
-    int32 i = 2;
-    char c;
-
-    if (token->kind != TOKEN_LITERAL || token->len < 4
-        || token->text[0] != '"' || token->text[1] != '%'
-        || token->text[token->len - 1] != '"') {
-        return false;
-    }
-    while (i < token->len - 1) {
-        c = token->text[i];
-        if (c != '-' && c != '+' && c != ' ' && c != '#'
-            && c != '0') {
-            break;
-        }
-        i += 1;
-    }
-    while (i < token->len - 1 && token->text[i] >= '0'
-           && token->text[i] <= '9') {
-        i += 1;
-    }
-    if (i < token->len - 1 && token->text[i] == '.') {
-        i += 1;
-        if (i < token->len - 1 && token->text[i] == '*') {
-            i += 1;
-        } else {
-            int32 before = i;
-            while (i < token->len - 1 && token->text[i] >= '0'
-                   && token->text[i] <= '9') {
-                i += 1;
-            }
-            if (before == i) {
-                return false;
-            }
-        }
-    }
-    if (i + 2 < token->len && token->text[i] == 'h') {
-        i += 1;
-        if (token->text[i] == 'h') {
-            i += 1;
-        }
-    } else if (i + 2 < token->len && token->text[i] == 'l') {
-        i += 1;
-        if (token->text[i] == 'l') {
-            i += 1;
-        }
-    } else if (i + 2 < token->len) {
-        c = token->text[i];
-        if (c == 'j' || c == 'z' || c == 't' || c == 'L') {
-            i += 1;
-        }
-    }
-    if (i + 2 != token->len) {
-        return false;
-    }
-    c = token->text[i];
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-}
 
 
 static int32
@@ -178,15 +119,101 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     if (TOKEN_IS(token, "str_printf") && count >= 3) {
         TokenRange format = args[1];
         int32 first = csane_style_first(file, format);
-        if (first < format.end
-            && tokenization_next_significant(tokens, first) >= format.end
-            && csane_style_conversion(&tokens->tokens[first])
-            && tokens->tokens[first].offset > 0
-            && tokens->tokens[first].offset + tokens->tokens[first].len
-               < tokens->text_len
-            && tokens->text[tokens->tokens[first].offset - 1] == ' '
-            && tokens->text[tokens->tokens[first].offset
-                            + tokens->tokens[first].len] == ',') {
+        bool _i29_predicate;
+        _i29_predicate = first < format.end;
+        if (_i29_predicate) {
+            _i29_predicate = tokenization_next_significant(tokens,
+                                                           first) >= format.end;
+        }
+        if (_i29_predicate) {
+            bool _i29_result;
+            do {
+                Token *_i29_token = &tokens->tokens[first];
+
+                int32 i = 2;
+                char c;
+
+                if (_i29_token->kind != TOKEN_LITERAL || _i29_token->len < 4
+                    || _i29_token->text[0] != '"' || _i29_token->text[1] != '%'
+                    || _i29_token->text[_i29_token->len - 1] != '"') {
+                    _i29_result = false;
+                    goto _i29_done;
+                }
+                while (i < _i29_token->len - 1) {
+                    c = _i29_token->text[i];
+                    if (c != '-' && c != '+' && c != ' ' && c != '#'
+                        && c != '0') {
+                        break;
+                    }
+                    i += 1;
+                }
+                while (i < _i29_token->len - 1 && _i29_token->text[i] >= '0'
+                       && _i29_token->text[i] <= '9') {
+                    i += 1;
+                }
+                if (i < _i29_token->len - 1 && _i29_token->text[i] == '.') {
+                    i += 1;
+                    if (i < _i29_token->len - 1 && _i29_token->text[i] == '*') {
+                        i += 1;
+                    } else {
+                        int32 before = i;
+                        while (i < _i29_token->len - 1
+                            && _i29_token->text[i] >= '0'
+                               && _i29_token->text[i] <= '9') {
+                            i += 1;
+                        }
+                        if (before == i) {
+                            _i29_result = false;
+                            goto _i29_done;
+                        }
+                    }
+                }
+                if (i + 2 < _i29_token->len && _i29_token->text[i] == 'h') {
+                    i += 1;
+                    if (_i29_token->text[i] == 'h') {
+                        i += 1;
+                    }
+                } else if (i + 2 < _i29_token->len
+                    && _i29_token->text[i] == 'l') {
+                    i += 1;
+                    if (_i29_token->text[i] == 'l') {
+                        i += 1;
+                    }
+                } else if (i + 2 < _i29_token->len) {
+                    c = _i29_token->text[i];
+                    if (c == 'j' || c == 'z' || c == 't' || c == 'L') {
+                        i += 1;
+                    }
+                }
+                if (i + 2 != _i29_token->len) {
+                    _i29_result = false;
+                    goto _i29_done;
+                }
+                c = _i29_token->text[i];
+                _i29_result = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+                goto _i29_done;
+                _i29_done: ;
+            } while (false);
+            _i29_predicate = _i29_result;
+        }
+        if (_i29_predicate) {
+            _i29_predicate = tokens->tokens[first].offset > 0;
+        }
+        if (_i29_predicate) {
+            _i29_predicate =
+                tokens->tokens[first].offset + tokens->tokens[first].len
+               < tokens->text_len;
+        }
+        if (_i29_predicate) {
+            _i29_predicate =
+                tokens->text[tokens->tokens[first].offset - 1] == ' ';
+        }
+        if (_i29_predicate) {
+            Token *first_token = &tokens->tokens[first];
+            _i29_predicate = tokens->text[first_token->offset
+                                          + first_token->len] == ',';
+        }
+        if (_i29_predicate) {
             csane_rule_issue(file, tokens->tokens[format.first].offset,
                              STRLIT("STYLE-PRINTF"),
                              "format contains only one conversion");
@@ -196,50 +223,6 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
 
 /* Match a single absolute difference, not arbitrary calculations involving
  * fabs. ASSERT_CLOSE accepts float/double, so exclude long-double fabsl. */
-static bool
-csane_style_fabs_difference(CsaneTokenView *view, TokenRange range) {
-    CsaneTokenView expression;
-    CsaneTokenView difference;
-    TokenRange args[1];
-    int32 name;
-    int32 open;
-    int32 close;
-    int32 minus;
-
-    range = csane_tokens_unwrap(view, range);
-    if (!csane_tokens_subview(&expression, view, range)) {
-        return false;
-    }
-    name = csane_tokens_next(&expression, range.first - 1);
-    if (name >= range.end
-        || (!TOKEN_IS(&view->tokens->tokens[name], "fabs")
-            && !TOKEN_IS(&view->tokens->tokens[name], "fabsf"))) {
-        return false;
-    }
-    open = csane_tokens_next(&expression, name);
-    if (open >= range.end
-        || !TOKEN_IS(&view->tokens->tokens[open], "(")) {
-        return false;
-    }
-    close = csane_tokens_match(&expression, open);
-    if (close < 0 || csane_tokens_next(&expression, close) < range.end
-        || csane_tokens_arguments(&expression, open, args, 1) != 1) {
-        return false;
-    }
-    range = csane_tokens_unwrap(&expression, args[0]);
-    if (!csane_tokens_subview(&difference, &expression, range)) {
-        return false;
-    }
-    minus = csane_tokens_top_level(&difference, range.first - 1, "-", 1);
-    if (minus <= csane_tokens_next(&difference, range.first - 1)
-        || minus >= range.end
-        || csane_tokens_next(&difference, minus) >= range.end) {
-        return false;
-    }
-    /* Chained subtraction is not a direct comparison of two operands. */
-    return csane_tokens_top_level(&difference, minus, "-", 1)
-           == range.end;
-}
 
 static bool
 csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
@@ -294,7 +277,65 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     } else {
         return false;
     }
-    if (csane_style_fabs_difference(&expression, difference)) {
+    bool _i30_predicate;
+    bool _i30_result;
+    do {
+        CsaneTokenView *_i30_view = &expression;
+        TokenRange _i30_range = difference;
+
+        CsaneTokenView expression;
+        CsaneTokenView difference;
+        TokenRange args[1];
+        int32 name;
+        int32 open;
+        int32 close;
+        int32 minus;
+
+        _i30_range = csane_tokens_unwrap(_i30_view, _i30_range);
+        if (!csane_tokens_subview(&expression, _i30_view, _i30_range)) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        name = csane_tokens_next(&expression, _i30_range.first - 1);
+        if (name >= _i30_range.end
+            || (!TOKEN_IS(&_i30_view->tokens->tokens[name], "fabs")
+                && !TOKEN_IS(&_i30_view->tokens->tokens[name], "fabsf"))) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        open = csane_tokens_next(&expression, name);
+        if (open >= _i30_range.end
+            || !TOKEN_IS(&_i30_view->tokens->tokens[open], "(")) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        close = csane_tokens_match(&expression, open);
+        if (close < 0 || csane_tokens_next(&expression, close) < _i30_range.end
+            || csane_tokens_arguments(&expression, open, args, 1) != 1) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        _i30_range = csane_tokens_unwrap(&expression, args[0]);
+        if (!csane_tokens_subview(&difference, &expression, _i30_range)) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        minus = csane_tokens_top_level(&difference, _i30_range.first - 1,
+                                       "-", 1);
+        if (minus <= csane_tokens_next(&difference, _i30_range.first - 1)
+            || minus >= _i30_range.end
+            || csane_tokens_next(&difference, minus) >= _i30_range.end) {
+            _i30_result = false;
+            goto _i30_done;
+        }
+        /* Chained subtraction is not a direct comparison of two operands. */
+        _i30_result = csane_tokens_top_level(&difference, minus, "-", 1)
+               == _i30_range.end;
+        goto _i30_done;
+        _i30_done: ;
+    } while (false);
+    _i30_predicate = _i30_result;
+    if (_i30_predicate) {
         csane_rule_issue(file, view->tokens->tokens[name].offset,
                          STRLIT("STYLE-ASSERT-CLOSE"),
                          "use ASSERT_CLOSE(a, b, tol) for floating-point "
@@ -373,68 +414,6 @@ csane_style_assert_rel(CsaneFile *file, CsaneTokenView *view,
 /* Accept plain C integer tokens, including octal/hex/binary forms and
  * the standard U/L/LL suffixes. Decimal and hexadecimal floating-point
  * literals must not be treated as integer arguments. */
-static bool
-csane_style_integer_literal(Token *token) {
-    int32 radix = 10;
-    int32 i = 0;
-    int32 digits = 0;
-    int32 unsigned_count = 0;
-    int32 long_count = 0;
-    char long_case = 0;
-
-    if (token->kind != TOKEN_LITERAL || token->len == 0
-        || token->text[0] < '0' || token->text[0] > '9') {
-        return false;
-    }
-    if (token->text[0] == '0' && token->len >= 2) {
-        if (token->text[1] == 'x' || token->text[1] == 'X') {
-            radix = 16;
-            i = 2;
-        } else if (token->text[1] == 'b' || token->text[1] == 'B') {
-            radix = 2;
-            i = 2;
-        } else {
-            radix = 8;
-        }
-    }
-    for (; i < token->len; i += 1) {
-        char c = token->text[i];
-        int32 digit = -1;
-        if (c >= '0' && c <= '9') {
-            digit = c - '0';
-        } else if (radix == 16 && c >= 'a' && c <= 'f') {
-            digit = c - 'a' + 10;
-        } else if (radix == 16 && c >= 'A' && c <= 'F') {
-            digit = c - 'A' + 10;
-        }
-        if (digit < 0 || digit >= radix) {
-            break;
-        }
-        digits += 1;
-    }
-    if (digits == 0) {
-        return false;
-    }
-    for (; i < token->len; i += 1) {
-        char c = token->text[i];
-        if (c == 'u' || c == 'U') {
-            unsigned_count += 1;
-            if (unsigned_count > 1) {
-                return false;
-            }
-        } else if (c == 'l' || c == 'L') {
-            long_count += 1;
-            if (long_count > 2
-                || (long_case != 0 && c != long_case)) {
-                return false;
-            }
-            long_case = c;
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
 
 /* Return the integer literal when the complete expression consists only
  * of a possibly signed/parenthesized integer constant. */
@@ -454,9 +433,87 @@ csane_style_integer_operand(CsaneTokenView *view, TokenRange range) {
             || TOKEN_IS(&tokens->tokens[literal], "-"))) {
         literal = csane_tokens_next(&local, literal);
     }
-    if (literal >= range.end
-        || !csane_style_integer_literal(&tokens->tokens[literal])
-        || csane_tokens_next(&local, literal) < range.end) {
+    bool _i31_predicate;
+    _i31_predicate = literal >= range.end;
+    if (!_i31_predicate) {
+        bool _i31_result;
+        do {
+            Token *_i31_token = &tokens->tokens[literal];
+
+            int32 radix = 10;
+            int32 i = 0;
+            int32 digits = 0;
+            int32 unsigned_count = 0;
+            int32 long_count = 0;
+            char long_case = 0;
+
+            if (_i31_token->kind != TOKEN_LITERAL || _i31_token->len == 0
+                || _i31_token->text[0] < '0' || _i31_token->text[0] > '9') {
+                _i31_result = false;
+                goto _i31_done;
+            }
+            if (_i31_token->text[0] == '0' && _i31_token->len >= 2) {
+                if (_i31_token->text[1] == 'x' || _i31_token->text[1] == 'X') {
+                    radix = 16;
+                    i = 2;
+                } else if (_i31_token->text[1] == 'b'
+                    || _i31_token->text[1] == 'B') {
+                    radix = 2;
+                    i = 2;
+                } else {
+                    radix = 8;
+                }
+            }
+            for (; i < _i31_token->len; i += 1) {
+                char c = _i31_token->text[i];
+                int32 digit = -1;
+                if (c >= '0' && c <= '9') {
+                    digit = c - '0';
+                } else if (radix == 16 && c >= 'a' && c <= 'f') {
+                    digit = c - 'a' + 10;
+                } else if (radix == 16 && c >= 'A' && c <= 'F') {
+                    digit = c - 'A' + 10;
+                }
+                if (digit < 0 || digit >= radix) {
+                    break;
+                }
+                digits += 1;
+            }
+            if (digits == 0) {
+                _i31_result = false;
+                goto _i31_done;
+            }
+            for (; i < _i31_token->len; i += 1) {
+                char c = _i31_token->text[i];
+                if (c == 'u' || c == 'U') {
+                    unsigned_count += 1;
+                    if (unsigned_count > 1) {
+                        _i31_result = false;
+                        goto _i31_done;
+                    }
+                } else if (c == 'l' || c == 'L') {
+                    long_count += 1;
+                    if (long_count > 2
+                        || (long_case != 0 && c != long_case)) {
+                        _i31_result = false;
+                        goto _i31_done;
+                    }
+                    long_case = c;
+                } else {
+                    _i31_result = false;
+                    goto _i31_done;
+                }
+            }
+            _i31_result = true;
+            goto _i31_done;
+            _i31_done: ;
+        } while (false);
+        _i31_predicate = !_i31_result;
+    }
+    if (!_i31_predicate) {
+        _i31_predicate = csane_tokens_next(&local, literal) < range.end;
+    }
+    if (_i31_predicate) {
         return -1;
     }
     return literal;

@@ -189,44 +189,6 @@ csane_wrap_flat_length(char *text, int32 start, int32 end, int32 max_width) {
     return width;
 }
 
-static bool
-csane_wrap_comment_lines(CsaneFile *file, CsaneWrapSpan *a, CsaneWrapSpan *b) {
-    Tokenization *tokens = file->tokens;
-    char *text = tokens->text;
-    int32 position = a->end;
-    while (position < b->start && text[position] != '\n') {
-        position += 1;
-    }
-    if (position >= b->start) {
-        return false;
-    }
-    position += 1;
-    for (int32 line = a->end_line + 1; line < b->start_line; line += 1) {
-        int32 end = position;
-        bool found_comment = false;
-        int32 first;
-        while (end < b->start && text[end] != '\n') {
-            end += 1;
-        }
-        first = tokenization_token_at_or_after_offset(tokens, position);
-        for (int32 i = first; i < ARRAY_LEN(tokens->tokens); i += 1) {
-            Token *token = &tokens->tokens[i];
-            if (token->offset >= end) {
-                break;
-            }
-            if (token->kind == TOKEN_COMMENT) {
-                found_comment = true;
-            } else if (!token_is_trivia(token)) {
-                return false;
-            }
-        }
-        if (!found_comment) {
-            return false;
-        }
-        position = end + (end < b->start);
-    }
-    return true;
-}
 
 static bool
 csane_wrap_adjacent(CsaneFile *file, CsaneWrapSpan *a,
@@ -240,10 +202,53 @@ csane_wrap_adjacent(CsaneFile *file, CsaneWrapSpan *a,
     if (kind != CSANE_WRAP_ASSIGN) {
         return false;
     }
+    bool _i63_result;
+    do {
+        Tokenization *tokens = file->tokens;
+        char *text = tokens->text;
+        int32 position = a->end;
+        while (position < b->start && text[position] != '\n') {
+            position += 1;
+        }
+        if (position >= b->start) {
+            _i63_result = false;
+            goto _i63_done;
+        }
+        position += 1;
+        for (int32 line = a->end_line + 1; line < b->start_line; line += 1) {
+            int32 end = position;
+            bool found_comment = false;
+            int32 first;
+            while (end < b->start && text[end] != '\n') {
+                end += 1;
+            }
+            first = tokenization_token_at_or_after_offset(tokens, position);
+            for (int32 i = first; i < ARRAY_LEN(tokens->tokens); i += 1) {
+                Token *token = &tokens->tokens[i];
+                if (token->offset >= end) {
+                    break;
+                }
+                if (token->kind == TOKEN_COMMENT) {
+                    found_comment = true;
+                } else if (!token_is_trivia(token)) {
+                    _i63_result = false;
+                    goto _i63_done;
+                }
+            }
+            if (!found_comment) {
+                _i63_result = false;
+                goto _i63_done;
+            }
+            position = end + (end < b->start);
+        }
+        _i63_result = true;
+        goto _i63_done;
+        _i63_done: ;
+    } while (false);
     /* Only comment-only intervening lines keep an assignment group intact.
      * A blank line, directive, or arbitrary code always splits the group.
      */
-    return csane_wrap_comment_lines(file, a, b);
+    return _i63_result;
 }
 
 /* A call-wrap candidate is one complete source statement whose value is a
@@ -466,38 +471,6 @@ csane_wrap_compare_calls(void *left, void *right) {
     return 0;
 }
 
-static bool
-csane_wrap_call_related(CsaneFile *file, CsaneWrapSpan *a, CsaneWrapSpan *b) {
-    Tokenization *tokens = file->tokens;
-    Token *left = &tokens->tokens[a->call_name];
-    Token *right = &tokens->tokens[b->call_name];
-    CsaneTokenView view;
-    int32 i;
-    int32 j;
-
-    if (left->len == right->len
-        && !memcmp64(left->text, right->text, left->len)) {
-        return true;
-    }
-    if (a->first_arg.first >= a->first_arg.end
-        || b->first_arg.first >= b->first_arg.end) {
-        return false;
-    }
-    view = csane_tokens_full(tokens);
-    i = a->first_arg.first;
-    j = b->first_arg.first;
-    while (i < a->first_arg.end && j < b->first_arg.end) {
-        left = &tokens->tokens[i];
-        right = &tokens->tokens[j];
-        if (left->len != right->len
-            || memcmp64(left->text, right->text, left->len)) {
-            return false;
-        }
-        i = csane_tokens_next(&view, i);
-        j = csane_tokens_next(&view, j);
-    }
-    return i >= a->first_arg.end && j >= b->first_arg.end;
-}
 
 
 void
@@ -561,11 +534,62 @@ csane_wrap_call_check(CsaneFile *file) {
     }
     for (int32 first = 0; first < unique;) {
         int32 end = first + 1;
-        while (end < unique
-               && csane_wrap_adjacent(file, &items[end - 1], &items[end],
-                                      CSANE_WRAP_CALL)
-               && csane_wrap_call_related(file, &items[end - 1],
-                                          &items[end])) {
+        while (true) {
+            bool _i64_predicate;
+            _i64_predicate = end < unique;
+            if (_i64_predicate) {
+                _i64_predicate = csane_wrap_adjacent(file, &items[end - 1],
+                                                     &items[end],
+                                                     CSANE_WRAP_CALL);
+            }
+            if (_i64_predicate) {
+                bool _i64_result;
+                do {
+                    CsaneWrapSpan *_i64_a = &items[end - 1];
+                    CsaneWrapSpan *_i64_b = &items[end];
+
+                    Tokenization *tokens = file->tokens;
+                    Token *left = &tokens->tokens[_i64_a->call_name];
+                    Token *right = &tokens->tokens[_i64_b->call_name];
+                    CsaneTokenView view;
+                    int32 i;
+                    int32 j;
+
+                    if (left->len == right->len
+                        && !memcmp64(left->text, right->text, left->len)) {
+                        _i64_result = true;
+                        goto _i64_done;
+                    }
+                    if (_i64_a->first_arg.first >= _i64_a->first_arg.end
+                        || _i64_b->first_arg.first >= _i64_b->first_arg.end) {
+                        _i64_result = false;
+                        goto _i64_done;
+                    }
+                    view = csane_tokens_full(tokens);
+                    i = _i64_a->first_arg.first;
+                    j = _i64_b->first_arg.first;
+                    while (i < _i64_a->first_arg.end
+                        && j < _i64_b->first_arg.end) {
+                        left = &tokens->tokens[i];
+                        right = &tokens->tokens[j];
+                        if (left->len != right->len
+                            || memcmp64(left->text, right->text, left->len)) {
+                            _i64_result = false;
+                            goto _i64_done;
+                        }
+                        i = csane_tokens_next(&view, i);
+                        j = csane_tokens_next(&view, j);
+                    }
+                    _i64_result = i >= _i64_a->first_arg.end
+                        && j >= _i64_b->first_arg.end;
+                    goto _i64_done;
+                    _i64_done: ;
+                } while (false);
+                _i64_predicate = _i64_result;
+            }
+            if (!_i64_predicate) {
+                break;
+            }
             end += 1;
         }
         do {
@@ -716,41 +740,6 @@ csane_wrap_call_check(CsaneFile *file) {
 /* Assignment wrapping uses only direct, top-level '=' tokens in a simple
  * statement. Nested assignments in conditions and compound operators are
  * excluded by the statement boundary and token-spelling checks. */
-static int32
-csane_wrap_local_assignment(CsaneFile *file, TokenRange range) {
-    Tokenization *tokens = file->tokens;
-    CsaneTokenView view;
-    int32 first;
-    int32 last;
-    int32 equals = -1;
-
-    if (!csane_tokens_view(&view, tokens, range)) {
-        return -1;
-    }
-    first = token_range_first_significant(tokens, range);
-    last = token_range_last_significant(tokens, range);
-    if (first < 0 || last <= first
-        || !csane_wrap_token_is(&tokens->tokens[last], STRLIT(";"))) {
-        return -1;
-    }
-    for (int32 i = first; i < last; i += 1) {
-        Token *token = &tokens->tokens[i];
-        if (csane_wrap_token_is(token, STRLIT("="))) {
-            if (equals >= 0) {
-                return -1;
-            }
-            equals = i;
-        } else if (csane_wrap_token_is(token, STRLIT("("))
-                   || csane_wrap_token_is(token, STRLIT("["))
-                   || csane_wrap_token_is(token, STRLIT("{"))) {
-            int32 close = csane_tokens_match(&view, i);
-            if (close > i && close < last) {
-                i = close;
-            }
-        }
-    }
-    return equals;
-}
 
 static bool
 csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
@@ -758,7 +747,47 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     Tokenization *tokens = file->tokens;
     int32 first = token_range_first_significant(tokens, range);
     int32 last = token_range_last_significant(tokens, range);
-    int32 op = csane_wrap_local_assignment(file, range);
+    int32 _i65_result;
+    do {
+        Tokenization *tokens = file->tokens;
+        CsaneTokenView view;
+        int32 first;
+        int32 last;
+        int32 equals = -1;
+
+        if (!csane_tokens_view(&view, tokens, range)) {
+            _i65_result = -1;
+            goto _i65_done;
+        }
+        first = token_range_first_significant(tokens, range);
+        last = token_range_last_significant(tokens, range);
+        if (first < 0 || last <= first
+            || !csane_wrap_token_is(&tokens->tokens[last], STRLIT(";"))) {
+            _i65_result = -1;
+            goto _i65_done;
+        }
+        for (int32 i = first; i < last; i += 1) {
+            Token *token = &tokens->tokens[i];
+            if (csane_wrap_token_is(token, STRLIT("="))) {
+                if (equals >= 0) {
+                    _i65_result = -1;
+                    goto _i65_done;
+                }
+                equals = i;
+            } else if (csane_wrap_token_is(token, STRLIT("("))
+                       || csane_wrap_token_is(token, STRLIT("["))
+                       || csane_wrap_token_is(token, STRLIT("{"))) {
+                int32 close = csane_tokens_match(&view, i);
+                if (close > i && close < last) {
+                    i = close;
+                }
+            }
+        }
+        _i65_result = equals;
+        goto _i65_done;
+        _i65_done: ;
+    } while (false);
+    int32 op = _i65_result;
     char *text;
     int32 offset;
     int32 start;

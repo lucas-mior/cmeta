@@ -156,47 +156,6 @@ csane_call_macro_fragments(CsaneFile *file, TokenRange range) {
 
 /* Macro parameters need not be uppercase. Read the corresponding
  * definition rather than guessing their spelling from identifier case. */
-static bool
-csane_call_macro_parameters(CsaneFile *file, int32 open, TokenRange content) {
-    CsaneRegions *regions = file->regions;
-    int32 region = csane_regions_at_token(regions, open);
-    int32 definition = csane_regions_enclosing(regions, region,
-                                               CSANE_REGION_MACRO_DEFINE);
-    int32 parameters = -1;
-    Tokenization *tokens;
-    TokenRange names;
-
-    if (definition < 0) {
-        return false;
-    }
-    for (int32 child = regions->items[definition].first_child;
-         child >= 0; child = regions->items[child].next_sibling) {
-        if (regions->items[child].kind == CSANE_REGION_MACRO_PARAMETERS) {
-            parameters = child;
-            break;
-        }
-    }
-    if (parameters < 0) {
-        return false;
-    }
-    tokens = file->tokens;
-    names = regions->items[parameters].tokens;
-    for (int32 i = content.first; i < content.end; i += 1) {
-        Token *candidate = &tokens->tokens[i];
-        if (candidate->kind != TOKEN_IDENT) {
-            continue;
-        }
-        for (int32 j = names.first; j < names.end; j += 1) {
-            Token *name = &tokens->tokens[j];
-            if (name->kind == TOKEN_IDENT
-                && candidate->len == name->len
-                && !memcmp64(candidate->text, name->text, name->len)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 /* Literal alignment applies only to adjacent literals at the start of
  * one argument. A nested call owns its literals; the enclosing call must not
@@ -529,219 +488,9 @@ csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
     return result;
 }
 
-static void
-csane_call_context(CsaneFile *file, CsaneTokenView *view) {
-    /* Calls with an unusually large number of arguments are still examined
-     * by the basic layout checks; no contextual conclusion is inferred. */
-    CsaneCallArgument args[256];
-    int32 count = csane_call_arguments(file, view, args, 256);
-    Tokenization *tokens;
-    int32 format = -1;
-    int32 first_string = -1;
-    int32 second_string = -1;
-    int32 string_count = 0;
-    int32 first_line;
-    int32 second_line;
-
-    if (count < 1) {
-        return;
-    }
-    tokens = file->tokens;
-    for (int32 i = 0; i < count; i += 1) {
-        if (args[i].format) {
-            format = i;
-            break;
-        }
-    }
-    if (format >= 0) {
-        int32 line = csane_calls_location(file, args[format].last).line;
-        bool on_line = false;
-        bool off_line = false;
-        for (int32 i = format + 1; i < count; i += 1) {
-            if (csane_calls_location(file, args[i].first).line == line) {
-                on_line = true;
-            } else {
-                off_line = true;
-            }
-        }
-        if (on_line && off_line) {
-            csane_rule_issue(file, tokens->tokens[args[format].first].offset,
-                             STRLIT("FMT-FORMAT-LINE"),
-                             "format-string line must contain all "
-                             "format arguments or none");
-        }
-        if (!on_line && format + 2 < count) {
-            SourceLocation first_location =
-                csane_calls_location(file, args[format + 1].first);
-            bool split = false;
-            bool safe = true;
-
-            for (int32 i = format + 1; i < count; i += 1) {
-                SourceLocation first_location_i =
-                    csane_calls_location(file, args[i].first);
-                SourceLocation last_location_i =
-                    csane_calls_location(file, args[i].last);
-
-                if (first_location_i.line != last_location_i.line) {
-                    safe = false;
-                    break;
-                }
-                if (first_location_i.line != first_location.line) {
-                    split = true;
-                }
-            }
-            if (safe && split) {
-                int32 start =
-                    tokens->tokens[args[format + 1].first].offset;
-                int32 close = view->range.end;
-                int32 close_end = tokens->tokens[close].offset
-                                  + tokens->tokens[close].len;
-                SourceLocation close_location =
-                    csane_calls_location(file, close);
-                int32 end =
-                    tokenization_physical_line_end_offset(tokens,
-                                                          close_location.line);
-                int32 max_width = file->column_limit;
-
-                if (end > close_end && tokens->text[end - 1] == '\n') {
-                    end -= 1;
-                }
-                while (end > close_end
-                       && (tokens->text[end - 1] == ' '
-                           || tokens->text[end - 1] == '\t'
-                           || tokens->text[end - 1] == '\r')) {
-                    end -= 1;
-                }
-                if (max_width > 0) {
-                    max_width -= first_location.column + end - close_end;
-                    safe = max_width > 0;
-                }
-                if (safe) {
-                    int32 width;
-
-                    width = csane_wrap_flat_length(tokens->text, start,
-                                                   close_end, max_width);
-
-                    if (width >= 0
-                        && (max_width <= 0 || width <= max_width)) {
-                        for (int32 i = args[format + 1].first;
-                             i <= close; i += 1) {
-                            if (tokens->tokens[i].kind == TOKEN_COMMENT) {
-                                safe = false;
-                                break;
-                            }
-                        }
-                        if (safe) {
-                            StrFlex *rule =
-                                SFLIT("FMT-FORMAT-ARGS-WRAP");
-                            char *message =
-                                "format arguments fit on one line but "
-                                "are split across multiple lines";
-
-                            csane_rule_issue(file, start, rule->data,
-                                             rule->len, message);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if (count < 3) {
-        return;
-    }
-    /* When exactly two adjacent arguments are string literals, keep them
-     * together or put each on a line without any other argument. */
-    for (int32 i = 0; i < count; i += 1) {
-        if (args[i].first != args[i].last
-            || !csane_call_string(&tokens->tokens[args[i].first])) {
-            continue;
-        }
-        string_count += 1;
-        if (string_count == 1) {
-            first_string = i;
-        } else if (string_count == 2) {
-            second_string = i;
-        }
-    }
-    if (string_count == 2 && second_string == first_string + 1) {
-        first_line = csane_calls_location(file, args[first_string].first).line;
-        second_line = csane_calls_location(file,
-                                           args[second_string].first).line;
-        if (first_line != second_line) {
-            for (int32 i = 0; i < count; i += 1) {
-                int32 begin;
-                int32 end;
-
-                if (i == first_string || i == second_string) {
-                    continue;
-                }
-                begin = csane_calls_location(file, args[i].first).line;
-                end = csane_calls_location(file, args[i].last).line;
-                if ((begin <= first_line && first_line <= end)
-                    || (begin <= second_line && second_line <= end)) {
-                    int32 token = args[second_string].first;
-
-                    csane_rule_issue(file, tokens->tokens[token].offset,
-                                     STRLIT("FMT-STRING-PAIR"),
-                                     "related string arguments must share "
-                                     "a line or each be on its own line");
-                    break;
-                }
-            }
-        }
-    }
-    for (int32 i = 0; i + 1 < count; i += 1) {
-        int32 a;
-        int32 b;
-        int32 line_a;
-        int32 line_b;
-        bool related = false;
-
-        a = args[i].last;
-        b = args[i + 1].last;
-        if (args[i].identifier && args[i + 1].identifier) {
-            related = csane_calls_related(&tokens->tokens[a],
-                                          &tokens->tokens[b]);
-        }
-        if (!related) {
-            related = csane_call_matching_length(file, view, &args[i],
-                                                 &args[i + 1]);
-        }
-        if (!related) {
-            continue;
-        }
-        line_a = csane_calls_location(file, a).line;
-        line_b = csane_calls_location(file, b).line;
-        if (line_a != line_b
-            && (csane_call_count_on_line(file, args, count, line_a) != 1
-                || csane_call_count_on_line(file, args, count, line_b) != 1)) {
-            csane_rule_issue(file, tokens->tokens[b].offset,
-                             STRLIT("FMT-RELATED-ARGS"),
-                             "related arguments must be the only "
-                             "arguments on their lines");
-            break;
-        }
-    }
-}
 
 /* Recognized file-scope macro invocations have their own first-argument
  * rule; arbitrary file-scope expressions are not classified as macros. */
-static bool
-csane_call_top_macro(CsaneFile *file, int32 name) {
-    CsaneTopLevels *top = file->toplevel;
-
-    if (top == NULL) {
-        return false;
-    }
-    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
-        CsaneTopItem *item = &top->items[i];
-        if (item->kind == CSANE_TOP_MACRO_INVOCATION
-            && item->name_token == name) {
-            return true;
-        }
-    }
-    return false;
-}
 
 /* A free2 size computed with strlen32(pointer) cannot be evaluated when
  * pointer is NULL, even though free2 itself accepts NULL. Match complete
@@ -814,183 +563,7 @@ csane_call_free2_strlen_size(CsaneFile *file, CsaneTokenView *view,
 }
 
 
-static void
-csane_call_token_one(CsaneFile *file, int32 name, int32 open,
-                     int32 close, bool macro) {
-    Tokenization *tokens = file->tokens;
-    TokenRange content = {open + 1, close};
-    CsaneTokenView view;
-    int32 first;
-    int32 from;
-    int32 to;
-    bool newline = false;
-    bool plain = true;
-    int32 format = -1;
-    int32 anchor;
-    int32 cursor;
-    int32 previous = -1;
-    bool misaligned = false;
-    bool macro_parameters;
 
-    if (!csane_tokens_view(&view, tokens, content)
-        || !csane_tokens_balanced(&view)) {
-        return;
-    }
-    first = csane_call_next(file, content, open);
-    if (first >= close) {
-        return;
-    }
-    from = tokens->tokens[open].offset + tokens->tokens[open].len;
-    to = tokens->tokens[first].offset;
-    for (int32 j = from; j < to; j += 1) {
-        char c = tokens->text[j];
-        if (c == '\n') {
-            newline = true;
-        } else if (c != '\r' && c != ' ' && c != '\t') {
-            plain = false;
-            break;
-        }
-    }
-    if (newline && plain) {
-        bool top_macro = !macro && csane_call_top_macro(file, name);
-        StrFlex *rule = top_macro ? SFLIT("FMT-CALL-FIRST-TOPLEVEL")
-                                  : SFLIT("FMT-CALL-FIRST");
-
-        if (!top_macro
-            || !csane_policy_macro_allowed(file->policy,
-                                           file->path, file->path_len,
-                                           STRLIT("FMT-CALL-FIRST-TOPLEVEL"),
-                                           &tokens->tokens[name])) {
-            csane_rule_issue(file, tokens->tokens[open].offset,
-                             rule->data, rule->len,
-                             "call breaks before the first argument");
-        }
-    }
-    macro_parameters = macro
-                       && csane_call_macro_parameters(file, open, content);
-    if (!macro
-        || (!csane_call_macro_fragments(file, content)
-            && !macro_parameters)) {
-        do {
-            CsaneTokenView *in_view = &view;
-
-            CsaneCallArgument args[256];
-            int32 count = csane_call_arguments(file, in_view, args, 256);
-
-            if (count < 3) {
-                break;
-            }
-            for (int32 i = 0; i < count; i += 1) {
-                if (args[i].format) {
-                    csane_call_sp_format(file, in_view, args, count, i);
-                    break;
-                }
-            }
-        } while (false);
-    }
-    if (!csane_calls_line_break(file, open, close)) {
-        return;
-    }
-    /* Contextual comparisons are sound for self-contained replacements.
-     * Names of macros or parameters can change their argument structure. */
-    if (!macro
-        || (!csane_call_macro_fragments(file, content)
-            && !macro_parameters)) {
-        csane_call_context(file, &view);
-    }
-    anchor = first;
-    cursor = content.first;
-    while (cursor < close) {
-        int32 comma = csane_tokens_top_level(&view, cursor, STRLIT(","));
-        int32 end;
-        TokenRange argument;
-        int32 current;
-        if (comma < 0) {
-            return;
-        }
-        if (comma < close) {
-            end = comma;
-        } else {
-            end = close;
-        }
-        argument = (TokenRange){cursor, end};
-        current = csane_call_next(file, argument, cursor - 1);
-        if (current < end) {
-            if (format < 0 && csane_call_format(file, argument)) {
-                format = current;
-                anchor = current;
-            }
-            csane_call_literals(file, argument);
-            if (previous >= 0
-                && csane_calls_line_break(file, previous, current)
-                && csane_calls_location(file, current).column
-                   != csane_calls_location(file, anchor).column) {
-                misaligned = true;
-            }
-            previous = csane_call_previous(file, argument, argument.end);
-        }
-        if (comma >= close) {
-            break;
-        }
-        cursor = comma + 1;
-    }
-    /* Parameters in macro replacements can be expanded into arbitrary
-     * argument layouts. Continuation-line indentation is not a reliable
-     * alignment anchor for those calls. */
-    if (misaligned && !macro_parameters) {
-        /* The legacy rule emits one issue per call. */
-        cursor = content.first;
-        previous = -1;
-        if (format >= 0) {
-            anchor = format;
-        } else {
-            anchor = first;
-        }
-        while (cursor < close) {
-            int32 comma = csane_tokens_top_level(&view, cursor, STRLIT(","));
-            int32 end;
-            TokenRange argument;
-            int32 current;
-            if (comma < close) {
-                end = comma;
-            } else {
-                end = close;
-            }
-            argument = (TokenRange){cursor, end};
-            current = csane_call_next(file, argument, cursor - 1);
-            if (current < end) {
-                if (previous >= 0
-                    && csane_calls_line_break(file, previous, current)
-                    && csane_calls_location(file, current).column
-                       != csane_calls_location(file, anchor).column) {
-                    csane_rule_issue(file, tokens->tokens[current].offset,
-                                     STRLIT("FMT-ARG-ALIGN"),
-                                     "call argument is not aligned "
-                                     "with its alignment anchor");
-                    break;
-                }
-                previous = csane_call_previous(file, argument, argument.end);
-            }
-            if (comma >= close) {
-                break;
-            }
-            cursor = comma + 1;
-        }
-    }
-}
-
-static bool
-csane_call_spacing_gap(CsaneFile *file, Token *name, Token *open) {
-    char *text = file->tokens->text;
-    int32 start = name->offset + name->len;
-    for (int32 i = start; i < open->offset; i += 1) {
-        if (text[i] != ' ' && text[i] != '\t'
-            && text[i] != '\r' && text[i] != '\n') {
-            return false;
-        }
-    }
-    return start < open->offset;
-}
 
 static StrFlex *csane_call_keywords[] = {
     SFLIT("if"), SFLIT("for"), SFLIT("while"),
@@ -998,34 +571,7 @@ static StrFlex *csane_call_keywords[] = {
     SFLIT("_Alignof"), SFLIT("_Generic"), SFLIT("_Static_assert"),
 };
 
-static bool
-csane_call_keyword(Token *token) {
-    int32 count = LENGTH(csane_call_keywords);
-    for (int32 i = 0; i < count; i += 1) {
-        StrFlex *word = csane_call_keywords[i];
-        if (TOKEN_IS(token, word->data, word->len)) {
-            return true;
-        }
-    }
-    return false;
-}
 
-static bool
-csane_call_prototype(CsaneFile *file, int32 name) {
-    CsaneTopLevels *top = file->toplevel;
-    if (top == NULL) {
-        return false;
-    }
-    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
-        CsaneTopItem *item = &top->items[i];
-        if (item->name_token == name
-            && (item->kind == CSANE_TOP_FUNCTION_DECLARATION
-                || item->kind == CSANE_TOP_FUNCTION_DEFINITION)) {
-            return true;
-        }
-    }
-    return false;
-}
 
 void
 csane_calls_token_check(CsaneFile *file) {
@@ -1073,10 +619,57 @@ csane_calls_token_check(CsaneFile *file) {
             }
         }
         name = csane_tokens_previous(&local, i);
-        if (name < 0 || tokens->tokens[name].kind != TOKEN_IDENT
-            || !csane_calls_code(file, name)
-            || csane_call_keyword(&tokens->tokens[name])
-            || csane_call_prototype(file, name)) {
+        bool _i11_predicate;
+        _i11_predicate = name < 0;
+        if (!_i11_predicate) {
+            _i11_predicate = tokens->tokens[name].kind != TOKEN_IDENT;
+        }
+        if (!_i11_predicate) {
+            _i11_predicate = !csane_calls_code(file, name);
+        }
+        if (!_i11_predicate) {
+            bool _i11_result;
+            do {
+                Token *_i11_token = &tokens->tokens[name];
+
+                int32 count = LENGTH(csane_call_keywords);
+                for (int32 i = 0; i < count; i += 1) {
+                    StrFlex *word = csane_call_keywords[i];
+                    if (TOKEN_IS(_i11_token, word->data, word->len)) {
+                        _i11_result = true;
+                        goto _i11_done;
+                    }
+                }
+                _i11_result = false;
+                goto _i11_done;
+                _i11_done: ;
+            } while (false);
+            _i11_predicate = _i11_result;
+        }
+        if (!_i11_predicate) {
+            bool _i12_result;
+            do {
+                CsaneTopLevels *top = file->toplevel;
+                if (top == NULL) {
+                    _i12_result = false;
+                    goto _i12_done;
+                }
+                for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
+                    CsaneTopItem *item = &top->items[i];
+                    if (item->name_token == name
+                        && (item->kind == CSANE_TOP_FUNCTION_DECLARATION
+                            || item->kind == CSANE_TOP_FUNCTION_DEFINITION)) {
+                        _i12_result = true;
+                        goto _i12_done;
+                    }
+                }
+                _i12_result = false;
+                goto _i12_done;
+                _i12_done: ;
+            } while (false);
+            _i11_predicate = _i12_result;
+        }
+        if (_i11_predicate) {
             continue;
         }
         range = (TokenRange){0, ARRAY_LEN(tokens->tokens)};
@@ -1090,8 +683,30 @@ csane_calls_token_check(CsaneFile *file) {
         if (kind != CSANE_LOCAL_CALL && kind != CSANE_LOCAL_MACRO_INVOCATION) {
             continue;
         }
-        if (kind == CSANE_LOCAL_CALL
-            && csane_call_spacing_gap(file, &tokens->tokens[name], token)) {
+        bool _i10_predicate;
+        _i10_predicate = kind == CSANE_LOCAL_CALL;
+        if (_i10_predicate) {
+            bool _i10_result;
+            do {
+                Token *_i10_name = &tokens->tokens[name];
+                Token *_i10_open = token;
+
+                char *text = file->tokens->text;
+                int32 start = _i10_name->offset + _i10_name->len;
+                for (int32 i = start; i < _i10_open->offset; i += 1) {
+                    if (text[i] != ' ' && text[i] != '\t'
+                        && text[i] != '\r' && text[i] != '\n') {
+                        _i10_result = false;
+                        goto _i10_done;
+                    }
+                }
+                _i10_result = start < _i10_open->offset;
+                goto _i10_done;
+                _i10_done: ;
+            } while (false);
+            _i10_predicate = _i10_result;
+        }
+        if (_i10_predicate) {
             csane_rule_issue(file, token->offset, STRLIT("FMT-CALL-SPACING"),
                              "no whitespace before call parenthesis");
         }
@@ -1128,7 +743,484 @@ csane_calls_token_check(CsaneFile *file) {
         macro = file->preprocessor->token_roles != NULL
                 && file->preprocessor->token_roles[i]
                    == C_PP_TOKEN_MACRO_REPLACEMENT;
-        csane_call_token_one(file, name, i, close, macro);
+        do {
+            int32 _i9_open = i;
+
+            Tokenization *tokens = file->tokens;
+            TokenRange content = {_i9_open + 1, close};
+            CsaneTokenView view;
+            int32 first;
+            int32 from;
+            int32 to;
+            bool newline = false;
+            bool plain = true;
+            int32 format = -1;
+            int32 anchor;
+            int32 cursor;
+            int32 previous = -1;
+            bool misaligned = false;
+            bool macro_parameters;
+
+            if (!csane_tokens_view(&view, tokens, content)
+                || !csane_tokens_balanced(&view)) {
+                goto _i9_done;
+            }
+            first = csane_call_next(file, content, _i9_open);
+            if (first >= close) {
+                goto _i9_done;
+            }
+            from =
+                tokens->tokens[_i9_open].offset + tokens->tokens[_i9_open].len;
+            to = tokens->tokens[first].offset;
+            for (int32 j = from; j < to; j += 1) {
+                char c = tokens->text[j];
+                if (c == '\n') {
+                    newline = true;
+                } else if (c != '\r' && c != ' ' && c != '\t') {
+                    plain = false;
+                    break;
+                }
+            }
+            if (newline && plain) {
+                bool _i8_result;
+                do {
+                    CsaneTopLevels *top = file->toplevel;
+
+                    if (top == NULL) {
+                        _i8_result = false;
+                        goto _i8_done;
+                    }
+                    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
+                        CsaneTopItem *item = &top->items[i];
+                        if (item->kind == CSANE_TOP_MACRO_INVOCATION
+                            && item->name_token == name) {
+                            _i8_result = true;
+                            goto _i8_done;
+                        }
+                    }
+                    _i8_result = false;
+                    goto _i8_done;
+                    _i8_done: ;
+                } while (false);
+                bool top_macro = !macro && _i8_result;
+                StrFlex *rule = top_macro ? SFLIT("FMT-CALL-FIRST-TOPLEVEL")
+                                          : SFLIT("FMT-CALL-FIRST");
+
+                if (!top_macro
+                    || !csane_policy_macro_allowed(file->policy,
+                                                   file->path, file->path_len,
+                                                   rule->data, rule->len,
+                                                   &tokens->tokens[name])) {
+                    csane_rule_issue(file, tokens->tokens[_i9_open].offset,
+                                     rule->data, rule->len,
+                                     "call breaks before the first argument");
+                }
+            }
+            bool _i6_result;
+            do {
+                if (!macro) {
+                    _i6_result = false;
+                    break;
+                }
+                int32 _i6_open = _i9_open;
+
+                CsaneRegions *regions = file->regions;
+                int32 region =
+                    csane_regions_at_token(regions,
+                                           _i6_open);
+                int32 definition =
+                    csane_regions_enclosing(regions, region,
+                                            CSANE_REGION_MACRO_DEFINE);
+                int32 parameters = -1;
+                Tokenization *tokens;
+                TokenRange names;
+
+                if (definition < 0) {
+                    _i6_result = false;
+                    goto _i6_done;
+                }
+                for (int32 child = regions->items[definition].first_child;
+                     child >= 0; child =
+                         regions->items[child].next_sibling) {
+                    if (regions->items[child].kind
+                        == CSANE_REGION_MACRO_PARAMETERS) {
+                        parameters = child;
+                        break;
+                    }
+                }
+                if (parameters < 0) {
+                    _i6_result = false;
+                    goto _i6_done;
+                }
+                tokens = file->tokens;
+                names = regions->items[parameters].tokens;
+                for (int32 i =
+                    content.first; i < content.end; i += 1) {
+                    Token *candidate = &tokens->tokens[i];
+                    if (candidate->kind != TOKEN_IDENT) {
+                        continue;
+                    }
+                    for (int32 j =
+                        names.first; j < names.end; j += 1) {
+                        Token *name = &tokens->tokens[j];
+                        if (name->kind == TOKEN_IDENT
+                            && candidate->len == name->len
+                            && !memcmp64(candidate->text,
+                                         name->text, name->len)) {
+                            _i6_result = true;
+                            goto _i6_done;
+                        }
+                    }
+                }
+                _i6_result = false;
+                goto _i6_done;
+                _i6_done: ;
+            } while (false);
+            macro_parameters = macro
+                               && _i6_result;
+            if (!macro
+                || (!csane_call_macro_fragments(file, content)
+                    && !macro_parameters)) {
+                do {
+                    CsaneTokenView *in_view = &view;
+
+                    CsaneCallArgument args[256];
+                    int32 count = csane_call_arguments(file, in_view,
+                                                       args, 256);
+
+                    if (count < 3) {
+                        break;
+                    }
+                    for (int32 i = 0; i < count; i += 1) {
+                        if (args[i].format) {
+                            csane_call_sp_format(file, in_view, args, count, i);
+                            break;
+                        }
+                    }
+                } while (false);
+            }
+            if (!csane_calls_line_break(file, _i9_open, close)) {
+                goto _i9_done;
+            }
+            /* Contextual comparisons are sound for self-contained replacements.
+              * Names of macros or parameters can change their argument
+              * structure. */
+            do {
+                if (macro
+                    && (csane_call_macro_fragments(file, content)
+                        || macro_parameters)) {
+                    break;
+                }
+                CsaneTokenView *_i7_view = &view;
+
+                /* Calls with an unusually large number of arguments are
+                 * still examined
+                  * by the basic layout checks; no contextual conclusion is
+                  * inferred. */
+                CsaneCallArgument args[256];
+                int32 count = csane_call_arguments(file, _i7_view, args, 256);
+                Tokenization *tokens;
+                int32 format = -1;
+                int32 first_string = -1;
+                int32 second_string = -1;
+                int32 string_count = 0;
+                int32 first_line;
+                int32 second_line;
+
+                if (count < 1) {
+                    goto _i7_done;
+                }
+                tokens = file->tokens;
+                for (int32 i = 0; i < count; i += 1) {
+                    if (args[i].format) {
+                        format = i;
+                        break;
+                    }
+                }
+                if (format >= 0) {
+                    int32 line =
+                        csane_calls_location(file, args[format].last).line;
+                    bool on_line = false;
+                    bool off_line = false;
+                    for (int32 i = format + 1; i < count; i += 1) {
+                        if (csane_calls_location(file, args[i].first).line
+                            == line) {
+                            on_line = true;
+                        } else {
+                            off_line = true;
+                        }
+                    }
+                    if (on_line && off_line) {
+                        int32 format_offset = tokens->tokens[args[format].first]
+                                              .offset;
+                        csane_rule_issue(file, format_offset,
+                                         STRLIT("FMT-FORMAT-LINE"),
+                                         "format-string line must contain all "
+                                         "format arguments or none");
+                    }
+                    if (!on_line && format + 2 < count) {
+                        SourceLocation first_location =
+                            csane_calls_location(file,
+                                                 args[format + 1].first);
+                        bool split = false;
+                        bool safe = true;
+
+                        for (int32 i = format + 1; i < count; i += 1) {
+                            SourceLocation first_location_i =
+                                csane_calls_location(file, args[i].first);
+                            SourceLocation last_location_i =
+                                csane_calls_location(file, args[i].last);
+
+                            if (first_location_i.line != last_location_i.line) {
+                                safe = false;
+                                break;
+                            }
+                            if (first_location_i.line != first_location.line) {
+                                split = true;
+                            }
+                        }
+                        if (safe && split) {
+                            int32 start =
+                                tokens->tokens[args[format + 1].first].offset;
+                            int32 close = _i7_view->range.end;
+                            int32 close_end = tokens->tokens[close].offset
+                                              + tokens->tokens[close].len;
+                            SourceLocation close_location =
+                                csane_calls_location(file, close);
+                            int32 line = close_location.line;
+                            int32 end =
+                                tokenization_physical_line_end_offset(tokens,
+                                                                      line);
+                            int32 max_width = file->column_limit;
+
+                            if (end > close_end
+                                && tokens->text[end - 1] == '\n') {
+                                end -= 1;
+                            }
+                            while (end > close_end
+                                   && (tokens->text[end - 1] == ' '
+                                       || tokens->text[end - 1] == '\t'
+                                       || tokens->text[end - 1] == '\r')) {
+                                end -= 1;
+                            }
+                            if (max_width > 0) {
+                                int32 suffix = end - close_end;
+                                max_width -= first_location.column + suffix;
+                                safe = max_width > 0;
+                            }
+                            if (safe) {
+                                int32 width;
+
+                                char *source = tokens->text;
+                                width = csane_wrap_flat_length(source, start,
+                                                               close_end,
+                                                               max_width);
+
+                                if (width >= 0
+                                    && (max_width <= 0
+                                        || width <= max_width)) {
+                                    for (int32 i = args[format + 1].first;
+                                         i <= close; i += 1) {
+                                        if (tokens->tokens[i].kind
+                                            == TOKEN_COMMENT) {
+                                            safe = false;
+                                            break;
+                                        }
+                                    }
+                                    if (safe) {
+                                        StrFlex *rule =
+                                            SFLIT("FMT-FORMAT-ARGS-WRAP");
+                                        char *message =
+                                            "format arguments fit on "
+                                            "one line but are split "
+                                            "across multiple lines";
+
+                                        csane_rule_issue(file, start,
+                                                         rule->data,
+                                                         rule->len, message);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (count < 3) {
+                    goto _i7_done;
+                }
+                /* When exactly two adjacent arguments are string literals,
+                 * keep them
+                  * together or put each on a line without any other
+                  * argument. */
+                for (int32 i = 0; i < count; i += 1) {
+                    if (args[i].first != args[i].last
+                        || !csane_call_string(&tokens->tokens[args[i].first])) {
+                        continue;
+                    }
+                    string_count += 1;
+                    if (string_count == 1) {
+                        first_string = i;
+                    } else if (string_count == 2) {
+                        second_string = i;
+                    }
+                }
+                if (string_count == 2
+                    && second_string == first_string + 1) {
+                    first_line =
+                        csane_calls_location(file,
+                                             args[first_string].first).line;
+                    int32 second_token = args[second_string].first;
+                    second_line = csane_calls_location(file, second_token).line;
+                    if (first_line != second_line) {
+                        for (int32 i = 0; i < count; i += 1) {
+                            int32 begin;
+                            int32 end;
+
+                            if (i == first_string || i == second_string) {
+                                continue;
+                            }
+                            begin = csane_calls_location(file,
+                                                         args[i].first).line;
+                            end = csane_calls_location(file,
+                                                       args[i].last).line;
+                            if ((begin <= first_line && first_line <= end)
+                                || (begin <= second_line
+                                    && second_line <= end)) {
+                                int32 token = args[second_string].first;
+
+                                csane_rule_issue(file,
+                                                 tokens->tokens[token].offset,
+                                                 STRLIT("FMT-STRING-PAIR"),
+                                                 "related string arguments "
+                                                 "must share a line or each "
+                                                 "be on its own line");
+                                break;
+                            }
+                        }
+                    }
+                }
+                for (int32 i = 0; i + 1 < count; i += 1) {
+                    int32 a;
+                    int32 b;
+                    int32 line_a;
+                    int32 line_b;
+                    bool related = false;
+
+                    a = args[i].last;
+                    b = args[i + 1].last;
+                    if (args[i].identifier && args[i + 1].identifier) {
+                        related = csane_calls_related(&tokens->tokens[a],
+                                                      &tokens->tokens[b]);
+                    }
+                    if (!related) {
+                        related = csane_call_matching_length(file,
+                                                             _i7_view, &args[i],
+                                                             &args[i + 1]);
+                    }
+                    if (!related) {
+                        continue;
+                    }
+                    line_a = csane_calls_location(file, a).line;
+                    line_b = csane_calls_location(file, b).line;
+                    if (line_a != line_b
+                        && (csane_call_count_on_line(file, args, count,
+                                                     line_a) != 1
+                            || csane_call_count_on_line(file, args, count,
+                                                        line_b) != 1)) {
+                        csane_rule_issue(file, tokens->tokens[b].offset,
+                                         STRLIT("FMT-RELATED-ARGS"),
+                                         "related arguments must be the only "
+                                         "arguments on their lines");
+                        break;
+                    }
+                }
+                _i7_done: ;
+            } while (false);
+            anchor = first;
+            cursor = content.first;
+            while (cursor < close) {
+                int32 comma = csane_tokens_top_level(&view, cursor,
+                                                     STRLIT(","));
+                int32 end;
+                TokenRange argument;
+                int32 current;
+                if (comma < 0) {
+                    goto _i9_done;
+                }
+                if (comma < close) {
+                    end = comma;
+                } else {
+                    end = close;
+                }
+                argument = (TokenRange){cursor, end};
+                current = csane_call_next(file, argument, cursor - 1);
+                if (current < end) {
+                    if (format < 0 && csane_call_format(file, argument)) {
+                        format = current;
+                        anchor = current;
+                    }
+                    csane_call_literals(file, argument);
+                    if (previous >= 0
+                        && csane_calls_line_break(file, previous, current)
+                        && csane_calls_location(file, current).column
+                           != csane_calls_location(file, anchor).column) {
+                        misaligned = true;
+                    }
+                    previous = csane_call_previous(file, argument,
+                                                   argument.end);
+                }
+                if (comma >= close) {
+                    break;
+                }
+                cursor = comma + 1;
+            }
+            /* Parameters in macro replacements can be expanded into arbitrary
+             * argument layouts. Continuation-line indentation is not a reliable
+             * alignment anchor for those calls. */
+            if (misaligned && !macro_parameters) {
+                /* The legacy rule emits one issue per call. */
+                cursor = content.first;
+                previous = -1;
+                if (format >= 0) {
+                    anchor = format;
+                } else {
+                    anchor = first;
+                }
+                while (cursor < close) {
+                    int32 comma = csane_tokens_top_level(&view, cursor,
+                                                         STRLIT(","));
+                    int32 end;
+                    TokenRange argument;
+                    int32 current;
+                    if (comma < close) {
+                        end = comma;
+                    } else {
+                        end = close;
+                    }
+                    argument = (TokenRange){cursor, end};
+                    current = csane_call_next(file, argument, cursor - 1);
+                    if (current < end) {
+                        if (previous >= 0
+                            && csane_calls_line_break(file, previous, current)
+                            && csane_calls_location(file, current).column
+                               != csane_calls_location(file, anchor).column) {
+                            csane_rule_issue(file,
+                                             tokens->tokens[current].offset,
+                                             STRLIT("FMT-ARG-ALIGN"),
+                                             "call argument is not aligned "
+                                             "with its alignment anchor");
+                            break;
+                        }
+                        previous = csane_call_previous(file, argument,
+                                                       argument.end);
+                    }
+                    if (comma >= close) {
+                        break;
+                    }
+                    cursor = comma + 1;
+                }
+            }
+            _i9_done: ;
+        } while (false);
     }
 }
 

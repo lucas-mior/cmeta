@@ -118,21 +118,31 @@ csane_stmt_close(CsaneStatementStream *stream, int32 position) {
 
 static bool csane_stmt_branch_needs_context(CsaneRegions *, int32);
 
-static bool
-csane_stmt_path_has_branch(CsaneRegions *regions, int32 branch, int32 owner) {
-    for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
-        if (r == branch) {
-            return true;
-        }
-    }
-    return false;
-}
 
 static bool
 csane_stmt_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
     for (int32 r = region; r >= 0; r = regions->items[r].parent) {
-        if (regions->items[r].kind == CSANE_REGION_CONDITIONAL_BRANCH
-            && !csane_stmt_path_has_branch(regions, r, owner)) {
+        bool _i50_predicate;
+        _i50_predicate =
+            regions->items[r].kind == CSANE_REGION_CONDITIONAL_BRANCH;
+        if (_i50_predicate) {
+            bool _i50_result;
+            do {
+                int32 _i50_branch = r;
+
+                for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
+                    if (r == _i50_branch) {
+                        _i50_result = true;
+                        goto _i50_done;
+                    }
+                }
+                _i50_result = false;
+                goto _i50_done;
+                _i50_done: ;
+            } while (false);
+            _i50_predicate = !_i50_result;
+        }
+        if (_i50_predicate) {
             return false;
         }
     }
@@ -265,18 +275,6 @@ csane_stmt_recover(CsaneStatementStream *stream, int32 first, int32 limit) {
     return limit;
 }
 
-static bool
-csane_stmt_new_line(CsaneStatementStream *stream, int32 a, int32 b) {
-    Token *first = csane_stmt_token(stream, a);
-    Token *next = csane_stmt_token(stream, b);
-    Tokenization *tokens = stream->statements->toplevel->regions->tokens;
-    for (int32 i = first->offset + first->len; i < next->offset; i += 1) {
-        if (tokens->text[i] == '\n') {
-            return true;
-        }
-    }
-    return false;
-}
 
 
 /* Scan one statement and return its next token. Every failure advances by
@@ -335,12 +333,44 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
         in_result_end = close + 1;
     } while (false);
     macro_end = in_result_end;
-    if (macro_end > first
-        && (macro_end == limit
-            || csane_stmt_is(stream, macro_end, STRLIT("}"))
-            || (!csane_stmt_is(stream, macro_end, STRLIT(";"))
-                && !csane_stmt_is(stream, macro_end, STRLIT(","))
-                && csane_stmt_new_line(stream, macro_end - 1, macro_end)))) {
+    bool _i51_predicate;
+    _i51_predicate = macro_end > first;
+    if (_i51_predicate) {
+        _i51_predicate = macro_end == limit;
+        if (!_i51_predicate) {
+            _i51_predicate = csane_stmt_is(stream, macro_end, STRLIT("}"));
+        }
+        if (!_i51_predicate) {
+            _i51_predicate = !csane_stmt_is(stream, macro_end, STRLIT(";"));
+            if (_i51_predicate) {
+                _i51_predicate = !csane_stmt_is(stream, macro_end, STRLIT(","));
+            }
+            if (_i51_predicate) {
+                bool _i51_result;
+                do {
+                    int32 _i51_a = macro_end - 1;
+                    int32 _i51_b = macro_end;
+
+                    Token *first = csane_stmt_token(stream, _i51_a);
+                    Token *next = csane_stmt_token(stream, _i51_b);
+                    Tokenization *tokens =
+                        stream->statements->toplevel->regions->tokens;
+                    for (int32 i =
+                        first->offset + first->len; i < next->offset; i += 1) {
+                        if (tokens->text[i] == '\n') {
+                            _i51_result = true;
+                            goto _i51_done;
+                        }
+                    }
+                    _i51_result = false;
+                    goto _i51_done;
+                    _i51_done: ;
+                } while (false);
+                _i51_predicate = _i51_result;
+            }
+        }
+    }
+    if (_i51_predicate) {
         *result = csane_stmt_append(stream, CSANE_STMT_MACRO_FRAGMENT,
                                     first, macro_end, parent, first);
         return macro_end;
@@ -517,41 +547,8 @@ csane_stmt_push(CsaneStatementStream *stream, int32 index) {
     return;
 }
 
-static int32
-csane_stmt_owner(CsaneRegions *regions, int32 region) {
-    for (int32 i = region; i >= 0; i = regions->items[i].parent) {
-        if (regions->items[i].kind == CSANE_REGION_CONDITIONAL_BRANCH
-            || regions->items[i].kind == CSANE_REGION_FILE) {
-            return i;
-        }
-    }
-    return -1;
-}
 
-static bool
-csane_stmt_branch_on_path(CsaneRegions *regions, int32 branch, int32 owner) {
-    for (int32 r = owner; r >= 0; r = regions->items[r].parent) {
-        if (r == branch) {
-            return true;
-        }
-    }
-    return false;
-}
 
-static bool
-csane_stmt_region_selected(CsaneRegions *regions, int32 region, int32 owner) {
-    bool has_branch = false;
-    for (int32 r = region; r >= 0; r = regions->items[r].parent) {
-        if (regions->items[r].kind != CSANE_REGION_CONDITIONAL_BRANCH) {
-            continue;
-        }
-        has_branch = true;
-        if (!csane_stmt_branch_on_path(regions, r, owner)) {
-            return false;
-        }
-    }
-    return !has_branch || owner >= 0;
-}
 
 static bool
 csane_stmt_branch_needs_context(CsaneRegions *regions, int32 owner) {
@@ -624,12 +621,76 @@ csane_stmt_stream(CsaneStatements *statements, int32 function, int32 owner) {
         if (part.first >= top->body.end) {
             break;
         }
-        if (region->kind != CSANE_REGION_CODE
-            || part.end <= top->body.first
-            || part.first >= top->body.end
-            || !(branch_owner
-                 ? csane_stmt_region_selected(regions, r, owner)
-                 : csane_stmt_owner(regions, r) == owner)) {
+        bool _i52_predicate;
+        _i52_predicate = region->kind != CSANE_REGION_CODE;
+        if (!_i52_predicate) {
+            _i52_predicate = part.end <= top->body.first;
+        }
+        if (!_i52_predicate) {
+            _i52_predicate = part.first >= top->body.end;
+        }
+        if (!_i52_predicate) {
+            int32 _i52_result;
+            do {
+                int32 _i52_region = r;
+
+                for (int32 i = _i52_region; i >= 0; i =
+                    regions->items[i].parent) {
+                    if (regions->items[i].kind
+                        == CSANE_REGION_CONDITIONAL_BRANCH
+                        || regions->items[i].kind == CSANE_REGION_FILE) {
+                        _i52_result = i;
+                        goto _i52_done;
+                    }
+                }
+                _i52_result = -1;
+                goto _i52_done;
+                _i52_done: ;
+            } while (false);
+                 bool _i54_result;
+                 do {
+                     int32 _i54_region = r;
+
+                     bool has_branch = false;
+                     for (int32 r = _i54_region; r >= 0; r =
+                         regions->items[r].parent) {
+                         if (regions->items[r].kind
+                             != CSANE_REGION_CONDITIONAL_BRANCH) {
+                             continue;
+                         }
+                         has_branch = true;
+                         bool _i53_predicate;
+                         bool _i53_result;
+                         do {
+                             int32 _i53_branch = r;
+
+                             for (int32 r = owner; r >= 0; r =
+                                 regions->items[r].parent) {
+                                 if (r == _i53_branch) {
+                                     _i53_result = true;
+                                     goto _i53_done;
+                                 }
+                             }
+                             _i53_result = false;
+                             goto _i53_done;
+                             _i53_done: ;
+                         } while (false);
+                         _i53_predicate = !_i53_result;
+                         if (_i53_predicate) {
+                             _i54_result = false;
+                             goto _i54_done;
+                         }
+                     }
+                     _i54_result = !has_branch || owner >= 0;
+                     goto _i54_done;
+                     _i54_done: ;
+                 } while (false);
+            _i52_predicate = branch_owner
+                 ? _i54_result
+                 : _i52_result == owner;
+            _i52_predicate = !_i52_predicate;
+        }
+        if (_i52_predicate) {
             continue;
         }
         /* Region token bounds include tokens overlapping their source
