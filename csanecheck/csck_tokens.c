@@ -367,19 +367,6 @@ csane_tokens_group(CsaneTokenView *view, int32 open,
     return true;
 }
 
-static TokenRange
-csane_tokens_trim(CsaneTokenView *view) {
-    TokenRange result;
-    int32 first = csane_tokens_next(view, view->range.first - 1);
-    int32 last;
-    if (first < view->range.first || first >= view->range.end) {
-        return (TokenRange){view->range.end, view->range.end};
-    }
-    last = csane_tokens_previous(view, view->range.end);
-    result.first = first;
-    result.end = last + 1;
-    return result;
-}
 
 TokenRange
 csane_tokens_unwrap(CsaneTokenView *view, TokenRange range) {
@@ -391,7 +378,24 @@ csane_tokens_unwrap(CsaneTokenView *view, TokenRange range) {
         return range;
     }
     for (;;) {
-        trimmed = csane_tokens_trim(&local);
+        TokenRange in_result_trim;
+        do {
+            CsaneTokenView *in_view = &local;
+
+            TokenRange result;
+            int32 first = csane_tokens_next(in_view, in_view->range.first - 1);
+            int32 last;
+            if (first < in_view->range.first || first >= in_view->range.end) {
+                in_result_trim =
+                    (TokenRange){in_view->range.end, in_view->range.end};
+                break;
+            }
+            last = csane_tokens_previous(in_view, in_view->range.end);
+            result.first = first;
+            result.end = last + 1;
+            in_result_trim = result;
+        } while (false);
+        trimmed = in_result_trim;
         first = trimmed.first;
         last = trimmed.end - 1;
         if (first >= last || !TOKEN_IS(&view->tokens->tokens[first], "(")

@@ -51,29 +51,6 @@ csane_status_declaration(CsaneFile *file, int32 token, TokenRange body) {
            && csane_status_is(file, next, STRLIT(";"));
 }
 
-static bool
-csane_status_pair(CsaneFile *file, int32 assignment, int32 use,
-                  TokenRange body) {
-    int32 next = tokenization_next_significant(file->tokens, assignment);
-    int32 terminators = 0;
-    SourceLocation a;
-    SourceLocation b;
-
-    if (next >= body.end || !csane_status_is(file, next, STRLIT("="))) {
-        return false;
-    }
-    for (int32 i = next + 1; i < use; i += 1) {
-        terminators += csane_status_is(file, i, STRLIT(";"));
-    }
-    /* A second completed statement can have side effects that would be
-     * reordered by inlining the assignment into the following use. */
-    if (terminators != 1) {
-        return false;
-    }
-    a = tokenization_token_location(file->tokens, assignment);
-    b = tokenization_token_location(file->tokens, use);
-    return b.line == a.line + 1;
-}
 
 static void
 csane_status_function(CsaneFile *file, CsaneTopItem *top) {
@@ -109,7 +86,35 @@ csane_status_function(CsaneFile *file, CsaneTopItem *top) {
     matches = declarations == 1
               && csane_status_declaration(file, refs[0], body);
     for (int32 i = 1; matches && i < count; i += 2) {
-        matches = csane_status_pair(file, refs[i], refs[i + 1], body);
+        bool in_result_pair;
+        do {
+            int32 in_assignment = refs[i];
+            int32 in_use = refs[i + 1];
+
+            int32 next =
+                tokenization_next_significant(file->tokens, in_assignment);
+            int32 terminators = 0;
+            SourceLocation a;
+            SourceLocation b;
+
+            if (next >= body.end || !csane_status_is(file, next, STRLIT("="))) {
+                in_result_pair = false;
+                break;
+            }
+            for (int32 i = next + 1; i < in_use; i += 1) {
+                terminators += csane_status_is(file, i, STRLIT(";"));
+            }
+            /* A second completed statement can have side effects that would be
+             * reordered by inlining the assignment into the following use. */
+            if (terminators != 1) {
+                in_result_pair = false;
+                break;
+            }
+            a = tokenization_token_location(file->tokens, in_assignment);
+            b = tokenization_token_location(file->tokens, in_use);
+            in_result_pair = b.line == a.line + 1;
+        } while (false);
+        matches = in_result_pair;
     }
     if (matches) {
         csane_rule_issue(file, file->tokens->tokens[refs[0]].offset,

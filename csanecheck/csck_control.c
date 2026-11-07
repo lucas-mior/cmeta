@@ -56,63 +56,10 @@ csane_control_for_empty(CsaneFile *file, int32 index) {
            && TOKEN_IS(&file->tokens->tokens[first], ";");
 }
 
-static void
-csane_control_braces(CsaneFile *file, CsaneStatement *stmt) {
-    bool control = stmt->kind == CSANE_STMT_IF
-                   || stmt->kind == CSANE_STMT_FOR
-                   || stmt->kind == CSANE_STMT_WHILE
-                   || stmt->kind == CSANE_STMT_DO
-                   || stmt->kind == CSANE_STMT_SWITCH;
-    CsaneStatement *alternative;
-    CsaneStatement *body;
-
-    /* Even an opaque body is definitely unbraced if its first token is
-     * not '{'. An unrecognized expression must not hide this violation. */
-    if (control && stmt->body >= 0
-        && !csane_control_block(file, stmt->body)
-        && !(stmt->kind == CSANE_STMT_FOR
-             && csane_control_for_empty(file, stmt->body))) {
-        csane_control_issue(file, stmt, STRLIT("AST-BRACES"),
-                            "control body must use curly braces");
-    }
-    if (stmt->kind != CSANE_STMT_IF || stmt->alternative < 0) {
-        return;
-    }
-    alternative = &file->statements->items[stmt->alternative];
-    if (alternative->kind != CSANE_STMT_ELSE || alternative->body < 0) {
-        return;
-    }
-    body = &file->statements->items[alternative->body];
-    if (csane_control_block(file, alternative->body)
-        || body->kind == CSANE_STMT_IF) {
-        return;
-    }
-    csane_control_issue(file, alternative, STRLIT("AST-BRACES"),
-                        "else body must use curly braces");
-}
 
 /* Case labels in #if branches are parsed in a separate source stream.
  * Locate the nearest containing switch by original source span when no
  * statement-parent relationship is available. */
-static int32
-csane_control_enclosing_switch(CsaneFile *file, CsaneStatement *label) {
-    int32 closest = -1;
-    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
-        CsaneStatement *candidate = &file->statements->items[i];
-        if (candidate->kind != CSANE_STMT_SWITCH
-            || candidate->function != label->function
-            || candidate->source.start >= label->source.start
-            || candidate->source.end <= label->source.start) {
-            continue;
-        }
-        if (closest < 0
-            || candidate->source.start
-               > file->statements->items[closest].source.start) {
-            closest = i;
-        }
-    }
-    return closest;
-}
 
 static void
 csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
@@ -127,7 +74,29 @@ csane_control_switch(CsaneFile *file, CsaneStatement *stmt) {
         && stmt->kind != CSANE_STMT_DEFAULT) {
         return;
     }
-    parent = csane_control_enclosing_switch(file, stmt);
+    int32 in_result_switch;
+    {
+        CsaneFile *in_file = file;
+        CsaneStatement *in_label = stmt;
+
+        int32 closest = -1;
+        for (int32 i = 0; i < ARRAY_LEN(in_file->statements->items); i += 1) {
+            CsaneStatement *candidate = &in_file->statements->items[i];
+            if (candidate->kind != CSANE_STMT_SWITCH
+                || candidate->function != in_label->function
+                || candidate->source.start >= in_label->source.start
+                || candidate->source.end <= in_label->source.start) {
+                continue;
+            }
+            if (closest < 0
+                || candidate->source.start
+                   > in_file->statements->items[closest].source.start) {
+                closest = i;
+            }
+        }
+        in_result_switch = closest;
+    }
+    parent = in_result_switch;
     if (parent < 0) {
         return;
     }
@@ -589,7 +558,43 @@ csane_control_check(CsaneFile *file) {
     }
     for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
         CsaneStatement *stmt = &file->statements->items[i];
-        csane_control_braces(file, stmt);
+        do {
+            CsaneFile *in_file = file;
+            CsaneStatement *in_stmt = stmt;
+
+            bool control = in_stmt->kind == CSANE_STMT_IF
+                           || in_stmt->kind == CSANE_STMT_FOR
+                           || in_stmt->kind == CSANE_STMT_WHILE
+                           || in_stmt->kind == CSANE_STMT_DO
+                           || in_stmt->kind == CSANE_STMT_SWITCH;
+            CsaneStatement *alternative;
+            CsaneStatement *body;
+
+            /* Even an opaque body is definitely unbraced if its first token is
+             * not '{'. An unrecognized expression must not hide this
+             * violation. */
+            if (control && in_stmt->body >= 0
+                && !csane_control_block(in_file, in_stmt->body)
+                && !(in_stmt->kind == CSANE_STMT_FOR
+                     && csane_control_for_empty(in_file, in_stmt->body))) {
+                csane_control_issue(in_file, in_stmt, STRLIT("AST-BRACES"),
+                                    "control body must use curly braces");
+            }
+            if (in_stmt->kind != CSANE_STMT_IF || in_stmt->alternative < 0) {
+                break;
+            }
+            alternative = &in_file->statements->items[in_stmt->alternative];
+            if (alternative->kind != CSANE_STMT_ELSE || alternative->body < 0) {
+                break;
+            }
+            body = &in_file->statements->items[alternative->body];
+            if (csane_control_block(in_file, alternative->body)
+                || body->kind == CSANE_STMT_IF) {
+                break;
+            }
+            csane_control_issue(in_file, alternative, STRLIT("AST-BRACES"),
+                                "else body must use curly braces");
+        } while (false);
         csane_control_switch(file, stmt);
         csane_control_artificial(file, stmt);
         csane_control_if_wrap(file, stmt, i);

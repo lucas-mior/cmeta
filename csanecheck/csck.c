@@ -36,182 +36,6 @@ csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
     return;
 }
 
-static int32
-csane_analyze(char *path, int32 path_len, CsaneOptions *options,
-              CsaneStats *stats) {
-    char *source = NULL;
-    int32 len = read_entire_file(path, &source);
-    Tokenization tokens;
-    CPreprocessorAnalysis pp = {0};
-    CsaneRegions regions = {0};
-    CsaneTopLevels toplevel = {0};
-    CsaneStatements statements = {0};
-    CsaneTypeHints type_hints = {0};
-    CsaneFile file;
-    bool pp_ok;
-    CsaneCoverage coverage;
-    int32 violations;
-    int32 structural_issues;
-    int32 issues;
-    CsaneRuleCounts totals = {0};
-    int32 incomplete = 0;
-
-    if (len < 0) {
-        return 2;
-    }
-    tokens = tokenize(source, len);
-    file = (CsaneFile){
-        .path = path,
-        .path_len = path_len,
-        .tokens = &tokens,
-        .preprocessor = &pp,
-        .policy = &options->policy,
-    };
-    csane_rules_prepare(&file);
-    /* Source checks are independent of preprocessing and syntax parsing. */
-    csane_rules_run(&file, CSANE_PASS_SOURCE);
-    pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
-    if (!csane_regions_init(&regions, &tokens, &pp)) {
-        error2("%.*s: unable to initialize source regions\n", path_len, path);
-        c_preprocessor_analysis_free(&pp);
-        free_tokenization(&tokens);
-        free2(source, (int64)len + 1);
-        return 2;
-    }
-    if (!csane_toplevel_init(&toplevel, &regions)) {
-        error2("%.*s: unable to initialize top-level regions\n",
-               path_len, path);
-        csane_regions_free(&regions);
-        c_preprocessor_analysis_free(&pp);
-        free_tokenization(&tokens);
-        free2(source, (int64)len + 1);
-        return 2;
-    }
-    if (!csane_statements_init(&statements, &toplevel)) {
-        error2("%.*s: unable to initialize function statements\n",
-               path_len, path);
-        csane_toplevel_free(&toplevel);
-        csane_regions_free(&regions);
-        c_preprocessor_analysis_free(&pp);
-        free_tokenization(&tokens);
-        free2(source, (int64)len + 1);
-        return 2;
-    }
-    csane_type_hints_init(&type_hints, &regions);
-    file.statements = &statements;
-    file.type_hints = &type_hints;
-    file.preprocessor_ok = pp_ok;
-    file.regions = &regions;
-    file.toplevel = &toplevel;
-    csane_layout_index_init(&file);
-    csane_rules_run(&file, CSANE_PASS_TOKEN);
-    coverage = csane_coverage_collect(&toplevel, &statements);
-    violations = file.violations;
-    structural_issues = coverage.opaque_externals + coverage.opaque_statements;
-    issues = structural_issues + ARRAY_LEN(pp.issues);
-    if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
-        issues += 1;
-    }
-    stats->violations += violations;
-    stats->declarations += coverage.declarations;
-    stats->function_decls += coverage.function_decls;
-    stats->function_defs += coverage.function_defs;
-    stats->statements += coverage.statements;
-    stats->opaque_statements += coverage.opaque_statements;
-    stats->opaque_externals += coverage.opaque_externals;
-
-    if (options->coverage) {
-        fmt_printf("coverage file=%.*s declarations=%d "
-                   "function_decls=%d "
-                   "function_defs=%d statements=%d "
-                   "opaque_statements=%d opaque_externals=%d "
-                   "structural_issues=%d preprocessor_issues=%d\n",
-                   path_len, path, coverage.declarations,
-                   coverage.function_decls,
-                   coverage.function_defs, coverage.statements,
-                   coverage.opaque_statements, coverage.opaque_externals,
-                   structural_issues, ARRAY_LEN(pp.issues));
-    }
-    if ((options->coverage || options->require_coverage)
-        && structural_issues > 0) {
-        csane_coverage_report_structural(path, path_len, &tokens,
-                                         &toplevel, &statements);
-    }
-    if (options->coverage || options->rule_coverage
-        || options->require_coverage) {
-        incomplete = csane_rules_incomplete(&file, options->rule_coverage,
-                                            options->rule_coverage
-                                            || options->require_coverage,
-                                            &totals);
-    }
-    if (options->coverage) {
-        fmt_printf("coverage_layers file=%.*s eligible=%d checked=%d "
-                   "excluded=%d unresolved=%d\n",
-                   path_len, path, totals.eligible, totals.checked,
-                   totals.excluded,
-                   totals.unresolved);
-    }
-    if (options->require_coverage && incomplete > 0) {
-        fmt_printf("%.*s:1:1: error[COVERAGE-INCOMPLETE]: "
-                   "%d required rule groups have unresolved targets\n",
-                   path_len, path, incomplete);
-    }
-
-    stats->files += 1;
-    stats->tokens += ARRAY_LEN(tokens.tokens);
-    stats->externals += ARRAY_LEN(toplevel.items);
-    stats->structural_issues += structural_issues;
-    stats->preprocessor_issues += ARRAY_LEN(pp.issues);
-
-    if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
-        stats->preprocessor_issues += 1;
-    }
-    if (options->report_parse || options->strict_parse) {
-        for (int32 i = 0; i < ARRAY_LEN(pp.issues); i += 1) {
-            int32 directive = pp.issues[i].directive_index;
-            int32 token = -1;
-            if ((directive >= 0) && (directive < ARRAY_LEN(pp.directives))) {
-                token = pp.directives[directive].hash_token;
-            }
-            csane_issue(path, path_len, &tokens, token,
-                        "PP-STRUCTURE", "invalid preprocessor structure");
-        }
-        if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
-            csane_issue(path, path_len, &tokens, -1,
-                        "PP-STRUCTURE", "preprocessor analysis failed");
-        }
-        for (int32 i = 0; i < ARRAY_LEN(toplevel.items); i += 1) {
-            CsaneTopItem *item = &toplevel.items[i];
-            if (item->kind == CSANE_TOP_OPAQUE) {
-                csane_issue(path, path_len, &tokens, item->tokens.first,
-                            "STRUCTURE-OPAQUE",
-                            "unrecognized top-level construct");
-            }
-        }
-        for (int32 i = 0; i < ARRAY_LEN(statements.items); i += 1) {
-            CsaneStatement *stmt = &statements.items[i];
-            if (stmt->kind == CSANE_STMT_OPAQUE) {
-                csane_issue(path, path_len, &tokens, stmt->tokens.first,
-                            "STRUCTURE-OPAQUE", "unrecognized statement");
-            }
-        }
-    }
-
-    csane_layout_index_free(&file);
-    csane_type_hints_free(&type_hints);
-    csane_statements_free(&statements);
-    csane_toplevel_free(&toplevel);
-    csane_regions_free(&regions);
-    c_preprocessor_analysis_free(&pp);
-    free_tokenization(&tokens);
-    free2(source, (int64)len + 1);
-
-    if (violations > 0 || (options->strict_parse && issues > 0)
-        || (options->require_coverage && incomplete > 0)) {
-        return 1;
-    }
-    return 0;
-}
 
 /* Policy discovery only needs the filename eligibility check. A parent
  * directory named stc outside the project must not hide its policy lists.
@@ -560,7 +384,203 @@ csane_run(int32 argc, char **argv) {
             }
         }
 #endif
-        status = csane_analyze(path, entry->len, &options, &stats);
+        int32 in_result_analyze;
+        do {
+            char *in_path = path;
+            int32 in_path_len = entry->len;
+            CsaneOptions *in_options = &options;
+            CsaneStats *in_stats = &stats;
+
+            char *source = NULL;
+            int32 len = read_entire_file(in_path, &source);
+            Tokenization tokens;
+            CPreprocessorAnalysis pp = {0};
+            CsaneRegions regions = {0};
+            CsaneTopLevels toplevel = {0};
+            CsaneStatements statements = {0};
+            CsaneTypeHints type_hints = {0};
+            CsaneFile file;
+            bool pp_ok;
+            CsaneCoverage coverage;
+            int32 violations;
+            int32 structural_issues;
+            int32 issues;
+            CsaneRuleCounts totals = {0};
+            int32 incomplete = 0;
+
+            if (len < 0) {
+                in_result_analyze = 2;
+                break;
+            }
+            tokens = tokenize(source, len);
+            file = (CsaneFile){
+                .path = in_path,
+                .path_len = in_path_len,
+                .tokens = &tokens,
+                .preprocessor = &pp,
+                .policy = &in_options->policy,
+            };
+            csane_rules_prepare(&file);
+            /* Source checks are independent of preprocessing and syntax
+             * parsing. */
+            csane_rules_run(&file, CSANE_PASS_SOURCE);
+            pp_ok = c_preprocessor_analysis_init(&pp, &tokens);
+            if (!csane_regions_init(&regions, &tokens, &pp)) {
+                error2("%.*s: unable to initialize source regions\n",
+                       in_path_len, in_path);
+                c_preprocessor_analysis_free(&pp);
+                free_tokenization(&tokens);
+                free2(source, (int64)len + 1);
+                in_result_analyze = 2;
+                break;
+            }
+            if (!csane_toplevel_init(&toplevel, &regions)) {
+                error2("%.*s: unable to initialize top-level regions\n",
+                       in_path_len, in_path);
+                csane_regions_free(&regions);
+                c_preprocessor_analysis_free(&pp);
+                free_tokenization(&tokens);
+                free2(source, (int64)len + 1);
+                in_result_analyze = 2;
+                break;
+            }
+            if (!csane_statements_init(&statements, &toplevel)) {
+                error2("%.*s: unable to initialize function statements\n",
+                       in_path_len, in_path);
+                csane_toplevel_free(&toplevel);
+                csane_regions_free(&regions);
+                c_preprocessor_analysis_free(&pp);
+                free_tokenization(&tokens);
+                free2(source, (int64)len + 1);
+                in_result_analyze = 2;
+                break;
+            }
+            csane_type_hints_init(&type_hints, &regions);
+            file.statements = &statements;
+            file.type_hints = &type_hints;
+            file.preprocessor_ok = pp_ok;
+            file.regions = &regions;
+            file.toplevel = &toplevel;
+            csane_layout_index_init(&file);
+            csane_rules_run(&file, CSANE_PASS_TOKEN);
+            coverage = csane_coverage_collect(&toplevel, &statements);
+            violations = file.violations;
+            structural_issues =
+                coverage.opaque_externals + coverage.opaque_statements;
+            issues = structural_issues + ARRAY_LEN(pp.issues);
+            if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
+                issues += 1;
+            }
+            in_stats->violations += violations;
+            in_stats->declarations += coverage.declarations;
+            in_stats->function_decls += coverage.function_decls;
+            in_stats->function_defs += coverage.function_defs;
+            in_stats->statements += coverage.statements;
+            in_stats->opaque_statements += coverage.opaque_statements;
+            in_stats->opaque_externals += coverage.opaque_externals;
+
+            if (in_options->coverage) {
+                fmt_printf("coverage file=%.*s declarations=%d "
+                           "function_decls=%d "
+                           "function_defs=%d statements=%d "
+                           "opaque_statements=%d opaque_externals=%d "
+                           "structural_issues=%d preprocessor_issues=%d\n",
+                           in_path_len, in_path, coverage.declarations,
+                           coverage.function_decls,
+                           coverage.function_defs, coverage.statements,
+                           coverage.opaque_statements,
+                           coverage.opaque_externals,
+                           structural_issues, ARRAY_LEN(pp.issues));
+            }
+            if ((in_options->coverage || in_options->require_coverage)
+                && structural_issues > 0) {
+                csane_coverage_report_structural(in_path, in_path_len, &tokens,
+                                                 &toplevel, &statements);
+            }
+            if (in_options->coverage || in_options->rule_coverage
+                || in_options->require_coverage) {
+                incomplete =
+                    csane_rules_incomplete(&file, in_options->rule_coverage,
+                                           in_options->rule_coverage
+                                           || in_options->require_coverage,
+                                           &totals);
+            }
+            if (in_options->coverage) {
+                fmt_printf("coverage_layers file=%.*s eligible=%d checked=%d "
+                           "excluded=%d unresolved=%d\n",
+                           in_path_len, in_path, totals.eligible,
+                           totals.checked,
+                           totals.excluded,
+                           totals.unresolved);
+            }
+            if (in_options->require_coverage && incomplete > 0) {
+                fmt_printf("%.*s:1:1: error[COVERAGE-INCOMPLETE]: "
+                           "%d required rule groups have unresolved targets\n",
+                           in_path_len, in_path, incomplete);
+            }
+
+            in_stats->files += 1;
+            in_stats->tokens += ARRAY_LEN(tokens.tokens);
+            in_stats->externals += ARRAY_LEN(toplevel.items);
+            in_stats->structural_issues += structural_issues;
+            in_stats->preprocessor_issues += ARRAY_LEN(pp.issues);
+
+            if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
+                in_stats->preprocessor_issues += 1;
+            }
+            if (in_options->report_parse || in_options->strict_parse) {
+                for (int32 i = 0; i < ARRAY_LEN(pp.issues); i += 1) {
+                    int32 directive = pp.issues[i].directive_index;
+                    int32 token = -1;
+                    if ((directive >= 0)
+                        && (directive < ARRAY_LEN(pp.directives))) {
+                        token = pp.directives[directive].hash_token;
+                    }
+                    csane_issue(in_path, in_path_len, &tokens, token,
+                                "PP-STRUCTURE",
+                                "invalid preprocessor structure");
+                }
+                if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
+                    csane_issue(in_path, in_path_len, &tokens, -1,
+                                "PP-STRUCTURE", "preprocessor analysis failed");
+                }
+                for (int32 i = 0; i < ARRAY_LEN(toplevel.items); i += 1) {
+                    CsaneTopItem *item = &toplevel.items[i];
+                    if (item->kind == CSANE_TOP_OPAQUE) {
+                        csane_issue(in_path, in_path_len, &tokens,
+                                    item->tokens.first,
+                                    "STRUCTURE-OPAQUE",
+                                    "unrecognized top-level construct");
+                    }
+                }
+                for (int32 i = 0; i < ARRAY_LEN(statements.items); i += 1) {
+                    CsaneStatement *stmt = &statements.items[i];
+                    if (stmt->kind == CSANE_STMT_OPAQUE) {
+                        csane_issue(in_path, in_path_len, &tokens,
+                                    stmt->tokens.first,
+                                    "STRUCTURE-OPAQUE",
+                                    "unrecognized statement");
+                    }
+                }
+            }
+
+            csane_layout_index_free(&file);
+            csane_type_hints_free(&type_hints);
+            csane_statements_free(&statements);
+            csane_toplevel_free(&toplevel);
+            csane_regions_free(&regions);
+            c_preprocessor_analysis_free(&pp);
+            free_tokenization(&tokens);
+            free2(source, (int64)len + 1);
+
+            if (violations > 0 || (in_options->strict_parse && issues > 0)
+                || (in_options->require_coverage && incomplete > 0)) {
+                in_result_analyze = 1;
+                break;
+            }
+            in_result_analyze = 0;
+        } while (false);
+        status = in_result_analyze;
 #if OS_UNIX
         if (capture != NULL) {
             long output_len;

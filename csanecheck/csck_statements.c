@@ -246,28 +246,6 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
 }
 
 
-static enum CsaneStatementKind
-csane_stmt_control(CsaneStatementStream *stream, int32 position) {
-    if (csane_stmt_is(stream, position, STRLIT("if"))) {
-        return CSANE_STMT_IF;
-    }
-    if (csane_stmt_is(stream, position, STRLIT("else"))) {
-        return CSANE_STMT_ELSE;
-    }
-    if (csane_stmt_is(stream, position, STRLIT("for"))) {
-        return CSANE_STMT_FOR;
-    }
-    if (csane_stmt_is(stream, position, STRLIT("while"))) {
-        return CSANE_STMT_WHILE;
-    }
-    if (csane_stmt_is(stream, position, STRLIT("do"))) {
-        return CSANE_STMT_DO;
-    }
-    if (csane_stmt_is(stream, position, STRLIT("switch"))) {
-        return CSANE_STMT_SWITCH;
-    }
-    return CSANE_STMT_SIMPLE;
-}
 
 /* Recover locally at a statement boundary without consuming unrelated
  * siblings. Never advance past the closing brace of the containing block. */
@@ -300,22 +278,6 @@ csane_stmt_new_line(CsaneStatementStream *stream, int32 a, int32 b) {
     return false;
 }
 
-static int32
-csane_stmt_macro_fragment_end(CsaneStatementStream *stream, int32 first,
-                              int32 limit) {
-    int32 close;
-    if (!csane_token_macro_name(csane_stmt_token(stream, first))) {
-        return -1;
-    }
-    if (first + 1 >= limit || !csane_stmt_is(stream, first + 1, STRLIT("("))) {
-        return first + 1;
-    }
-    close = stream->matches[first + 1];
-    if (close < first + 1 || close >= limit) {
-        return -1;
-    }
-    return close + 1;
-}
 
 /* Scan one statement and return its next token. Every failure advances by
  * at least one token; failure is not propagated to unrelated statements. */
@@ -353,7 +315,26 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     limit, parent, first);
         return limit;
     }
-    macro_end = csane_stmt_macro_fragment_end(stream, first, limit);
+    int32 in_result_end;
+    do {
+        int32 close;
+        if (!csane_token_macro_name(csane_stmt_token(stream, first))) {
+            in_result_end = -1;
+            break;
+        }
+        if (first + 1 >= limit
+            || !csane_stmt_is(stream, first + 1, STRLIT("("))) {
+            in_result_end = first + 1;
+            break;
+        }
+        close = stream->matches[first + 1];
+        if (close < first + 1 || close >= limit) {
+            in_result_end = -1;
+            break;
+        }
+        in_result_end = close + 1;
+    } while (false);
+    macro_end = in_result_end;
     if (macro_end > first
         && (macro_end == limit
             || csane_stmt_is(stream, macro_end, STRLIT("}"))
@@ -404,7 +385,37 @@ csane_stmt_parse(CsaneStatementStream *stream, int32 first, int32 limit,
                                     first + 2, parent, first + 2);
         return first + 2;
     }
-    control = csane_stmt_control(stream, first);
+    enum CsaneStatementKind in_result_control;
+    do {
+        int32 in_position = first;
+
+        if (csane_stmt_is(stream, in_position, STRLIT("if"))) {
+            in_result_control = CSANE_STMT_IF;
+            break;
+        }
+        if (csane_stmt_is(stream, in_position, STRLIT("else"))) {
+            in_result_control = CSANE_STMT_ELSE;
+            break;
+        }
+        if (csane_stmt_is(stream, in_position, STRLIT("for"))) {
+            in_result_control = CSANE_STMT_FOR;
+            break;
+        }
+        if (csane_stmt_is(stream, in_position, STRLIT("while"))) {
+            in_result_control = CSANE_STMT_WHILE;
+            break;
+        }
+        if (csane_stmt_is(stream, in_position, STRLIT("do"))) {
+            in_result_control = CSANE_STMT_DO;
+            break;
+        }
+        if (csane_stmt_is(stream, in_position, STRLIT("switch"))) {
+            in_result_control = CSANE_STMT_SWITCH;
+            break;
+        }
+        in_result_control = CSANE_STMT_SIMPLE;
+    } while (false);
+    control = in_result_control;
     if (control != CSANE_STMT_SIMPLE) {
         int32 header_end = first + 1;
         int32 id;

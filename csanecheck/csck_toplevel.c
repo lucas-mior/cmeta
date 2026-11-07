@@ -85,42 +85,6 @@ csane_top_push(CsaneTopStream *stream, int32 token, int32 leaf) {
     return;
 }
 
-static void
-csane_top_collect(CsaneTopStream *stream) {
-    CsaneRegions *regions = stream->top->regions;
-    Tokenization *tokens = regions->tokens;
-    CsaneSourceRegion *owner = &regions->items[stream->owner];
-    CsaneTokenPath path;
-    CsaneTokenView view;
-    int32 child;
-    int32 i;
-
-    if (!csane_token_path_init(&path, tokens, owner->tokens)) {
-        return;
-    }
-    child = owner->first_child;
-    for (; child >= 0; child = regions->items[child].next_sibling) {
-        CsaneSourceRegion *region = &regions->items[child];
-        if (region->kind == CSANE_REGION_CODE) {
-            (void)csane_token_path_append(&path, region->tokens);
-        }
-    }
-    if (!csane_tokens_path_view(&view, &path)) {
-        csane_token_path_free(&path);
-        return;
-    }
-    i = csane_tokens_next(&view, view.range.first - 1);
-    while (i >= view.range.first && i < view.range.end) {
-        Token *token = &tokens->tokens[i];
-        int32 leaf = csane_regions_at_token(regions, i);
-        if (token->kind != TOKEN_PREPROC && leaf >= 0) {
-            csane_top_push(stream, i, leaf);
-        }
-        i = csane_tokens_next(&view, i);
-    }
-    csane_token_path_free(&path);
-    return;
-}
 
 static bool
 csane_top_open(CsaneTopStream *stream, int32 pos) {
@@ -151,42 +115,6 @@ csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
 /* An unmatched inner delimiter must not hide an enclosing function body.
  * Search the stack for the nearest compatible opener and discard only the
  * damaged nesting above it. Matches outside the damaged span survive. */
-static void
-csane_top_match(CsaneTopStream *stream) {
-    int32 size;
-    int32 depth = 0;
-
-    if (ARRAY_LEN(stream->indices) == 0) {
-        return;
-    }
-    size = ARRAY_LEN(stream->indices)*SIZEOF(int32);
-    stream->matches = malloc2(size);
-    stream->stack = malloc2(size);
-    for (int32 i = 0; i < ARRAY_LEN(stream->indices); i += 1) {
-        stream->matches[i] = -1;
-        if (csane_top_open(stream, i)) {
-            stream->stack[depth] = i;
-            depth += 1;
-        } else if (csane_top_close(stream, i)) {
-            int32 found = depth - 1;
-            int32 open;
-
-            while (found >= 0
-                   && !csane_top_pair(stream, stream->stack[found], i)) {
-                found -= 1;
-            }
-            if (found < 0) {
-                depth = 0;
-                continue;
-            }
-            open = stream->stack[found];
-            stream->matches[open] = i;
-            stream->matches[i] = open;
-            depth = found;
-        }
-    }
-    return;
-}
 
 static bool
 csane_top_has(CsaneTopStream *stream, int32 first, int32 end,
@@ -236,48 +164,6 @@ csane_top_trailing_attribute(CsaneTopStream *stream, int32 first, int32 pos) {
 
 /* Return the function-name token, or -1. CAT(...)(...) is deliberately
  * supported: its name is the CAT macro, not an expanded identifier. */
-static int32
-csane_top_function_name(CsaneTopStream *stream, int32 first, int32 end) {
-    int32 open;
-    int32 name;
-
-    /* Strip a mixture of attribute calls and object-like attributes in
-     * reverse order. They may follow each other in either order. */
-    while (end > first) {
-        if (csane_top_trailing_attribute(stream, first, end - 1)) {
-            end -= 1;
-            continue;
-        }
-        if (csane_top_is(stream, end - 1, STRLIT(")"))) {
-            open = stream->matches[end - 1];
-            if (open > first
-                && csane_top_trailing_attribute(stream, first, open - 1)) {
-                end = open - 1;
-                continue;
-            }
-        }
-        break;
-    }
-    if (first >= end || !csane_top_is(stream, end - 1, STRLIT(")"))) {
-        return -1;
-    }
-    open = stream->matches[end - 1];
-    if (open <= first) {
-        return -1;
-    }
-    name = open - 1;
-    if (csane_top_token(stream, name)->kind == TOKEN_IDENT) {
-        return name;
-    }
-    if (csane_top_is(stream, name, STRLIT(")"))) {
-        int32 macro_open = stream->matches[name];
-        if (macro_open > first
-            && csane_top_macro_at(stream, macro_open - 1)) {
-            return macro_open - 1;
-        }
-    }
-    return -1;
-}
 
 static bool
 csane_top_is_function(CsaneTopStream *stream, int32 first,
@@ -287,7 +173,55 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
         || csane_top_has(stream, first, end, STRLIT("="))) {
         return false;
     }
-    *name = csane_top_function_name(stream, first, end);
+    int32 in_result_name;
+    do {
+        int32 in_end = end;
+
+        int32 open;
+        int32 name;
+
+        /* Strip a mixture of attribute calls and object-like attributes in
+         * reverse order. They may follow each other in either order. */
+        while (in_end > first) {
+            if (csane_top_trailing_attribute(stream, first, in_end - 1)) {
+                in_end -= 1;
+                continue;
+            }
+            if (csane_top_is(stream, in_end - 1, STRLIT(")"))) {
+                open = stream->matches[in_end - 1];
+                if (open > first
+                    && csane_top_trailing_attribute(stream, first, open - 1)) {
+                    in_end = open - 1;
+                    continue;
+                }
+            }
+            break;
+        }
+        if (first >= in_end || !csane_top_is(stream, in_end - 1, STRLIT(")"))) {
+            in_result_name = -1;
+            break;
+        }
+        open = stream->matches[in_end - 1];
+        if (open <= first) {
+            in_result_name = -1;
+            break;
+        }
+        name = open - 1;
+        if (csane_top_token(stream, name)->kind == TOKEN_IDENT) {
+            in_result_name = name;
+            break;
+        }
+        if (csane_top_is(stream, name, STRLIT(")"))) {
+            int32 macro_open = stream->matches[name];
+            if (macro_open > first
+                && csane_top_macro_at(stream, macro_open - 1)) {
+                in_result_name = macro_open - 1;
+                break;
+            }
+        }
+        in_result_name = -1;
+    } while (false);
+    *name = in_result_name;
     if (*name < 0 || *name == first) {
         return false;
     }
@@ -446,127 +380,10 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
     return leaf_end > first ? leaf_end : first + 1;
 }
 
-static void
-csane_top_scan(CsaneTopStream *stream) {
-    int32 first = 0;
-    while (first < ARRAY_LEN(stream->indices)) {
-        int32 name = -1;
-        bool emitted = false;
-        for (int32 i = first; i < ARRAY_LEN(stream->indices); i += 1) {
-            if (i == first + 2 && csane_top_is(stream, first, STRLIT("extern"))
-                && csane_top_is(stream, first + 1, STRLIT("\"C\""))
-                && csane_top_is(stream, i, STRLIT("{"))
-                && stream->matches[i] < 0
-                && stream->top->regions->items[stream->owner].kind
-                   == CSANE_REGION_CONDITIONAL_BRANCH) {
-                csane_top_append(stream, CSANE_TOP_LINKAGE_FRAGMENT,
-                                 first, i + 1, -1, -1);
-                first = i + 1;
-                emitted = true;
-                break;
-            }
-            if (i == first && csane_top_is(stream, i, STRLIT("}"))
-                && stream->top->regions->items[stream->owner].kind
-                   == CSANE_REGION_CONDITIONAL_BRANCH) {
-                csane_top_append(stream, CSANE_TOP_LINKAGE_FRAGMENT,
-                                 first, i + 1, -1, -1);
-                first = i + 1;
-                emitted = true;
-                break;
-            }
-            if (csane_top_open(stream, i)) {
-                if (stream->matches[i] < 0) {
-                    /* A fragment spanning an unbalanced preprocessor
-                     * boundary must not swallow the following code leaf. */
-                    int32 end = csane_top_recover(stream, first, i);
-                    csane_top_append(stream, CSANE_TOP_OPAQUE, first, end,
-                                     -1, -1);
-                    first = end;
-                    emitted = true;
-                    break;
-                }
-                if (csane_top_is(stream, i, STRLIT("{"))
-                    && csane_top_is_function(stream, first, i, &name)) {
-                    int32 end = stream->matches[i] + 1;
-                    csane_top_append(stream, CSANE_TOP_FUNCTION_DEFINITION,
-                                     first, end, i, name);
-                    first = end;
-                    emitted = true;
-                    break;
-                }
-                if (i == first + 1 && csane_top_is(stream, i, STRLIT("("))
-                    && csane_top_macro_boundary(stream, first,
-                                                stream->matches[i])) {
-                    int32 end = stream->matches[i] + 1;
-                    csane_top_append(stream, CSANE_TOP_MACRO_INVOCATION,
-                                     first, end, -1, first);
-                    first = end;
-                    emitted = true;
-                    break;
-                }
-                i = stream->matches[i];
-            } else if (csane_top_close(stream, i)) {
-                csane_top_append(stream, CSANE_TOP_OPAQUE, first, i + 1,
-                                 -1, -1);
-                first = i + 1;
-                emitted = true;
-                break;
-            } else if (csane_top_is(stream, i, STRLIT(";"))) {
-                enum CsaneTopKind kind =
-                    csane_top_classify(stream, first, i + 1, &name);
-                csane_top_append(stream, kind, first, i + 1, -1, name);
-                first = i + 1;
-                emitted = true;
-                break;
-            } else if (i == first
-                       && csane_token_macro_name(csane_top_token(stream, i))
-                       && (i + 1 == ARRAY_LEN(stream->indices)
-                           || (csane_top_new_line(stream, i, i + 1)
-                               && !csane_top_is(stream, i + 1, STRLIT("("))))) {
-                csane_top_append(stream, CSANE_TOP_MACRO_INVOCATION,
-                                 first, i + 1, -1, first);
-                first = i + 1;
-                emitted = true;
-                break;
-            }
-        }
-        if (!emitted) {
-            csane_top_append(stream, CSANE_TOP_OPAQUE, first,
-                             ARRAY_LEN(stream->indices), -1, -1);
-            break;
-        }
-    }
-    return;
-}
 
 /* Locate the narrowest previously recognized enclosing declaration.
  * Function headers and bodies are distinguished below; neither requires
  * parsing or selecting a preprocessor alternative. */
-static CsaneTopItem *
-csane_top_enclosing(CsaneTopStream *stream) {
-    CsaneRegions *regions = stream->top->regions;
-    SourceRange source = regions->items[stream->owner].source;
-    CsaneTopItem *best = NULL;
-    for (int32 i = 0; i < ARRAY_LEN(stream->top->items); i += 1) {
-        CsaneTopItem *item = &stream->top->items[i];
-        if (item->kind == CSANE_TOP_OPAQUE
-            || item->kind == CSANE_TOP_MACRO_INVOCATION
-            || item->kind == CSANE_TOP_MEMBER_DECLARATION
-            || item->kind == CSANE_TOP_ENUMERATOR
-            || item->kind == CSANE_TOP_PARAMETER_FRAGMENT) {
-            continue;
-        }
-        if (source.start < item->source.start
-            || source.end > item->source.end) {
-            continue;
-        }
-        if (best == NULL || item->source.end - item->source.start
-                            < best->source.end - best->source.start) {
-            best = item;
-        }
-    }
-    return best;
-}
 
 /* Find an aggregate's opening brace before the branch. The enclosing
  * type declaration must itself have been recognized by the parent stream.
@@ -788,12 +605,210 @@ csane_top_owner(CsaneTopLevels *top, int32 owner) {
     CsaneTopItem *enclosing;
     int32 count;
 
-    csane_top_collect(&stream);
-    csane_top_match(&stream);
+    do {
+        CsaneTopStream *in_stream = &stream;
+
+        CsaneRegions *regions = in_stream->top->regions;
+        Tokenization *tokens = regions->tokens;
+        CsaneSourceRegion *owner = &regions->items[in_stream->owner];
+        CsaneTokenPath path;
+        CsaneTokenView view;
+        int32 child;
+        int32 i;
+
+        if (!csane_token_path_init(&path, tokens, owner->tokens)) {
+            break;
+        }
+        child = owner->first_child;
+        for (; child >= 0; child = regions->items[child].next_sibling) {
+            CsaneSourceRegion *region = &regions->items[child];
+            if (region->kind == CSANE_REGION_CODE) {
+                (void)csane_token_path_append(&path, region->tokens);
+            }
+        }
+        if (!csane_tokens_path_view(&view, &path)) {
+            csane_token_path_free(&path);
+            break;
+        }
+        i = csane_tokens_next(&view, view.range.first - 1);
+        while (i >= view.range.first && i < view.range.end) {
+            Token *token = &tokens->tokens[i];
+            int32 leaf = csane_regions_at_token(regions, i);
+            if (token->kind != TOKEN_PREPROC && leaf >= 0) {
+                csane_top_push(in_stream, i, leaf);
+            }
+            i = csane_tokens_next(&view, i);
+        }
+        csane_token_path_free(&path);
+    } while (false);
+    do {
+        CsaneTopStream *in_stream = &stream;
+
+        int32 size;
+        int32 depth = 0;
+
+        if (ARRAY_LEN(in_stream->indices) == 0) {
+            break;
+        }
+        size = ARRAY_LEN(in_stream->indices)*SIZEOF(int32);
+        in_stream->matches = malloc2(size);
+        in_stream->stack = malloc2(size);
+        for (int32 i = 0; i < ARRAY_LEN(in_stream->indices); i += 1) {
+            in_stream->matches[i] = -1;
+            if (csane_top_open(in_stream, i)) {
+                in_stream->stack[depth] = i;
+                depth += 1;
+            } else if (csane_top_close(in_stream, i)) {
+                int32 found = depth - 1;
+                int32 open;
+
+                while (found >= 0
+                       && !csane_top_pair(in_stream,
+                                          in_stream->stack[found], i)) {
+                    found -= 1;
+                }
+                if (found < 0) {
+                    depth = 0;
+                    continue;
+                }
+                open = in_stream->stack[found];
+                in_stream->matches[open] = i;
+                in_stream->matches[i] = open;
+                depth = found;
+            }
+        }
+    } while (false);
     count = ARRAY_LEN(stream.indices);
-    enclosing = csane_top_enclosing(&stream);
+    {
+        CsaneTopStream *in_stream = &stream;
+
+        CsaneRegions *regions = in_stream->top->regions;
+        SourceRange source = regions->items[in_stream->owner].source;
+        CsaneTopItem *best = NULL;
+        for (int32 i = 0; i < ARRAY_LEN(in_stream->top->items); i += 1) {
+            CsaneTopItem *item = &in_stream->top->items[i];
+            if (item->kind == CSANE_TOP_OPAQUE
+                || item->kind == CSANE_TOP_MACRO_INVOCATION
+                || item->kind == CSANE_TOP_MEMBER_DECLARATION
+                || item->kind == CSANE_TOP_ENUMERATOR
+                || item->kind == CSANE_TOP_PARAMETER_FRAGMENT) {
+                continue;
+            }
+            if (source.start < item->source.start
+                || source.end > item->source.end) {
+                continue;
+            }
+            if (best == NULL || item->source.end - item->source.start
+                                < best->source.end - best->source.start) {
+                best = item;
+            }
+        }
+        enclosing = best;
+    }
     if (enclosing == NULL) {
-        csane_top_scan(&stream);
+        {
+            CsaneTopStream *in_stream = &stream;
+
+            int32 first = 0;
+            while (first < ARRAY_LEN(in_stream->indices)) {
+                int32 name = -1;
+                bool emitted = false;
+                for (int32 i = first; i < ARRAY_LEN(in_stream->indices);
+                     i += 1) {
+                    Token *macro_token = csane_top_token(in_stream, i);
+                    int32 match = in_stream->matches[i];
+                    if (i == first + 2
+                        && csane_top_is(in_stream, first, STRLIT("extern"))
+                        && csane_top_is(in_stream, first + 1, STRLIT("\"C\""))
+                        && csane_top_is(in_stream, i, STRLIT("{"))
+                        && in_stream->matches[i] < 0
+                        && in_stream->top->regions->items[in_stream->owner].kind
+                           == CSANE_REGION_CONDITIONAL_BRANCH) {
+                        csane_top_append(in_stream, CSANE_TOP_LINKAGE_FRAGMENT,
+                                         first, i + 1, -1, -1);
+                        first = i + 1;
+                        emitted = true;
+                        break;
+                    }
+                    if (i == first && csane_top_is(in_stream, i, STRLIT("}"))
+                        && in_stream->top->regions->items[in_stream->owner].kind
+                           == CSANE_REGION_CONDITIONAL_BRANCH) {
+                        csane_top_append(in_stream, CSANE_TOP_LINKAGE_FRAGMENT,
+                                         first, i + 1, -1, -1);
+                        first = i + 1;
+                        emitted = true;
+                        break;
+                    }
+                    if (csane_top_open(in_stream, i)) {
+                        if (in_stream->matches[i] < 0) {
+                            /* A fragment spanning an unbalanced preprocessor
+                             * boundary must not swallow the following
+                             * code leaf. */
+                            int32 end = csane_top_recover(in_stream, first, i);
+                            csane_top_append(in_stream, CSANE_TOP_OPAQUE,
+                                             first, end, -1, -1);
+                            first = end;
+                            emitted = true;
+                            break;
+                        }
+                        if (csane_top_is(in_stream, i, STRLIT("{"))
+                            && csane_top_is_function(in_stream, first, i,
+                                                     &name)) {
+                            int32 end = in_stream->matches[i] + 1;
+                            csane_top_append(in_stream,
+                                             CSANE_TOP_FUNCTION_DEFINITION,
+                                             first, end, i, name);
+                            first = end;
+                            emitted = true;
+                            break;
+                        }
+                        if (i == first + 1
+                            && csane_top_is(in_stream, i, STRLIT("("))
+                            && csane_top_macro_boundary(in_stream, first,
+                                                        match)) {
+                            int32 end = in_stream->matches[i] + 1;
+                            csane_top_append(in_stream,
+                                             CSANE_TOP_MACRO_INVOCATION,
+                                             first, end, -1, first);
+                            first = end;
+                            emitted = true;
+                            break;
+                        }
+                        i = in_stream->matches[i];
+                    } else if (csane_top_close(in_stream, i)) {
+                        csane_top_append(in_stream, CSANE_TOP_OPAQUE,
+                                         first, i + 1, -1, -1);
+                        first = i + 1;
+                        emitted = true;
+                        break;
+                    } else if (csane_top_is(in_stream, i, STRLIT(";"))) {
+                        enum CsaneTopKind kind =
+                            csane_top_classify(in_stream, first, i + 1, &name);
+                        csane_top_append(in_stream, kind, first, i + 1,
+                                         -1, name);
+                        first = i + 1;
+                        emitted = true;
+                        break;
+                    } else if (i == first
+                               && csane_token_macro_name(macro_token)
+                               && (i + 1 == ARRAY_LEN(in_stream->indices)
+                                   || (csane_top_new_line(in_stream, i, i + 1)
+                                       && !csane_top_is(in_stream, i + 1,
+                                                        STRLIT("("))))) {
+                        csane_top_append(in_stream, CSANE_TOP_MACRO_INVOCATION,
+                                         first, i + 1, -1, first);
+                        first = i + 1;
+                        emitted = true;
+                        break;
+                    }
+                }
+                if (!emitted) {
+                    csane_top_append(in_stream, CSANE_TOP_OPAQUE, first,
+                                     ARRAY_LEN(in_stream->indices), -1, -1);
+                    break;
+                }
+            }
+        }
     } else if (enclosing->kind == CSANE_TOP_FUNCTION_DEFINITION
                || enclosing->kind == CSANE_TOP_FUNCTION_DECLARATION) {
         Tokenization *tokens = top->regions->tokens;
@@ -980,97 +995,11 @@ csane_top_recovered_function_end(CsaneTopLevels *top, CsaneTopItem *item,
     return close;
 }
 
-static void
-csane_top_recover_conditional_function_braces(CsaneTopLevels *top) {
-    Tokenization *tokens = top->regions->tokens;
-    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
-        CsaneTopItem *item = &top->items[i];
-        int32 branch;
-        int32 close;
-        int32 old_end;
-        int32 write;
-
-        if (item->kind != CSANE_TOP_FUNCTION_DEFINITION) {
-            continue;
-        }
-        branch = csane_top_branch_owning_close(top, item);
-        if (branch < 0) {
-            continue;
-        }
-        close = csane_top_recovered_function_end(top, item, branch);
-        if (close < item->body.end
-            || !TOKEN_IS(&tokens->tokens[close], "}")) {
-            continue;
-        }
-        old_end = item->tokens.end;
-        item->tokens.end = close + 1;
-        item->body.end = close + 1;
-        item->source.end = tokens->tokens[close].offset
-                           + tokens->tokens[close].len;
-        write = 0;
-        for (int32 read = 0; read < ARRAY_LEN(top->items); read += 1) {
-            CsaneTopItem *candidate = &top->items[read];
-            bool swallowed = read != i
-                             && candidate->owner_region == item->owner_region
-                             && candidate->tokens.first >= old_end
-                             && candidate->tokens.end <= close + 1;
-            if (swallowed) {
-                top->opaque_count -= candidate->kind == CSANE_TOP_OPAQUE;
-                continue;
-            }
-            if (write != read) {
-                top->items[write] = top->items[read];
-            }
-            write += 1;
-        }
-        ARRAY_SET_COUNT(top->items, write);
-        /* The compaction can move the function earlier in the array. */
-        i = -1;
-    }
-    return;
-}
 
 /* Opening and closing extern "C" braces can live in separate conditional
  * groups. A missing counterpart remains opaque instead of contributing
  * false coverage. This is a guarded linkage idiom, not general brace
  * balancing across independently compiled preprocessor alternatives. */
-static void
-csane_top_linkage_pairs(CsaneTopLevels *top) {
-    int32 pending = -1;
-    for (int32 i = 0; i < ARRAY_LEN(top->items); i += 1) {
-        CsaneTopItem *item = &top->items[i];
-        Token *token;
-        bool guarded;
-
-        if (item->kind != CSANE_TOP_LINKAGE_FRAGMENT) {
-            continue;
-        }
-        token = &top->regions->tokens->tokens[item->tokens.first];
-        guarded = csane_top_cpp_guard(top, item);
-        if (TOKEN_IS(token, "extern")) {
-            if (pending >= 0) {
-                top->items[pending].kind = CSANE_TOP_OPAQUE;
-                top->opaque_count += 1;
-            }
-            pending = guarded ? i : -1;
-            if (!guarded) {
-                item->kind = CSANE_TOP_OPAQUE;
-                top->opaque_count += 1;
-            }
-        } else if (pending >= 0 && guarded
-                   && item->source.start > top->items[pending].source.end) {
-            pending = -1;
-        } else {
-            item->kind = CSANE_TOP_OPAQUE;
-            top->opaque_count += 1;
-        }
-    }
-    if (pending >= 0) {
-        top->items[pending].kind = CSANE_TOP_OPAQUE;
-        top->opaque_count += 1;
-    }
-    return;
-}
 
 static bool
 csane_top_token_alone_on_line(Tokenization *tokens, int32 index) {
@@ -1097,72 +1026,6 @@ csane_top_token_alone_on_line(Tokenization *tokens, int32 index) {
     return true;
 }
 
-static void
-csane_top_aggregate_macro_fragments(CsaneTopLevels *top) {
-    Tokenization *tokens = top->regions->tokens;
-    int32 original_count = ARRAY_LEN(top->items);
-    for (int32 item_index = 0; item_index < original_count; item_index += 1) {
-        CsaneTopItem *item = &top->items[item_index];
-        int32 owner = item->owner_region;
-        bool is_enum = false;
-        bool aggregate = false;
-        int32 open = -1;
-        int32 close = -1;
-        CsaneTokenView view = csane_tokens_full(tokens);
-        if (item->kind != CSANE_TOP_TYPE_DECLARATION) {
-            continue;
-        }
-        for (int32 i = item->tokens.first; i < item->tokens.end; i += 1) {
-            if (TOKEN_IS(&tokens->tokens[i], "enum")) {
-                is_enum = true;
-                aggregate = true;
-            } else if (TOKEN_IS(&tokens->tokens[i], "struct")
-                       || TOKEN_IS(&tokens->tokens[i], "union")) {
-                is_enum = false;
-                aggregate = true;
-            } else if (aggregate && TOKEN_IS(&tokens->tokens[i], "{")) {
-                open = i;
-                close = csane_tokens_match(&view, i);
-                break;
-            }
-        }
-        if (open < 0 || close <= open || close >= item->tokens.end) {
-            continue;
-        }
-        /* Appending fragments can relocate top->items; use saved owner. */
-        for (int32 i = open + 1; i < close; i += 1) {
-            bool already = false;
-            if (!csane_token_macro_name(&tokens->tokens[i])
-                || !csane_top_token_alone_on_line(tokens, i)) {
-                continue;
-            }
-            for (int32 j = 0; j < original_count; j += 1) {
-                CsaneTopItem *other = &top->items[j];
-                if (other->tokens.first <= i && i < other->tokens.end
-                    && j != item_index) {
-                    already = true;
-                    break;
-                }
-            }
-            if (!already) {
-                CsaneTopStream stream = {
-                    .top = top,
-                    .owner = owner,
-                };
-                csane_top_push(&stream, i, csane_regions_at_token(top->regions,
-                                                                  i));
-                csane_top_append(&stream,
-                                 is_enum
-                                 ? CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT
-                                 : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
-                                 0, 1, -1, -1);
-                ARRAY_FREE(stream.indices);
-                ARRAY_FREE(stream.leaf);
-            }
-        }
-    }
-    return;
-}
 
 bool
 csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
@@ -1184,9 +1047,161 @@ csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {
             csane_top_owner(top, i);
         }
     }
-    csane_top_recover_conditional_function_braces(top);
-    csane_top_aggregate_macro_fragments(top);
-    csane_top_linkage_pairs(top);
+    {
+        CsaneTopLevels *in_top = top;
+
+        Tokenization *tokens = in_top->regions->tokens;
+        for (int32 i = 0; i < ARRAY_LEN(in_top->items); i += 1) {
+            CsaneTopItem *item = &in_top->items[i];
+            int32 branch;
+            int32 close;
+            int32 old_end;
+            int32 write;
+
+            if (item->kind != CSANE_TOP_FUNCTION_DEFINITION) {
+                continue;
+            }
+            branch = csane_top_branch_owning_close(in_top, item);
+            if (branch < 0) {
+                continue;
+            }
+            close = csane_top_recovered_function_end(in_top, item, branch);
+            if (close < item->body.end
+                || !TOKEN_IS(&tokens->tokens[close], "}")) {
+                continue;
+            }
+            old_end = item->tokens.end;
+            item->tokens.end = close + 1;
+            item->body.end = close + 1;
+            item->source.end = tokens->tokens[close].offset
+                               + tokens->tokens[close].len;
+            write = 0;
+            for (int32 read = 0; read < ARRAY_LEN(in_top->items); read += 1) {
+                CsaneTopItem *candidate = &in_top->items[read];
+                bool swallowed = read != i
+                                  && candidate->owner_region
+                                         == item->owner_region
+                                 && candidate->tokens.first >= old_end
+                                 && candidate->tokens.end <= close + 1;
+                if (swallowed) {
+                    in_top->opaque_count -= candidate->kind == CSANE_TOP_OPAQUE;
+                    continue;
+                }
+                if (write != read) {
+                    in_top->items[write] = in_top->items[read];
+                }
+                write += 1;
+            }
+            ARRAY_SET_COUNT(in_top->items, write);
+            /* The compaction can move the function earlier in the array. */
+            i = -1;
+        }
+    }
+    {
+        CsaneTopLevels *in_top = top;
+
+        Tokenization *tokens = in_top->regions->tokens;
+        int32 original_count = ARRAY_LEN(in_top->items);
+        for (int32 item_index = 0; item_index < original_count;
+             item_index += 1) {
+            CsaneTopItem *item = &in_top->items[item_index];
+            int32 owner = item->owner_region;
+            bool is_enum = false;
+            bool aggregate = false;
+            int32 open = -1;
+            int32 close = -1;
+            CsaneTokenView view = csane_tokens_full(tokens);
+            if (item->kind != CSANE_TOP_TYPE_DECLARATION) {
+                continue;
+            }
+            for (int32 i = item->tokens.first; i < item->tokens.end; i += 1) {
+                if (TOKEN_IS(&tokens->tokens[i], "enum")) {
+                    is_enum = true;
+                    aggregate = true;
+                } else if (TOKEN_IS(&tokens->tokens[i], "struct")
+                           || TOKEN_IS(&tokens->tokens[i], "union")) {
+                    is_enum = false;
+                    aggregate = true;
+                } else if (aggregate && TOKEN_IS(&tokens->tokens[i], "{")) {
+                    open = i;
+                    close = csane_tokens_match(&view, i);
+                    break;
+                }
+            }
+            if (open < 0 || close <= open || close >= item->tokens.end) {
+                continue;
+            }
+            /* Appending fragments can relocate top->items; use saved owner. */
+            for (int32 i = open + 1; i < close; i += 1) {
+                bool already = false;
+                if (!csane_token_macro_name(&tokens->tokens[i])
+                    || !csane_top_token_alone_on_line(tokens, i)) {
+                    continue;
+                }
+                for (int32 j = 0; j < original_count; j += 1) {
+                    CsaneTopItem *other = &in_top->items[j];
+                    if (other->tokens.first <= i && i < other->tokens.end
+                        && j != item_index) {
+                        already = true;
+                        break;
+                    }
+                }
+                if (!already) {
+                    CsaneTopStream stream = {
+                        .top = in_top,
+                        .owner = owner,
+                    };
+                    csane_top_push(&stream, i,
+                                   csane_regions_at_token(in_top->regions, i));
+                    csane_top_append(&stream,
+                                     is_enum
+                                     ? CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT
+                                     : CSANE_TOP_MACRO_MEMBER_FRAGMENT,
+                                     0, 1, -1, -1);
+                    ARRAY_FREE(stream.indices);
+                    ARRAY_FREE(stream.leaf);
+                }
+            }
+        }
+    }
+    {
+        CsaneTopLevels *in_top = top;
+
+        int32 pending = -1;
+        for (int32 i = 0; i < ARRAY_LEN(in_top->items); i += 1) {
+            CsaneTopItem *item = &in_top->items[i];
+            Token *token;
+            bool guarded;
+
+            if (item->kind != CSANE_TOP_LINKAGE_FRAGMENT) {
+                continue;
+            }
+            token = &in_top->regions->tokens->tokens[item->tokens.first];
+            guarded = csane_top_cpp_guard(in_top, item);
+            if (TOKEN_IS(token, "extern")) {
+                if (pending >= 0) {
+                    in_top->items[pending].kind = CSANE_TOP_OPAQUE;
+                    in_top->opaque_count += 1;
+                }
+                pending = guarded ? i : -1;
+                if (!guarded) {
+                    item->kind = CSANE_TOP_OPAQUE;
+                    in_top->opaque_count += 1;
+                }
+            } else if (pending >= 0 && guarded
+                       && item->source.start
+                              > in_top->items[pending].source.end) {
+                pending = -1;
+            } else {
+                item->kind = CSANE_TOP_OPAQUE;
+                in_top->opaque_count += 1;
+            }
+        }
+        if (pending >= 0) {
+            in_top->items[pending].kind = CSANE_TOP_OPAQUE;
+            in_top->opaque_count += 1;
+        }
+    }
     return true;
 }
 

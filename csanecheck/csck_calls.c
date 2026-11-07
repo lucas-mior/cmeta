@@ -516,21 +516,6 @@ csane_call_sp_format(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
-static void
-csane_call_sp_check(CsaneFile *file, CsaneTokenView *view) {
-    CsaneCallArgument args[256];
-    int32 count = csane_call_arguments(file, view, args, 256);
-
-    if (count < 3) {
-        return;
-    }
-    for (int32 i = 0; i < count; i += 1) {
-        if (args[i].format) {
-            csane_call_sp_format(file, view, args, count, i);
-            break;
-        }
-    }
-}
 
 static int32
 csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
@@ -828,27 +813,6 @@ csane_call_free2_strlen_size(CsaneFile *file, CsaneTokenView *view,
                                               pointer, second);
 }
 
-static void
-csane_call_free2_strlen(CsaneFile *file, CsaneTokenView *view,
-                        int32 name, int32 open) {
-    TokenRange args[2];
-    int32 count;
-
-    if (!TOKEN_IS(&file->tokens->tokens[name], "free2")) {
-        return;
-    }
-    count = csane_tokens_arguments(view, open, args, LENGTH(args));
-    if (count != 2) {
-        return;
-    }
-    args[0] = csane_tokens_unwrap(view, args[0]);
-    if (!csane_call_free2_strlen_size(file, view, args[0], args[1])) {
-        return;
-    }
-    csane_rule_issue(file, file->tokens->tokens[name].offset,
-                     STRLIT("STYLE-FREE2-STRLEN"),
-                     "use opt_strlen32(pointer) in the free2 size argument");
-}
 
 static void
 csane_call_token_one(CsaneFile *file, int32 name, int32 open,
@@ -907,7 +871,22 @@ csane_call_token_one(CsaneFile *file, int32 name, int32 open,
     if (!macro
         || (!csane_call_macro_fragments(file, content)
             && !macro_parameters)) {
-        csane_call_sp_check(file, &view);
+        do {
+            CsaneTokenView *in_view = &view;
+
+            CsaneCallArgument args[256];
+            int32 count = csane_call_arguments(file, in_view, args, 256);
+
+            if (count < 3) {
+                break;
+            }
+            for (int32 i = 0; i < count; i += 1) {
+                if (args[i].format) {
+                    csane_call_sp_format(file, in_view, args, count, i);
+                    break;
+                }
+            }
+        } while (false);
     }
     if (!csane_calls_line_break(file, open, close)) {
         return;
@@ -1120,7 +1099,32 @@ csane_calls_token_check(CsaneFile *file) {
         if (close < 0) {
             continue;
         }
-        csane_call_free2_strlen(file, &local, name, i);
+        do {
+            CsaneFile *in_file = file;
+            CsaneTokenView *in_view = &local;
+            int32 in_open = i;
+
+            TokenRange args[2];
+            int32 count;
+
+            if (!TOKEN_IS(&in_file->tokens->tokens[name], "free2")) {
+                break;
+            }
+            count = csane_tokens_arguments(in_view, in_open,
+                                           args, LENGTH(args));
+            if (count != 2) {
+                break;
+            }
+            args[0] = csane_tokens_unwrap(in_view, args[0]);
+            if (!csane_call_free2_strlen_size(in_file, in_view,
+                                              args[0], args[1])) {
+                break;
+            }
+            csane_rule_issue(in_file, in_file->tokens->tokens[name].offset,
+                             STRLIT("STYLE-FREE2-STRLEN"),
+                             "use opt_strlen32(pointer) in the free2 size "
+                             "argument");
+        } while (false);
         macro = file->preprocessor->token_roles != NULL
                 && file->preprocessor->token_roles[i]
                    == C_PP_TOKEN_MACRO_REPLACEMENT;

@@ -7,15 +7,6 @@
 #include "cbase.h"
 #include "csck_regions.h"
 
-static TokenRange
-csane_regions_token_range(CsaneRegions *regions, SourceRange source) {
-    Tokenization *tokens = regions->tokens;
-    return (TokenRange){
-        tokenization_token_at_or_after_offset(tokens, source.start),
-        tokenization_token_at_or_after_offset(tokens, source.end),
-    };
-}
-
 static int32
 csane_regions_append(CsaneRegions *regions, int32 parent,
                      enum CsaneRegionKind kind, SourceRange source,
@@ -24,7 +15,12 @@ csane_regions_append(CsaneRegions *regions, int32 parent,
     ARRAY_PUSH(regions->items, (CsaneSourceRegion){
         .kind = kind,
         .source = source,
-        .tokens = csane_regions_token_range(regions, source),
+        .tokens = (TokenRange){
+            tokenization_token_at_or_after_offset(regions->tokens,
+                                                  source.start),
+            tokenization_token_at_or_after_offset(regions->tokens,
+                                                  source.end),
+        },
         .parent = parent,
         .first_child = -1,
         .last_child = -1,
@@ -97,18 +93,6 @@ csane_regions_define(CsaneRegions *regions, int32 parent,
     return;
 }
 
-/* A syntax problem belongs to its directive, not every code region. */
-static bool
-csane_regions_directive_complete(CsaneRegions *regions, int32 directive) {
-    CPreprocessorAnalysis *pp = regions->preprocessor;
-    for (int32 i = 0; i < ARRAY_LEN(pp->issues); i += 1) {
-        if (pp->issues[i].directive_index == directive) {
-            return false;
-        }
-    }
-    return true;
-}
-
 static void
 csane_regions_directive(CsaneRegions *regions, int32 parent,
                         int32 directive_index) {
@@ -121,8 +105,15 @@ csane_regions_directive(CsaneRegions *regions, int32 parent,
                                                  : CSANE_REGION_DIRECTIVE,
                                        directive->source, directive_index,
                                        -1, -1);
-    regions->items[index].complete =
-        csane_regions_directive_complete(regions, directive_index);
+    /* A syntax problem belongs to its directive, not every code region. */
+    regions->items[index].complete = true;
+    for (int32 i = 0; i < ARRAY_LEN(regions->preprocessor->issues); i += 1) {
+        if (regions->preprocessor->issues[i].directive_index
+            == directive_index) {
+            regions->items[index].complete = false;
+            break;
+        }
+    }
     if (is_define) {
         if (c_preprocessor_define_info(regions->tokens, directive, &define)) {
             csane_regions_define(regions, index, &define);

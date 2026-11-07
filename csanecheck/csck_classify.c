@@ -31,18 +31,6 @@ csane_class_word(Token *token, char *word, int32 word_len) {
     return token->kind == TOKEN_IDENT && TOKEN_IS(token, word, word_len);
 }
 
-static bool
-csane_primitive(Token *token) {
-    int32 count = LENGTH(csane_class_primitives);
-    for (int32 i = 0; i < count; i += 1) {
-        StrFlex *word = csane_class_primitives[i];
-        if (csane_class_word(token, word->data, word->len)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 enum CsaneNameKind
 csane_name_kind(Token *token) {
     bool upper = false;
@@ -51,7 +39,15 @@ csane_name_kind(Token *token) {
     if ((token == NULL) || token->kind != TOKEN_IDENT || token->len <= 0) {
         return CSANE_NAME_OTHER;
     }
-    if (csane_primitive(token)) {
+    bool primitive = false;
+    for (int32 i = 0; i < LENGTH(csane_class_primitives); i += 1) {
+        StrFlex *word = csane_class_primitives[i];
+        if (csane_class_word(token, word->data, word->len)) {
+            primitive = true;
+            break;
+        }
+    }
+    if (primitive) {
         return CSANE_NAME_PRIMITIVE;
     }
     /* The documented lowercase macro exception is not a type. */
@@ -92,18 +88,6 @@ csane_significant(Tokenization *tokens, TokenRange range, int32 from) {
     return range.end;
 }
 
-static bool
-csane_qualifier(Token *token) {
-    int32 count = LENGTH(csane_class_qualifiers);
-    for (int32 i = 0; i < count; i += 1) {
-        StrFlex *word = csane_class_qualifiers[i];
-        if (csane_class_word(token, word->data, word->len)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 enum CsaneLocalKind
 csane_classify_statement(Tokenization *tokens, TokenRange range) {
     int32 i;
@@ -114,7 +98,18 @@ csane_classify_statement(Tokenization *tokens, TokenRange range) {
         return CSANE_LOCAL_UNKNOWN;
     }
     i = csane_significant(tokens, range, range.first);
-    while (i < range.end && csane_qualifier(&tokens->tokens[i])) {
+    while (i < range.end) {
+        bool qualifier = false;
+        for (int32 j = 0; j < LENGTH(csane_class_qualifiers); j += 1) {
+            StrFlex *word = csane_class_qualifiers[j];
+            if (csane_class_word(&tokens->tokens[i], word->data, word->len)) {
+                qualifier = true;
+                break;
+            }
+        }
+        if (!qualifier) {
+            break;
+        }
         i = csane_significant(tokens, range, i + 1);
     }
     if (i < range.end

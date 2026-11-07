@@ -511,52 +511,6 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
 /* Parameter declarators may contain pointer and callback syntax. Only a
  * declarator identifier, never a type tag or array bound, is an argument
  * name. Inspect the original tokens instead of matching raw source text. */
-static void
-csane_decl_parameter_name_check(CsaneFile *file, TokenRange parameter) {
-    CsaneTokenView view;
-    int32 brackets = 0;
-    int32 token;
-
-    if (!csane_tokens_view(&view, file->tokens, parameter)) {
-        return;
-    }
-    token = csane_tokens_next(&view, parameter.first - 1);
-    while (token >= parameter.first && token < parameter.end) {
-        Token *word = &file->tokens->tokens[token];
-        int32 previous;
-        int32 next;
-
-        if (csane_decl_is(file, token, STRLIT("["))) {
-            brackets += 1;
-        } else if (csane_decl_is(file, token, STRLIT("]"))) {
-            brackets -= brackets > 0;
-        }
-        if (brackets != 0 || word->kind != TOKEN_IDENT || word->len != 1
-            || (word->text[0] != 'i' && word->text[0] != 'j')) {
-            token = csane_tokens_next(&view, token);
-            continue;
-        }
-        previous = csane_tokens_previous(&view, token);
-        next = csane_tokens_next(&view, token);
-        if (previous < parameter.first
-            || (file->tokens->tokens[previous].kind != TOKEN_IDENT
-                && !csane_decl_is(file, previous, STRLIT("*")))
-            || csane_decl_is(file, previous, STRLIT("struct"))
-            || csane_decl_is(file, previous, STRLIT("union"))
-            || csane_decl_is(file, previous, STRLIT("enum"))
-            || (next < parameter.end
-                && !csane_decl_is(file, next, STRLIT(")"))
-                && !csane_decl_is(file, next, STRLIT("["))
-                && !csane_decl_is(file, next, STRLIT("(")))) {
-            token = csane_tokens_next(&view, token);
-            continue;
-        }
-        csane_rule_issue(file, word->offset, STRLIT("STYLE-PARAM-IJK"),
-                         "i, j and k are forbidden as function parameter "
-                         "names");
-        token = csane_tokens_next(&view, token);
-    }
-}
 
 static void
 csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
@@ -580,7 +534,55 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
         if (check_types) {
             csane_decl_type_prefix_check(file, parameter);
         }
-        csane_decl_parameter_name_check(file, parameter);
+        do {
+            CsaneFile *in_file = file;
+
+            CsaneTokenView view;
+            int32 brackets = 0;
+            int32 token;
+
+            if (!csane_tokens_view(&view, in_file->tokens, parameter)) {
+                break;
+            }
+            token = csane_tokens_next(&view, parameter.first - 1);
+            while (token >= parameter.first && token < parameter.end) {
+                Token *word = &in_file->tokens->tokens[token];
+                int32 previous;
+                int32 next;
+
+                if (csane_decl_is(in_file, token, STRLIT("["))) {
+                    brackets += 1;
+                } else if (csane_decl_is(in_file, token, STRLIT("]"))) {
+                    brackets -= brackets > 0;
+                }
+                if (brackets != 0 || word->kind != TOKEN_IDENT || word->len != 1
+                    || (word->text[0] != 'i' && word->text[0] != 'j')) {
+                    token = csane_tokens_next(&view, token);
+                    continue;
+                }
+                previous = csane_tokens_previous(&view, token);
+                next = csane_tokens_next(&view, token);
+                if (previous < parameter.first
+                    || (in_file->tokens->tokens[previous].kind != TOKEN_IDENT
+                        && !csane_decl_is(in_file, previous, STRLIT("*")))
+                    || csane_decl_is(in_file, previous, STRLIT("struct"))
+                    || csane_decl_is(in_file, previous, STRLIT("union"))
+                    || csane_decl_is(in_file, previous, STRLIT("enum"))
+                    || (next < parameter.end
+                        && !csane_decl_is(in_file, next, STRLIT(")"))
+                        && !csane_decl_is(in_file, next, STRLIT("["))
+                        && !csane_decl_is(in_file, next, STRLIT("(")))) {
+                    token = csane_tokens_next(&view, token);
+                    continue;
+                }
+                csane_rule_issue(in_file, word->offset,
+                                 STRLIT("STYLE-PARAM-IJK"),
+                                 "i, j and k are forbidden "
+                                 "as function parameter "
+                                 "names");
+                token = csane_tokens_next(&view, token);
+            }
+        } while (false);
         if (comma < first || comma >= args.end) {
             break;
         }
@@ -590,44 +592,6 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
 
 /* Function-pointer declarations also carry formal parameter names, even
  * though their declarator has no direct function-name/parameter pair. */
-static void
-csane_decl_pointer_parameter_checks(CsaneFile *file, TokenRange range) {
-    CsaneTokenView view;
-    int32 token;
-
-    if (!csane_tokens_view(&view, file->tokens, range)) {
-        return;
-    }
-    token = csane_tokens_next(&view, range.first - 1);
-    while (token >= range.first && token < range.end) {
-        if (csane_decl_is(file, token, STRLIT("{"))) {
-            int32 close = csane_tokens_match(&view, token);
-
-            if (close > token) {
-                token = csane_tokens_next(&view, close);
-                continue;
-            }
-        }
-        if (csane_decl_is(file, token, STRLIT("("))) {
-            int32 pointer = csane_tokens_next(&view, token);
-            int32 close = csane_tokens_match(&view, token);
-
-            if (csane_decl_is(file, pointer, STRLIT("*"))
-                && close > pointer) {
-                int32 args = csane_tokens_next(&view, close);
-                int32 args_close = csane_tokens_match(&view, args);
-
-                if (csane_decl_is(file, args, STRLIT("("))
-                    && args_close > args) {
-                    TokenRange callback_args = {args + 1, args_close};
-
-                    csane_decl_parameter_checks(file, callback_args, false);
-                }
-            }
-        }
-        token = csane_tokens_next(&view, token);
-    }
-}
 
 static void
 csane_decl_signature_check(CsaneFile *file, TokenRange range) {
@@ -672,23 +636,6 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
     }
 }
 
-static void
-csane_decl_style_check(CsaneFile *file, TokenRange range) {
-    int32 open;
-
-    if (!csane_decl_candidate(file, range)) {
-        return;
-    }
-    open = csane_decl_function_open(file, range);
-    if (open >= 0) {
-        csane_decl_signature_check(file, range);
-        csane_decl_typedef_check(file, range);
-        return;
-    }
-    csane_decl_type_prefix_check(file, range);
-    csane_decl_typedef_check(file, range);
-    csane_decl_pointer_parameter_checks(file, range);
-}
 
 static int32
 csane_local_decl_line(CsaneFile *file, int32 token) {
@@ -706,7 +653,59 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
     if (first >= range.end) {
         return;
     }
-    csane_decl_style_check(file, range);
+    do {
+        int32 open;
+
+        if (!csane_decl_candidate(file, range)) {
+            break;
+        }
+        open = csane_decl_function_open(file, range);
+        if (open >= 0) {
+            csane_decl_signature_check(file, range);
+            csane_decl_typedef_check(file, range);
+            break;
+        }
+        csane_decl_type_prefix_check(file, range);
+        csane_decl_typedef_check(file, range);
+        do {
+            CsaneTokenView view;
+            int32 token;
+
+            if (!csane_tokens_view(&view, file->tokens, range)) {
+                break;
+            }
+            token = csane_tokens_next(&view, range.first - 1);
+            while (token >= range.first && token < range.end) {
+                if (csane_decl_is(file, token, STRLIT("{"))) {
+                    int32 close = csane_tokens_match(&view, token);
+
+                    if (close > token) {
+                        token = csane_tokens_next(&view, close);
+                        continue;
+                    }
+                }
+                if (csane_decl_is(file, token, STRLIT("("))) {
+                    int32 pointer = csane_tokens_next(&view, token);
+                    int32 close = csane_tokens_match(&view, token);
+
+                    if (csane_decl_is(file, pointer, STRLIT("*"))
+                        && close > pointer) {
+                        int32 args = csane_tokens_next(&view, close);
+                        int32 args_close = csane_tokens_match(&view, args);
+
+                        if (csane_decl_is(file, args, STRLIT("("))
+                            && args_close > args) {
+                            TokenRange callback_args = {args + 1, args_close};
+
+                            csane_decl_parameter_checks(file, callback_args,
+                                                        false);
+                        }
+                    }
+                }
+                token = csane_tokens_next(&view, token);
+            }
+        } while (false);
+    } while (false);
     if (!csane_decl_type_start(file, range)) {
         return;
     }
@@ -834,53 +833,6 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
 
 /* Wrapping depends on the width of the entire physical header line,
  * including qualifiers and return types preceding an inline function name. */
-static void
-csane_decl_header_wrap(CsaneFile *file, TokenRange range, int32 name,
-                       int32 close) {
-    CsaneTokenView full;
-    int32 first;
-    int32 suffix;
-    int32 start;
-    int32 end;
-    int32 width;
-
-    if (name < range.first
-        || csane_local_decl_line(file, name)
-           >= csane_local_decl_line(file, close)) {
-        return;
-    }
-    first = name;
-    while (first > range.first
-           && csane_local_decl_line(file, first - 1)
-              == csane_local_decl_line(file, name)) {
-        first -= 1;
-    }
-    if (!csane_wrap_safe(file, first, close, false)) {
-        return;
-    }
-    full = csane_tokens_full(file->tokens);
-    suffix = csane_tokens_next(&full, close);
-    if (suffix >= ARRAY_LEN(file->tokens->tokens)
-        || (!csane_decl_is(file, suffix, STRLIT(";"))
-            && !csane_decl_is(file, suffix, STRLIT("{")))) {
-        return;
-    }
-    start = file->tokens->tokens[first].offset;
-    while (start > 0 && file->tokens->text[start - 1] != '\n') {
-        start -= 1;
-    }
-    end = file->tokens->tokens[suffix].offset
-          + file->tokens->tokens[suffix].len;
-    width = csane_wrap_flat_length(file->tokens->text, start, end,
-                                   file->column_limit);
-    if (width >= 0 && (file->column_limit <= 0
-                       || width <= file->column_limit)) {
-        csane_rule_issue(file, file->tokens->tokens[name].offset,
-                         STRLIT("FMT-FUNC-WRAP"),
-                         "function header fits on one line but its "
-                         "parameters are split across multiple lines");
-    }
-}
 
 static void
 csane_decl_header(CsaneFile *file, TokenRange range) {
@@ -906,7 +858,53 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
         return;
     }
     name = csane_tokens_previous(&view, open);
-    csane_decl_header_wrap(file, range, name, close);
+    do {
+        CsaneFile *in_file = file;
+
+        CsaneTokenView full;
+        int32 first;
+        int32 suffix;
+        int32 start;
+        int32 end;
+        int32 width;
+
+        if (name < range.first
+            || csane_local_decl_line(in_file, name)
+               >= csane_local_decl_line(in_file, close)) {
+            break;
+        }
+        first = name;
+        while (first > range.first
+               && csane_local_decl_line(in_file, first - 1)
+                  == csane_local_decl_line(in_file, name)) {
+            first -= 1;
+        }
+        if (!csane_wrap_safe(in_file, first, close, false)) {
+            break;
+        }
+        full = csane_tokens_full(in_file->tokens);
+        suffix = csane_tokens_next(&full, close);
+        if (suffix >= ARRAY_LEN(in_file->tokens->tokens)
+            || (!csane_decl_is(in_file, suffix, STRLIT(";"))
+                && !csane_decl_is(in_file, suffix, STRLIT("{")))) {
+            break;
+        }
+        start = in_file->tokens->tokens[first].offset;
+        while (start > 0 && in_file->tokens->text[start - 1] != '\n') {
+            start -= 1;
+        }
+        end = in_file->tokens->tokens[suffix].offset
+              + in_file->tokens->tokens[suffix].len;
+        width = csane_wrap_flat_length(in_file->tokens->text, start, end,
+                                       in_file->column_limit);
+        if (width >= 0 && (in_file->column_limit <= 0
+                           || width <= in_file->column_limit)) {
+            csane_rule_issue(in_file, in_file->tokens->tokens[name].offset,
+                             STRLIT("FMT-FUNC-WRAP"),
+                             "function header fits on one line but its "
+                             "parameters are split across multiple lines");
+        }
+    } while (false);
     args = (TokenRange){open + 1, close};
     first = csane_decl_next(file, args, args.first - 1);
     previous = first;

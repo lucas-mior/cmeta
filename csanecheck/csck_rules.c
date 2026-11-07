@@ -47,21 +47,6 @@ csane_rule_issue(CsaneFile *file, int32 offset,
     return;
 }
 
-/* Count UTF-8 scalar starts, not bytes, as the legacy checker does. Invalid
- * UTF-8 is conservatively treated as single-byte characters; encoding
- * validity itself is outside this phase's rule set.
- */
-static int32
-csane_columns(char *text, int32 len) {
-    int32 count = 0;
-    for (int32 i = 0; i < len; i += 1) {
-        if (((uint8)text[i] & 0xc0) != 0x80) {
-            count += 1;
-        }
-    }
-    return count;
-}
-
 static void
 csane_rule_source(CsaneFile *file) {
     char *text = file->tokens->text;
@@ -83,12 +68,19 @@ csane_rule_source(CsaneFile *file) {
                    || (text[trailing - 1] == '\r'))) {
             trailing -= 1;
         }
-        if ((file->column_limit > 0)
-            && (end - start > file->column_limit)
-            && (csane_columns(text + start, end - start)
-                > file->column_limit)) {
-            csane_rule_issue(file, start, STRLIT("SRC-COLUMNS"),
-                             "line exceeds allowed column limit");
+        if (file->column_limit > 0
+            && end - start > file->column_limit) {
+            int32 columns = 0;
+            /* Count UTF-8 scalar starts. Treat invalid UTF-8 as bytes. */
+            for (int32 i = start; i < end; i += 1) {
+                if (((uint8)text[i] & 0xc0) != 0x80) {
+                    columns += 1;
+                }
+            }
+            if (columns > file->column_limit) {
+                csane_rule_issue(file, start, STRLIT("SRC-COLUMNS"),
+                                 "line exceeds allowed column limit");
+            }
         }
         if (tab >= 0) {
             csane_rule_issue(file, tab, STRLIT("SRC-TABS"),
@@ -314,22 +306,25 @@ csane_api_known_type(CsaneFile *file, int32 index) {
            || csane_type_hints_typedef(file->type_hints, token);
 }
 
-static int32
-csane_api_previous_code_token(CsaneFile *file, int32 index) {
-    Tokenization *tokens = file->tokens;
-    int32 previous = tokenization_previous_significant(tokens, index);
-    while (previous >= 0 && file->preprocessor->token_roles != NULL
-           && file->preprocessor->token_roles[previous]
-                  == C_PP_TOKEN_DIRECTIVE) {
-        previous = tokenization_previous_significant(tokens, previous);
-    }
-    return previous;
-}
 
 static enum CsaneApiUse
 csane_api_declarator(CsaneFile *file, int32 name) {
     Tokenization *tokens = file->tokens;
-    int32 before = csane_api_previous_code_token(file, name);
+    int32 in_result_token;
+    {
+        CsaneFile *in_file = file;
+        int32 in_index = name;
+
+        Tokenization *tokens = in_file->tokens;
+        int32 previous = tokenization_previous_significant(tokens, in_index);
+        while (previous >= 0 && in_file->preprocessor->token_roles != NULL
+               && in_file->preprocessor->token_roles[previous]
+                      == C_PP_TOKEN_DIRECTIVE) {
+            previous = tokenization_previous_significant(tokens, previous);
+        }
+        in_result_token = previous;
+    }
+    int32 before = in_result_token;
     if (before < 0) {
         return CSANE_API_DIRECT_CALL;
     }
@@ -541,33 +536,6 @@ csane_rules_run(CsaneFile *file, enum CsanePass pass) {
 
 /* Each group reports its own eligible and unresolved local targets.
  * File exclusions are distinct from zero eligible targets. */
-static bool
-csane_rule_excluded(CsaneFile *file, CsaneRule *rule) {
-    int32 len = file->path_len;
-    bool generated = ENDS_WITH(file->path, len, ".meta.h");
-    if (csane_fixture_path(file->path, file->path_len)
-        && !rule->include_fixtures) {
-        return true;
-    }
-    if (generated && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
-                      || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
-                      || STREQUAL(rule->id, rule->id_len, "FUNC-HEADERS")
-                      || STREQUAL(rule->id, rule->id_len, "CALL-BASIC")
-                      || STREQUAL(rule->id, rule->id_len, "CALL-WRAP")
-                      || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
-        return true;
-    }
-    if (file->is_ryu && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
-                         || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
-                         || STREQUAL(rule->id, rule->id_len, "CONTROL")
-                         || STREQUAL(rule->id, rule->id_len, "PP-SIZEOF")
-                         || STREQUAL(rule->id, rule->id_len, "STYLE-BOUNDS")
-                         || STREQUAL(rule->id, rule->id_len, "ASSIGN-EQ")
-                         || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
-        return true;
-    }
-    return false;
-}
 
 int32
 csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
@@ -579,7 +547,39 @@ csane_rules_incomplete(CsaneFile *file, bool report, bool report_unresolved,
         CsaneRuleCounts counts =
             csane_coverage_rule(file, rule->target, rule->id,
                                 rule->id_len, report_unresolved);
-        bool excluded = csane_rule_excluded(file, rule);
+        bool in_result_excluded;
+        do {
+            int32 len = file->path_len;
+            bool generated = ENDS_WITH(file->path, len, ".meta.h");
+            if (csane_fixture_path(file->path, file->path_len)
+                && !rule->include_fixtures) {
+                in_result_excluded = true;
+                break;
+            }
+            if (generated
+                && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
+                    || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
+                    || STREQUAL(rule->id, rule->id_len, "FUNC-HEADERS")
+                    || STREQUAL(rule->id, rule->id_len, "CALL-BASIC")
+                    || STREQUAL(rule->id, rule->id_len, "CALL-WRAP")
+                    || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
+                in_result_excluded = true;
+                break;
+            }
+            if (file->is_ryu
+                && (STREQUAL(rule->id, rule->id_len, "LAYOUT")
+                    || STREQUAL(rule->id, rule->id_len, "AST-DECL-ONE")
+                    || STREQUAL(rule->id, rule->id_len, "CONTROL")
+                    || STREQUAL(rule->id, rule->id_len, "PP-SIZEOF")
+                    || STREQUAL(rule->id, rule->id_len, "STYLE-BOUNDS")
+                    || STREQUAL(rule->id, rule->id_len, "ASSIGN-EQ")
+                    || STREQUAL(rule->id, rule->id_len, "ASSIGN-WRAP"))) {
+                in_result_excluded = true;
+                break;
+            }
+            in_result_excluded = false;
+        } while (false);
+        bool excluded = in_result_excluded;
         char *status = "checked";
 
         if (excluded) {

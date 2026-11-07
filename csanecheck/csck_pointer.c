@@ -51,17 +51,6 @@ csane_pointer_qualifier(Token *token) {
            || csane_pointer_word(token, STRLIT("_Thread_local"));
 }
 
-static bool
-csane_pointer_alias(CsaneFile *file, CsanePointerState *state, Token *token) {
-    for (int32 i = ARRAY_LEN(state->aliases) - 1; i >= 0; i -= 1) {
-        if (csane_pointer_same(token,
-                               &file->tokens->tokens[state->aliases[i].name])) {
-            return state->aliases[i].pointer;
-        }
-    }
-    return false;
-}
-
 /* Recognize declared types, not variable-name guesses. Unknown included
  * typedefs with no explicit '*' remain unclassified. */
 static bool
@@ -103,7 +92,14 @@ csane_pointer_type(CsaneFile *file, CsanePointerState *state,
                                         &tokens->tokens[i])
                || csane_name_kind(&tokens->tokens[i]) == CSANE_NAME_TYPE) {
         known = true;
-        *alias_pointer = csane_pointer_alias(file, state, &tokens->tokens[i]);
+        for (int32 a = ARRAY_LEN(state->aliases) - 1; a >= 0; a -= 1) {
+            CsanePointerTypes *alias = &state->aliases[a];
+            if (csane_pointer_same(&tokens->tokens[i],
+                                   &file->tokens->tokens[alias->name])) {
+                *alias_pointer = alias->pointer;
+                break;
+            }
+        }
         i = csane_tokens_next(view, i);
     }
     if (!known || (aggregate && i < view->range.end

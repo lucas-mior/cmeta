@@ -91,15 +91,6 @@ csane_style_conversion(Token *token) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-static int32
-csane_style_arguments(CsaneFile *file, int32 open, int32 close,
-                      TokenRange *args, int32 capacity) {
-    CsaneTokenView view = csane_tokens_full(file->tokens);
-    if (csane_tokens_match(&view, open) != close) {
-        return -1;
-    }
-    return csane_tokens_arguments(&view, open, args, capacity);
-}
 
 static int32
 csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
@@ -130,7 +121,19 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     Tokenization *tokens = file->tokens;
     Token *token = &tokens->tokens[name];
     TokenRange args[256];
-    int32 count = csane_style_arguments(file, open, close, args, 256);
+    int32 in_result_arguments;
+    do {
+        int32 in_capacity = 256;
+
+        CsaneTokenView view = csane_tokens_full(file->tokens);
+        if (csane_tokens_match(&view, open) != close) {
+            in_result_arguments = -1;
+            break;
+        }
+        in_result_arguments = csane_tokens_arguments(&view, open,
+                                                     args, in_capacity);
+    } while (false);
+    int32 count = in_result_arguments;
     if (count < 0) {
         return;
     }
@@ -702,90 +705,7 @@ csane_style_sizeof_cast_operand(CsaneTokenView *view, int32 first,
     return name;
 }
 
-static int32
-csane_style_sizeof_cast_before(CsaneTokenView *view, int32 multiply) {
-    Tokenization *tokens = view->tokens;
-    int32 last = csane_tokens_previous(view, multiply);
-    int32 first = last;
-    int32 cast_close;
-    int32 type;
-    int32 cast_open;
 
-    if (last < view->range.first) {
-        return -1;
-    }
-    if (TOKEN_IS(&tokens->tokens[last], ")")) {
-        first = csane_tokens_match(view, last);
-        if (first < 0) {
-            return -1;
-        }
-    }
-    if (csane_style_sizeof_cast_operand(view, first, &last) < 0
-        || csane_tokens_next(view, last) != multiply) {
-        return -1;
-    }
-    cast_close = csane_tokens_previous(view, first);
-    if (cast_close < view->range.first
-        || !TOKEN_IS(&tokens->tokens[cast_close], ")")) {
-        return -1;
-    }
-    type = csane_tokens_previous(view, cast_close);
-    if (type < view->range.first
-        || !TOKEN_IS(&tokens->tokens[type], "int64")) {
-        return -1;
-    }
-    cast_open = csane_tokens_previous(view, type);
-    if (cast_open < view->range.first
-        || !TOKEN_IS(&tokens->tokens[cast_open], "(")
-        || csane_tokens_match(view, cast_open) != cast_close) {
-        return -1;
-    }
-    return cast_open;
-}
-
-static int32
-csane_style_sizeof_cast_after(CsaneTokenView *view, int32 multiply) {
-    Tokenization *tokens = view->tokens;
-    int32 cast_open = csane_tokens_next(view, multiply);
-    int32 type;
-    int32 cast_close;
-    int32 first;
-    int32 last;
-    int32 next;
-
-    if (cast_open >= view->range.end
-        || !TOKEN_IS(&tokens->tokens[cast_open], "(")) {
-        return -1;
-    }
-    type = csane_tokens_next(view, cast_open);
-    if (type >= view->range.end
-        || !TOKEN_IS(&tokens->tokens[type], "int64")) {
-        return -1;
-    }
-    cast_close = csane_tokens_next(view, type);
-    if (cast_close >= view->range.end
-        || !TOKEN_IS(&tokens->tokens[cast_close], ")")
-        || csane_tokens_match(view, cast_open) != cast_close) {
-        return -1;
-    }
-    first = csane_tokens_next(view, cast_close);
-    if (csane_style_sizeof_cast_operand(view, first, &last) < 0) {
-        return -1;
-    }
-    /* Do not treat a function call, member access, or indexed expression
-     * as just its first identifier. */
-    next = csane_tokens_next(view, last);
-    if (next < view->range.end
-        && (TOKEN_IS(&tokens->tokens[next], "(")
-            || TOKEN_IS(&tokens->tokens[next], "[")
-            || TOKEN_IS(&tokens->tokens[next], ".")
-            || TOKEN_IS(&tokens->tokens[next], "->")
-            || TOKEN_IS(&tokens->tokens[next], "++")
-            || TOKEN_IS(&tokens->tokens[next], "--"))) {
-        return -1;
-    }
-    return cast_open;
-}
 
 static void
 csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
@@ -797,7 +717,55 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
 
     if (before >= view->range.first
         && TOKEN_IS(&tokens->tokens[before], "*")) {
-        cast = csane_style_sizeof_cast_before(view, before);
+        int32 in_result_before;
+        do {
+            int32 in_multiply = before;
+
+            Tokenization *tokens = view->tokens;
+            int32 last = csane_tokens_previous(view, in_multiply);
+            int32 first = last;
+            int32 cast_close;
+            int32 type;
+            int32 cast_open;
+
+            if (last < view->range.first) {
+                in_result_before = -1;
+                break;
+            }
+            if (TOKEN_IS(&tokens->tokens[last], ")")) {
+                first = csane_tokens_match(view, last);
+                if (first < 0) {
+                    in_result_before = -1;
+                    break;
+                }
+            }
+            if (csane_style_sizeof_cast_operand(view, first, &last) < 0
+                || csane_tokens_next(view, last) != in_multiply) {
+                in_result_before = -1;
+                break;
+            }
+            cast_close = csane_tokens_previous(view, first);
+            if (cast_close < view->range.first
+                || !TOKEN_IS(&tokens->tokens[cast_close], ")")) {
+                in_result_before = -1;
+                break;
+            }
+            type = csane_tokens_previous(view, cast_close);
+            if (type < view->range.first
+                || !TOKEN_IS(&tokens->tokens[type], "int64")) {
+                in_result_before = -1;
+                break;
+            }
+            cast_open = csane_tokens_previous(view, type);
+            if (cast_open < view->range.first
+                || !TOKEN_IS(&tokens->tokens[cast_open], "(")
+                || csane_tokens_match(view, cast_open) != cast_close) {
+                in_result_before = -1;
+                break;
+            }
+            in_result_before = cast_open;
+        } while (false);
+        cast = in_result_before;
         if (cast >= 0) {
             csane_rule_issue(file, tokens->tokens[cast].offset,
                              STRLIT("STYLE-SIZEOF-INT64-CAST"),
@@ -807,7 +775,57 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
     if (after < view->range.end
         && TOKEN_IS(&tokens->tokens[after], "*")) {
-        cast = csane_style_sizeof_cast_after(view, after);
+        int32 in_result_after;
+        do {
+            int32 in_multiply = after;
+
+            Tokenization *tokens = view->tokens;
+            int32 cast_open = csane_tokens_next(view, in_multiply);
+            int32 type;
+            int32 cast_close;
+            int32 first;
+            int32 last;
+            int32 next;
+
+            if (cast_open >= view->range.end
+                || !TOKEN_IS(&tokens->tokens[cast_open], "(")) {
+                in_result_after = -1;
+                break;
+            }
+            type = csane_tokens_next(view, cast_open);
+            if (type >= view->range.end
+                || !TOKEN_IS(&tokens->tokens[type], "int64")) {
+                in_result_after = -1;
+                break;
+            }
+            cast_close = csane_tokens_next(view, type);
+            if (cast_close >= view->range.end
+                || !TOKEN_IS(&tokens->tokens[cast_close], ")")
+                || csane_tokens_match(view, cast_open) != cast_close) {
+                in_result_after = -1;
+                break;
+            }
+            first = csane_tokens_next(view, cast_close);
+            if (csane_style_sizeof_cast_operand(view, first, &last) < 0) {
+                in_result_after = -1;
+                break;
+            }
+            /* Do not treat a function call, member access, or indexed
+             * expression as just its first identifier. */
+            next = csane_tokens_next(view, last);
+            if (next < view->range.end
+                && (TOKEN_IS(&tokens->tokens[next], "(")
+                    || TOKEN_IS(&tokens->tokens[next], "[")
+                    || TOKEN_IS(&tokens->tokens[next], ".")
+                    || TOKEN_IS(&tokens->tokens[next], "->")
+                    || TOKEN_IS(&tokens->tokens[next], "++")
+                    || TOKEN_IS(&tokens->tokens[next], "--"))) {
+                in_result_after = -1;
+                break;
+            }
+            in_result_after = cast_open;
+        } while (false);
+        cast = in_result_after;
         if (cast >= 0) {
             csane_rule_issue(file, tokens->tokens[cast].offset,
                              STRLIT("STYLE-SIZEOF-INT64-CAST"),
