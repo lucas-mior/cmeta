@@ -281,10 +281,17 @@ csane_single_use_check(CsaneFile *file) {
             }
         }
         if (count == 1 && !uncertain && !deep_call) {
+            char format[] =
+                "static function '%.*s' called only once: inline its "
+                "body at the call site and remove the function "
+                "definition and any prototype";
+            int64 capacity = SIZEOF(format) + name->len;
+            char *message = malloc2(capacity);
+
+            fmt_sprintf(message, capacity, format, name->len, name->text);
             csane_rule_issue(file, name->offset, STRLIT("STYLE-STATIC-ONCE"),
-                             "static function called only once: inline its "
-                             "body at the call site and remove the function "
-                             "definition and any prototype");
+                             message);
+            free2(message, capacity);
         }
     }
     return;

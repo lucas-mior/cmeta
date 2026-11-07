@@ -31,6 +31,22 @@ class StaticSingleUseTests(unittest.TestCase):
         lines = [int(match) for match in FINDING.findall(result.stdout)]
         self.assertEqual(lines, expected_lines, result.stdout + result.stderr)
         self.assertLessEqual(result.returncode, 1, result.stderr)
+        return result.stdout
+
+    def test_diagnostic_identifies_function(self):
+        long_name = "single_use_" + "long_identifier_" * 30
+        output = self.check(f"""static int first(void) {{ return 1; }}
+static int {long_name}(void) {{ return 2; }}
+int caller(void) {{ return first() + {long_name}(); }}
+""", [1, 2])
+        self.assertIn("static function 'first' called only once", output)
+        self.assertIn(
+            f"static function '{long_name}' called only once", output,
+        )
+        self.assertIn(
+            "inline its body at the call site and remove the function "
+            "definition and any prototype", output,
+        )
 
     def test_one_call_and_forward_declaration(self):
         self.check("""static int once(int value);
