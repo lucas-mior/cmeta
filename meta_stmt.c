@@ -462,7 +462,6 @@ stmt_parse_one(StmtCursor *c) {
 
         CPreprocessorDirective *d = &c->pp->directives[directive];
         int32 group = -1;
-        int32 node;
         CPreprocessorGroup *g;
         int32 tail;
         int32 following;
@@ -484,8 +483,10 @@ stmt_parse_one(StmtCursor *c) {
         }
         g = &c->pp->groups[group];
         if ((g->endif_directive < 0)
-            || (c->pp->directives[g->endif_directive].tokens.end > c->range.end)) {
-            return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR, first);
+            || (c->pp->directives[g->endif_directive].tokens.end
+                > c->range.end)) {
+            return stmt_unsupported(c, first, C_PARSE_ISSUE_PREPROCESSOR,
+                                    first);
         }
         node = stmt_new(c, C_STMT_PP_GROUP, first);
         c->ast->statements[node].directive = group;
@@ -496,7 +497,8 @@ stmt_parse_one(StmtCursor *c) {
         shared = stmt_at(c, following, "{") && (g->first_branch >= 0);
         for (int32 b = g->first_branch; shared && (b >= 0);
              b = c->pp->branches[b].next_branch) {
-            if (stmt_pp_shared_if_start(c, c->pp->branches[b].body_tokens) < 0) {
+            TokenRange body_tokens = c->pp->branches[b].body_tokens;
+            if (stmt_pp_shared_if_start(c, body_tokens) < 0) {
                 shared = false;
             }
         }
@@ -504,7 +506,8 @@ stmt_parse_one(StmtCursor *c) {
              b = c->pp->branches[b].next_branch) {
             CPreprocessorBranch *branch = &c->pp->branches[b];
             StmtCursor inner = *c;
-            int32 part = stmt_new(c, C_STMT_PP_BRANCH, branch->body_tokens.first);
+            int32 part = stmt_new(c, C_STMT_PP_BRANCH,
+                                  branch->body_tokens.first);
             int32 incomplete_if;
             inner.range = branch->body_tokens;
             inner.pos = inner.range.first;
@@ -512,7 +515,8 @@ stmt_parse_one(StmtCursor *c) {
             c->ast->statements[part].directive = branch->directive_index;
             c->ast->statements[part].tokens = branch->body_tokens;
             stmt_append(c, node, &tail, part);
-            /* No conditional alternative can export a typedef to its siblings. */
+            /* No conditional alternative can export a typedef to its
+             * siblings. */
             c_ast_scope_push(c->ast);
             incomplete_if = shared
                 ? stmt_pp_shared_if_start(c, branch->body_tokens) : -1;
@@ -605,7 +609,6 @@ stmt_parse_one(StmtCursor *c) {
         int32 close;
         int32 a;
         int32 b;
-        int32 node;
         int32 body;
         TokenDelimiterDepth zero = {0};
         TokenRange header;
@@ -662,14 +665,16 @@ stmt_parse_one(StmtCursor *c) {
                 c->ast->statements[node].declaration = decl.declaration;
             } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION
                        && stmt_ambiguous_pointer_decl(c,
-                                                      stmt_sig(c, open + 1), a)) {
+                                                      stmt_sig(c, open + 1),
+                                                      a)) {
                 stmt_issue(c, C_PARSE_ISSUE_UNSUPPORTED, open + 1,
                            (TokenRange){open + 1, a + 1});
             } else if (decl.status == C_DECL_PARSE_NOT_DECLARATION) {
                 CExprParseResult expr =
                     c_ast_parse_expression(c->ast, (TokenRange){open + 1, a});
                 if (expr.status == C_EXPR_PARSE_OK) {
-                    c->ast->statements[node].for_init_expression = expr.expression;
+                    c->ast->statements[node].for_init_expression =
+                        expr.expression;
                 } else {
                     stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
                                ? C_PARSE_ISSUE_UNSUPPORTED
@@ -678,11 +683,13 @@ stmt_parse_one(StmtCursor *c) {
                 }
             } else {
                 stmt_issue(c, decl.status == C_DECL_PARSE_UNSUPPORTED
-                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           ? C_PARSE_ISSUE_UNSUPPORTED
+                           : C_PARSE_ISSUE_MALFORMED,
                            decl.issue_token, (TokenRange){open + 1, a + 1});
             }
         }
-        /* The header's source spans are retained even when not analyzed here. */
+        /* The header's source spans are retained even when not analyzed
+         * here. */
         if (stmt_sig(c, a + 1) < b) {
             CExprParseResult expr =
                 c_ast_parse_expression(c->ast, (TokenRange){a + 1, b});
@@ -690,7 +697,8 @@ stmt_parse_one(StmtCursor *c) {
                 c->ast->statements[node].expression = expr.expression;
             } else {
                 stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
-                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           ? C_PARSE_ISSUE_UNSUPPORTED
+                           : C_PARSE_ISSUE_MALFORMED,
                            expr.issue_token, (TokenRange){a + 1, b});
             }
         }
@@ -701,7 +709,8 @@ stmt_parse_one(StmtCursor *c) {
                 c->ast->statements[node].for_step_expression = expr.expression;
             } else {
                 stmt_issue(c, expr.status == C_EXPR_PARSE_UNSUPPORTED
-                           ? C_PARSE_ISSUE_UNSUPPORTED : C_PARSE_ISSUE_MALFORMED,
+                           ? C_PARSE_ISSUE_UNSUPPORTED
+                           : C_PARSE_ISSUE_MALFORMED,
                            expr.issue_token, (TokenRange){b + 1, close});
             }
         }
@@ -723,11 +732,9 @@ stmt_parse_one(StmtCursor *c) {
     }
     if (stmt_at(c, first, "do")) {
         {
-        int32 node;
         int32 body;
         int32 open;
         int32 close;
-        int32 semi;
         c->pos = stmt_sig(c, first + 1);
         body = stmt_parse_body(c);
         if (body < 0) {

@@ -25,6 +25,7 @@ csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
         CPreprocessorBranch *entry = &pp->branches[current];
         CPreprocessorDirective *directive =
             &pp->directives[entry->directive_index];
+        Token *name = NULL;
         int32 macro;
 
         if (directive->kind != C_PREPROCESSOR_DIRECTIVE_IF
@@ -50,7 +51,7 @@ csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
         if (macro >= directive->tokens.end) {
             continue;
         }
-        Token *name = &tokens->tokens[macro];
+        name = &tokens->tokens[macro];
         if (name->kind == TOKEN_IDENT
             && ((name->len >= testing_prefix_len
                  && !memcmp64(name->text,
