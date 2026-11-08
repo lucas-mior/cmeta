@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flag one-call static functions without assuming preprocessor decisions."""
+"""Regression contract for zero-or-one-call, same-file static functions."""
 
 from pathlib import Path
 import re
@@ -11,6 +11,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "bin/csanecheck"
 FINDING = re.compile(r":(\d+):\d+: error\[STYLE-STATIC-ONCE\]")
+FILE_FINDING = re.compile(
+    r"(?m)^(.+?):(\d+):\d+: error\[STYLE-STATIC-ONCE\]"
+)
 
 
 class StaticSingleUseTests(unittest.TestCase):
@@ -30,6 +33,32 @@ class StaticSingleUseTests(unittest.TestCase):
         )
         lines = [int(match) for match in FINDING.findall(result.stdout)]
         self.assertEqual(lines, expected_lines, result.stdout + result.stderr)
+        self.assertLessEqual(result.returncode, 1, result.stderr)
+        return result.stdout
+
+    def check_files(self, sources, expected):
+        """Check findings across physical .c files in one invocation."""
+        paths = {}
+        for name, source in sources.items():
+            path = Path(self.temp.name) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source, encoding="utf-8")
+            paths[name] = path
+        command = [str(CHECKER), "--no-project-config"]
+        for path in paths.values():
+            command.extend(("--file", str(path)))
+        result = subprocess.run(command, cwd=ROOT, capture_output=True,
+                                text=True, check=False)
+        found = sorted(
+            (str(Path(name).resolve()), int(line))
+            for name, line in FILE_FINDING.findall(result.stdout)
+        )
+        wanted = sorted(
+            (str(paths[name].resolve()), line)
+            for name, lines in expected.items()
+            for line in lines
+        )
+        self.assertEqual(found, wanted, result.stdout + result.stderr)
         self.assertLessEqual(result.returncode, 1, result.stderr)
         return result.stdout
 
@@ -54,17 +83,35 @@ static int once(int value) { return value + 1; }
 int caller(void) { return once(2); }
 """, [2])
 
-    def test_multiple_calls_or_no_calls(self):
+    def test_multiple_calls_are_not_reported(self):
         self.check("""static int twice(int value) { return value; }
-static void unused(void) { return; }
 int caller(void) { return twice(1) + twice(2); }
 """, [])
+
+    def test_unused_function_is_reported(self):
+        output = self.check("""static void unused(void) { return; }
+int caller(void) { return 0; }
+""", [1])
+        self.assertIn("static function 'unused' never called", output)
+        self.assertIn("remove the function definition", output)
+
+    def test_unused_with_forward_declaration(self):
+        self.check("""static int unused(void);
+static int unused(void) { return 1; }
+int caller(void) { return 0; }
+""", [2])
 
     def test_indirect_references_prevent_finding(self):
         self.check("""static int target(void) { return 1; }
 static int (*callback)(void) = target;
 int caller(void) { return target(); }
 """, [])
+
+    def test_self_recursive_without_external_calls_is_reported(self):
+        self.check("""static int recurse(int n) {
+    return n ? recurse(n - 1) : 0;
+}
+""", [1])
 
     def test_recursive_function_prevents_finding(self):
         self.check("""static int recurse(int n) {
@@ -96,16 +143,18 @@ static int helper(void) { return 2; }
 int caller(void) { return helper(); }
 """, [])
 
-    def test_unrelated_identifiers_and_member_calls(self):
+    def test_comments_and_strings_do_not_count_as_calls(self):
         self.check("""static int action(void) { return 1; }
 int caller(void) { return action(); }
 // action() in a comment
 char *message = "action() in a string";
 """, [1])
+
+    def test_member_calls_do_not_count_as_static_calls(self):
         self.check("""static int action(void) { return 1; }
 int caller(void) { return action(); }
 int other(void) { return obj->action(); }
-""", [])
+""", [1])
 
     def test_header_functions_are_excluded(self):
         self.check("""static int helper(void) { return 1; }
@@ -175,7 +224,7 @@ int caller_three(void) {
         }
     }
 }
-""", [1])
+""", [1, 7])
 
     def test_wrapped_call_uses_statement_indentation(self):
         self.check("""static int helper(int value) { return value; }
@@ -207,12 +256,123 @@ int caller(void) { return helper(); }
             self.assertEqual(lines, expected, result.stdout + result.stderr)
             self.assertLessEqual(result.returncode, 1, result.stderr)
 
-    def test_other_conditional_guard_is_not_allowed(self):
+    def test_testing_only_call_counts_for_production_definition(self):
+        self.check("""static int helper(void) { return 1; }
+#if TESTING_sample
+int test(void) { return helper(); }
+#endif
+""", [1])
+
+    def test_testing_and_production_calls_count_together(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) { return helper(); }
+#if TESTING_sample
+int test(void) { return helper(); }
+#endif
+""", [])
+
+    def test_unused_testing_definition_is_exempt(self):
+        self.check("""#if TESTING_sample
+static int unused_test_helper(void) { return 1; }
+#endif
+""", [])
+
+    def test_testing_nested_inside_feature_exempts_definitions(self):
+        self.check("""#if defined(FEATURE)
+#if TESTING_sample
+static int helper(void) { return 1; }
+int test(void) { return helper(); }
+#endif
+#endif
+""", [])
+
+    def test_testing_macro_after_feature_exempts_definitions(self):
+        self.check("""#if defined(FEATURE) && defined(TESTING_sample)
+static int helper(void) { return 1; }
+int test(void) { return helper(); }
+#endif
+""", [])
+
+    def test_non_testing_ifdef_guard_does_not_exempt(self):
+        self.check("""#ifdef FEATURE
+static int helper(void) { return 1; }
+int caller(void) { return helper(); }
+#endif
+""", [2])
+
+    def test_non_testing_else_branch_does_not_exempt(self):
+        self.check("""#if FEATURE
+int fallback(void) { return 0; }
+#else
+static int helper(void) { return 1; }
+int caller(void) { return helper(); }
+#endif
+""", [4])
+
+    def test_indirect_reference_without_direct_call_is_not_unused(self):
+        self.check("""static int target(void) { return 1; }
+static int (*callback)(void) = target;
+""", [])
+
+    def test_cross_file_only_call_suppresses_unused_diagnostic(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+""",
+            "src/consumer.c": """#include "definition.c"
+int caller(void) { return helper(); }
+""",
+        }, {})
+
+    def test_cross_file_call_suppresses_local_single_use(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+int local(void) { return helper(); }
+""",
+            "src/consumer.c": """#include "definition.c"
+int other(void) { return helper(); }
+""",
+        }, {})
+
+    def test_transitive_cross_file_call_suppresses_finding(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+int local(void) { return helper(); }
+""",
+            "src/middle.c": """#include "definition.c"
+""",
+            "src/consumer.c": """#include "middle.c"
+int other(void) { return helper(); }
+""",
+        }, {})
+
+    def test_conditional_cross_file_include_is_conservative(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+int local(void) { return helper(); }
+""",
+            "src/consumer.c": """#if FEATURE
+#include "definition.c"
+int other(void) { return helper(); }
+#endif
+""",
+        }, {})
+
+    def test_independent_translation_units_keep_distinct_statics(self):
+        self.check_files({
+            "src/one.c": """static int helper(void) { return 1; }
+int one(void) { return helper(); }
+""",
+            "src/two.c": """static int helper(void) { return 2; }
+int two(void) { return helper(); }
+""",
+        }, {"src/one.c": [1], "src/two.c": [1]})
+
+    def test_non_testing_conditional_guard_does_not_exempt(self):
         self.check("""#if defined(FEATURE)
 static int helper(void) { return 1; }
 int caller(void) { return helper(); }
 #endif
-""", [])
+""", [2])
 
 
 if __name__ == "__main__":
