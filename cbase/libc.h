@@ -229,7 +229,7 @@ char *realpath(char *, char *);
 
 #if OS_WINDOWS
 #include <windows.h>
-#if defined(_MSC_VER) && !defined(noreturn)
+#if CC_MSVC && !defined(noreturn)
 #define noreturn __declspec(noreturn)
 #endif
 #endif
