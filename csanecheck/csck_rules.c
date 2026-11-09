@@ -143,8 +143,41 @@ csane_source_keyword(char *text, int32 end, int32 index,
                || !char_is_identifier_body(text[index + word_len]));
 }
 
+/* Compiler detection belongs in platform_detection.h. Elsewhere, use the
+ * CC_* booleans instead of checking whether compiler macros are defined.
+ * Reading only conditional directive tokens also handles line continuations
+ * and ignores compiler names inside comments and string literals.
+ */
+static char *
+csane_compiler_flag(Token *token) {
+    if (TOKEN_IS(token, "__clang__")) {
+        return "CC_CLANG";
+    }
+    if (TOKEN_IS(token, "__GNUC__")) {
+        return "CC_GCC";
+    }
+    if (TOKEN_IS(token, "__TINYC__")) {
+        return "CC_TCC";
+    }
+    if (TOKEN_IS(token, "_MSC_VER")) {
+        return "CC_MSVC";
+    }
+    return NULL;
+}
+
+static int32
+csane_compiler_previous(Tokenization *tokens, int32 index) {
+    index = tokenization_previous_significant(tokens, index);
+    while (c_preprocessor_token_is_line_splice(tokens, index)) {
+        index = tokenization_previous_significant(tokens, index);
+    }
+    return index;
+}
+
 static void
 csane_rule_preprocessor(CsaneFile *file) {
+    Tokenization *tokens = file->tokens;
+    CPreprocessorAnalysis *pp = file->preprocessor;
     char *text = file->tokens->text;
     int32 len = file->tokens->text_len;
     int32 cursor = 0;
@@ -217,6 +250,48 @@ csane_rule_preprocessor(CsaneFile *file) {
             }
         }
         start = end + (end < len);
+    }
+    for (int32 i = 0; i < ARRAY_LEN(pp->directives); i += 1) {
+        CPreprocessorDirective *directive = &pp->directives[i];
+        bool direct = directive->kind == C_PREPROCESSOR_DIRECTIVE_IFDEF
+                      || directive->kind == C_PREPROCESSOR_DIRECTIVE_IFNDEF;
+
+        if (!direct && directive->kind != C_PREPROCESSOR_DIRECTIVE_IF
+            && directive->kind != C_PREPROCESSOR_DIRECTIVE_ELIF) {
+            continue;
+        }
+        for (int32 j = directive->keyword_token + 1;
+             j < directive->tokens.end; j += 1) {
+            Token *token = &tokens->tokens[j];
+            char *flag;
+            int32 previous;
+            bool defined_macro = direct;
+
+            if (token->kind != TOKEN_IDENT
+                || (flag = csane_compiler_flag(token)) == NULL) {
+                continue;
+            }
+            if (!defined_macro) {
+                previous = csane_compiler_previous(tokens, j);
+                if (previous >= 0
+                    && TOKEN_IS(&tokens->tokens[previous], "(")) {
+                    previous = csane_compiler_previous(tokens, previous);
+                }
+                defined_macro = previous >= 0
+                                && previous > directive->keyword_token
+                                && TOKEN_IS(&tokens->tokens[previous],
+                                            "defined");
+            }
+            if (defined_macro) {
+                char message[96];
+                fmt_snprintf(message, SIZEOF(message),
+                             "use %s instead of checking "
+                             "compiler macro definedness",
+                             flag);
+                csane_rule_issue(file, token->offset,
+                                 STRLIT("PP-COMPILER-MACRO"), message);
+            }
+        }
     }
     return;
 }

@@ -670,6 +670,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("API-CBASE-ONLY"),
     SFLIT("API-LIBC-PRINTF"),
     SFLIT("PP-DEFINED"),
+    SFLIT("PP-COMPILER-MACRO"),
     SFLIT("PP-SIZEOF"),
     SFLIT("SRC-TABS"),
     SFLIT("SRC-TRAILING"),
