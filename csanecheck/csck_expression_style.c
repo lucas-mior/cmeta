@@ -14,19 +14,39 @@ csane_style_first(CsaneFile *file, TokenRange range) {
     return token_range_first_significant(file->tokens, range);
 }
 
-/* Perl tests whether the argument starts with an unprefixed string
- * literal, not whether its complete expression is a string constant. */
+/* Recognize an argument consisting solely of string literals, possibly
+ * concatenated or wrapped in redundant parentheses. */
 static bool
-csane_style_string_start(CsaneFile *file, TokenRange range) {
-    int32 first = csane_style_first(file, range);
-    Token *token;
+csane_style_literal_argument(CsaneFile *file, TokenRange range) {
+    CsaneTokenView view = csane_tokens_full(file->tokens);
+    CsaneTokenView argument;
+    int32 index;
+    bool found = false;
 
-    if (first >= range.end) {
+    range = csane_tokens_unwrap(&view, range);
+    if (!csane_tokens_subview(&argument, &view, range)) {
         return false;
     }
-    token = &file->tokens->tokens[first];
-    return token->kind == TOKEN_LITERAL && token->len >= 2
-           && token->text[0] == '"';
+    index = csane_tokens_next(&argument, range.first - 1);
+    while (index < range.end) {
+        Token *token = &file->tokens->tokens[index];
+        int32 quote;
+
+        if (c_preprocessor_token_is_line_splice(file->tokens, index)) {
+            index = csane_tokens_next(&argument, index);
+            continue;
+        }
+        if (token->kind != TOKEN_LITERAL) {
+            return false;
+        }
+        quote = literal_quote_index(token->text, token->len, 0);
+        if (quote < 0 || token->text[quote] != '"') {
+            return false;
+        }
+        found = true;
+        index = csane_tokens_next(&argument, index);
+    }
+    return found;
 }
 
 /* Only one conversion, with the same grammar as Perl's format_spec.
@@ -38,6 +58,7 @@ csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
     int32 open;
     int32 literal;
+    Token *token;
 
     if (first >= range.end
         || !TOKEN_IS(&file->tokens->tokens[first], "STRLIT")) {
@@ -49,9 +70,12 @@ csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
         return -1;
     }
     literal = tokenization_next_significant(file->tokens, open);
-    if (literal >= range.end
-        || !csane_style_string_start(file,
-                                     (TokenRange){literal, range.end})) {
+    if (literal >= range.end) {
+        return -1;
+    }
+    token = &file->tokens->tokens[literal];
+    if (token->kind != TOKEN_LITERAL || token->len < 2
+        || token->text[0] != '"') {
         return -1;
     }
     return first;
@@ -91,20 +115,20 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
                              "with zero tolerance");
         }
     }
-    if (TOKEN_IS(token, "STRLIT_LEN") && count >= 1
-        && csane_style_string_start(file, args[0])) {
+    if (TOKEN_IS(token, "STRLIT_LEN") && count == 1
+        && csane_style_literal_argument(file, args[0])) {
         csane_rule_issue(file, token->offset, STRLIT("STYLE-STRLIT-LEN"),
-                         "STRLIT_LEN called on a literal string");
+                         "do not call STRLIT_LEN on a string literal");
     }
-    if (TOKEN_IS(token, "SIZEOF") && count == 1) {
-        int32 first = csane_style_first(file, args[0]);
-        if (first < args[0].end
-            && tokenization_next_significant(tokens, first) >= args[0].end
-            && csane_style_string_start(file, args[0])) {
-            csane_rule_issue(file, token->offset,
-                             STRLIT("STYLE-SIZEOF-LITERAL"),
-                             "SIZEOF called on a literal string");
-        }
+    if (TOKEN_IS(token, "SIZEOF") && count == 1
+        && csane_style_literal_argument(file, args[0])) {
+        csane_rule_issue(file, token->offset, STRLIT("STYLE-SIZEOF-LITERAL"),
+                         "do not call SIZEOF on a string literal");
+    }
+    if (TOKEN_IS(token, "LENGTH") && count == 1
+        && csane_style_literal_argument(file, args[0])) {
+        csane_rule_issue(file, token->offset, STRLIT("STYLE-LENGTH-LITERAL"),
+                         "do not call LENGTH on a string literal");
     }
     if (TOKEN_IS(token, "STREQUAL")) {
         for (int32 i = 0; i < count; i += 1) {
@@ -1101,6 +1125,7 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(token, "ASSERT")
                     || TOKEN_IS(token, "ASSERT_CLOSE")
                     || TOKEN_IS(token, "STRLIT_LEN")
+                    || TOKEN_IS(token, "LENGTH")
                     || TOKEN_IS(token, "STREQUAL")
                     || TOKEN_IS(token, "str_printf")
                     || TOKEN_IS(token, "floor")
@@ -1161,6 +1186,7 @@ csane_expression_style_check(CsaneFile *file) {
                        || TOKEN_IS(token, "ASSERT_CLOSE")
                        || TOKEN_IS(token, "SIZEOF")
                        || TOKEN_IS(token, "STRLIT_LEN")
+                       || TOKEN_IS(token, "LENGTH")
                        || TOKEN_IS(token, "STREQUAL")
                        || TOKEN_IS(token, "str_printf")) {
                 csane_style_one(file, i, next, close);

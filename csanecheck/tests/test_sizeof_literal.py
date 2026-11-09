@@ -40,6 +40,17 @@ class SizeofLiteralTests(unittest.TestCase):
 }
 """, [(2, 17)])
 
+    def test_concatenated_and_parenthesized_literals(self):
+        self.check('''int32 f(char *string, int32 offset) {
+    int64 a = SIZEOF("one" "two");
+    int64 b = SIZEOF(("wrapped"));
+    int64 c = SIZEOF(/* gap */ "literal");
+    int64 d = SIZEOF("literal" + offset);
+    int64 e = SIZEOF(offset ? "yes" : "no");
+    return a + b + c + d + e;
+}
+''', [(2, 15), (3, 15), (4, 15)])
+
     def test_macro_replacements_and_branches(self):
         self.check("""#define BAD_SIZE SIZEOF("literal")
 #if defined(FIRST)

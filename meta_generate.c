@@ -283,9 +283,9 @@ test_c_string_literal(void) {
     };
     String literal;
 
-    literal = c_string_literal("a\\b\"c", strlen32("a\\b\"c"));
+    literal = c_string_literal(STRLIT("a\\b\"c"));
     ASSERT_EQ(literal.data, "\"a\\\\b\\\"c\"");
-    ASSERT_EQ(literal.len, strlen32("\"a\\\\b\\\"c\""));
+    ASSERT_EQ(literal.len, strlen32(literal.data));
     ASSERT_EQ(literal.cap, literal.len + 1);
     free2(literal.data, literal.cap);
 
@@ -300,25 +300,25 @@ static void
 test_c_identifier(void) {
     String identifier;
 
-    identifier = c_identifier("1 bad-name", strlen32("1 bad-name"));
+    identifier = c_identifier(STRLIT("1 bad-name"));
     ASSERT_EQ(identifier.data, "c_1_bad_name");
-    ASSERT_EQ(identifier.len, strlen32("c_1_bad_name"));
+    ASSERT_EQ(identifier.len, strlen32(identifier.data));
     ASSERT_EQ(identifier.cap, identifier.len + 1);
     free2(identifier.data, identifier.cap);
 
-    identifier = c_identifier("already_ok_2", strlen32("already_ok_2"));
+    identifier = c_identifier(STRLIT("already_ok_2"));
     ASSERT_EQ(identifier.data, "already_ok_2");
     free2(identifier.data, identifier.cap);
 
-    identifier = c_identifier("int", strlen32("int"));
+    identifier = c_identifier(STRLIT("int"));
     ASSERT_EQ(identifier.data, "c_int");
     free2(identifier.data, identifier.cap);
 
-    identifier = c_identifier("IF", strlen32("IF"));
+    identifier = c_identifier(STRLIT("IF"));
     ASSERT_EQ(identifier.data, "IF");
     free2(identifier.data, identifier.cap);
 
-    identifier = c_identifier("_private", strlen32("_private"));
+    identifier = c_identifier(STRLIT("_private"));
     ASSERT_EQ(identifier.data, "c__private");
     free2(identifier.data, identifier.cap);
 

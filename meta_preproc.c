@@ -511,6 +511,8 @@ test_preprocessor_logical_directive_range(void) {
     char *text = "  #define ADD(a, b) ((a) + \\\n"
                  "                    (b))\n"
                  "int x;\n";
+    char *expected_directive = "  #define ADD(a, b) ((a) + \\\n"
+                               "                    (b))\n";
     Tokenization tokenization;
     CPreprocessorDirective directive;
     TokenRange all;
@@ -528,9 +530,7 @@ test_preprocessor_logical_directive_range(void) {
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
     ASSERT_EQ(directive.source.start, 0);
-    ASSERT_EQ(directive.source.end,
-              strlen32("  #define ADD(a, b) ((a) + \\\n"
-                       "                    (b))\n"));
+    ASSERT_EQ(directive.source.end, strlen32(expected_directive));
     ASSERT(c_preprocessor_directive_containing(&tokenization, b, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
     ASSERT(!c_preprocessor_directive_containing(&tokenization, x, &directive));
@@ -542,6 +542,7 @@ test_preprocessor_logical_directive_range(void) {
 static void
 test_preprocessor_define_info(void) {
     char *text = "#define FN(a, b, ...) ((a) + (b))\n";
+    char *expected_replacement = " ((a) + (b))";
     Tokenization tokenization;
     CPreprocessorDirective directive;
     CPreprocessorDefine define;
@@ -574,7 +575,7 @@ test_preprocessor_define_info(void) {
     test_assert_range_text(&tokenization, define.replacement,
                            STRLIT("((a) + (b))"));
     ASSERT_EQ(define.replacement_source.end - define.replacement_source.start,
-              strlen32(" ((a) + (b))"));
+              strlen32(expected_replacement));
     ASSERT_EQ(tokenization.text + define.replacement_source.start,
               define.replacement_source.end - define.replacement_source.start,
               " ((a) + (b))");
@@ -706,6 +707,8 @@ test_preprocessor_skip_whitespace_tokens(void) {
     char *text = "  # define FN(a, \\\n"
                  "b) a + b\n"
                  "int x;\n";
+    char *expected_directive = "  # define FN(a, \\\n"
+                               "b) a + b\n";
     Tokenization tokenization;
     CPreprocessorDirective directive;
     CPreprocessorDefine define;
@@ -718,9 +721,7 @@ test_preprocessor_skip_whitespace_tokens(void) {
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
     ASSERT_EQ(directive.source.start, 0);
-    ASSERT_EQ(directive.source.end,
-              strlen32("  # define FN(a, \\\n"
-                       "b) a + b\n"));
+    ASSERT_EQ(directive.source.end, strlen32(expected_directive));
     ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
     ASSERT(define.function_like);
     ASSERT_EQ(c_preprocessor_define_parameter_count(&tokenization, &define), 2);

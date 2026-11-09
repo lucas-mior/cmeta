@@ -583,6 +583,8 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                                || TOKEN_IS(&tokens->tokens[name],
                                            "STRLIT_LEN")
                                || TOKEN_IS(&tokens->tokens[name],
+                                           "LENGTH")
+                               || TOKEN_IS(&tokens->tokens[name],
                                            "STREQUAL")
                                || TOKEN_IS(&tokens->tokens[name],
                                            "str_printf");

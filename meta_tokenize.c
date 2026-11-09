@@ -2285,6 +2285,7 @@ test_tokenization_between_queries(void) {
 static void
 test_token_ranges(void) {
     char *text = "  foo /* c */ + bar  ";
+    char *expected_text = "foo /* c */ + bar";
     Tokenization tokenization;
     TokenRange range;
     TokenRange trimmed;
@@ -2308,7 +2309,7 @@ test_token_ranges(void) {
     ASSERT_EQ(source.start, 2);
     ASSERT_EQ(source.end, strlen32(text) - 2);
     ASSERT_EQ(source.end - source.start,
-              strlen32("foo /* c */ + bar"));
+              strlen32(expected_text));
     ASSERT_EQ(tokenization.text + source.start, source.end - source.start,
               "foo /* c */ + bar");
 
