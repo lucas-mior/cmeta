@@ -206,6 +206,7 @@ csane_single_use_check(CsaneFile *file) {
         bool is_static = false;
         bool uncertain = false;
         bool deep_call = false;
+        bool self_recursive = false;
         int32 count = 0;
 
         if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
@@ -263,9 +264,12 @@ csane_single_use_check(CsaneFile *file) {
                      k += 1) {
                     CsaneTopItem *caller = &file->toplevel->items[k];
                     if (caller->kind == CSANE_TOP_FUNCTION_DEFINITION
-                        && caller != item && j >= caller->body.first
+                        && j >= caller->body.first
                         && j < caller->body.end) {
                         direct = true;
+                        if (caller == item) {
+                            self_recursive = true;
+                        }
                         deep_call = csane_single_use_deep_call(file, k, j);
                         break;
                     }
@@ -280,14 +284,24 @@ csane_single_use_check(CsaneFile *file) {
                 break;
             }
         }
-        if (count == 1 && !uncertain && !deep_call) {
-            char format[] =
-                "static function '%.*s' called only once: inline its "
-                "body at the call site and remove the function "
-                "definition and any prototype";
-            int64 capacity = SIZEOF(format) + name->len;
-            char *message = malloc2(capacity);
+        if (count <= 1 && !uncertain && !deep_call) {
+            char *format;
+            int64 capacity;
+            char *message;
 
+            if (self_recursive) {
+                format = "static function '%.*s' calls only itself: "
+                         "remove the function definition and any prototype";
+            } else if (count == 0) {
+                format = "static function '%.*s' never called: remove the "
+                         "function definition and any prototype";
+            } else {
+                format = "static function '%.*s' called only once: inline "
+                         "its body at the call site and remove the function "
+                         "definition and any prototype";
+            }
+            capacity = strlen32(format) + name->len + 1;
+            message = malloc2(capacity);
             fmt_sprintf(message, capacity, format, name->len, name->text);
             csane_rule_issue(file, name->offset, STRLIT("STYLE-STATIC-ONCE"),
                              message);

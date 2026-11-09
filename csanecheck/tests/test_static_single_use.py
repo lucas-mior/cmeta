@@ -113,6 +113,15 @@ int caller(void) { return target(); }
 }
 """, [1])
 
+    def test_recursive_only_finding_recommends_removal(self):
+        output = self.check("""static int recurse(int n) {
+    return n ? recurse(n - 1) : 0;
+}
+""", [1])
+        self.assertIn("static function 'recurse' calls only itself", output)
+        self.assertIn("remove the function definition", output)
+        self.assertNotIn("inline its body", output)
+
     def test_recursive_function_prevents_finding(self):
         self.check("""static int recurse(int n) {
     return n ? recurse(n - 1) : 0;
