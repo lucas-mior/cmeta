@@ -110,6 +110,34 @@ csane_call_string(Token *token) {
     return quote >= 0 && token->text[quote] == '"';
 }
 
+/* A string-literal argument may contain adjacent literals or redundant
+ * parentheses, but no other expression tokens. */
+static bool
+csane_call_literal_argument(CsaneFile *file, CsaneTokenView *view,
+                            TokenRange range) {
+    CsaneTokenView argument;
+    int32 index;
+    bool found = false;
+
+    range = csane_tokens_unwrap(view, range);
+    if (!csane_tokens_subview(&argument, view, range)) {
+        return false;
+    }
+    index = csane_tokens_next(&argument, range.first - 1);
+    while (index < range.end) {
+        if (c_preprocessor_token_is_line_splice(file->tokens, index)) {
+            index = csane_tokens_next(&argument, index);
+            continue;
+        }
+        if (!csane_call_string(&file->tokens->tokens[index])) {
+            return false;
+        }
+        found = true;
+        index = csane_tokens_next(&argument, index);
+    }
+    return found;
+}
+
 static bool
 csane_call_format(CsaneFile *file, TokenRange range) {
     for (int32 i = range.first; i < range.end; i += 1) {
@@ -713,6 +741,19 @@ csane_calls_token_check(CsaneFile *file) {
         close = csane_tokens_match(&local, call_i);
         if (close < 0) {
             continue;
+        }
+        if (TOKEN_IS(&tokens->tokens[name], "strlen32")
+            && (before < 0
+                || (!TOKEN_IS(&tokens->tokens[before], ".")
+                    && !TOKEN_IS(&tokens->tokens[before], "->")))) {
+            TokenRange args[1];
+            if (csane_tokens_arguments(&local, call_i, args, 1) == 1
+                && csane_call_literal_argument(file, &local, args[0])) {
+                csane_rule_issue(file, tokens->tokens[name].offset,
+                                 STRLIT("STYLE-STRLEN32-LITERAL"),
+                                 "do not call strlen32 directly on a "
+                                 "string literal");
+            }
         }
         do {
             CsaneFile *in_file = file;
