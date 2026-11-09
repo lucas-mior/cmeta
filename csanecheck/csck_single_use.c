@@ -354,7 +354,10 @@ csane_single_use_check(CsaneFile *file) {
                 break;
             }
         }
-        if (count <= 1 && !uncertain && !deep_call) {
+        if (count <= 1 && !uncertain && !deep_call
+            && !csane_include_graph_foreign_reference(file->include_graph,
+                                                      file->path, name->text,
+                                                      name->len)) {
             char *format;
             int64 capacity;
             char *message;

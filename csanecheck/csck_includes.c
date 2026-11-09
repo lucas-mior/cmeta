@@ -70,12 +70,14 @@ csane_include_graph_scan(CsaneIncludeGraph *graph, int32 index) {
     length = read_entire_file(graph->nodes[index].path, &source);
     if (length < 0) {
         graph->nodes[index].uncertain = true;
+        graph->nodes[index].unresolved_source = true;
         return;
     }
     tokens = tokenize(source, length);
     valid = c_preprocessor_analysis_init(&pp, &tokens);
     if (!valid) {
         graph->nodes[index].uncertain = true;
+        graph->nodes[index].unresolved_source = true;
     }
     for (int32 i = 0; i < ARRAY_LEN(pp.directives); i += 1) {
         CPreprocessorDirective *directive = &pp.directives[i];
@@ -107,6 +109,7 @@ csane_include_graph_scan(CsaneIncludeGraph *graph, int32 index) {
         if (!quoted) {
             if (!TOKEN_IS(argument, "<")) {
                 graph->nodes[index].uncertain = true;
+                graph->nodes[index].unresolved_source = true;
             } else {
                 bool closed = false;
                 int32 start = argument->offset + 1;
@@ -125,6 +128,7 @@ csane_include_graph_scan(CsaneIncludeGraph *graph, int32 index) {
                         && tokens.text[start + angle_len - 2] == '.'
                         && tokens.text[start + angle_len - 1] == 'c') {
                         graph->nodes[index].uncertain = true;
+                        graph->nodes[index].unresolved_source = true;
                     }
                     break;
                 }
@@ -160,6 +164,7 @@ csane_include_graph_scan(CsaneIncludeGraph *graph, int32 index) {
         if (stat(path, &st) != 0) {
             graph->nodes[index].uncertain = true;
             if (c_include) {
+                graph->nodes[index].unresolved_source = true;
                 edge.unresolved = true;
                 ARRAY_PUSH(graph->nodes[index].edges, edge);
             }
@@ -169,9 +174,34 @@ csane_include_graph_scan(CsaneIncludeGraph *graph, int32 index) {
         }
         free2(path, (int64)strlen32(path) + 1);
     }
+    /* References can also be physically written in a included header.
+     * Retain original source text to compare names without hash collisions. */
+    for (int32 i = 0; i < ARRAY_LEN(tokens.tokens); i += 1) {
+        Token *token = &tokens.tokens[i];
+        CsaneIncludeName reference;
+        int32 previous;
+
+        if (token->kind != TOKEN_IDENT) {
+            continue;
+        }
+        previous = tokenization_previous_significant(&tokens, i);
+        if (previous >= 0
+            && (TOKEN_IS(&tokens.tokens[previous], ".")
+                || TOKEN_IS(&tokens.tokens[previous], "->")
+                || TOKEN_IS(&tokens.tokens[previous], "struct")
+                || TOKEN_IS(&tokens.tokens[previous], "union")
+                || TOKEN_IS(&tokens.tokens[previous], "enum")
+                || TOKEN_IS(&tokens.tokens[previous], "goto"))) {
+            continue;
+        }
+        reference.offset = token->offset;
+        reference.len = token->len;
+        ARRAY_PUSH(graph->nodes[index].names, reference);
+    }
+    graph->nodes[index].source = source;
+    graph->nodes[index].source_len = length;
     c_preprocessor_analysis_free(&pp);
     free_tokenization(&tokens);
-    free2(source, (int64)length + 1);
     return;
 }
 
@@ -193,7 +223,102 @@ csane_include_graph_build(CsaneIncludeGraph *graph, CsanePaths *roots) {
             csane_include_graph_scan(graph, i);
         }
     }
+    /* Every .c file is a possible translation-unit entry point. Store
+     * membership of its inclusion closure on every reached physical file.
+     * Sharing a header alone does not imply sharing a translation unit. */
+    for (int32 root = 0; root < ARRAY_LEN(graph->nodes); root += 1) {
+        CsaneIncludeNode *origin = &graph->nodes[root];
+        int32 *queue = NULL;
+        uint8 *seen;
+        int32 head = 0;
+        int32 count = ARRAY_LEN(graph->nodes);
+
+        if (!ENDS_WITH(origin->path, origin->path_len, ".c")) {
+            continue;
+        }
+        seen = malloc2(count*SIZEOF(*seen));
+        memset64(seen, 0, count*SIZEOF(*seen));
+        ARRAY_PUSH(queue, root);
+        seen[root] = 1;
+        while (head < ARRAY_LEN(queue)) {
+            int32 current = queue[head];
+            CsaneIncludeNode *node = &graph->nodes[current];
+
+            head += 1;
+            ARRAY_PUSH(node->units, root);
+            for (int32 j = 0; j < ARRAY_LEN(node->edges); j += 1) {
+                int32 next = node->edges[j].target;
+
+                if (next >= 0 && !seen[next]) {
+                    seen[next] = 1;
+                    ARRAY_PUSH(queue, next);
+                }
+            }
+        }
+        free2(seen, count*SIZEOF(*seen));
+        ARRAY_FREE(queue);
+    }
     return true;
+}
+
+/* Two physical sources share a possible .c translation unit only when a
+ * single .c root includes both (possibly through headers or #if branches). */
+static bool
+csane_include_graph_shared(CsaneIncludeNode *a, CsaneIncludeNode *b) {
+    int32 i = 0;
+    int32 j = 0;
+
+    while (i < ARRAY_LEN(a->units) && j < ARRAY_LEN(b->units)) {
+        if (a->units[i] == b->units[j]) {
+            return true;
+        }
+        if (a->units[i] < b->units[j]) {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    return false;
+}
+
+bool
+csane_include_graph_foreign_reference(CsaneIncludeGraph *graph, char *path,
+                                      char *name, int32 name_len) {
+    int32 definition;
+    CsaneIncludeNode *owner;
+
+    if (graph == NULL) {
+        return false;
+    }
+    definition = csane_include_graph_find(graph, path);
+    if (definition < 0) {
+        return true; /* Do not assert locality for an unindexed file. */
+    }
+    owner = &graph->nodes[definition];
+    for (int32 i = 0; i < ARRAY_LEN(graph->nodes); i += 1) {
+        CsaneIncludeNode *node = &graph->nodes[i];
+
+        if (!csane_include_graph_shared(owner, node)) {
+            continue;
+        }
+        /* An unknown .c inclusion could contain an unseen reference. */
+        if (node->unresolved_source) {
+            return true;
+        }
+        if (i == definition || node->source == NULL) {
+            continue;
+        }
+        for (int32 j = 0; j < ARRAY_LEN(node->names); j += 1) {
+            CsaneIncludeName *candidate = &node->names[j];
+
+            if (candidate->len == name_len
+                && !memcmp64(node->source + candidate->offset,
+                             name, name_len)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void
@@ -205,6 +330,9 @@ csane_include_graph_free(CsaneIncludeGraph *graph) {
         CsaneIncludeNode *node = &graph->nodes[i];
 
         ARRAY_FREE(node->edges);
+        ARRAY_FREE(node->names);
+        ARRAY_FREE(node->units);
+        free2(node->source, (int64)node->source_len + 1);
         free2(node->path, (int64)node->path_len + 1);
     }
     ARRAY_FREE(graph->nodes);

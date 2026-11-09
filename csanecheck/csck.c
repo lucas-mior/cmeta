@@ -70,6 +70,7 @@ int32
 csane_run(int32 argc, char **argv) {
     CsaneOptions options = {.max_depth = -1};
     CsaneStats stats = {0};
+    CsaneIncludeGraph graph = {0};
     bool had_inputs = false;
     bool good = true;
     int32 exit_status = 0;
@@ -343,6 +344,10 @@ csane_run(int32 argc, char **argv) {
     csane_paths_sort_unique(&options.policy.project_roots);
     csane_paths_sort_unique(&options.policy.never_names);
     csane_paths_sort_unique(&options.policy.cbase_names);
+    if (!csane_include_graph_build(&graph, &options.files)) {
+        exit_status = 2;
+        goto cleanup;
+    }
 #if OS_UNIX
     cache_fingerprint = csane_cache_fingerprint(argc, argv, &options.policy);
     (void)mkdir(".cache", 0700);
@@ -375,7 +380,10 @@ csane_run(int32 argc, char **argv) {
         path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
                                      path, entry->len);
         SNPRINTF(cache_name, ".cache/csanecheck/%016llx.bin", path_hash);
-        cacheable = csane_cache_signature(path, &record);
+        /* STYLE-STATIC-ONCE depends on other .c files. Per-file cache
+         * records cannot be reused without dependency fingerprints. */
+        cacheable = !ENDS_WITH(path, entry->len, ".c")
+                    && csane_cache_signature(path, &record);
         if (cacheable && csane_cache_read(cache_name, &record, &stats,
                                           &status)) {
             if (status > exit_status) {
@@ -432,6 +440,7 @@ csane_run(int32 argc, char **argv) {
                 .tokens = &tokens,
                 .preprocessor = &pp,
                 .policy = &in_options->policy,
+                .include_graph = &graph,
             };
             csane_rules_prepare(&file);
             /* Source checks are independent of preprocessing and syntax
@@ -663,6 +672,7 @@ csane_run(int32 argc, char **argv) {
         fmt_printf("}\n");
     }
 cleanup:
+    csane_include_graph_free(&graph);
     free2(arg_lens, argc*SIZEOF(*arg_lens));
 
     if (stats.violations > 0) {

@@ -168,6 +168,7 @@ typedef struct CsaneFile {
     bool is_ryu;
     bool preprocessor_ok;
     CsanePolicy *policy;
+    struct CsaneIncludeGraph *include_graph;
 } CsaneFile;
 
 /* Physical source files are identified by device/inode when available.
@@ -179,12 +180,22 @@ typedef struct CsaneIncludeEdge {
     bool unresolved;
 } CsaneIncludeEdge;
 
+typedef struct CsaneIncludeName {
+    int32 offset;
+    int32 len;
+} CsaneIncludeName;
+
 typedef struct CsaneIncludeNode {
     char *path;
     int32 path_len;
     uint64 device;
     uint64 inode;
     CsaneIncludeEdge *edges;
+    CsaneIncludeName *names;
+    int32 *units; /* Possible containing .c translation-unit roots. */
+    char *source;
+    int32 source_len;
+    bool unresolved_source;
     bool identity_valid;
     bool scanned;
     bool uncertain; /* Missing files, macro includes, malformed directives. */
@@ -283,6 +294,8 @@ void csane_include_graph_free(CsaneIncludeGraph *);
 int32 csane_include_graph_find(CsaneIncludeGraph *, char *);
 CsaneIncludeReachability csane_include_graph_reach(CsaneIncludeGraph *,
                                                    int32, int32);
+bool csane_include_graph_foreign_reference(CsaneIncludeGraph *, char *,
+                                           char *, int32);
 
 bool csane_paths_add(CsanePaths *, char *, int32);
 void csane_paths_sort_unique(CsanePaths *);

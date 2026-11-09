@@ -570,6 +570,91 @@ int two(void) { return helper(); }
 """,
         }, {"src/one.c": [1], "src/two.c": [1]})
 
+    def test_sibling_source_includes_share_one_translation_unit(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+int local(void) { return helper(); }
+""",
+            "src/consumer.c": """int other(void) { return helper(); }
+""",
+            "src/combined.c": """#include "definition.c"
+#include "consumer.c"
+""",
+        }, {})
+
+    def test_shared_header_does_not_merge_unrelated_translation_units(self):
+        self.check_files({
+            "src/common.h": "#define FEATURE 1\n",
+            "src/one.c": """#include "common.h"
+static int helper(void) { return 1; }
+int one(void) { return helper(); }
+""",
+            "src/two.c": """#include "common.h"
+static int helper(void) { return 2; }
+int two(void) { return helper(); }
+""",
+        }, {"src/one.c": [2], "src/two.c": [2]})
+
+    def test_foreign_member_call_does_not_refer_to_static_function(self):
+        self.check_files({
+            "src/definition.c": """static int action(void) { return 1; }
+int local(void) { return action(); }
+""",
+            "src/consumer.c": """#include "definition.c"
+int other(void) { return ops->action(); }
+""",
+        }, {"src/definition.c": [1]})
+
+    def test_foreign_function_pointer_reference_prevents_finding(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+""",
+            "src/consumer.c": """#include "definition.c"
+int (*callback)(void) = helper;
+""",
+        }, {})
+
+    def test_included_source_need_not_be_explicit_cli_input(self):
+        caller = self.path.parent / "consumer.c"
+        caller.write_text("int other(void) { return helper(); }\n",
+                          encoding="utf-8")
+        self.check("""static int helper(void) { return 1; }
+#include "consumer.c"
+""", [], name="definition.c")
+
+    def test_cross_file_call_in_header_suppresses_finding(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+#include "consumer.h"
+""",
+            "src/consumer.h": "int caller(void) { return helper(); }\n",
+        }, {})
+
+    def test_header_pointer_reference_suppresses_unused_finding(self):
+        self.check_files({
+            "src/definition.c": """static int helper(void) { return 1; }
+#include "consumer.h"
+""",
+            "src/consumer.h": "int (*callback)(void) = helper;\n",
+        }, {})
+
+    def test_missing_c_include_suppresses_unsafe_finding(self):
+        self.check("""static int helper(void) { return 1; }
+#include "missing.c"
+""", [])
+
+    def test_cross_file_cache_is_invalidated(self):
+        sources = {
+            "src/definition.c": """static int helper(void) { return 1; }
+""",
+            "src/consumer.c": """#include "definition.c"
+int caller(void) { return helper(); }
+""",
+        }
+        self.check_files(sources, {})
+        sources["src/consumer.c"] = "#include \"definition.c\"\n"
+        self.check_files(sources, {"src/definition.c": [1]})
+
     def test_non_testing_conditional_guard_does_not_exempt(self):
         self.check("""#if defined(FEATURE)
 static int helper(void) { return 1; }
