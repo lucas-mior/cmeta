@@ -261,26 +261,6 @@ csane_include_graph_build(CsaneIncludeGraph *graph, CsanePaths *roots) {
     return true;
 }
 
-/* Two physical sources share a possible .c translation unit only when a
- * single .c root includes both (possibly through headers or #if branches). */
-static bool
-csane_include_graph_shared(CsaneIncludeNode *a, CsaneIncludeNode *b) {
-    int32 i = 0;
-    int32 j = 0;
-
-    while (i < ARRAY_LEN(a->units) && j < ARRAY_LEN(b->units)) {
-        if (a->units[i] == b->units[j]) {
-            return true;
-        }
-        if (a->units[i] < b->units[j]) {
-            i += 1;
-        } else {
-            j += 1;
-        }
-    }
-    return false;
-}
-
 bool
 csane_include_graph_foreign_reference(CsaneIncludeGraph *graph, char *path,
                                       char *name, int32 name_len) {
@@ -297,8 +277,26 @@ csane_include_graph_foreign_reference(CsaneIncludeGraph *graph, char *path,
     owner = &graph->nodes[definition];
     for (int32 i = 0; i < ARRAY_LEN(graph->nodes); i += 1) {
         CsaneIncludeNode *node = &graph->nodes[i];
+        int32 owner_unit = 0;
+        int32 node_unit = 0;
+        bool shared = false;
 
-        if (!csane_include_graph_shared(owner, node)) {
+        /* Two physical sources share a possible .c translation unit only when
+         * a single .c root includes both (possibly through headers or #if
+         * branches). */
+        while (owner_unit < ARRAY_LEN(owner->units)
+               && node_unit < ARRAY_LEN(node->units)) {
+            if (owner->units[owner_unit] == node->units[node_unit]) {
+                shared = true;
+                break;
+            }
+            if (owner->units[owner_unit] < node->units[node_unit]) {
+                owner_unit += 1;
+            } else {
+                node_unit += 1;
+            }
+        }
+        if (!shared) {
             continue;
         }
         /* An unknown .c inclusion could contain an unseen reference. */
