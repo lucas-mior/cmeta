@@ -86,7 +86,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#if !defined(_MSC_VER)
+#if !CC_MSVC
 #include <stdnoreturn.h>
 #endif
 #include <string.h>
