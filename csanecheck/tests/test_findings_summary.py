@@ -16,16 +16,16 @@ class FindingsSummaryTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.first = self.root / "first.c"
-        self.second = self.root / "second.c"
+        self.first = self.root / "first.h"
+        self.second = self.root / "second.h"
         self.first.write_text("//" + "x" * 79 + "\n"
                               + "//" + "y" * 79 + "\n", encoding="utf-8")
         self.second.write_text("//" + "z" * 79 + "\n", encoding="utf-8")
 
     def run_checker(self, *extra):
         return subprocess.run(
-            [str(CSANE), "--no-project-config", "--file", "first.c",
-             "--file", "second.c", *extra],
+            [str(CSANE), "--no-project-config", "--file", "first.h",
+             "--file", "second.h", *extra],
             cwd=self.root, text=True, capture_output=True, check=False,
         )
 
@@ -70,7 +70,7 @@ class FindingsSummaryTests(unittest.TestCase):
         self.assertEqual(initial.returncode, 1, initial.stderr)
         entries = self.cache_files()
         self.assertEqual(len(entries), 2, entries)
-        for name in ("first.c", "second.c"):
+        for name in ("first.h", "second.h"):
             with self.subTest(source=name):
                 self.assertGreater(self.cache_file_for(name).stat().st_size, 0)
 
@@ -78,7 +78,7 @@ class FindingsSummaryTests(unittest.TestCase):
         initial = self.run_checker()
         self.assertEqual(initial.returncode, 1, initial.stderr)
         self.assertEqual(len(self.cache_files()), 2)
-        first_cache = self.cache_file_for("first.c")
+        first_cache = self.cache_file_for("first.h")
         marked = self.mark_cached_diagnostics(first_cache)
 
         cached = self.run_checker()
@@ -95,8 +95,8 @@ class FindingsSummaryTests(unittest.TestCase):
         initial = self.run_checker()
         self.assertEqual(initial.returncode, 1, initial.stderr)
         self.assertEqual(len(self.cache_files()), 2)
-        first_cache = self.cache_file_for("first.c")
-        second_cache = self.cache_file_for("second.c")
+        first_cache = self.cache_file_for("first.h")
+        second_cache = self.cache_file_for("second.h")
         first_record = self.mark_cached_diagnostics(first_cache)
         second_record = second_cache.read_bytes()
 
@@ -125,6 +125,17 @@ class FindingsSummaryTests(unittest.TestCase):
         self.assertEqual(updated.returncode, changed.returncode, updated.stderr)
         self.assertEqual(updated.stdout, changed.stdout)
         self.assertEqual(second_cache.read_bytes(), refreshed_record)
+
+    def test_c_sources_are_not_cached_during_cross_file_analysis(self):
+        source = self.root / "single.c"
+        source.write_text("//" + "q" * 79 + "\n", encoding="utf-8")
+        result = subprocess.run(
+            [str(CSANE), "--no-project-config", "--file", "single.c"],
+            cwd=self.root, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout.count("error[SRC-COLUMNS]"), 1)
+        self.assertEqual(len(self.cache_files()), 0)
 
     def test_statistics_and_summary_agree(self):
         result = self.run_checker("--stats")
