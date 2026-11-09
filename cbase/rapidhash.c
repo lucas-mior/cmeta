@@ -37,7 +37,7 @@
 #define RAPIDHASH_C
 
 #include "cbase.h"
-#if defined(_MSC_VER)
+#if CC_MSVC
 #include <intrin.h>
 #if defined(_M_X64) && !defined(_M_ARM64EC)
 #pragma intrinsic(_umul128)
