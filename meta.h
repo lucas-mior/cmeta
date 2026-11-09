@@ -394,7 +394,6 @@ int32 c_binary_op_precedence(enum CBinaryOp);
 
 bool char_is_horizontal_space(char);
 bool char_is_identifier_body(char);
-bool char_is_identifier_start(char);
 bool char_is_number_body(char);
 bool char_is_operator_or_punct(char);
 void free_tokenization(Tokenization *);

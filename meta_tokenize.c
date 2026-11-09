@@ -29,16 +29,8 @@ token_is_number(Token *token) {
 }
 
 bool
-char_is_identifier_start(char c) {
-    if (is_alpha(c) || (c == '_')) {
-        return true;
-    }
-    return false;
-}
-
-bool
 char_is_identifier_body(char c) {
-    if (char_is_identifier_start(c) || is_digit(c)) {
+    if (is_ident_start(c) || is_digit(c)) {
         return true;
     }
     return false;
@@ -539,7 +531,7 @@ tokenize_with_flags(char *text, int32 text_len, int32 flags) {
             tokenization_add_token(&result, TOKEN_LITERAL,
                                    text + i, token_len, i);
             i += token_len;
-        } else if (char_is_identifier_start(text[i])) {
+        } else if (is_ident_start(text[i])) {
             token_len = 1;
             while (((i + token_len) < text_len)
                    && char_is_identifier_body(text[i + token_len])) {
@@ -1883,9 +1875,9 @@ test_character_classifiers(void) {
     ASSERT(is_digit('0'));
     ASSERT(is_digit('9'));
     ASSERT(!is_digit('x'));
-    ASSERT(char_is_identifier_start('_'));
-    ASSERT(char_is_identifier_start('A'));
-    ASSERT(!char_is_identifier_start('1'));
+    ASSERT(is_ident_start('_'));
+    ASSERT(is_ident_start('A'));
+    ASSERT(!is_ident_start('1'));
     ASSERT(char_is_identifier_body('1'));
     ASSERT(!char_is_identifier_body('-'));
     ASSERT(char_is_horizontal_space('\t'));
