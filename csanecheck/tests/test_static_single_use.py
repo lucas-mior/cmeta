@@ -129,7 +129,7 @@ int caller(void) { return target(); }
 int caller(void) { return recurse(3); }
 """, [])
 
-    def test_macros_and_conditional_calls_prevent_finding(self):
+    def test_macro_reference_prevents_finding_but_conditional_call_counts(self):
         self.check("""static int macro_called(void) { return 1; }
 #define CALLIT() macro_called()
 int caller(void) { return macro_called(); }
@@ -141,7 +141,7 @@ int other(void) {
     return 0;
 #endif
 }
-""", [])
+""", [4])
 
     def test_conditional_definitions_are_not_safely_unique(self):
         self.check("""#if defined(OPTION)
@@ -164,6 +164,101 @@ char *message = "action() in a string";
 int caller(void) { return action(); }
 int other(void) { return obj->action(); }
 """, [1])
+
+    def test_member_accesses_do_not_count_as_calls(self):
+        self.check("""static int action(void) { return 1; }
+struct Ops { int (*action)(void); };
+int caller(struct Ops *ops) {
+    return action() + ops->action() + (*ops).action();
+}
+""", [1])
+
+    def test_member_declaration_does_not_hide_unused_function(self):
+        self.check("""static int action(void) { return 1; }
+struct Ops { int (*action)(void); };
+int caller(void) { return 0; }
+""", [1])
+
+    def test_member_names_in_union_do_not_count(self):
+        self.check("""static int action(void) { return 1; }
+union Ops { int (*action)(void); int value; };
+int caller(union Ops *ops) { return action() + ops->action(); }
+""", [1])
+
+    def test_struct_and_union_tags_do_not_count(self):
+        self.check("""static int action(void) { return 1; }
+struct action { int value; };
+union action_union { int action; };
+int caller(struct action *value) { return action() + value->value; }
+""", [1])
+
+    def test_goto_and_label_do_not_count(self):
+        self.check("""static int action(void) { return 1; }
+int caller(void) {
+    goto action;
+action:
+    return action();
+}
+""", [1])
+
+    def test_callback_in_conditional_expression_is_uncertain(self):
+        self.check("""static int helper(void) { return 1; }
+int (*callback)(void) = 1 ? helper : 0;
+""", [])
+
+    def test_local_prototype_does_not_count_as_call(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) {
+    int helper(void);
+    return helper();
+}
+""", [1])
+
+    def test_local_prototype_without_call_is_still_unused(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) {
+    int helper(void);
+    return 0;
+}
+""", [1])
+
+    def test_declaration_initializer_still_counts_as_call(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) {
+    int value = helper();
+    return value;
+}
+""", [1])
+
+    def test_aggregate_initializer_reference_is_not_ignored(self):
+        self.check("""static int helper(void) { return 1; }
+struct Ops { int (*callback)(void); } ops = { .callback = helper };
+""", [])
+
+    def test_explicit_address_of_is_not_a_direct_call(self):
+        self.check("""static int helper(void) { return 1; }
+int (*callback)(void) = &helper;
+int caller(void) { return helper(); }
+""", [])
+
+    def test_indirect_call_syntax_remains_uncertain(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(void) { return (*helper)(); }
+""", [])
+
+    def test_shadowing_function_pointer_remains_uncertain(self):
+        self.check("""static int helper(void) { return 1; }
+int caller(int (*callback)(void)) {
+    int (*helper)(void) = callback;
+    return helper();
+}
+""", [])
+
+    def test_bare_callback_argument_is_not_an_unused_function(self):
+        self.check("""static int helper(void) { return 1; }
+int invoke(int (*callback)(void));
+int caller(void) { return invoke(helper); }
+""", [])
 
     def test_header_functions_are_excluded(self):
         self.check("""static int helper(void) { return 1; }
@@ -209,6 +304,105 @@ int test(void) { return helper(); }
 #endif
 """, [])
 
+    def test_testing_elif_branch_is_exempt(self):
+        self.check("""#if FEATURE
+int other(void) { return 0; }
+#elif TESTING_sample
+static int test_only(void) { return 1; }
+int testing_caller(void) { return test_only(); }
+#else
+static int production(void) { return 2; }
+int caller(void) { return production(); }
+#endif
+""", [7])
+
+    def test_testing_else_branch_is_not_exempt(self):
+        self.check("""#if TESTING_sample
+static int test_only(void) { return 1; }
+int test(void) { return test_only(); }
+#else
+static int production(void) { return 2; }
+int caller(void) { return production(); }
+#endif
+""", [5])
+
+    def test_negated_testing_guard_is_not_exempt(self):
+        self.check("""#if !defined(TESTING_sample)
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#endif
+""", [2])
+        self.check("""#ifndef TESTING_sample
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#endif
+""", [2])
+
+    def test_negated_group_with_testing_is_not_exempt(self):
+        self.check("""#if !(FEATURE && TESTING_sample)
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#endif
+""", [2])
+        self.check("""#if !FEATURE && TESTING_sample
+static int test_only(void) { return 1; }
+int caller(void) { return test_only(); }
+#endif
+""", [])
+
+    def test_testing_macro_in_or_guard_is_not_exempt(self):
+        self.check("""#if defined(FEATURE) || defined(TESTING_sample)
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#endif
+""", [2])
+
+    def test_testing_and_feature_guard_is_exempt(self):
+        self.check("""#if defined(FEATURE) && defined(TESTING_sample)
+static int test_only(void) { return 1; }
+int caller(void) { return test_only(); }
+#endif
+""", [])
+
+    def test_testing_conjunct_with_unrelated_or_is_exempt(self):
+        self.check("""#if (FEATURE || OTHER) && defined(TESTING_sample)
+static int test_only(void) { return 1; }
+int test(void) { return test_only(); }
+#endif
+""", [])
+        self.check("""#if defined(TESTING_sample) && (FEATURE || OTHER)
+static int test_only(void) { return 1; }
+int test(void) { return test_only(); }
+#endif
+""", [])
+
+    def test_or_between_testing_macros_is_exempt(self):
+        self.check("""#if defined(TESTING_one) || defined(TESTING_two)
+static int test_only(void) { return 1; }
+int test(void) { return test_only(); }
+#endif
+""", [])
+
+    def test_testing_with_alternative_non_testing_guard_is_not_exempt(self):
+        self.check("""#if (FEATURE || TESTING_sample)
+static int production(void) { return 1; }
+int caller(void) { return production(); }
+#endif
+""", [2])
+
+    def test_deep_call_inside_testing_guard_is_still_exempt(self):
+        self.check("""static int helper(void) { return 1; }
+#if TESTING_sample
+int test(void) {
+    if (1) {
+        if (1) {
+            return helper();
+        }
+    }
+}
+#endif
+""", [])
+
     def test_non_testing_static_function_still_reported(self):
         self.check("""static int helper(void) { return 1; }
 int caller(void) { return helper(); }
@@ -218,7 +412,7 @@ int test(void) { return test_helper(); }
 #endif
 """, [1])
 
-    def test_call_indentation_boundary(self):
+    def test_depth_three_call_is_exempt(self):
         self.check("""static int two_levels(void) { return 1; }
 int caller_two(void) {
     if (1) {
@@ -233,7 +427,7 @@ int caller_three(void) {
         }
     }
 }
-""", [1, 7])
+""", [1])
 
     def test_wrapped_call_uses_statement_indentation(self):
         self.check("""static int helper(int value) { return value; }

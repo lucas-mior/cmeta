@@ -7,67 +7,158 @@
 #include "cbase.h"
 #include "csck.h"
 
-/* Ignore conditional compilation except for a conventional, whole-file
- * include guard. No alternative preprocessor branch is selected. */
+/* Conditional branches are code, including calls in testing branches.
+ * Only testing-only function definitions receive the exemption. */
 static bool
-csane_single_use_code(CsaneFile *file, int32 index, int32 guard_branch) {
+csane_single_use_code(CsaneFile *file, int32 index, bool definition) {
     Tokenization *tokens = file->tokens;
     CPreprocessorAnalysis *pp = file->preprocessor;
     char *testing_prefix = "TESTING_";
-    int32 testing_prefix_len = strlen32(testing_prefix);
+    int32 prefix_len = strlen32(testing_prefix);
     int32 region = csane_regions_at_token(file->regions, index);
-    int32 branch;
 
-    /* Test-only functions are permitted to have a single call. Exclude
-     * their definitions and call sites, even inside a file include guard. */
+    if (region < 0
+        || file->regions->items[region].kind != CSANE_REGION_CODE
+        || !file->regions->items[region].complete) {
+        return false;
+    }
+    if (!definition) {
+        return true;
+    }
     for (int32 current = pp->token_branches[index]; current >= 0;
          current = pp->branches[current].parent_branch) {
-        CPreprocessorBranch *entry = &pp->branches[current];
+        CPreprocessorBranch *branch = &pp->branches[current];
         CPreprocessorDirective *directive =
-            &pp->directives[entry->directive_index];
-        Token *name = NULL;
-        int32 macro;
+            &pp->directives[branch->directive_index];
+        bool only_testing = true;
+        bool has_testing = false;
 
         if (directive->kind != C_PREPROCESSOR_DIRECTIVE_IF
             && directive->kind != C_PREPROCESSOR_DIRECTIVE_IFDEF
             && directive->kind != C_PREPROCESSOR_DIRECTIVE_ELIF) {
             continue;
         }
-        macro = token_range_next_significant(tokens, directive->tokens,
-                                             directive->keyword_token);
-        if (macro >= directive->tokens.end) {
-            continue;
-        }
-        if (TOKEN_IS(&tokens->tokens[macro], "defined")) {
-            macro = token_range_next_significant(tokens, directive->tokens,
-                                                 macro);
-            if (macro < directive->tokens.end
-                && TOKEN_IS(&tokens->tokens[macro], "(")) {
-                macro = token_range_next_significant(tokens,
-                                                     directive->tokens,
-                                                     macro);
+        /* A disjunction of positive testing flags is also testing-only. */
+        for (int32 j = directive->keyword_token + 1;
+             j < directive->tokens.end; j += 1) {
+            Token *part = &tokens->tokens[j];
+
+            if (token_is_trivia(part) || TOKEN_IS(part, "defined")
+                || TOKEN_IS(part, "(") || TOKEN_IS(part, ")")
+                || TOKEN_IS(part, "&&") || TOKEN_IS(part, "||")) {
+                continue;
             }
+            if (part->kind == TOKEN_IDENT
+                && ((part->len >= prefix_len
+                     && !memcmp64(part->text, testing_prefix, prefix_len))
+                    || TOKEN_IS(part, "TESTING"))) {
+                has_testing = true;
+                continue;
+            }
+            only_testing = false;
+            break;
         }
-        if (macro >= directive->tokens.end) {
-            continue;
-        }
-        name = &tokens->tokens[macro];
-        if (name->kind == TOKEN_IDENT
-            && ((name->len >= testing_prefix_len
-                 && !memcmp64(name->text,
-                              testing_prefix, testing_prefix_len))
-                || TOKEN_IS(name, "TESTING"))) {
+        if (only_testing && has_testing) {
             return false;
         }
+        for (int32 j = directive->keyword_token + 1;
+             j < directive->tokens.end; j += 1) {
+            Token *token = &tokens->tokens[j];
+            int32 testing_depth = 0;
+            int32 depth = 0;
+            bool negative = false;
+            bool alternative = false;
+
+            if (token->kind != TOKEN_IDENT
+                || !((token->len >= prefix_len
+                      && !memcmp64(token->text, testing_prefix, prefix_len))
+                     || TOKEN_IS(token, "TESTING"))) {
+                continue;
+            }
+            for (int32 k = directive->keyword_token + 1; k < j; k += 1) {
+                if (TOKEN_IS(&tokens->tokens[k], "(")) {
+                    testing_depth += 1;
+                } else if (TOKEN_IS(&tokens->tokens[k], ")")) {
+                    testing_depth -= 1;
+                }
+            }
+            /* A disjunction encompassing TESTING_ can select normal code.
+             * Disjunctions in unrelated conjuncts do not affect it. */
+            for (int32 k = directive->keyword_token + 1;
+                 k < directive->tokens.end; k += 1) {
+                Token *part = &tokens->tokens[k];
+                int32 between;
+                bool unrelated = false;
+
+                if (TOKEN_IS(part, "(")) {
+                    depth += 1;
+                } else if (TOKEN_IS(part, ")")) {
+                    depth -= 1;
+                }
+                if (!TOKEN_IS(part, "||") || depth > testing_depth) {
+                    continue;
+                }
+                between = k < j ? depth : testing_depth;
+                for (int32 m = (k < j ? k : j) + 1;
+                     m < (k > j ? k : j); m += 1) {
+                    if (TOKEN_IS(&tokens->tokens[m], "(")) {
+                        between += 1;
+                    } else if (TOKEN_IS(&tokens->tokens[m], ")")) {
+                        between -= 1;
+                    }
+                    if (between < depth) {
+                        unrelated = true;
+                        break;
+                    }
+                }
+                if (!unrelated) {
+                    alternative = true;
+                    break;
+                }
+            }
+            /* Negation of the name or a containing expression can make
+             * the condition true without the testing macro. */
+            for (int32 k = directive->keyword_token + 1; k < j; k += 1) {
+                int32 next;
+                int32 nesting;
+
+                if (!TOKEN_IS(&tokens->tokens[k], "!")) {
+                    continue;
+                }
+                next = tokenization_next_significant(tokens, k);
+                if (next == j) {
+                    negative = true;
+                    break;
+                }
+                if (TOKEN_IS(&tokens->tokens[next], "defined")) {
+                    next = tokenization_next_significant(tokens, next);
+                    if (next == j) {
+                        negative = true;
+                        break;
+                    }
+                }
+                if (!TOKEN_IS(&tokens->tokens[next], "(")) {
+                    continue;
+                }
+                nesting = 1;
+                for (int32 m = next + 1; m < j; m += 1) {
+                    if (TOKEN_IS(&tokens->tokens[m], "(")) {
+                        nesting += 1;
+                    } else if (TOKEN_IS(&tokens->tokens[m], ")")) {
+                        nesting -= 1;
+                    }
+                }
+                if (nesting > 0) {
+                    negative = true;
+                    break;
+                }
+            }
+            if (!negative && !alternative) {
+                return false;
+            }
+        }
     }
-    if (region < 0
-        || file->regions->items[region].kind != CSANE_REGION_CODE
-        || !file->regions->items[region].complete) {
-        return false;
-    }
-    branch = csane_regions_enclosing(file->regions, region,
-                                     CSANE_REGION_CONDITIONAL_BRANCH);
-    return branch < 0 || branch == guard_branch;
+    return true;
 }
 
 /* Count indentation at the containing statement, not at a wrapped call
@@ -97,107 +188,9 @@ csane_single_use_deep_call(CsaneFile *file, int32 function, int32 token) {
 void
 csane_single_use_check(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
-    CPreprocessorAnalysis *pp = file->preprocessor;
-    int32 guard_branch = -1;
-
     if (!ENDS_WITH(file->path, file->path_len, ".c") || file->is_ryu
         || !file->preprocessor_ok) {
         return;
-    }
-    /* A source file may be wrapped in #if !defined(NAME) / #define NAME.
-     * Recognize only a matching single-branch guard covering the file. */
-    for (int32 i = 0; i < ARRAY_LEN(pp->groups); i += 1) {
-        CPreprocessorGroup *group = &pp->groups[i];
-        CPreprocessorBranch *branch = NULL;
-        CPreprocessorDirective *opening = NULL;
-        CPreprocessorDirective *defining = NULL;
-        CPreprocessorDefine define;
-        int32 pos;
-        int32 macro;
-        bool whole = true;
-
-        if (group->parent_branch >= 0
-            || group->first_branch != group->last_branch
-            || group->first_branch < 0 || group->endif_directive < 0) {
-            continue;
-        }
-        for (int32 j = 0; j < ARRAY_LEN(tokens->tokens); j += 1) {
-            Token *token = &tokens->tokens[j];
-            if ((token->offset < group->source.start
-                 || token->offset >= group->source.end)
-                && !token_is_trivia(token)) {
-                whole = false;
-                break;
-            }
-        }
-        if (!whole) {
-            continue;
-        }
-        branch = &pp->branches[group->first_branch];
-        opening = &pp->directives[branch->directive_index];
-        if (opening->kind != C_PREPROCESSOR_DIRECTIVE_IF) {
-            continue;
-        }
-        pos = token_range_next_significant(tokens, opening->tokens,
-                                           opening->keyword_token);
-        if (pos >= opening->tokens.end
-            || !TOKEN_IS(&tokens->tokens[pos], "!")) {
-            continue;
-        }
-        pos = token_range_next_significant(tokens, opening->tokens, pos);
-        if (pos >= opening->tokens.end
-            || !TOKEN_IS(&tokens->tokens[pos], "defined")) {
-            continue;
-        }
-        pos = token_range_next_significant(tokens, opening->tokens, pos);
-        if (pos >= opening->tokens.end
-            || !TOKEN_IS(&tokens->tokens[pos], "(")) {
-            continue;
-        }
-        macro = token_range_next_significant(tokens, opening->tokens, pos);
-        if (macro >= opening->tokens.end
-            || tokens->tokens[macro].kind != TOKEN_IDENT) {
-            continue;
-        }
-        pos = token_range_next_significant(tokens, opening->tokens, macro);
-        if (pos >= opening->tokens.end
-            || !TOKEN_IS(&tokens->tokens[pos], ")")) {
-            continue;
-        }
-        pos = token_range_next_significant(tokens, opening->tokens, pos);
-        if (pos < opening->tokens.end) {
-            continue;
-        }
-        defining = NULL;
-        for (int32 j = branch->directive_index + 1;
-             j < ARRAY_LEN(pp->directives); j += 1) {
-            CPreprocessorDirective *candidate = &pp->directives[j];
-            if (candidate->source.start >= branch->body_source.end) {
-                break;
-            }
-            defining = candidate;
-            break;
-        }
-        if (defining == NULL
-            || defining->kind != C_PREPROCESSOR_DIRECTIVE_DEFINE
-            || !c_preprocessor_define_info(tokens, defining, &define)
-            || define.name_token < 0
-            || tokens->tokens[define.name_token].len
-               != tokens->tokens[macro].len
-            || memcmp64(tokens->tokens[define.name_token].text,
-                        tokens->tokens[macro].text,
-                        tokens->tokens[macro].len)) {
-            continue;
-        }
-        for (int32 j = 0; j < ARRAY_LEN(file->regions->items); j += 1) {
-            CsaneSourceRegion *region = &file->regions->items[j];
-            if (region->kind == CSANE_REGION_CONDITIONAL_BRANCH
-                && region->branch_index == group->first_branch) {
-                guard_branch = j;
-                break;
-            }
-        }
-        break;
     }
 
     for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
@@ -212,7 +205,7 @@ csane_single_use_check(CsaneFile *file) {
         if (item->kind != CSANE_TOP_FUNCTION_DEFINITION
             || item->name_token < 0
             || !csane_single_use_code(file, item->name_token,
-                                      guard_branch)) {
+                                      true)) {
             continue;
         }
         for (int32 j = item->header.first; j < item->name_token; j += 1) {
@@ -229,6 +222,7 @@ csane_single_use_check(CsaneFile *file) {
             Token *token = &tokens->tokens[j];
             bool prototype = false;
             bool direct = false;
+            bool member = false;
             int32 previous;
             int32 next;
 
@@ -237,43 +231,119 @@ csane_single_use_check(CsaneFile *file) {
                 || memcmp64(token->text, name->text, name->len)) {
                 continue;
             }
-            if (!csane_single_use_code(file, j, guard_branch)) {
+            previous = tokenization_previous_significant(tokens, j);
+            next = tokenization_next_significant(tokens, j);
+            /* Member names, tags and labels have namespaces separate
+             * from ordinary file-scope function identifiers. */
+            if (previous >= 0
+                && (TOKEN_IS(&tokens->tokens[previous], ".")
+                    || TOKEN_IS(&tokens->tokens[previous], "->")
+                    || TOKEN_IS(&tokens->tokens[previous], "struct")
+                    || TOKEN_IS(&tokens->tokens[previous], "union")
+                    || TOKEN_IS(&tokens->tokens[previous], "enum")
+                    || TOKEN_IS(&tokens->tokens[previous], "goto"))) {
+                continue;
+            }
+            if (next < ARRAY_LEN(tokens->tokens)
+                && TOKEN_IS(&tokens->tokens[next], ":")
+                && previous >= 0
+                && (TOKEN_IS(&tokens->tokens[previous], "{")
+                    || TOKEN_IS(&tokens->tokens[previous], ";")
+                    || TOKEN_IS(&tokens->tokens[previous], "}"))) {
+                continue;
+            }
+            if (!csane_single_use_code(file, j, false)) {
                 uncertain = true;
                 break;
             }
             for (int32 k = 0; k < ARRAY_LEN(file->toplevel->items); k += 1) {
                 CsaneTopItem *candidate = &file->toplevel->items[k];
+
                 if (candidate->kind == CSANE_TOP_FUNCTION_DECLARATION
                     && candidate->name_token == j) {
                     prototype = true;
                     break;
                 }
+                if (candidate->kind == CSANE_TOP_TYPE_DECLARATION
+                    && j >= candidate->tokens.first
+                    && j < candidate->tokens.end) {
+                    int32 depth = 0;
+                    bool opened = false;
+
+                    /* Struct, union and enum members are different names.
+                     * Stop after the type body's matching brace; a later
+                     * aggregate initializer may contain a real reference. */
+                    for (int32 m = candidate->tokens.first; m < j; m += 1) {
+                        if (TOKEN_IS(&tokens->tokens[m], "{")) {
+                            depth += 1;
+                            opened = true;
+                        } else if (TOKEN_IS(&tokens->tokens[m], "}")) {
+                            depth -= 1;
+                            if (opened && depth == 0) {
+                                break;
+                            }
+                        }
+                    }
+                    if (opened && depth > 0) {
+                        member = true;
+                        break;
+                    }
+                }
             }
-            if (prototype) {
+            if (prototype || member) {
                 continue;
             }
-            next = tokenization_next_significant(tokens, j);
-            previous = tokenization_previous_significant(tokens, j);
             if (next < ARRAY_LEN(tokens->tokens)
                 && TOKEN_IS(&tokens->tokens[next], "(")
                 && (previous < 0
-                    || (!TOKEN_IS(&tokens->tokens[previous], ".")
-                        && !TOKEN_IS(&tokens->tokens[previous], "->")
-                        && !TOKEN_IS(&tokens->tokens[previous], "&")))) {
+                    || !TOKEN_IS(&tokens->tokens[previous], "&"))) {
                 for (int32 k = 0; k < ARRAY_LEN(file->toplevel->items);
                      k += 1) {
                     CsaneTopItem *caller = &file->toplevel->items[k];
-                    if (caller->kind == CSANE_TOP_FUNCTION_DEFINITION
-                        && j >= caller->body.first
-                        && j < caller->body.end) {
+                    int32 statement;
+                    bool declaration = false;
+
+                    if (caller->kind != CSANE_TOP_FUNCTION_DEFINITION
+                        || j < caller->body.first
+                        || j >= caller->body.end) {
+                        continue;
+                    }
+                    /* Local function prototypes have call-like spelling,
+                     * but the identifier is a declarator, not an invocation.
+                     * A call in a variable initializer is still a call. */
+                    statement = csane_statements_at_token(file->statements,
+                                                          k, j);
+                    if (statement >= 0) {
+                        CsaneStatement *stmt =
+                            &file->statements->items[statement];
+                        if (stmt->kind == CSANE_STMT_SIMPLE
+                            && csane_classify_statement(tokens,
+                                                        stmt->tokens)
+                                   == CSANE_LOCAL_DECLARATION) {
+                            declaration = true;
+                            for (int32 m = stmt->tokens.first; m < j;
+                                 m += 1) {
+                                if (TOKEN_IS(&tokens->tokens[m], "=")) {
+                                    declaration = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!declaration) {
                         direct = true;
                         if (caller == item) {
                             self_recursive = true;
                         }
                         deep_call = csane_single_use_deep_call(file, k, j);
-                        break;
+                    } else {
+                        prototype = true;
                     }
+                    break;
                 }
+            }
+            if (prototype) {
+                continue;
             }
             if (!direct) {
                 uncertain = true;
