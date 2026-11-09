@@ -14,6 +14,7 @@
 #include "csck_classify.c"
 #include "csck_type_hints.c"
 #include "csck_files.c"
+#include "csck_includes.c"
 #include "csck_config.c"
 #include "csck_structure.c"
 #include "csck_control.c"

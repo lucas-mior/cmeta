@@ -170,6 +170,36 @@ typedef struct CsaneFile {
     CsanePolicy *policy;
 } CsaneFile;
 
+/* Physical source files are identified by device/inode when available.
+ * The inclusion graph records possible preprocessing paths, not a selected
+ * configuration. Conditional includes are never silently discarded. */
+typedef struct CsaneIncludeEdge {
+    int32 target; /* -1 if a quoted inclusion could not be resolved. */
+    bool conditional;
+    bool unresolved;
+} CsaneIncludeEdge;
+
+typedef struct CsaneIncludeNode {
+    char *path;
+    int32 path_len;
+    uint64 device;
+    uint64 inode;
+    CsaneIncludeEdge *edges;
+    bool identity_valid;
+    bool scanned;
+    bool uncertain; /* Missing files, macro includes, malformed directives. */
+} CsaneIncludeNode;
+
+typedef struct CsaneIncludeGraph {
+    CsaneIncludeNode *nodes;
+} CsaneIncludeGraph;
+
+typedef struct CsaneIncludeReachability {
+    bool reachable;
+    bool unconditional;
+    bool uncertain;
+} CsaneIncludeReachability;
+
 typedef struct CsaneRule {
     char *id;
     int32 id_len;
@@ -247,6 +277,12 @@ CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
                                     char *, int32, bool);
 bool csane_token_name_in(Token *, CsanePaths *);
 void csane_rule_issue(CsaneFile *, int32, char *, int32, char *);
+
+bool csane_include_graph_build(CsaneIncludeGraph *, CsanePaths *);
+void csane_include_graph_free(CsaneIncludeGraph *);
+int32 csane_include_graph_find(CsaneIncludeGraph *, char *);
+CsaneIncludeReachability csane_include_graph_reach(CsaneIncludeGraph *,
+                                                   int32, int32);
 
 bool csane_paths_add(CsanePaths *, char *, int32);
 void csane_paths_sort_unique(CsanePaths *);
