@@ -7,7 +7,6 @@
 #include "cbase.h"
 #include "csck.h"
 
-
 static bool
 csane_token_text(Token *token, char *text, int32 text_len) {
     return token->len == text_len
@@ -51,6 +50,7 @@ static void
 csane_rule_source(CsaneFile *file) {
     char *text = file->tokens->text;
     int32 len = file->tokens->text_len;
+    int32 newline_run = 0;
     for (int32 start = 0; start < len;) {
         int32 end = start;
         int32 trailing;
@@ -89,6 +89,17 @@ csane_rule_source(CsaneFile *file) {
         if (trailing < end) {
             csane_rule_issue(file, trailing, STRLIT("SRC-TRAILING"),
                              "trailing whitespace");
+        }
+        if (end < len) {
+            if (end == start || (end == start + 1 && text[start] == '\r')) {
+                newline_run += 1;
+            } else {
+                newline_run = 1;
+            }
+            if (newline_run >= 3) {
+                csane_rule_issue(file, end, STRLIT("SRC-EXCESS-NEWLINES"),
+                                 "more than two consecutive newlines");
+            }
         }
         start = end + (end < len);
     }
@@ -360,7 +371,6 @@ csane_rule_preprocessor(CsaneFile *file) {
     return;
 }
 
-
 /* Avoid treating an isolated macro alias or keyword table entry as a
  * sizeof operator. The next token must be a plausible unary operand.
  */
@@ -477,8 +487,6 @@ csane_api_known_type(CsaneFile *file, int32 index) {
     return csane_type_name(token)
            || csane_type_hints_typedef(file->type_hints, token);
 }
-
-
 
 enum CsaneApiUse
 csane_api_classify(CsaneFile *file, int32 index) {

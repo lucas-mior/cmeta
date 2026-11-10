@@ -674,6 +674,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("PP-SIZEOF"),
     SFLIT("SRC-TABS"),
     SFLIT("SRC-TRAILING"),
+    SFLIT("SRC-EXCESS-NEWLINES"),
     SFLIT("SRC-COLUMNS"),
     SFLIT("SRC-COMMENT-RATIO"),
     SFLIT("RYU-ENDIF-COMMENT"),
@@ -782,7 +783,6 @@ csane_config_path(char *filename, int32 filename_len, char *path,
     result[*result_len] = '\0';
     return result;
 }
-
 
 bool
 csane_policy_config(CsanePolicy *policy, char *filename, int32 filename_len) {
@@ -947,7 +947,6 @@ csane_policy_config(CsanePolicy *policy, char *filename, int32 filename_len) {
     free2(text, len + 1);
     return ok;
 }
-
 
 bool
 csane_policy_filter(char *path, int32 path_len, char *filter,
