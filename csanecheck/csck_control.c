@@ -128,6 +128,136 @@ csane_control_comparator(Token *token) {
  * no trailing comment or other statement after it. */
 
 
+/* Within an if condition, prefer starting a call on the assignment line
+ * and wrapping its arguments. Only require this when the first argument and
+ * every aligned continuation fit the configured column limit. */
+static void
+csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    CsaneTokenView args;
+    int32 first;
+    int32 last;
+    int32 open;
+    int32 close;
+    int32 assignment = -1;
+    int32 name;
+    int32 call_open;
+    int32 call_close;
+    int32 first_arg;
+    int32 arg_column;
+    int32 line_start;
+    int32 width;
+
+    if (stmt->kind != CSANE_STMT_IF || file->column_limit <= 0
+        || !csane_tokens_view(&view, tokens, stmt->header)) {
+        return;
+    }
+    first = token_range_first_significant(tokens, stmt->header);
+    last = token_range_last_significant(tokens, stmt->header);
+    if (first < 0 || last <= first) {
+        return;
+    }
+    open = csane_tokens_next(&view, first);
+    if (open >= last || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return;
+    }
+    close = csane_tokens_match(&view, open);
+    if (close != last || !csane_wrap_safe(file, first, close, true)) {
+        return;
+    }
+    for (int32 i = open + 1; i < close; i += 1) {
+        if (!TOKEN_IS(&tokens->tokens[i], "=")) {
+            continue;
+        }
+        if (assignment >= 0) {
+            return;
+        }
+        assignment = i;
+    }
+    if (assignment < 0) {
+        return;
+    }
+    name = csane_tokens_next(&view, assignment);
+    if (name >= close || tokens->tokens[name].kind != TOKEN_IDENT
+        || tokenization_token_location(tokens, assignment).line
+           == tokenization_token_location(tokens, name).line) {
+        return;
+    }
+    call_open = csane_tokens_next(&view, name);
+    if (call_open >= close || !TOKEN_IS(&tokens->tokens[call_open], "(")) {
+        return;
+    }
+    call_close = csane_tokens_match(&view, call_open);
+    if (call_close < 0 || call_close >= close
+        || !csane_tokens_view(&args, tokens,
+                              (TokenRange){call_open + 1, call_close})) {
+        return;
+    }
+    first_arg = csane_tokens_next(&args, call_open);
+    if (first_arg >= call_close) {
+        return;
+    }
+    line_start = tokens->tokens[first].offset;
+    while (line_start > 0 && tokens->text[line_start - 1] != '\n') {
+        line_start -= 1;
+    }
+    /* A header that fits entirely is already handled by FMT-IF-WRAP. */
+    {
+        SourceLocation location = tokenization_token_location(tokens, close);
+        int32 line_end = tokenization_physical_line_end_offset(tokens,
+                                                               location.line);
+        while (line_end > line_start
+               && (tokens->text[line_end - 1] == '\n'
+                   || tokens->text[line_end - 1] == '\r')) {
+            line_end -= 1;
+        }
+        int32 full_width = csane_wrap_flat_length(tokens->text, line_start,
+                                                  line_end,
+                                                  file->column_limit);
+
+        if (full_width >= 0 && full_width <= file->column_limit) {
+            return;
+        }
+    }
+    arg_column = csane_wrap_flat_length(tokens->text, line_start,
+                                        tokens->tokens[first_arg].offset,
+                                        file->column_limit);
+    if (arg_column < 0 || arg_column >= file->column_limit) {
+        return;
+    }
+    for (int32 arg = first_arg; arg < call_close;) {
+        int32 comma = csane_tokens_top_level(&args, arg - 1, STRLIT(","));
+        int32 end;
+        int32 start = arg == first_arg ? line_start
+                                      : tokens->tokens[arg].offset;
+
+        if (comma < 0) {
+            return;
+        }
+        end = comma < call_close ? tokens->tokens[comma].offset + 1
+                                 : tokens->tokens[close].offset
+                                       + tokens->tokens[close].len;
+        width = csane_wrap_flat_length(tokens->text, start, end,
+                                       file->column_limit);
+        if (width < 0 || (arg != first_arg && width + arg_column
+                                             > file->column_limit)
+            || (arg == first_arg && width > file->column_limit)) {
+            return;
+        }
+        if (comma == call_close) {
+            break;
+        }
+        arg = csane_tokens_next(&args, comma);
+        if (arg >= call_close) {
+            return;
+        }
+    }
+    csane_rule_issue(file, tokens->tokens[assignment].offset,
+                     STRLIT("FMT-IF-ASSIGN-WRAP"),
+                     "wrap call arguments before breaking after = in if");
+}
+
 void
 csane_control_check(CsaneFile *file) {
     if (file->statements == NULL || file->is_ryu
@@ -445,6 +575,7 @@ csane_control_check(CsaneFile *file) {
                     goto _i24_done;
                 }
             }
+            csane_control_if_assignment_wrap(file, stmt);
             first = token_range_first_significant(tokens, stmt->header);
             last = token_range_last_significant(tokens, stmt->header);
             if (first < 0 || last <= first) {
