@@ -747,12 +747,136 @@ csane_calls_token_check(CsaneFile *file) {
                 || (!TOKEN_IS(&tokens->tokens[before], ".")
                     && !TOKEN_IS(&tokens->tokens[before], "->")))) {
             TokenRange args[1];
-            if (csane_tokens_arguments(&local, call_i, args, 1) == 1
-                && csane_call_literal_argument(file, &local, args[0])) {
-                csane_rule_issue(file, tokens->tokens[name].offset,
-                                 STRLIT("STYLE-STRLEN32-LITERAL"),
-                                 "do not call strlen32 directly on a "
-                                 "string literal");
+            if (csane_tokens_arguments(&local, call_i, args, 1) == 1) {
+                if (csane_call_literal_argument(file, &local, args[0])) {
+                    csane_rule_issue(file, tokens->tokens[name].offset,
+                                     STRLIT("STYLE-STRLEN32-LITERAL"),
+                                     "do not call strlen32 directly on a "
+                                     "string literal");
+                }
+                do {
+                    TokenRange argument;
+                    TokenRange condition;
+                    int32 true_first = name;
+                    int32 true_last = close;
+                    int32 question;
+                    int32 colon;
+                    int32 zero;
+                    int32 after;
+                    int32 left;
+                    int32 right;
+                    int32 before_condition = -1;
+                    bool same = false;
+                    bool boundary;
+
+                    for (;;) {
+                        int32 open = csane_tokens_previous(&local, true_first);
+                        int32 wrapper_close;
+                        if (open < local.range.first
+                            || !TOKEN_IS(&tokens->tokens[open], "(")) {
+                            break;
+                        }
+                        wrapper_close = csane_tokens_match(&local, open);
+                        if (wrapper_close < 0
+                            || wrapper_close
+                               != csane_tokens_next(&local, true_last)) {
+                            break;
+                        }
+                        true_first = open;
+                        true_last = wrapper_close;
+                    }
+                    question = csane_tokens_previous(&local, true_first);
+                    colon = csane_tokens_next(&local, true_last);
+                    if (question < local.range.first
+                        || colon >= local.range.end
+                        || !TOKEN_IS(&tokens->tokens[question], "?")
+                        || !TOKEN_IS(&tokens->tokens[colon], ":")) {
+                        break;
+                    }
+                    zero = csane_tokens_next(&local, colon);
+                    if (zero >= local.range.end
+                        || !TOKEN_IS(&tokens->tokens[zero], "0")) {
+                        break;
+                    }
+                    after = csane_tokens_next(&local, zero);
+                    if (after < local.range.end
+                        && !TOKEN_IS(&tokens->tokens[after], ")")
+                        && !TOKEN_IS(&tokens->tokens[after], "]")
+                        && !TOKEN_IS(&tokens->tokens[after], "}")
+                        && !TOKEN_IS(&tokens->tokens[after], ",")
+                        && !TOKEN_IS(&tokens->tokens[after], ";")
+                        && !TOKEN_IS(&tokens->tokens[after], ":")) {
+                        break;
+                    }
+                    argument = csane_tokens_unwrap(&local, args[0]);
+                    right = csane_tokens_previous(&local, question);
+                    if (right >= local.range.first
+                        && TOKEN_IS(&tokens->tokens[right], ")")) {
+                        int32 open = csane_tokens_match(&local, right);
+                        if (open >= local.range.first) {
+                            condition =
+                                csane_tokens_unwrap(&local,
+                                                    (TokenRange){open,
+                                                                 question});
+                            if (csane_call_equal_tokens(file, argument,
+                                                        condition)) {
+                                same = true;
+                                before_condition =
+                                    csane_tokens_previous(&local, open);
+                            }
+                        }
+                    }
+                    if (!same) {
+                        left = csane_tokens_previous(&local, argument.end);
+                        while (left >= argument.first
+                               && right >= local.range.first) {
+                            Token *a = &tokens->tokens[left];
+                            Token *b = &tokens->tokens[right];
+                            if (a->kind != b->kind || a->len != b->len
+                                || memcmp64(a->text, b->text, a->len)) {
+                                break;
+                            }
+                            left = csane_tokens_previous(&local, left);
+                            before_condition =
+                                csane_tokens_previous(&local, right);
+                            right = before_condition;
+                        }
+                        same = left < argument.first;
+                    }
+                    if (!same) {
+                        break;
+                    }
+                    boundary = before_condition < local.range.first;
+                    if (!boundary) {
+                        Token *token_before =
+                            &tokens->tokens[before_condition];
+                        boundary = TOKEN_IS(token_before, "=")
+                                   || TOKEN_IS(token_before, "+=")
+                                   || TOKEN_IS(token_before, "-=")
+                                   || TOKEN_IS(token_before, "*=")
+                                   || TOKEN_IS(token_before, "/=")
+                                   || TOKEN_IS(token_before, "%=")
+                                   || TOKEN_IS(token_before, "<<=")
+                                   || TOKEN_IS(token_before, ">>=")
+                                   || TOKEN_IS(token_before, "&=")
+                                   || TOKEN_IS(token_before, "^=")
+                                   || TOKEN_IS(token_before, "|=")
+                                   || TOKEN_IS(token_before, "(")
+                                   || TOKEN_IS(token_before, "[")
+                                   || TOKEN_IS(token_before, "{")
+                                   || TOKEN_IS(token_before, ",")
+                                   || TOKEN_IS(token_before, ";")
+                                   || TOKEN_IS(token_before, "?")
+                                   || TOKEN_IS(token_before, ":")
+                                   || TOKEN_IS(token_before, "return");
+                    }
+                    if (boundary) {
+                        csane_rule_issue(file, tokens->tokens[name].offset,
+                                         STRLIT("STYLE-OPT-STRLEN32"),
+                                         "use opt_strlen32 for nullable "
+                                         "strings");
+                    }
+                } while (false);
             }
         }
         do {
