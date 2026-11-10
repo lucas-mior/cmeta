@@ -118,7 +118,6 @@ csane_stmt_close(CsaneStatementStream *stream, int32 position) {
 
 static bool csane_stmt_branch_needs_context(CsaneRegions *, int32);
 
-
 static bool
 csane_stmt_path_selects(CsaneRegions *regions, int32 region, int32 owner) {
     for (int32 r = region; r >= 0; r = regions->items[r].parent) {
@@ -256,8 +255,6 @@ csane_stmt_drop_branch_closers(CsaneStatementStream *stream) {
     return;
 }
 
-
-
 /* Recover locally at a statement boundary without consuming unrelated
  * siblings. Never advance past the closing brace of the containing block. */
 static int32
@@ -275,8 +272,6 @@ csane_stmt_recover(CsaneStatementStream *stream, int32 first, int32 limit) {
     }
     return limit;
 }
-
-
 
 /* Scan one statement and return its next token. Every failure advances by
  * at least one token; failure is not propagated to unrelated statements. */
@@ -548,9 +543,6 @@ csane_stmt_push(CsaneStatementStream *stream, int32 index) {
     ARRAY_PUSH(stream->indices, index);
     return;
 }
-
-
-
 
 static bool
 csane_stmt_branch_needs_context(CsaneRegions *regions, int32 owner) {

@@ -503,7 +503,6 @@ csane_call_sp_format(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
-
 static int32
 csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
                          int32 count, int32 line) {
@@ -515,7 +514,6 @@ csane_call_count_on_line(CsaneFile *file, CsaneCallArgument *args,
     }
     return result;
 }
-
 
 /* Recognized file-scope macro invocations have their own first-argument
  * rule; arbitrary file-scope expressions are not classified as macros. */
@@ -590,16 +588,11 @@ csane_call_free2_strlen_size(CsaneFile *file, CsaneTokenView *view,
                                               pointer, second);
 }
 
-
-
-
 static StrFlex *csane_call_keywords[] = {
     SFLIT("if"), SFLIT("for"), SFLIT("while"),
     SFLIT("switch"), SFLIT("return"), SFLIT("sizeof"),
     SFLIT("_Alignof"), SFLIT("_Generic"), SFLIT("_Static_assert"),
 };
-
-
 
 void
 csane_calls_token_check(CsaneFile *file) {

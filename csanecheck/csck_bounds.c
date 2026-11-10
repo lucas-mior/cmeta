@@ -20,9 +20,6 @@ csane_bounds_token(CsaneFile *file, int32 index, char *name, int32 name_len) {
            && TOKEN_IS(&file->tokens->tokens[index], name, name_len);
 }
 
-
-
-
 static bool
 csane_bounds_call(CsaneFile *file, TokenRange range,
                   char *name, int32 name_len, TokenRange *args) {
@@ -54,7 +51,6 @@ csane_bounds_call(CsaneFile *file, TokenRange range,
  * may contain legitimate assertion statements without CsaneStatement nodes.
  * Comments are trivia, and a macro continuation is permitted before the one
  * required physical newline. Other intervening code breaks adjacency. */
-
 
 void
 csane_bounds_check(CsaneFile *file) {

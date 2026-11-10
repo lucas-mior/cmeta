@@ -51,8 +51,6 @@ csane_status_declaration(CsaneFile *file, int32 token, TokenRange body) {
            && csane_status_is(file, next, STRLIT(";"));
 }
 
-
-
 /* Find the adjacent call/check pair in source tokens. Statement parsing can
  * lose sibling relationships near conditional branches and large functions,
  * so require exact token adjacency and stay inside the same code region. */

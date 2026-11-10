@@ -166,7 +166,6 @@ static StrFlex *csane_layout_assignments[] = {
     SFLIT("^="), SFLIT("<<="), SFLIT(">>="),
 };
 
-
 static bool
 csane_layout_qualifier(Token *token) {
     return TOKEN_IS(token, "const") || TOKEN_IS(token, "volatile")
@@ -477,7 +476,6 @@ csane_layout_tag_prefix(CsaneTokenView *view, int32 type) {
                || TOKEN_IS(&tokens->tokens[previous], "union")
                || TOKEN_IS(&tokens->tokens[previous], "enum"));
 }
-
 
 static bool
 csane_layout_inside_brackets(CsaneTokenView *view, int32 first, int32 index) {
@@ -997,7 +995,6 @@ csane_layout_spacing(CsaneFile *file, int32 index, bool tight) {
     return !before_sep || !after_sep;
 }
 
-
 static bool
 csane_layout_adjacent(Token *left, Token *right) {
     return left->offset + left->len == right->offset;
@@ -1017,8 +1014,6 @@ csane_layout_horizontal_gap(CsaneFile *file, Token *left, Token *right) {
     }
     return horizontal;
 }
-
-
 
 static bool
 csane_layout_function_pointer(CsaneTokenView *view, int32 index) {
@@ -1096,7 +1091,6 @@ csane_layout_prefix_unary(CsaneFile *file, CsaneTokenView *view, int32 index) {
            || csane_layout_control_close(view, before);
 }
 
-
 static bool
 csane_layout_function_header_close(CsaneFile *file, int32 close) {
     if (file->toplevel == NULL) {
@@ -1112,8 +1106,6 @@ csane_layout_function_header_close(CsaneFile *file, int32 close) {
     }
     return false;
 }
-
-
 
 static bool
 csane_layout_zero_initializer(Tokenization *tokens, CsaneTokenView *view,
@@ -1146,7 +1138,6 @@ csane_layout_array_initializer(CsaneTokenView *view, int32 equal) {
     return false;
 }
 
-
 /* Only direct .field = designators are subject to this rule. A dot
  * after an array designator, as in [0].field, does not make the outer
  * array initializer a struct initializer. */
@@ -1178,7 +1169,6 @@ csane_layout_struct_designator(CsaneTokenView *view, int32 open, int32 close) {
     }
     return false;
 }
-
 
 /* Braces separated only by horizontal whitespace or comments still need
  * distinct lines. Token positions avoid matching braces in literals or
@@ -1333,8 +1323,6 @@ csane_layout_array_alignment_check(CsaneFile *file, CsaneTokenView *view,
     return;
 }
 
-
-
 /* Arithmetic operators in simple assignment RHS expressions are checked
  * against the first token of their precedence group. Calls and subscripts
  * are opaque operands; arithmetic in their arguments belongs to other rules.
@@ -1350,7 +1338,6 @@ typedef struct CsaneArithParser {
     int32 end;
     CsaneArithFinding *findings;
 } CsaneArithParser;
-
 
 static bool
 csane_layout_arith_consume(CsaneArithParser *parser, char *text,
@@ -1421,7 +1408,6 @@ csane_layout_arith_operand(CsaneArithParser *parser, int32 depth) {
     return first;
 }
 
-
 static int32
 csane_layout_arith_expression(CsaneArithParser *parser, int32 precedence,
                               int32 depth) {
@@ -1484,7 +1470,6 @@ csane_layout_arith_expression(CsaneArithParser *parser, int32 precedence,
     }
     return first;
 }
-
 
 void
 csane_layout_check(CsaneFile *file) {

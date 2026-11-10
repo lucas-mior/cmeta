@@ -437,7 +437,6 @@ test_local_bad_statement(void) {
     return;
 }
 
-
 /* Conditional branches contained by a function are statement regions,
  * never independent translation-unit declarations. */
 static void

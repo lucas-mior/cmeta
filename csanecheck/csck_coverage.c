@@ -96,7 +96,6 @@ csane_coverage_opaque(CsaneFile *file, TokenRange range) {
     return false;
 }
 
-
 static void
 csane_coverage_statements(CsaneFile *file, CsaneRuleCounts *counts,
                           enum CsaneTargetKind kind) {
@@ -112,7 +111,6 @@ csane_coverage_statements(CsaneFile *file, CsaneRuleCounts *counts,
         }
     }
 }
-
 
 static int32
 csane_coverage_first(CsaneFile *file, TokenRange range) {
@@ -171,7 +169,6 @@ csane_coverage_function_shape(CsaneFile *file, TokenRange range) {
     return false;
 }
 
-
 static bool
 csane_coverage_control_start(CsaneFile *file, int32 token) {
     return csane_coverage_token(file, token, STRLIT("if"))
@@ -183,8 +180,6 @@ csane_coverage_control_start(CsaneFile *file, int32 token) {
            || csane_coverage_token(file, token, STRLIT("default"))
            || csane_coverage_token(file, token, STRLIT("{"));
 }
-
-
 
 static bool
 csane_coverage_call_shape(CsaneFile *file, TokenRange range, bool *closed) {

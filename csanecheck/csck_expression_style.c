@@ -52,7 +52,6 @@ csane_style_literal_argument(CsaneFile *file, TokenRange range) {
 /* Only one conversion, with the same grammar as Perl's format_spec.
  * The caller separately verifies that this token is the entire argument. */
 
-
 static int32
 csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     int32 first = csane_style_first(file, range);
@@ -791,8 +790,6 @@ csane_style_sizeof_cast_operand(CsaneTokenView *view, int32 first,
     }
     return name;
 }
-
-
 
 static void
 csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,

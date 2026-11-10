@@ -258,10 +258,8 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
     return;
 }
 
-
 /* Only ancestor block declarations belong to the lexical scope of the if.
  * Preserve non-pointer declarations so that they shadow outer pointers. */
-
 
 static bool
 csane_pointer_known(CsaneFile *file, CsanePointerState *state,
@@ -395,7 +393,6 @@ csane_pointer_null(CsaneFile *file, CsaneTokenView *view, TokenRange range) {
 /* Recognize exactly `p`, `object->p`, or those expressions compared with
  * NULL. This is intentionally narrower than general boolean expressions. */
 
-
 /* Compare one immediate operand against NULL; a parenthesized identifier is
  * still an operand, but a member expression has no established field type. */
 static int32
@@ -494,7 +491,6 @@ csane_pointer_condition(CsaneFile *file, CsanePointerState *state,
         }
     }
 }
-
 
 /* Variables introduced by `for (Type name = ...; ...)` have the for
  * statement as their scope, not the surrounding block. */

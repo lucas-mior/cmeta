@@ -367,7 +367,6 @@ csane_tokens_group(CsaneTokenView *view, int32 open,
     return true;
 }
 
-
 TokenRange
 csane_tokens_unwrap(CsaneTokenView *view, TokenRange range) {
     CsaneTokenView local;

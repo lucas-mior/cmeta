@@ -56,11 +56,9 @@ csane_control_for_empty(CsaneFile *file, int32 index) {
            && TOKEN_IS(&file->tokens->tokens[first], ";");
 }
 
-
 /* Case labels in #if branches are parsed in a separate source stream.
  * Locate the nearest containing switch by original source span when no
  * statement-parent relationship is available. */
-
 
 /* Skip tokens in mutually exclusive branches when recovering the source
  * context of a standalone block. Tokens in the containing file stream are
@@ -105,7 +103,6 @@ csane_control_previous(CsaneFile *file, CsaneStatement *stmt, int32 before) {
  * recover only the preceding header/initializer clue. No macro expansion or
  * translation-unit type information is required. */
 
-
 /* Only a comparison at the outermost expression level qualifies. Nested
  * comparisons, compound boolean conditions, and ternaries remain outside
  * this deliberately narrow formatting rule. */
@@ -116,7 +113,6 @@ csane_control_comparator(Token *token) {
            || TOKEN_IS(token, ">") || TOKEN_IS(token, ">=");
 }
 
-
 /* A single predicate or assignment can also be joined. Preserve compound
  * boolean conditions and ternaries even when their flattened form fits: those
  * breaks may communicate the logical structure of the expression. */
@@ -126,7 +122,6 @@ csane_control_comparator(Token *token) {
 
 /* Require the closing brace on the same physical line as the header, and
  * no trailing comment or other statement after it. */
-
 
 /* Within an if condition, prefer starting a call on the assignment line
  * and wrapping its arguments. Only require this when the first argument and

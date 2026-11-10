@@ -36,7 +36,6 @@ csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
     return;
 }
 
-
 /* Policy discovery only needs the filename eligibility check. A parent
  * directory named stc outside the project must not hide its policy lists.
  */

@@ -189,7 +189,6 @@ csane_wrap_flat_length(char *text, int32 start, int32 end, int32 max_width) {
     return width;
 }
 
-
 static bool
 csane_wrap_adjacent(CsaneFile *file, CsaneWrapSpan *a,
                     CsaneWrapSpan *b, enum CsaneWrapKind kind) {
@@ -282,7 +281,6 @@ csane_wrap_first_arg(CsaneTokenView *view, int32 name, TokenRange *arg) {
     *arg = (TokenRange){first, comma};
     return true;
 }
-
 
 static bool
 csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
@@ -475,8 +473,6 @@ csane_wrap_compare_calls(void *left, void *right) {
     }
     return 0;
 }
-
-
 
 void
 csane_wrap_call_check(CsaneFile *file) {
@@ -890,7 +886,6 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
     }
     return true;
 }
-
 
 /* Existing source-preserving statement and top-level scanners supply the
  * majority of assignments. Do not trust their ordering or branch ownership:

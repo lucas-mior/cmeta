@@ -85,7 +85,6 @@ csane_top_push(CsaneTopStream *stream, int32 token, int32 leaf) {
     return;
 }
 
-
 static bool
 csane_top_open(CsaneTopStream *stream, int32 pos) {
     return csane_top_is(stream, pos, STRLIT("("))
@@ -115,8 +114,6 @@ csane_top_pair(CsaneTopStream *stream, int32 a, int32 b) {
 /* An unmatched inner delimiter must not hide an enclosing function body.
  * Search the stack for the nearest compatible opener and discard only the
  * damaged nesting above it. Matches outside the damaged span survive. */
-
-
 
 /* ATTR_* can itself be a macro-generated function name. Treat it as a
  * trailing annotation only after an earlier parameter list has closed. */
@@ -254,8 +251,6 @@ csane_top_is_function(CsaneTopStream *stream, int32 first,
      * latter is rejected by csane_top_function_name(). */
     return true;
 }
-
-
 
 static enum CsaneTopKind
 csane_top_classify(CsaneTopStream *stream, int32 first, int32 end,
@@ -407,7 +402,6 @@ csane_top_recover(CsaneTopStream *stream, int32 first, int32 broken) {
     }
     return leaf_end > first ? leaf_end : first + 1;
 }
-
 
 /* Locate the narrowest previously recognized enclosing declaration.
  * Function headers and bodies are distinguished below; neither requires
@@ -916,8 +910,6 @@ csane_top_cpp_guard(CsaneTopLevels *top, CsaneTopItem *item) {
                     STRLIT("__cplusplus")) != NULL;
 }
 
-
-
 /* A code region is a leaf of the source partition. Its token range is
  * contiguous, so branch selection is needed only once per region. */
 static bool
@@ -1059,7 +1051,6 @@ csane_top_recovered_function_end(CsaneTopLevels *top, CsaneTopItem *item,
     return close;
 }
 
-
 /* Opening and closing extern "C" braces can live in separate conditional
  * groups. A missing counterpart remains opaque instead of contributing
  * false coverage. This is a guarded linkage idiom, not general brace
@@ -1089,7 +1080,6 @@ csane_top_token_alone_on_line(Tokenization *tokens, int32 index) {
     }
     return true;
 }
-
 
 bool
 csane_toplevel_init(CsaneTopLevels *top, CsaneRegions *regions) {

@@ -52,7 +52,6 @@ csane_decl_is(CsaneFile *file, int32 token_index, char *name, int32 name_len) {
            && TOKEN_IS(&file->tokens->tokens[token_index], name, name_len);
 }
 
-
 static bool
 csane_decl_type_start(CsaneFile *file, TokenRange range) {
     int32 first;
@@ -344,8 +343,6 @@ csane_decl_type_prefix_check(CsaneFile *file, TokenRange range) {
     }
 }
 
-
-
 static void
 csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     bool _i28_result;
@@ -627,7 +624,6 @@ csane_decl_signature_check(CsaneFile *file, TokenRange range) {
         token = csane_tokens_next(&view, token);
     }
 }
-
 
 static int32
 csane_local_decl_line(CsaneFile *file, int32 token) {
