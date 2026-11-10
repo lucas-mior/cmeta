@@ -21,11 +21,15 @@ class FindingsSummaryTests(unittest.TestCase):
         self.first.write_text("//" + "x" * 79 + "\n"
                               + "//" + "y" * 79 + "\n", encoding="utf-8")
         self.second.write_text("//" + "z" * 79 + "\n", encoding="utf-8")
+        self.policy = self.root / "checker.conf"
+        self.policy.write_text("allow-rule SRC-COMMENT-RATIO .*\n",
+                               encoding="utf-8")
 
     def run_checker(self, *extra):
         return subprocess.run(
-            [str(CSANE), "--no-project-config", "--file", "first.h",
-             "--file", "second.h", *extra],
+            [str(CSANE), "--no-project-config", "--config",
+             str(self.policy), "--file", "first.h", "--file",
+             "second.h", *extra],
             cwd=self.root, text=True, capture_output=True, check=False,
         )
 
@@ -130,7 +134,8 @@ class FindingsSummaryTests(unittest.TestCase):
         source = self.root / "single.c"
         source.write_text("//" + "q" * 79 + "\n", encoding="utf-8")
         result = subprocess.run(
-            [str(CSANE), "--no-project-config", "--file", "single.c"],
+            [str(CSANE), "--no-project-config", "--config",
+             str(self.policy), "--file", "single.c"],
             cwd=self.root, text=True, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 1, result.stderr)

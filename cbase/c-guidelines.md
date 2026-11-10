@@ -35,6 +35,18 @@ include (just like all other files). The other project files must:
 ```
 before any other includes.
 
+### Comment density
+Avoid overcommenting. In each `.h` file, at most **40%** of its nonblank
+physical lines may contain comments. In each `.c` file, the limit is **10%**.
+
+Count a line once when it contains any actual `//` or `/* ... */` comment,
+including comments after code and lines inside block comments. Ignore empty
+or whitespace-only lines in both the numerator and denominator; do not count
+comment markers inside string or character literals. A file exactly at its
+limit is allowed. `csanecheck` reports `SRC-COMMENT-RATIO` when the limit is
+exceeded. Prefer removing redundant comments instead of padding files with
+blank lines.
+
 ### APIs and error handling
 User-facing APIs must do explicit input validation and error handling and return
 an error in case of invalid input, except functions whose contract explicitly

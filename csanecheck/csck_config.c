@@ -675,6 +675,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("SRC-TABS"),
     SFLIT("SRC-TRAILING"),
     SFLIT("SRC-COLUMNS"),
+    SFLIT("SRC-COMMENT-RATIO"),
     SFLIT("RYU-ENDIF-COMMENT"),
     SFLIT("RYU-FINAL-NEWLINE"),
     SFLIT("AST-DECL-ONE"),

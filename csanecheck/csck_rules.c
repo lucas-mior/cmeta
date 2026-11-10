@@ -99,6 +99,63 @@ csane_rule_source(CsaneFile *file) {
     return;
 }
 
+/* A physical line counts once if it contains a real comment token.
+ * Blank lines do not lower the density, and tokens distinguish comments
+ * from comment-like characters in literals.
+ */
+static void
+csane_rule_comment_ratio(CsaneFile *file) {
+    Tokenization *tokens = file->tokens;
+    char *text = tokens->text;
+    int32 len = tokens->text_len;
+    int32 limit;
+    int32 lines = 0;
+    int32 comments = 0;
+    int32 cursor = 0;
+
+    if (ENDS_WITH(file->path, file->path_len, ".h")) {
+        limit = 40;
+    } else if (ENDS_WITH(file->path, file->path_len, ".c")) {
+        limit = 10;
+    } else {
+        return;
+    }
+    for (int32 start = 0; start < len;) {
+        int32 end = start;
+        bool nonblank = false;
+        bool commented = false;
+
+        while (end < len && text[end] != '\n') {
+            if (!char_is_horizontal_space(text[end])) {
+                nonblank = true;
+            }
+            end += 1;
+        }
+        while (cursor < ARRAY_LEN(tokens->tokens)
+               && tokens->tokens[cursor].offset < end) {
+            if (tokens->tokens[cursor].kind == TOKEN_COMMENT) {
+                commented = true;
+            }
+            cursor += 1;
+        }
+        if (nonblank) {
+            lines += 1;
+            if (commented) {
+                comments += 1;
+            }
+        }
+        start = end + (end < len);
+    }
+    if (lines > 0 && (int64)comments*100 > (int64)limit*lines) {
+        char message[160];
+        fmt_snprintf(message, SIZEOF(message),
+                     "%d of %d nonblank lines contain comments; "
+                     "exceeds %d%% limit", comments, lines, limit);
+        csane_rule_issue(file, 0, STRLIT("SRC-COMMENT-RATIO"), message);
+    }
+    return;
+}
+
 /* Perl masks comments and quoted literals, then looks for directives at
  * physical line starts. Match that policy even inside a continued macro
  * replacement, without requiring the preprocessor to accept the directive.
@@ -595,6 +652,8 @@ csane_rule_calls(CsaneFile *file) {
 static CsaneRule csane_rules[] = {
     {STRLIT("SRC"), csane_rule_source, CSANE_PASS_SOURCE,
      CSANE_TARGET_LINES, false},
+    {STRLIT("SRC-COMMENT-RATIO"), csane_rule_comment_ratio,
+     CSANE_PASS_SOURCE, CSANE_TARGET_LINES, false},
     {STRLIT("PP"), csane_rule_preprocessor, CSANE_PASS_TOKEN,
      CSANE_TARGET_DIRECTIVES, false},
     {STRLIT("PP-SIZEOF"), csane_rule_sizeof, CSANE_PASS_TOKEN,

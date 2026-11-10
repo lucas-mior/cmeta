@@ -91,7 +91,7 @@ class SourcePolicyTests(unittest.TestCase):
         project = self.root / "cecup"
         source = project / "src/limit.c"
         source.parent.mkdir(parents=True)
-        source.write_text("//" + "x" * 109 + "\n", encoding="utf-8")
+        source.write_text("x" * 111 + "\n", encoding="utf-8")
         config = project / "custom.conf"
         config.write_text("columns ^src/limit\\.c$ 120\n",
                           encoding="utf-8")
