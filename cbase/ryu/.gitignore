@@ -1,3 +1,5 @@
 *.a
 cbase/csanecheck
 cbase/csanecheck
+*.bin
+*.bin
