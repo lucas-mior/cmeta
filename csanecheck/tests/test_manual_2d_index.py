@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject flattened row-major 2D subscripts, preserving ordinary indexing."""
+"""Report repeated flattened row-major 2D subscripts in a source file."""
 
 from pathlib import Path
 import re
@@ -38,6 +38,19 @@ class Manual2DIndexTests(unittest.TestCase):
         for line, column in found:
             self.assertGreater(column, 0)
             self.assertIn("[", source.splitlines()[line - 1])
+
+    def test_single_manual_subscript_allowed(self):
+        self.check("""double f(double *a, int row, int cols, int col) {
+    return a[row*cols + col];
+}
+""", [])
+
+    def test_two_manual_subscripts_report_both(self):
+        self.check("""double f(double *a, int row, int cols, int col) {
+    double x = a[row*cols + col];
+    return x + a[col + row*cols];
+}
+""", [2, 3])
 
     def test_additive_orders_parentheses_and_casts(self):
         self.check("""double f(double *a, int row, int cols, int col) {
@@ -93,6 +106,9 @@ double f(double *values, int row, int stride, int column, int i) {
         self.check(text, [1, 3],
                    "allow-macro-rule STYLE-MANUAL-2D-INDEX .* "
                    "^CY_MATRIX_AT$\n")
+        self.check(text, [],
+                   "allow-macro-rule STYLE-MANUAL-2D-INDEX .* "
+                   "^(CY_MATRIX_AT|OTHER)$\n")
         self.check(text, [], "allow-rule STYLE-MANUAL-2D-INDEX .*\\.c$\n")
 
     def test_conditional_branches_and_macro_continuation(self):
@@ -114,7 +130,7 @@ double f(double *a, int r, int n, int c) { return a[c + r*n]; }
     int j = a[row*cols + col];
     return x + y + z + k + j;
 }
-""", [6])
+""", [])
 
 
 if __name__ == "__main__":

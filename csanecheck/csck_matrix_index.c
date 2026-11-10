@@ -13,11 +13,14 @@
  * Bounded token views keep unrelated preprocessor branches and replacement
  * lists separate. A strided one-dimensional buffer can have the same shape;
  * use a narrow policy exemption if that layout is intentional.
+ * Only report when a file contains at least two non-exempt matches.
  */
 void
 csane_matrix_index_check(CsaneFile *file) {
     Tokenization *tokens = file->tokens;
     CsaneTokenView whole = csane_tokens_full(tokens);
+    int32 first_match = -1;
+    bool multiple_matches = false;
 
     if (file->regions == NULL) {
         return;
@@ -196,6 +199,17 @@ csane_matrix_index_check(CsaneFile *file) {
                     continue;
                 }
             }
+        }
+        if (first_match < 0) {
+            first_match = i;
+            continue;
+        }
+        if (!multiple_matches) {
+            csane_rule_issue(file, tokens->tokens[first_match].offset,
+                             STRLIT("STYLE-MANUAL-2D-INDEX"),
+                             "use a 2D indexing accessor instead of "
+                             "array[row*stride + column]");
+            multiple_matches = true;
         }
         csane_rule_issue(file, tokens->tokens[i].offset,
                          STRLIT("STYLE-MANUAL-2D-INDEX"),
