@@ -251,6 +251,7 @@ void csane_pointer_check(CsaneFile *);
 void csane_bounds_check(CsaneFile *);
 void csane_status_check(CsaneFile *);
 void csane_expression_style_check(CsaneFile *);
+void csane_matrix_index_check(CsaneFile *);
 /* Shared, local operator classification for diagnostics and coverage.
  * DECLARATOR is shallow syntactic evidence only; unresolved syntax remains
  * distinct from recognized non-operator uses. */

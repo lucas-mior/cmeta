@@ -1193,6 +1193,7 @@ csane_expression_style_check(CsaneFile *file) {
             }
         }
     }
+    csane_matrix_index_check(file);
 }
 
 #endif /* CSANECHECK_EXPRESSION_STYLE_C */

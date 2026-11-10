@@ -699,6 +699,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("STYLE-STATUS-TEMP"),
     SFLIT("STYLE-STATUS-IF"),
     SFLIT("STYLE-STATIC-ONCE"),
+    SFLIT("STYLE-MANUAL-2D-INDEX"),
     SFLIT("FMT-MULTIPLY"),
     SFLIT("FMT-BINARY-SPACING"),
     SFLIT("FMT-ASSIGN-SPACING"),
@@ -880,8 +881,10 @@ csane_policy_config(CsanePolicy *policy, char *filename, int32 filename_len) {
                                                0);
             } else if (STREQUAL(key, key_len, "allow-macro-rule")
                        && first && second && extra && (fourth == NULL)
-                       && STREQUAL(first, first_len,
-                                   "FMT-CALL-FIRST-TOPLEVEL")) {
+                       && (STREQUAL(first, first_len,
+                                    "FMT-CALL-FIRST-TOPLEVEL")
+                           || STREQUAL(first, first_len,
+                                       "STYLE-MANUAL-2D-INDEX"))) {
                 valid = csane_policy_add_regex(&policy->macro_exemptions,
                                                second, second_len,
                                                first, first_len,
