@@ -37,28 +37,68 @@ class CommentRatioTests(unittest.TestCase):
     def test_c_limit_is_inclusive(self):
         source = "// explanation\n" + "int x;\n" * 9
         self.check(source, ".c", [])
-        self.check("// one\n// two\n" + "int x;\n" * 8, ".c", [
-            "2 of 10 nonblank lines contain comments; exceeds 10% limit",
+        self.check("// one\n// two\n" + "int x;\n" * 8, ".c", [])
+        self.check("// one\n// two\n// three\n" + "int x;\n" * 7,
+                   ".c", [
+            "3 of 10 nonblank lines contain comments; exceeds 20% limit",
         ])
 
     def test_h_limit_is_inclusive(self):
         self.check("// one\n/* two */\nint a;\nint b;\nint c;\n",
                    ".h", [])
+        self.check("// one\n/* two */\nint a;\nint b;\n",
+                   ".h", [])
         self.check("// one\n/* two */\n// three\nint a;\nint b;\n",
                    ".h", [
-            "3 of 5 nonblank lines contain comments; exceeds 40% limit",
+            "3 of 5 nonblank lines contain comments; exceeds 50% limit",
+        ])
+
+    def test_c_large_file_uses_ten_percent(self):
+        self.check("// comment\n" * 100 + "int x;\n" * 900, ".c", [])
+        self.check("// comment\n" * 101 + "int x;\n" * 899, ".c", [
+            "101 of 1000 nonblank lines contain comments; exceeds 10% limit",
+        ])
+        self.check("// comment\n" * 101 + "int x;\n" * 898, ".c", [])
+
+    def test_h_large_file_uses_forty_percent(self):
+        self.check("// comment\n" * 400 + "int x;\n" * 600, ".h", [])
+        self.check("// comment\n" * 401 + "int x;\n" * 599, ".h", [
+            "401 of 1000 nonblank lines contain comments; exceeds 40% limit",
+        ])
+        self.check("// comment\n" * 401 + "int x;\n" * 598, ".h", [])
+
+    def test_999_lines_respects_small_file_limit(self):
+        self.check("// comment\n" * 199 + "int x;\n" * 800, ".c", [])
+        self.check("// comment\n" * 201 + "int x;\n" * 798, ".c", [
+            "201 of 999 nonblank lines contain comments; exceeds 20% limit",
+        ])
+        self.check("// comment\n" * 499 + "int x;\n" * 500, ".h", [])
+        self.check("// comment\n" * 500 + "int x;\n" * 499, ".h", [
+            "500 of 999 nonblank lines contain comments; exceeds 50% limit",
+        ])
+
+    def test_blank_lines_count_for_file_size_only(self):
+        source = "// comment\n" + "int x;\n" * 4
+        self.check(source + "\n" * 994, ".c", [])
+        self.check(source + "\n" * 995, ".c", [
+            "1 of 5 nonblank lines contain comments; exceeds 10% limit",
+        ])
+        source = "// comment\nint x;\n"
+        self.check(source + "\n" * 997, ".h", [])
+        self.check(source + "\n" * 998, ".h", [
+            "1 of 2 nonblank lines contain comments; exceeds 40% limit",
         ])
 
     def test_multiple_comments_on_a_single_line_count_once(self):
         self.check("int x; /* one */ /* two */\n"
                    "int y; // inline\nint z;\n", ".c", [
-            "2 of 3 nonblank lines contain comments; exceeds 10% limit",
+            "2 of 3 nonblank lines contain comments; exceeds 20% limit",
         ])
 
     def test_multiline_block_comment_counts_each_nonblank_line(self):
         self.check("/* opening\n * body\n */\nint x;\nint y;\n",
                    ".h", [
-            "3 of 5 nonblank lines contain comments; exceeds 40% limit",
+            "3 of 5 nonblank lines contain comments; exceeds 50% limit",
         ])
 
     def test_literals_do_not_count_as_comments(self):
@@ -68,12 +108,12 @@ class CommentRatioTests(unittest.TestCase):
 
     def test_blank_lines_do_not_dilute_ratio(self):
         self.check("// one\n\n    \nint x;\n", ".c", [
-            "1 of 2 nonblank lines contain comments; exceeds 10% limit",
+            "1 of 2 nonblank lines contain comments; exceeds 20% limit",
         ])
 
     def test_crlf_and_missing_final_newline(self):
         self.check("/* first */\r\nint x;\r\n// last", ".h", [
-            "2 of 3 nonblank lines contain comments; exceeds 40% limit",
+            "2 of 3 nonblank lines contain comments; exceeds 50% limit",
         ])
 
     def test_empty_file(self):

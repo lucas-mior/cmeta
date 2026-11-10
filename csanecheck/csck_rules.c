@@ -109,15 +109,13 @@ csane_rule_comment_ratio(CsaneFile *file) {
     char *text = tokens->text;
     int32 len = tokens->text_len;
     int32 limit;
+    int32 physical_lines = 0;
     int32 lines = 0;
     int32 comments = 0;
     int32 cursor = 0;
 
-    if (ENDS_WITH(file->path, file->path_len, ".h")) {
-        limit = 40;
-    } else if (ENDS_WITH(file->path, file->path_len, ".c")) {
-        limit = 10;
-    } else {
+    if (!ENDS_WITH(file->path, file->path_len, ".h")
+        && !ENDS_WITH(file->path, file->path_len, ".c")) {
         return;
     }
     for (int32 start = 0; start < len;) {
@@ -138,6 +136,7 @@ csane_rule_comment_ratio(CsaneFile *file) {
             }
             cursor += 1;
         }
+        physical_lines += 1;
         if (nonblank) {
             lines += 1;
             if (commented) {
@@ -145,6 +144,14 @@ csane_rule_comment_ratio(CsaneFile *file) {
             }
         }
         start = end + (end < len);
+    }
+    if (ENDS_WITH(file->path, file->path_len, ".h")) {
+        limit = 40;
+    } else {
+        limit = 10;
+    }
+    if (physical_lines < 1000) {
+        limit += 10;
     }
     if (lines > 0 && (int64)comments*100 > (int64)limit*lines) {
         char message[160];
