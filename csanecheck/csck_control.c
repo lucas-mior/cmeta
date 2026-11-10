@@ -207,14 +207,15 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
         SourceLocation location = tokenization_token_location(tokens, close);
         int32 line_end = tokenization_physical_line_end_offset(tokens,
                                                                location.line);
+        int32 full_width;
+
         while (line_end > line_start
                && (tokens->text[line_end - 1] == '\n'
                    || tokens->text[line_end - 1] == '\r')) {
             line_end -= 1;
         }
-        int32 full_width = csane_wrap_flat_length(tokens->text, line_start,
-                                                  line_end,
-                                                  file->column_limit);
+        full_width = csane_wrap_flat_length(tokens->text, line_start,
+                                            line_end, file->column_limit);
 
         if (full_width >= 0 && full_width <= file->column_limit) {
             return;
