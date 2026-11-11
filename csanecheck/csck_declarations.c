@@ -496,6 +496,94 @@ csane_decl_typedef_check(CsaneFile *file, TokenRange range) {
     }
 }
 
+/* Inspect declaration heads, never initializers or nested argument lists.
+ * A parenthesized pointer declarator is a variable, while error(...) is
+ * normally the project's logging macro (or a function declarator). */
+static void
+csane_decl_error_names(CsaneFile *file, TokenRange range) {
+    CsaneTokenView view;
+    int32 first;
+
+    if (!csane_tokens_view(&view, file->tokens, range)) {
+        return;
+    }
+    first = csane_tokens_next(&view, range.first - 1);
+    while (first >= range.first && first < range.end) {
+        int32 comma = csane_tokens_top_level(&view, first - 1, STRLIT(","));
+        TokenRange part = {first, range.end};
+        CsaneTokenView declarator;
+        int32 equal;
+        int32 token;
+        int32 parentheses = 0;
+        int32 brackets = 0;
+
+        if (comma < 0) {
+            break;
+        }
+        if (comma < range.end) {
+            part.end = comma;
+        }
+        if (!csane_tokens_view(&declarator, file->tokens, part)) {
+            break;
+        }
+        equal = csane_tokens_top_level(&declarator, part.first - 1,
+                                       STRLIT("="));
+        if (equal < 0) {
+            break;
+        }
+        if (equal < part.end) {
+            part.end = equal;
+            (void)csane_tokens_view(&declarator, file->tokens, part);
+        }
+        token = csane_tokens_next(&declarator, part.first - 1);
+        while (token >= part.first && token < part.end) {
+            int32 previous = csane_tokens_previous(&declarator, token);
+            int32 next = csane_tokens_next(&declarator, token);
+
+            if (csane_decl_is(file, token, STRLIT("{"))) {
+                int32 close = csane_tokens_match(&declarator, token);
+
+                if (close >= 0) {
+                    token = csane_tokens_next(&declarator, close);
+                    continue;
+                }
+            }
+            if (csane_decl_is(file, token, STRLIT("("))) {
+                parentheses += 1;
+            } else if (csane_decl_is(file, token, STRLIT(")"))) {
+                parentheses -= parentheses > 0;
+            } else if (csane_decl_is(file, token, STRLIT("["))) {
+                brackets += 1;
+            } else if (csane_decl_is(file, token, STRLIT("]"))) {
+                brackets -= brackets > 0;
+            }
+            if (csane_decl_word(file, token, STRLIT("error"))
+                && brackets == 0
+                && (parentheses == 0
+                    || csane_decl_is(file, previous, STRLIT("*")))
+                && !csane_decl_is(file, previous, STRLIT("struct"))
+                && !csane_decl_is(file, previous, STRLIT("union"))
+                && !csane_decl_is(file, previous, STRLIT("enum"))
+                && !csane_decl_is(file, previous, STRLIT("."))
+                && !csane_decl_is(file, previous, STRLIT("->"))
+                && !csane_decl_is(file, previous, STRLIT(":"))
+                && !csane_decl_is(file, next, STRLIT("("))
+                && !csane_decl_is(file, next, STRLIT("*"))
+                && (next >= part.end
+                    || file->tokens->tokens[next].kind != TOKEN_IDENT)) {
+                csane_rule_issue(file, file->tokens->tokens[token].offset,
+                                 STRLIT("STYLE-ERROR-NAME"),
+                                 "do not name variables or parameters error");
+            }
+            token = next;
+        }
+        if (comma >= range.end) {
+            break;
+        }
+        first = csane_tokens_next(&view, comma);
+    }
+}
+
 /* Parameter declarators may contain pointer and callback syntax. Only a
  * declarator identifier, never a type tag or array bound, is an argument
  * name. Inspect the original tokens instead of matching raw source text. */
@@ -522,6 +610,46 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
         if (check_types) {
             csane_decl_type_prefix_check(file, parameter);
         }
+        csane_decl_error_names(file, parameter);
+        /* A function-pointer parameter can declare its own parameters. */
+        do {
+            CsaneTokenView nested;
+            int32 cursor;
+
+            if (!csane_tokens_view(&nested, file->tokens, parameter)) {
+                break;
+            }
+            cursor = csane_tokens_next(&nested, parameter.first - 1);
+            while (cursor >= parameter.first && cursor < parameter.end) {
+                int32 pointer;
+                int32 close;
+                int32 open;
+                int32 args_close;
+
+                if (!csane_decl_is(file, cursor, STRLIT("("))) {
+                    cursor = csane_tokens_next(&nested, cursor);
+                    continue;
+                }
+                pointer = csane_tokens_next(&nested, cursor);
+                close = csane_tokens_match(&nested, cursor);
+                if (!csane_decl_is(file, pointer, STRLIT("*"))
+                    || close < 0) {
+                    cursor = csane_tokens_next(&nested, cursor);
+                    continue;
+                }
+                open = csane_tokens_next(&nested, close);
+                args_close = csane_tokens_match(&nested, open);
+                if (csane_decl_is(file, open, STRLIT("("))
+                    && args_close > open) {
+                    csane_decl_parameter_checks(file,
+                                                (TokenRange){open + 1,
+                                                             args_close},
+                                                false);
+                }
+                cursor = csane_tokens_next(&nested, args_close > open
+                                                   ? args_close : close);
+            }
+        } while (false);
         do {
             CsaneFile *in_file = file;
 
@@ -762,6 +890,9 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
      * prototype. A function-pointer variable starts with '(*'. */
     if (comma >= range.end && csane_decl_function_open(file, range) >= 0) {
         return;
+    }
+    if (!csane_decl_word(file, first, STRLIT("typedef"))) {
+        csane_decl_error_names(file, range);
     }
     line = csane_local_decl_line(file, first);
     if ((line > 0 && line < line_count && lines[line])
