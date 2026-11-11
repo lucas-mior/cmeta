@@ -233,6 +233,79 @@ csane_decl_known_type(CsaneFile *file, int32 token) {
                                        &file->tokens->tokens[token]);
 }
 
+/* A declaration preserves the surrounding block only if it introduces
+ * an object in that scope. Typedefs and function prototypes do not count.
+ * Do not interpret a multiplication expression as a pointer declaration
+ * unless its leading name is a recognized type. */
+bool
+csane_declarations_variable_statement(CsaneFile *file, CsaneStatement *stmt) {
+    TokenRange range = stmt->tokens;
+    int32 first = csane_decl_next(file, range, range.first - 1);
+    int32 type = first;
+
+    if (first >= range.end || csane_decl_is(file, first, STRLIT("typedef"))) {
+        return false;
+    }
+    while (type < range.end) {
+        bool qualifier = false;
+
+        for (int32 i = 0; i < LENGTH(csane_decl_qualifiers); i += 1) {
+            StrFlex *word = csane_decl_qualifiers[i];
+            if (csane_decl_is(file, type, word->data, word->len)) {
+                qualifier = true;
+                break;
+            }
+        }
+        if (!qualifier) {
+            break;
+        }
+        type = csane_decl_next(file, range, type);
+    }
+    if (type >= range.end) {
+        return false;
+    }
+    if (!csane_decl_known_type(file, type)
+        && !csane_decl_aggregate(file, type)) {
+        int32 next = csane_decl_next(file, range, type);
+
+        /* Two adjacent names are a declaration even for project typedefs
+         * absent from this file's hints. An unknown name followed by '*'
+         * could instead be multiplication and must not count. */
+        if (file->tokens->tokens[type].kind != TOKEN_IDENT
+            || next >= range.end
+            || file->tokens->tokens[next].kind != TOKEN_IDENT) {
+            return false;
+        }
+    }
+    if (csane_decl_type_start(file, range)) {
+        int32 comma = csane_decl_comma(file, range);
+
+        return comma < range.end
+               || csane_decl_function_open(file, range) < 0;
+    }
+    /* Inline structure/union/enum definitions can declare an object after
+     * their closing brace (including anonymous aggregate types). */
+    if (csane_decl_aggregate(file, type)) {
+        CsaneTokenView view;
+
+        if (!csane_tokens_view(&view, file->tokens, range)) {
+            return false;
+        }
+        for (int32 i = csane_decl_next(file, range, type);
+             i < range.end; i = csane_decl_next(file, range, i)) {
+            if (csane_decl_is(file, i, STRLIT("{"))) {
+                int32 close = csane_tokens_match(&view, i);
+                int32 next = csane_decl_next(file, range, close);
+
+                return close > i && next < range.end
+                       && (file->tokens->tokens[next].kind == TOKEN_IDENT
+                           || csane_decl_is(file, next, STRLIT("*")));
+            }
+        }
+    }
+    return false;
+}
+
 static bool csane_decl_stdint_type(CsaneFile *, int32);
 
 /* This is intentionally a shallow declaration classifier. Unknown names are

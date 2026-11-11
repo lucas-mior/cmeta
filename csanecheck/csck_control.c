@@ -60,41 +60,6 @@ csane_control_for_empty(CsaneFile *file, int32 index) {
  * Locate the nearest containing switch by original source span when no
  * statement-parent relationship is available. */
 
-/* Skip tokens in mutually exclusive branches when recovering the source
- * context of a standalone block. Tokens in the containing file stream are
- * visible to every branch. */
-static int32
-csane_control_previous(CsaneFile *file, CsaneStatement *stmt, int32 before) {
-    CsaneTopItem *top = &file->toplevel->items[stmt->function];
-    int32 base = top->owner_region;
-    for (int32 i = before - 1; i >= 0; i -= 1) {
-        Token *token = &file->tokens->tokens[i];
-        int32 region;
-
-        if (token->offset < top->source.start) {
-            break;
-        }
-        if (token_is_trivia(token) || token->kind == TOKEN_PREPROC) {
-            continue;
-        }
-        region = csane_regions_at_token(file->regions, i);
-        if (region < 0
-            || file->regions->items[region].kind != CSANE_REGION_CODE) {
-            continue;
-        }
-        while (region >= 0
-               && file->regions->items[region].kind != CSANE_REGION_FILE
-               && file->regions->items[region].kind
-                  != CSANE_REGION_CONDITIONAL_BRANCH) {
-            region = file->regions->items[region].parent;
-        }
-        if (region == stmt->owner_region || region == base) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 /* A control header can appear in either branch just before #endif,
  * followed by a shared block. Consult that last branch token only for the
  * formatting exception; do not merge branch statement streams. */
@@ -355,190 +320,52 @@ csane_control_check(CsaneFile *file) {
             }
             _i16_done: ;
         } while (false);
-        do {
-            bool _i18_result;
-            bool _i17_predicate;
-            int32 guard_token;
-            SourceLocation loc;
-            int32 offset;
-            char *text;
-            int32 start;
+        /* A nested block only needs its own scope when it directly
+         * declares a variable. Declarations inside control-flow children
+         * have their own scope and do not justify this outer block. */
+        if (stmt->kind == CSANE_STMT_BLOCK
+            && (stmt->parent < 0
+                || file->statements->items[stmt->parent].kind
+                   == CSANE_STMT_BLOCK)
+            && csane_control_first(file, stmt)
+               != file->toplevel->items[stmt->function].body.first) {
+            bool declares_variable = false;
 
-            if (stmt->kind != CSANE_STMT_BLOCK) {
-                goto _i19_done;
-            }
-            if (stmt->parent >= 0) {
-                CsaneStatement *parent = &file->statements->items[stmt->parent];
-                if (parent->kind != CSANE_STMT_BLOCK) {
-                    goto _i19_done;
-                }
-                /* A block immediately after a case/default label is its body.
-                 * */
-                for (int32 i = parent->first_child; i >= 0;
-                     i = file->statements->items[i].next_sibling) {
-                    enum CsaneStatementKind kind;
-
-                    if (file->statements->items[i].next_sibling
-                        != (int32)(stmt - file->statements->items)) {
-                        continue;
-                    }
-                    kind = file->statements->items[i].kind;
-                    if (kind == CSANE_STMT_CASE || kind == CSANE_STMT_DEFAULT
-                        || kind == CSANE_STMT_LABEL) {
-                        goto _i19_done;
-                    }
+            for (int32 child = stmt->first_child; child >= 0;
+                 child = file->statements->items[child].next_sibling) {
+                CsaneStatement *inner = &file->statements->items[child];
+                if (inner->kind == CSANE_STMT_SIMPLE
+                    && csane_declarations_variable_statement(file, inner)) {
+                    declares_variable = true;
                     break;
                 }
-            } else {
-                /* A root block may be a function-body fragment from a
-                 * conditional
-                  * branch. The ordinary function-body stream has no such roots.
-                  * */
-                int32 base = file->toplevel->items[stmt->function].owner_region;
-                if (stmt->owner_region == base) {
-                    goto _i19_done;
-                }
             }
-            do {
+            if (!declares_variable) {
                 int32 first = csane_control_first(file, stmt);
-                int32 prev = csane_control_previous(file, stmt, first);
-                Token *token;
-                int32 before;
+                int32 pos = file->tokens->tokens[first].offset;
+                char *source = file->tokens->text;
+                int32 line;
 
-                if (prev < 0) {
-                    _i18_result = false;
-                    goto _i18_done;
+                /* A shared block may follow an if/else header selected by
+                 * preprocessor branches. It is not an extra scope. */
+                while (pos > 0 && is_space(source[pos - 1])) {
+                    pos -= 1;
                 }
-                token = &file->tokens->tokens[prev];
-                if (TOKEN_IS(token, ")") || TOKEN_IS(token, "else")
-                    || TOKEN_IS(token, "do") || TOKEN_IS(token, "=")
-                    || TOKEN_IS(token, ",") || TOKEN_IS(token, "(")) {
-                    _i18_result = true;
-                    goto _i18_done;
+                line = pos;
+                while (line > 0 && source[line - 1] != '\n') {
+                    line -= 1;
                 }
-                if (TOKEN_IS(token, ":")) {
-                    int32 line_start = token->offset;
-                    char *source = file->tokens->text;
-                    int32 length;
-
-                    while (line_start > 0 && source[line_start - 1] != '\n') {
-                        line_start -= 1;
-                    }
-                    while (source[line_start] == ' ') {
-                        line_start += 1;
-                    }
-                    length = token->offset + token->len - line_start;
-                    if (BEGINS_WITH(source + line_start, length, "case ")
-                        || BEGINS_WITH(source + line_start, length,
-                                       "default:")) {
-                        _i18_result = true;
-                        goto _i18_done;
-                    }
+                while (line < pos && char_is_horizontal_space(source[line])) {
+                    line += 1;
                 }
-                before = csane_control_previous(file, stmt, prev);
-                if (before >= 0 && (TOKEN_IS(&file->tokens->tokens[before],
-                                             "struct")
-                                    || TOKEN_IS(&file->tokens->tokens[before],
-                                                "union")
-                                    || TOKEN_IS(&file->tokens->tokens[before],
-                                                "enum"))) {
-                    _i18_result = true;
-                    goto _i18_done;
-                }
-                _i18_result = TOKEN_IS(token, "struct")
-                    || TOKEN_IS(token, "union")
-                       || TOKEN_IS(token, "enum");
-                goto _i18_done;
-                _i18_done: ;
-            } while (false);
-            _i17_predicate = _i18_result;
-            if (!_i17_predicate) {
-                bool _i17_result;
-                do {
-                    int32 first = csane_control_first(file, stmt);
-                    char *source;
-                    int32 pos;
-                    int32 line;
-
-                    if (first < 0) {
-                        _i17_result = false;
-                        goto _i17_done;
-                    }
-                    source = file->tokens->text;
-                    pos = file->tokens->tokens[first].offset;
-                    while (pos > 0 && (source[pos - 1] == ' '
-                                       || source[pos - 1] == '\t'
-                                       || source[pos - 1] == '\n')) {
-                        pos -= 1;
-                    }
-                    line = pos;
-                    while (line > 0 && source[line - 1] != '\n') {
-                        line -= 1;
-                    }
-                    while (line < pos && (source[line] == ' '
-                                          || source[line] == '\t')) {
-                        line += 1;
-                    }
-                    if (!BEGINS_WITH(source + line, pos - line, "#endif")) {
-                        _i17_result = false;
-                        goto _i17_done;
-                    }
-                    for (int32 i = first - 1; i >= 0; i -= 1) {
-                        Token *token = &file->tokens->tokens[i];
-                        int32 nested_start =
-                            file->toplevel->items[stmt->function].source.start;
-                        int32 region;
-
-                        if (token->offset < nested_start) {
-                            break;
-                        }
-                        region = csane_regions_at_token(file->regions, i);
-                        if (region < 0
-                            || file->regions->items[region].kind
-                                != CSANE_REGION_CODE
-                            || token_is_trivia(token)) {
-                            continue;
-                        }
-                        _i17_result = TOKEN_IS(token, ")")
-                            || TOKEN_IS(token, "else")
-                               || TOKEN_IS(token, "do");
-                        goto _i17_done;
-                    }
-                    _i17_result = false;
-                    goto _i17_done;
-                    _i17_done: ;
-                } while (false);
-                _i17_predicate = _i17_result;
-            }
-            if (_i17_predicate) {
-                goto _i19_done;
-            }
-            guard_token = csane_control_first(file, stmt);
-            if (guard_token < 0) {
-                goto _i19_done;
-            }
-            loc = tokenization_token_location(file->tokens, guard_token);
-            if (loc.column < 12) {
-                goto _i19_done;
-            }
-            offset = file->tokens->tokens[guard_token].offset;
-            text = file->tokens->text;
-            start = offset;
-            while (start > 0 && text[start - 1] != '\n') {
-                start -= 1;
-            }
-            if (offset - start < 12) {
-                goto _i19_done;
-            }
-            for (int32 i = 0; i < 12; i += 1) {
-                if (text[start + i] != ' ') {
-                    goto _i19_done;
+                if (!BEGINS_WITH(source + line, pos - line, "#endif")) {
+                    csane_control_issue(file, stmt,
+                                        STRLIT("AST-ARTIFICIAL-BLOCK"),
+                                        "standalone block does not declare "
+                                        "a local variable");
                 }
             }
-            csane_control_issue(file, stmt, STRLIT("AST-ARTIFICIAL-BLOCK"),
-                                "artificial block at nesting level 3 or more");
-            _i19_done: ;
-        } while (false);
+        }
         do {
             bool _i23_result;
             bool _i23_predicate;
