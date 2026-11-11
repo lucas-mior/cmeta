@@ -108,6 +108,59 @@ void f(void) {
 }
 ''', [])
 
+    def test_integer_alias_pointers_preserve_standalone_scope(self):
+        self.check('''void f(void) {
+    {
+        uchar *value;
+        use(value);
+    }
+    {
+        ushort *value;
+        use(value);
+    }
+    {
+        uint *value;
+        use(value);
+    }
+    {
+        ulong *value;
+        use(value);
+    }
+    {
+        ullong *value;
+        use(value);
+    }
+    {
+        schar *value;
+        use(value);
+    }
+    {
+        llong *value;
+        use(value);
+    }
+    {
+        bool32 *value;
+        use(value);
+    }
+    {
+        uintptr *value;
+        use(value);
+    }
+    {
+        intptr *value;
+        use(value);
+    }
+    {
+        int32_t *value;
+        use(value);
+    }
+    {
+        uint64_t *value;
+        use(value);
+    }
+}
+''', [])
+
     def test_unknown_uppercase_multiplication_is_not_a_declaration(self):
         self.check('''void f(void) {
     {

@@ -31,6 +31,12 @@ static StrFlex *csane_decl_stdint_words[] = {
     SFLIT("int64_t"), SFLIT("uint64_t"),
 };
 
+static StrFlex *csane_decl_cbase_types[] = {
+    SFLIT("schar"), SFLIT("uchar"), SFLIT("ushort"), SFLIT("uint"),
+    SFLIT("ulong"), SFLIT("ullong"), SFLIT("llong"), SFLIT("bool32"),
+    SFLIT("intptr"), SFLIT("uintptr"),
+};
+
 /* A deliberately local declaration view: no typedef table or AST is needed. */
 static int32
 csane_decl_next(CsaneFile *file, TokenRange range, int32 after) {
@@ -223,15 +229,25 @@ csane_decl_aggregate(CsaneFile *file, int32 token) {
            || csane_decl_word(file, token, STRLIT("enum"));
 }
 
+static bool csane_decl_stdint_type(CsaneFile *, int32);
+
 static bool
 csane_decl_known_type(CsaneFile *file, int32 token) {
     if (token < 0 || token >= ARRAY_LEN(file->tokens->tokens)) {
         return false;
     }
+
+    for (int32 i = 0; i < LENGTH(csane_decl_cbase_types); i += 1) {
+        StrFlex *type = csane_decl_cbase_types[i];
+        if (csane_decl_word(file, token, type->data, type->len)) {
+            return true;
+        }
+    }
     /* FILE is declared by stdio.h, outside this file's typedef hints.
      * Its uppercase spelling otherwise looks like a macro name, so a
      * declaration such as FILE *save; would be mistaken for arithmetic. */
     return csane_decl_word(file, token, STRLIT("FILE"))
+           || csane_decl_stdint_type(file, token)
            || csane_type_name(&file->tokens->tokens[token])
            || csane_type_hints_typedef(file->type_hints,
                                        &file->tokens->tokens[token]);
@@ -309,8 +325,6 @@ csane_declarations_variable_statement(CsaneFile *file, CsaneStatement *stmt) {
     }
     return false;
 }
-
-static bool csane_decl_stdint_type(CsaneFile *, int32);
 
 /* This is intentionally a shallow declaration classifier. Unknown names are
  * not promoted to types merely because the surrounding text resembles a
