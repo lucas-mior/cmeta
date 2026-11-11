@@ -228,7 +228,11 @@ csane_decl_known_type(CsaneFile *file, int32 token) {
     if (token < 0 || token >= ARRAY_LEN(file->tokens->tokens)) {
         return false;
     }
-    return csane_type_name(&file->tokens->tokens[token])
+    /* FILE is declared by stdio.h, outside this file's typedef hints.
+     * Its uppercase spelling otherwise looks like a macro name, so a
+     * declaration such as FILE *save; would be mistaken for arithmetic. */
+    return csane_decl_word(file, token, STRLIT("FILE"))
+           || csane_type_name(&file->tokens->tokens[token])
            || csane_type_hints_typedef(file->type_hints,
                                        &file->tokens->tokens[token]);
 }

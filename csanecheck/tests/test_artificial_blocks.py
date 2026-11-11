@@ -90,6 +90,32 @@ void f(void) {
 }
 ''', [])
 
+    def test_file_pointer_from_header_preserves_scope(self):
+        self.check('''#include "cbase.h"
+void f(void) {
+    {
+        FILE *save;
+
+        if (!(save = fopen(path, "w"))) {
+            report_failure();
+            return;
+        }
+        if (fmt_fprintf(save, "%d\\n", value) < 0) {
+            report_failure();
+        }
+        XFCLOSE(save, path);
+    }
+}
+''', [])
+
+    def test_unknown_uppercase_multiplication_is_not_a_declaration(self):
+        self.check('''void f(void) {
+    {
+        SIZE *factor;
+    }
+}
+''', [(2, 5)])
+
     def test_declarations_in_child_control_do_not_count(self):
         self.check('''void f(void) {
     {
