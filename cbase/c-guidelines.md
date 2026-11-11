@@ -188,6 +188,41 @@ preconditions; assert those instead.
 - Allow postfix `--` as a complete `while` condition and postfix `++` in
   assignments such as `value = *pointer++;` that consume a pointer.
 - Avoid helper functions that exit; call `fatal(EXIT_FAILURE)` at the call site.
+- Do not add standalone brace-delimited blocks solely for grouping code.
+  A block not owned by a control-flow statement (`if`, `else`, `for`, `while`,
+  `do`, or `switch`) must directly declare at least one local variable, so
+  that its scope has a purpose. Declarations only inside nested control-flow
+  bodies do not justify an extra outer block. `csanecheck` reports
+  `AST-ARTIFICIAL-BLOCK` for redundant standalone blocks.
+  ```c
+  // bad: no variable introduced by the extra block
+  {
+      fmt_printf("using default\n");
+      switch (option.type) {
+      case CY_OPTION_TYPE_BOOL:
+          fmt_printf("%s\n", bool_str(option.boolean));
+          break;
+      default:
+          UNREACHABLE();
+      }
+  }
+
+  // good: no extra scope
+  fmt_printf("using default\n");
+  switch (option.type) {
+  case CY_OPTION_TYPE_BOOL:
+      fmt_printf("%s\n", bool_str(option.boolean));
+      break;
+  default:
+      UNREACHABLE();
+  }
+
+  // good: the local variable requires a scope
+  {
+      int32 temporary = compute_value();
+      use_value(temporary);
+  }
+  ```
 
 ## `sizeof`
 
