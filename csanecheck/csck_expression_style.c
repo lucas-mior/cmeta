@@ -129,6 +129,25 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
         csane_rule_issue(file, token->offset, STRLIT("STYLE-LENGTH-LITERAL"),
                          "do not call LENGTH on a string literal");
     }
+    if (TOKEN_IS(token, "STREQUAL")
+        || TOKEN_IS(token, "BEGINS_WITH")
+        || TOKEN_IS(token, "ENDS_WITH")) {
+        /* The three-argument form computes the last literal's length.
+         * The first string must not carry a handwritten length either. */
+        if ((count == 3 || count == 4)
+            && csane_style_literal_argument(file, args[0])) {
+            csane_rule_issue(file, tokens->tokens[args[0].first].offset,
+                             STRLIT("STYLE-LITERAL-LENGTH"),
+                             "do not pass a string literal with an explicit "
+                             "length; use the literal-aware macro form");
+        }
+        if (count == 4 && csane_style_literal_argument(file, args[2])) {
+            csane_rule_issue(file, tokens->tokens[args[2].first].offset,
+                             STRLIT("STYLE-LITERAL-LENGTH"),
+                             "do not specify the length of a string literal; "
+                             "use the three-argument macro form");
+        }
+    }
     if (TOKEN_IS(token, "STREQUAL")) {
         for (int32 i = 0; i < count; i += 1) {
             int32 strlit = csane_style_strlit_argument(file, args[i]);
@@ -1124,6 +1143,8 @@ csane_expression_style_check(CsaneFile *file) {
                     || TOKEN_IS(token, "STRLIT_LEN")
                     || TOKEN_IS(token, "LENGTH")
                     || TOKEN_IS(token, "STREQUAL")
+                    || TOKEN_IS(token, "BEGINS_WITH")
+                    || TOKEN_IS(token, "ENDS_WITH")
                     || TOKEN_IS(token, "str_printf")
                     || TOKEN_IS(token, "floor")
                     || TOKEN_IS(token, "ceil")
@@ -1185,6 +1206,8 @@ csane_expression_style_check(CsaneFile *file) {
                        || TOKEN_IS(token, "STRLIT_LEN")
                        || TOKEN_IS(token, "LENGTH")
                        || TOKEN_IS(token, "STREQUAL")
+                       || TOKEN_IS(token, "BEGINS_WITH")
+                       || TOKEN_IS(token, "ENDS_WITH")
                        || TOKEN_IS(token, "str_printf")) {
                 csane_style_one(file, i, next, close);
             }
