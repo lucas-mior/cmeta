@@ -938,6 +938,9 @@ result encodes an error number.
 - Never use `goto` to jump to a previous line in the function.
 - Sometimes a useful pattern to avoid using goto:
   ```c
+  // This pattern only is useful if we need to do some cleanup after it. If
+  after the `while (0);` we simply return, then we don't need `goto` nor `do
+  while`.
   do {
       if ((a = may_fail()) < 0) {
           break;
