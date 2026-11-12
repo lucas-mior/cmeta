@@ -80,8 +80,95 @@ csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     return first;
 }
 
+/* Accept only a complete member expression, or a member's indexed item.
+ * Other operations (including calls and pointer arithmetic) may change what
+ * the expression measures, so they are not evidence for a stored length. */
+static bool
+csane_style_strlen32_member(CsaneFile *file, CsaneTokenView *view,
+                            int32 open, bool *indexed) {
+    TokenRange args[2];
+    TokenRange range;
+    CsaneTokenView argument;
+    Tokenization *tokens = file->tokens;
+    int32 i;
+    bool member = false;
+    bool item = false;
+
+    if (csane_tokens_arguments(view, open, args, 2) != 1) {
+        return false;
+    }
+    range = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&argument, view, range)) {
+        return false;
+    }
+    i = csane_tokens_next(&argument, range.first - 1);
+    if (i >= range.end || tokens->tokens[i].kind != TOKEN_IDENT) {
+        return false;
+    }
+    i = csane_tokens_next(&argument, i);
+    while (i < range.end) {
+        Token *token = &tokens->tokens[i];
+        if (TOKEN_IS(token, ".") || TOKEN_IS(token, "->")) {
+            i = csane_tokens_next(&argument, i);
+            if (i >= range.end || tokens->tokens[i].kind != TOKEN_IDENT) {
+                return false;
+            }
+            member = true;
+            item = false;
+            i = csane_tokens_next(&argument, i);
+        } else if (TOKEN_IS(token, "[")) {
+            int32 close = csane_tokens_match(&argument, i);
+            if (close < 0
+                || csane_tokens_next(&argument, i) == close) {
+                return false;
+            }
+            item = member;
+            member = false;
+            i = csane_tokens_next(&argument, close);
+        } else {
+            return false;
+        }
+    }
+    *indexed = item;
+    return member || item;
+}
+
+/* Is this argument exactly strlen32(member), possibly parenthesized? */
+static int32
+csane_style_strequal_strlen32(CsaneFile *file, CsaneTokenView *view,
+                              TokenRange range) {
+    Tokenization *tokens = file->tokens;
+    bool indexed = false;
+    int32 name;
+    int32 open;
+    int32 close;
+
+    range = csane_tokens_unwrap(view, range);
+    name = csane_style_first(file, range);
+    if (name >= range.end
+        || !TOKEN_IS(&tokens->tokens[name], "strlen32")) {
+        return -1;
+    }
+    open = csane_tokens_next(view, name);
+    if (open >= range.end
+        || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    close = csane_tokens_match(view, open);
+    if (close < 0 || close >= range.end
+        || csane_tokens_next(view, close) < range.end) {
+        return -1;
+    }
+    if (csane_style_strlen32_member(file, view, open, &indexed)
+        && !indexed) {
+        return name;
+    }
+    return -1;
+}
+
 static void
-csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
+csane_style_one(CsaneFile *file, CsaneTokenView *view,
+                int32 name, int32 open, int32 close) {
     int32 count;
     Tokenization *tokens = file->tokens;
     Token *token = &tokens->tokens[name];
@@ -90,12 +177,11 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
     do {
         int32 in_capacity = 256;
 
-        CsaneTokenView view = csane_tokens_full(file->tokens);
-        if (csane_tokens_match(&view, open) != close) {
+        if (csane_tokens_match(view, open) != close) {
             in_result_arguments = -1;
             break;
         }
-        in_result_arguments = csane_tokens_arguments(&view, open,
+        in_result_arguments = csane_tokens_arguments(view, open,
                                                      args, in_capacity);
     } while (false);
     count = in_result_arguments;
@@ -146,6 +232,18 @@ csane_style_one(CsaneFile *file, int32 name, int32 open, int32 close) {
                              STRLIT("STYLE-LITERAL-LENGTH"),
                              "do not specify the length of a string literal; "
                              "use the three-argument macro form");
+        }
+    }
+    if (TOKEN_IS(token, "STREQUAL") && (count == 3 || count == 4)) {
+        for (int32 i = 0; i < count; i += 1) {
+            int32 strlen_name =
+                csane_style_strequal_strlen32(file, view, args[i]);
+            if (strlen_name >= 0) {
+                csane_rule_issue(file, tokens->tokens[strlen_name].offset,
+                                 STRLIT("STYLE-STRLEN32-REDUNDANT"),
+                                 "STREQUAL length for a struct member "
+                                 "must use the stored length");
+            }
         }
     }
     if (TOKEN_IS(token, "STREQUAL")) {
@@ -1193,6 +1291,16 @@ csane_expression_style_check(CsaneFile *file) {
                     csane_style_assert_rel(file, &local, i, next);
                 }
             }
+            if (TOKEN_IS(token, "strlen32")) {
+                bool indexed = false;
+                if (csane_style_strlen32_member(file, &local, next,
+                                                &indexed) && indexed) {
+                    csane_rule_issue(file, token->offset,
+                                     STRLIT("STYLE-STRLEN32-REDUNDANT"),
+                                     "strlen32 of a struct array item "
+                                     "must use the stored item length");
+                }
+            }
             if (TOKEN_IS(token, "SIZEOF")) {
                 csane_style_sizeof_length(file, &local, i, next, close);
                 csane_style_sizeof_int64_cast(file, &local, i, close);
@@ -1209,7 +1317,7 @@ csane_expression_style_check(CsaneFile *file) {
                        || TOKEN_IS(token, "BEGINS_WITH")
                        || TOKEN_IS(token, "ENDS_WITH")
                        || TOKEN_IS(token, "str_printf")) {
-                csane_style_one(file, i, next, close);
+                csane_style_one(file, &local, i, next, close);
             }
         }
     }
