@@ -77,6 +77,40 @@ class Strlen32StructMemberTests(unittest.TestCase):
 }
 ''', [])
 
+    def test_parallel_array_length_initialization_is_allowed(self):
+        self.check('''void f(State *state, State other, int32 i, int32 j) {
+    state->names_lens[i] = strlen32(state->names[i]);
+    other.names_lens[i + 1] =
+        strlen32(other.names[i + 1]);
+    state->inner.names_lens[j] = (strlen32((state->inner.names[j])));
+    owners[i].names_lens[lookup(j)] =
+        strlen32(owners[i].names[lookup(j)]);
+    state->names_lens[i] = strlen32(state->names[/* same */i]);
+}
+''', [])
+
+    def test_parallel_array_exception_requires_matching_assignment(self):
+        self.check('''void f(State *state, State other, int32 i, int32 j) {
+    state->names_len[i] = strlen32(state->names[i]);
+    state->names_lens[j] = strlen32(state->names[i]);
+    other.names_lens[i] = strlen32(state->names[i]);
+    state->paths_lens[i] = strlen32(state->names[i]);
+    state->names_lens[i] = strlen32(state->names[i]) + 1;
+    state->names_lens[i] += strlen32(state->names[i]);
+    state->names_lens[i] = consume(strlen32(state->names[i]));
+    state->names_lens[i] = strlen32(state->names[i])
+                           + strlen32(state->names[j]);
+    int32 len = strlen32(state->names[i]);
+    state->names_lens[i] = strlen32(state->paths[i]);
+}
+''', [(2, 27), (3, 28), (4, 27), (5, 28), (6, 28), (7, 29),
+      (8, 36), (9, 28), (10, 30), (11, 17), (12, 28)])
+
+    def test_parallel_array_length_in_macro(self):
+        self.check('''#define SET_LEN(s, i) s->names_lens[i] = strlen32(s->names[i])
+#define GET_LEN(s, i) use(strlen32(s->names[i]))
+''', [(2, 27)])
+
     def test_macro_replacements_and_preprocessor_branches(self):
         self.check('''#define MEMBER_EQ(x) STREQUAL(x->name, strlen32(x->name), "name")
 #define ARRAY_LEN(x, i) strlen32(x->names[i])

@@ -133,6 +133,99 @@ csane_style_strlen32_member(CsaneFile *file, CsaneTokenView *view,
     return member || item;
 }
 
+/* Assigning the measured length into the matching parallel _lens array
+ * initializes the stored length. Both owner paths and indices must agree. */
+static bool
+csane_style_strlen32_length_assignment(CsaneFile *file,
+                                       CsaneTokenView *view, int32 name,
+                                       int32 open, int32 close) {
+    TokenRange args[1];
+    TokenRange operand;
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView source;
+    Token *length_token = NULL;
+    Token *string_token = NULL;
+    int32 array_open;
+    int32 field;
+    int32 left;
+    int32 right;
+    int32 before;
+    int32 after;
+    int32 equal;
+    int32 start = name;
+    int32 end = close;
+
+    if (csane_tokens_arguments(view, open, args, 1) != 1) {
+        return false;
+    }
+    operand = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&source, view, operand)) {
+        return false;
+    }
+    right = csane_tokens_previous(&source, operand.end);
+    if (right < operand.first || !TOKEN_IS(&tokens->tokens[right], "]")) {
+        return false;
+    }
+    array_open = csane_tokens_match(&source, right);
+    if (array_open < 0) {
+        return false;
+    }
+    field = csane_tokens_previous(&source, array_open);
+    if (field < operand.first
+        || tokens->tokens[field].kind != TOKEN_IDENT) {
+        return false;
+    }
+    for (;;) {
+        before = csane_tokens_previous(view, start);
+        after = csane_tokens_next(view, end);
+        if (before < view->range.first || after >= view->range.end
+            || !TOKEN_IS(&tokens->tokens[before], "(")
+            || !TOKEN_IS(&tokens->tokens[after], ")")
+            || csane_tokens_match(view, before) != after) {
+            break;
+        }
+        start = before;
+        end = after;
+    }
+    equal = csane_tokens_previous(view, start);
+    if (equal < view->range.first
+        || !TOKEN_IS(&tokens->tokens[equal], "=")) {
+        return false;
+    }
+    after = csane_tokens_next(view, end);
+    if (after < view->range.end
+        && !TOKEN_IS(&tokens->tokens[after], ";")
+        && !TOKEN_IS(&tokens->tokens[after], ",")
+        && !TOKEN_IS(&tokens->tokens[after], ")")) {
+        return false;
+    }
+    left = csane_tokens_previous(view, equal);
+    while (right >= operand.first) {
+        if (left < view->range.first) {
+            return false;
+        }
+        length_token = &tokens->tokens[left];
+        string_token = &tokens->tokens[right];
+        if (right == field) {
+            if (length_token->kind != TOKEN_IDENT
+                || length_token->len != string_token->len + 5
+                || memcmp64(length_token->text, string_token->text,
+                            string_token->len)
+                || !ENDS_WITH(length_token->text, length_token->len, "_lens")) {
+                return false;
+            }
+        } else if (length_token->kind != string_token->kind
+                   || length_token->len != string_token->len
+                   || memcmp64(length_token->text, string_token->text,
+                               length_token->len)) {
+            return false;
+        }
+        left = csane_tokens_previous(view, left);
+        right = csane_tokens_previous(&source, right);
+    }
+    return true;
+}
+
 /* Is this argument exactly strlen32(member), possibly parenthesized? */
 static int32
 csane_style_strequal_strlen32(CsaneFile *file, CsaneTokenView *view,
@@ -1295,10 +1388,15 @@ csane_expression_style_check(CsaneFile *file) {
                 bool indexed = false;
                 if (csane_style_strlen32_member(file, &local, next,
                                                 &indexed) && indexed) {
-                    csane_rule_issue(file, token->offset,
-                                     STRLIT("STYLE-STRLEN32-REDUNDANT"),
-                                     "strlen32 of a struct array item "
-                                     "must use the stored item length");
+                    bool initializing =
+                        csane_style_strlen32_length_assignment(file, &local,
+                                                               i, next, close);
+                    if (!initializing) {
+                        csane_rule_issue(file, token->offset,
+                                         STRLIT("STYLE-STRLEN32-REDUNDANT"),
+                                         "strlen32 of a struct array item "
+                                         "must use the stored item length");
+                    }
                 }
             }
             if (TOKEN_IS(token, "SIZEOF")) {
