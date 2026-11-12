@@ -1129,6 +1129,35 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
+/* Keep the first SIZEOF operand on the opening parenthesis line, even
+ * when comments or a preprocessor line splice separate the tokens. */
+static void
+csane_style_sizeof_first(CsaneFile *file, CsaneTokenView *view, int32 open) {
+    Tokenization *tokens = view->tokens;
+    int32 first = csane_tokens_next(view, open);
+    int32 begin = tokens->tokens[open].offset + tokens->tokens[open].len;
+    int32 end;
+
+    while (first < view->range.end
+           && c_preprocessor_token_is_line_splice(tokens, first)) {
+        first = csane_tokens_next(view, first);
+    }
+    if (first >= view->range.end
+        || TOKEN_IS(&tokens->tokens[first], ")")) {
+        return;
+    }
+    end = tokens->tokens[first].offset;
+    for (int32 i = begin; i < end; i += 1) {
+        if (tokens->text[i] == '\n') {
+            csane_rule_issue(file, tokens->tokens[open].offset,
+                             STRLIT("FMT-SIZEOF-FIRST"),
+                             "keep the first SIZEOF operand on the "
+                             "same line as SIZEOF(");
+            return;
+        }
+    }
+}
+
 /* Only an entire parenthesized bitwise AND operand is a flag test.
  * Inspect tokens beside != rather than limiting the rule to if headers, so
  * assignments, returns, and nested boolean expressions also qualify. */
@@ -1657,6 +1686,9 @@ csane_expression_style_check(CsaneFile *file) {
             && file->preprocessor->token_roles[i]
                != C_PP_TOKEN_MACRO_REPLACEMENT) {
             continue;
+        }
+        if (TOKEN_IS(token, "SIZEOF")) {
+            csane_style_sizeof_first(file, &view, next);
         }
         /* A replacement list or conditional branch must not inherit
          * unmatched delimiters from unrelated preprocessing alternatives.

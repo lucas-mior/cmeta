@@ -137,6 +137,25 @@ Important: only try 2 if 1 does not work, only try 3 if 2 and 1 do not work,
 only try 4 if 1, 2, and 3 do not work, and so on. Remember to do a final pass,
 do the alignment, as explained in 2.
 
+### Keep the first `SIZEOF` operand on the opening line
+
+Never break immediately after `SIZEOF(`, even if a comment separates the
+opening parenthesis from its operand. Move the operand to the opening line,
+and wrap the containing expression elsewhere if necessary.
+
+```c
+// bad
+free2(ctrl->delay_U,
+      ctrl->delay_U_capacity_steps*ninputs*SIZEOF(
+          *ctrl->delay_U));
+
+// good
+free2(ctrl->delay_U,
+      ctrl->delay_U_capacity_steps*ninputs*SIZEOF(*ctrl->delay_U));
+```
+
+The checker reports `FMT-SIZEOF-FIRST` for this formatting violation.
+
 ## Array indexing
 Similar to the function calls rules above, never break immediately after the
 opening bracket:
