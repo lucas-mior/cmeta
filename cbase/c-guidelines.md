@@ -1296,15 +1296,18 @@ if (number_of_stuff >= capacity) {
 }
 ```
 
-When checking whether a count or length is nonzero, prefer `> 0` over
-`!= 0`: these quantities represent a non-negative number of items. For
+When checking whether a count, length, or capacity is nonzero, prefer
+`> 0` over `!= 0`: these quantities represent non-negative amounts. For
 `csanecheck`, this rule applies to direct comparisons with literal `0`
-(including `0 != count`) where the identifier or final struct member ends in
-`_count` or `_len`, or follows `n<name>s` (for example, `nitems`,
-`nrows`, or `ninput_channels`). Parentheses around the operands do not
-change the rule. Names ending in `_status` or `_success` are not
-treated as counts by the `n<name>s` pattern. It does not apply to arithmetic
-expressions or calls that merely contain such a name.
+(including `0 != buffer_cap`) where an identifier or final member ends in
+`_count`, `_len`, `_cap`, or `_capacity`, or follows `n<name>s` (for example,
+`nitems`, `nrows`, or `ninput_channels`). The final member of a struct access
+also matches the exact names `count`, `len`, `cap`, and `capacity` (e.g.,
+`mstruct->len != 0`); standalone variables with these bare names are not
+matched. Parentheses around the operands do not change the rule. Names
+ending in `_status` or `_success` are not treated as counts by the
+`n<name>s` pattern. It does not apply to arithmetic expressions or calls
+that merely contain such a name.
 
 Use `!= 0` only when zero is a distinct sentinel or value, rather than an
 empty count (for example, a coordinate that can be negative).
@@ -1328,6 +1331,26 @@ if (nitems > 0) {
 // good
 if (logged_count > 0 || array_len > 0) {
     // at least one collection has elements
+}
+
+// bad
+if (buffer_cap != 0 || buffer_capacity != 0) {
+    // one or both capacities are nonzero
+}
+
+// good
+if (buffer_cap > 0 || buffer_capacity > 0) {
+    // one or both capacities are nonzero
+}
+
+// bad
+if (mstruct->len != 0 || mstruct->count != 0) {
+    // at least one member is nonzero
+}
+
+// good
+if (mstruct->len > 0 || mstruct->count > 0) {
+    // at least one member is nonzero
 }
 
 // bad

@@ -43,6 +43,10 @@ class CountNonzeroTests(unittest.TestCase):
         self.check("""void f(void) {
     if (logged_count != 0) { use(); }
     if (array_len != 0) { use(); }
+    if (buffer_cap != 0) { use(); }
+    if (buffer_capacity != 0) { use(); }
+    if (0 != list_cap) { use(); }
+    if (0 != queue_capacity) { use(); }
     if (nitems != 0) { use(); }
     if (nrows != 0) { use(); }
     if (nids != 0) { use(); }
@@ -54,12 +58,24 @@ class CountNonzeroTests(unittest.TestCase):
     if (0 != entry_count) { use(); }
     if (0 != nflags) { use(); }
 }
-""", list(range(2, 14)))
+""", list(range(2, 18)))
 
     def test_members_comments_parentheses_and_nested_conditions(self):
         self.check("""void f(void) {
     if (obj.logged_count != 0) { use(); }
     if (ptr->array_len != 0) { use(); }
+    if (mstruct->len != 0) { use(); }
+    if (mstruct->count != 0) { use(); }
+    if (mstruct->cap != 0) { use(); }
+    if (mstruct->capacity != 0) { use(); }
+    if (mstruct.len != 0) { use(); }
+    if (mstruct.count != 0) { use(); }
+    if (0 != mstruct->len) { use(); }
+    if (0 != mstruct->count) { use(); }
+    if (0 != mstruct->cap) { use(); }
+    if (0 != mstruct->capacity) { use(); }
+    if (((container->array.len)) != ((0))) { use(); }
+    if (0 != ((ptr->buffer.capacity))) { use(); }
     if (0 != obj.nitems) { use(); }
     if ((obj.nrows) != (0)) { use(); }
     if (((ptr->logged_count)) != ((0))) { use(); }
@@ -67,7 +83,7 @@ class CountNonzeroTests(unittest.TestCase):
     if (ready && (nrows != 0 || array_len != 0)) { use(); }
     return (0 != (obj.nitems));
 }
-""", [2, 3, 4, 5, 6, 7, 8, 8, 9])
+""", [2, 3, *range(4, 16), 16, 17, 18, 19, 20, 20, 21])
 
     def test_no_false_positives_for_noncounts_and_expressions(self):
         self.check("""void f(void) {
@@ -77,6 +93,14 @@ class CountNonzeroTests(unittest.TestCase):
     if (name != 0) { use(); }
     if (nerror_code != 0) { use(); }
     if (array_length != 0) { use(); }
+    if (foo_capacity2 != 0) { use(); }
+    if (foo_capped != 0) { use(); }
+    if (len != 0) { use(); }
+    if (count != 0) { use(); }
+    if (cap != 0) { use(); }
+    if (capacity != 0) { use(); }
+    if (obj.status != 0) { use(); }
+    if (obj.counter != 0) { use(); }
     if (foo_counted != 0) { use(); }
     if (foo_count != 1) { use(); }
     if (foo_count == 0) { use(); }
@@ -84,6 +108,8 @@ class CountNonzeroTests(unittest.TestCase):
     if (foo_count() != 0) { use(); }
     if (0 != foo_count()) { use(); }
     if (obj.foo_count() != 0) { use(); }
+    if (obj.count() != 0) { use(); }
+    if (obj->len() != 0) { use(); }
     if (value + logged_count != 0) { use(); }
     if (logged_count + value != 0) { use(); }
     if (logged_count != 0 + value) { use(); }

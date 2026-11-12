@@ -1257,7 +1257,13 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
     {
         Token *name = &tokens->tokens[last];
         if ((name->len > 6 && ENDS_WITH(name->text, name->len, "_count"))
-            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_len"))) {
+            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_len"))
+            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_cap"))
+            || (name->len > 9 && ENDS_WITH(name->text, name->len, "_capacity"))
+            || (last != range.first
+                && (TOKEN_IS(name, "len") || TOKEN_IS(name, "count")
+                    || TOKEN_IS(name, "cap")
+                    || TOKEN_IS(name, "capacity")))) {
             return true;
         }
         if (name->len < 3 || name->text[0] != 'n'
@@ -1587,7 +1593,8 @@ csane_expression_style_check(CsaneFile *file) {
                 && csane_style_count_operand(&view, i, false, true))) {
             csane_rule_issue(file, token->offset,
                              STRLIT("STYLE-COUNT-NONZERO"),
-                             "use > 0 instead of != 0 when checking a count");
+                             "use > 0 instead of != 0 for counts, lengths, "
+                             "or capacities");
         }
     }
     csane_matrix_index_check(file);

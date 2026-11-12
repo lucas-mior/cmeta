@@ -1044,7 +1044,7 @@ token_range_is_balanced(Tokenization *tokenization, TokenRange range) {
             break;
         }
     }
-    if (stack.count != 0) {
+    if (stack.count > 0) {
         result = false;
     }
     token_delimiter_stack_free(&stack);
