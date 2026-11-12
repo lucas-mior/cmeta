@@ -1129,6 +1129,155 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
+/* Match a whole count/zero operand beside !=. A simple identifier or
+ * member access can be a count; calculations and function calls cannot.
+ * This deliberately uses names rather than guessing variable types. */
+static bool
+csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
+                          bool count) {
+    Tokenization *tokens = view->tokens;
+    CsaneTokenView local;
+    TokenRange range;
+    int32 edge;
+    int32 other;
+    int32 i;
+    int32 last;
+
+    if (before) {
+        edge = csane_tokens_previous(view, op);
+        if (edge < view->range.first) {
+            return false;
+        }
+        range.end = edge + 1;
+        if (TOKEN_IS(&tokens->tokens[edge], ")")) {
+            range.first = csane_tokens_match(view, edge);
+        } else if (tokens->tokens[edge].kind == TOKEN_IDENT) {
+            range.first = edge;
+            for (;;) {
+                int32 separator = csane_tokens_previous(view, range.first);
+                int32 owner = csane_tokens_previous(view, separator);
+                if (separator < view->range.first || owner < view->range.first
+                    || (!TOKEN_IS(&tokens->tokens[separator], ".")
+                        && !TOKEN_IS(&tokens->tokens[separator], "->"))
+                    || tokens->tokens[owner].kind != TOKEN_IDENT) {
+                    break;
+                }
+                range.first = owner;
+            }
+        } else {
+            range.first = edge;
+        }
+        if (range.first < view->range.first) {
+            return false;
+        }
+        other = csane_tokens_previous(view, range.first);
+        if (other >= view->range.first) {
+            Token *token = &tokens->tokens[other];
+            if (!TOKEN_IS(token, "(") && !TOKEN_IS(token, "[")
+                && !TOKEN_IS(token, "{") && !TOKEN_IS(token, ",")
+                && !TOKEN_IS(token, ";") && !TOKEN_IS(token, "=")
+                && !TOKEN_IS(token, "&&") && !TOKEN_IS(token, "||")
+                && !TOKEN_IS(token, "?") && !TOKEN_IS(token, ":")
+                && !TOKEN_IS(token, "return")) {
+                return false;
+            }
+        }
+    } else {
+        edge = csane_tokens_next(view, op);
+        if (edge >= view->range.end) {
+            return false;
+        }
+        range.first = edge;
+        if (TOKEN_IS(&tokens->tokens[edge], "(")) {
+            int32 close = csane_tokens_match(view, edge);
+            if (close < 0) {
+                return false;
+            }
+            range.end = close + 1;
+        } else {
+            range.end = edge + 1;
+            if (tokens->tokens[edge].kind == TOKEN_IDENT) {
+                for (;;) {
+                    int32 separator = csane_tokens_next(view, range.end - 1);
+                    int32 member = csane_tokens_next(view, separator);
+                    if (separator >= view->range.end
+                        || member >= view->range.end
+                        || (!TOKEN_IS(&tokens->tokens[separator], ".")
+                            && !TOKEN_IS(&tokens->tokens[separator], "->"))
+                        || tokens->tokens[member].kind != TOKEN_IDENT) {
+                        break;
+                    }
+                    range.end = member + 1;
+                }
+            }
+        }
+        other = csane_tokens_next(view, range.end - 1);
+        if (other < view->range.end) {
+            Token *token = &tokens->tokens[other];
+            if (!TOKEN_IS(token, ")") && !TOKEN_IS(token, "]")
+                && !TOKEN_IS(token, "}") && !TOKEN_IS(token, ",")
+                && !TOKEN_IS(token, ";") && !TOKEN_IS(token, "&&")
+                && !TOKEN_IS(token, "||") && !TOKEN_IS(token, "?")
+                && !TOKEN_IS(token, ":") && !TOKEN_IS(token, "==")
+                && !TOKEN_IS(token, "!=")) {
+                return false;
+            }
+        }
+    }
+    range = csane_tokens_unwrap(view, range);
+    if (!csane_tokens_subview(&local, view, range)) {
+        return false;
+    }
+    i = csane_tokens_next(&local, range.first - 1);
+    if (i >= range.end) {
+        return false;
+    }
+    if (!count) {
+        return TOKEN_IS(&tokens->tokens[i], "0")
+               && tokens->tokens[i].kind == TOKEN_LITERAL
+               && csane_tokens_next(&local, i) >= range.end;
+    }
+    if (tokens->tokens[i].kind != TOKEN_IDENT) {
+        return false;
+    }
+    last = i;
+    i = csane_tokens_next(&local, i);
+    while (i < range.end) {
+        if (!TOKEN_IS(&tokens->tokens[i], ".")
+            && !TOKEN_IS(&tokens->tokens[i], "->")) {
+            return false;
+        }
+        i = csane_tokens_next(&local, i);
+        if (i >= range.end || tokens->tokens[i].kind != TOKEN_IDENT) {
+            return false;
+        }
+        last = i;
+        i = csane_tokens_next(&local, i);
+    }
+    {
+        Token *name = &tokens->tokens[last];
+        if ((name->len > 6 && ENDS_WITH(name->text, name->len, "_count"))
+            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_len"))) {
+            return true;
+        }
+        if (name->len < 3 || name->text[0] != 'n'
+            || name->text[name->len - 1] != 's'
+            || name->text[1] < 'a' || name->text[1] > 'z'
+            || ENDS_WITH(name->text, name->len, "_status")
+            || ENDS_WITH(name->text, name->len, "_success")) {
+            return false;
+        }
+        for (int32 j = 2; j < name->len - 1; j += 1) {
+            char c = name->text[j];
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                  || c == '_')) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /* strcmp is a three-way comparator, not a string equality predicate.
  * Permit its value only when a simple statement directly returns it or
  * stores it in a variable. In particular, assignment inside an if condition
@@ -1417,6 +1566,28 @@ csane_expression_style_check(CsaneFile *file) {
                        || TOKEN_IS(token, "str_printf")) {
                 csane_style_one(file, &local, i, next, close);
             }
+        }
+    }
+    /* Count operands have non-negative meaning: use > 0, not != 0.
+     * Also match reverse comparisons and parenthesized members. */
+    for (int32 i = 0; i < ARRAY_LEN(tokens->tokens); i += 1) {
+        Token *token = &tokens->tokens[i];
+        if (!TOKEN_IS(token, "!=")) {
+            continue;
+        }
+        if (file->preprocessor->token_roles != NULL
+            && file->preprocessor->token_roles[i] != C_PP_TOKEN_CODE
+            && file->preprocessor->token_roles[i]
+               != C_PP_TOKEN_MACRO_REPLACEMENT) {
+            continue;
+        }
+        if ((csane_style_count_operand(&view, i, true, true)
+             && csane_style_count_operand(&view, i, false, false))
+            || (csane_style_count_operand(&view, i, true, false)
+                && csane_style_count_operand(&view, i, false, true))) {
+            csane_rule_issue(file, token->offset,
+                             STRLIT("STYLE-COUNT-NONZERO"),
+                             "use > 0 instead of != 0 when checking a count");
         }
     }
     csane_matrix_index_check(file);

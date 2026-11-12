@@ -1296,9 +1296,18 @@ if (number_of_stuff >= capacity) {
 }
 ```
 
-Only check if something is different than zero, if zero is more meaningfull
-than simply "zero items" (i.e. zero is a valid value in all circumstances for
-that variable).
+When checking whether a count or length is nonzero, prefer `> 0` over
+`!= 0`: these quantities represent a non-negative number of items. For
+`csanecheck`, this rule applies to direct comparisons with literal `0`
+(including `0 != count`) where the identifier or final struct member ends in
+`_count` or `_len`, or follows `n<name>s` (for example, `nitems`,
+`nrows`, or `ninput_channels`). Parentheses around the operands do not
+change the rule. Names ending in `_status` or `_success` are not
+treated as counts by the `n<name>s` pattern. It does not apply to arithmetic
+expressions or calls that merely contain such a name.
+
+Use `!= 0` only when zero is a distinct sentinel or value, rather than an
+empty count (for example, a coordinate that can be negative).
 
 ```c
 // bad
@@ -1306,9 +1315,19 @@ if (nitems != 0) {
     // there are items
 }
 
+// bad
+if (logged_count != 0 || array_len != 0) {
+    // at least one collection has elements
+}
+
 // good
 if (nitems > 0) {
     // there are items
+}
+
+// good
+if (logged_count > 0 || array_len > 0) {
+    // at least one collection has elements
 }
 
 // bad
