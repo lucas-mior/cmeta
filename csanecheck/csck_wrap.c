@@ -19,6 +19,7 @@ typedef struct CsaneWrapSpan {
     int32 indent;
     bool fits;
     bool wrapped;
+    bool compound;
     int32 call_name;
     TokenRange first_arg;
 } CsaneWrapSpan;
@@ -737,9 +738,26 @@ csane_wrap_call_check(CsaneFile *file) {
     return;
 }
 
-/* Assignment wrapping uses only direct, top-level '=' tokens in a simple
- * statement. Nested assignments in conditions and compound operators are
- * excluded by the statement boundary and token-spelling checks. */
+/* A break after any assignment operator is unnecessary if the complete
+ * statement fits on one line. Comparisons and other operators do not count. */
+static bool
+csane_wrap_assignment_operator(Token *token) {
+    return csane_wrap_token_is(token, STRLIT("="))
+           || csane_wrap_token_is(token, STRLIT("+="))
+           || csane_wrap_token_is(token, STRLIT("-="))
+           || csane_wrap_token_is(token, STRLIT("*="))
+           || csane_wrap_token_is(token, STRLIT("/="))
+           || csane_wrap_token_is(token, STRLIT("%="))
+           || csane_wrap_token_is(token, STRLIT("&="))
+           || csane_wrap_token_is(token, STRLIT("|="))
+           || csane_wrap_token_is(token, STRLIT("^="))
+           || csane_wrap_token_is(token, STRLIT("<<="))
+           || csane_wrap_token_is(token, STRLIT(">>="));
+}
+
+/* Assignment wrapping uses direct, top-level assignment operators in simple
+ * statements. Nested assignments in conditions are excluded by the statement
+ * boundary and token-spelling checks. */
 
 static bool
 csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
@@ -778,7 +796,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         }
         for (int32 i = nested_first_2; i < nested_last_2; i += 1) {
             Token *token = &nested_tokens->tokens[i];
-            if (csane_wrap_token_is(token, STRLIT("="))) {
+            if (csane_wrap_assignment_operator(token)) {
                 if (equals >= 0) {
                     _i65_result = -1;
                     goto _i65_done;
@@ -870,6 +888,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         after += 1;
     }
     span->wrapped = after < tokens->text_len && text[after] == '\n';
+    span->compound = !csane_wrap_token_is(&tokens->tokens[op], STRLIT("="));
     span->fits = false;
     /* A locally recognized type name need not be declared in this file.
      * Preserve the legacy conservative grouping for such declarations. */
@@ -961,7 +980,7 @@ csane_wrap_check(CsaneFile *file) {
             CsaneWrapSpan span;
             TokenRange range;
 
-            if (!csane_wrap_token_is(&tokens->tokens[op], STRLIT("="))) {
+            if (!csane_wrap_assignment_operator(&tokens->tokens[op])) {
                 continue;
             }
             if (in_file->preprocessor->token_roles != NULL
@@ -1025,15 +1044,13 @@ csane_wrap_check(CsaneFile *file) {
             for (int32 i = 0; i < in_count; i += 1) {
                 all_fit = all_fit && in_items[i].fits;
             }
-            if (!all_fit) {
-                break;
-            }
             for (int32 i = 0; i < in_count; i += 1) {
-                if (in_items[i].wrapped) {
+                if (in_items[i].wrapped && in_items[i].fits
+                    && (all_fit || in_items[i].compound)) {
                     csane_rule_issue(file, in_items[i].start,
                                      STRLIT("FMT-ASSIGN-WRAP"),
                                      "assignment fits on one line "
-                                     "but is split after =");
+                                     "but is split after its operator");
                 }
             }
         } while (false);
