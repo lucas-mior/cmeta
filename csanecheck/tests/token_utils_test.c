@@ -1198,7 +1198,7 @@ test_delimiter_match_path_masks(void) {
                     continue;
                 }
                 end = first + 1;
-                while (end < count && (mask & (1 << end)) != 0) {
+                while (end < count && (mask & (1 << end))) {
                     end += 1;
                 }
                 CHECK(csane_token_path_append(&path,

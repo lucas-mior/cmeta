@@ -1129,6 +1129,92 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
+/* Only an entire parenthesized bitwise AND operand is a flag test.
+ * Inspect tokens beside != rather than limiting the rule to if headers, so
+ * assignments, returns, and nested boolean expressions also qualify. */
+static bool
+csane_style_bitwise_operand(CsaneTokenView *view, int32 comparison,
+                            bool before) {
+    Tokenization *tokens = view->tokens;
+    CsaneTokenView local;
+    TokenRange range;
+    int32 open;
+    int32 close;
+    int32 edge;
+    bool found = false;
+
+    if (before) {
+        close = csane_tokens_previous(view, comparison);
+        if (close < view->range.first
+            || !TOKEN_IS(&tokens->tokens[close], ")")) {
+            return false;
+        }
+        open = csane_tokens_match(view, close);
+    } else {
+        open = csane_tokens_next(view, comparison);
+        if (open >= view->range.end
+            || !TOKEN_IS(&tokens->tokens[open], "(")) {
+            return false;
+        }
+        close = csane_tokens_match(view, open);
+    }
+    if (open < view->range.first || close < 0) {
+        return false;
+    }
+    /* A mask must be the whole operand, not the tail of a sum or the
+     * first term of a larger expression. */
+    edge = before ? csane_tokens_previous(view, open)
+                  : csane_tokens_next(view, close);
+    if (edge >= view->range.first && edge < view->range.end) {
+        Token *boundary = &tokens->tokens[edge];
+        if (before) {
+            if (!TOKEN_IS(boundary, "(") && !TOKEN_IS(boundary, "{")
+                && !TOKEN_IS(boundary, ",")
+                && !TOKEN_IS(boundary, "=")
+                && !TOKEN_IS(boundary, "&&")
+                && !TOKEN_IS(boundary, "||")
+                && !TOKEN_IS(boundary, "?")
+                && !TOKEN_IS(boundary, ":")
+                && !TOKEN_IS(boundary, "return")) {
+                return false;
+            }
+        } else if (!TOKEN_IS(boundary, ")")
+                   && !TOKEN_IS(boundary, "]")
+                   && !TOKEN_IS(boundary, "}")
+                   && !TOKEN_IS(boundary, ",")
+                   && !TOKEN_IS(boundary, ";")
+                   && !TOKEN_IS(boundary, "&&")
+                   && !TOKEN_IS(boundary, "||")
+                   && !TOKEN_IS(boundary, "?")
+                   && !TOKEN_IS(boundary, ":")) {
+            return false;
+        }
+    }
+    range = csane_tokens_unwrap(view, (TokenRange){open, close + 1});
+    if (!csane_tokens_subview(&local, view, range)) {
+        return false;
+    }
+    edge = csane_tokens_next(&local, range.first - 1);
+    for (int32 i = edge; i < range.end; i = csane_tokens_next(&local, i)) {
+        Token *token = &tokens->tokens[i];
+        if (TOKEN_IS(token, "(") || TOKEN_IS(token, "[")) {
+            int32 matching = csane_tokens_match(&local, i);
+            if (matching < 0) {
+                return false;
+            }
+            i = matching;
+        } else if (TOKEN_IS(token, "&")) {
+            int32 previous = csane_tokens_previous(&local, i);
+            int32 next = csane_tokens_next(&local, i);
+            if (previous < edge || next >= range.end) {
+                return false;
+            }
+            found = true;
+        }
+    }
+    return found;
+}
+
 /* Match a whole count/zero operand beside !=. Identifiers, member
  * accesses, and direct calls are named counts; arbitrary expressions are not.
  * Use names instead of guessing the type of a variable or return value. */
@@ -1640,6 +1726,14 @@ csane_expression_style_check(CsaneFile *file) {
                              STRLIT("STYLE-COUNT-NONZERO"),
                              "use > 0 instead of != 0 for counts, lengths, "
                              "or capacities");
+        }
+        if ((csane_style_bitwise_operand(&view, i, true)
+             && csane_style_count_operand(&view, i, false, false))
+            || (csane_style_count_operand(&view, i, true, false)
+                && csane_style_bitwise_operand(&view, i, false))) {
+            csane_rule_issue(file, token->offset,
+                             STRLIT("STYLE-BITWISE-NONZERO"),
+                             "omit != 0 after a parenthesized bitwise AND");
         }
     }
     csane_matrix_index_check(file);
