@@ -822,6 +822,24 @@ Instead use:
 - `ENDS_WITH(string, string_len, "suffix_as_literal")` or
   `ENDS_WITH(string, string_len, suffix, suffix_len)`
 
+Never pre-check the string length against a prefix or suffix length with
+`>=` or `>` immediately before `BEGINS_WITH` or `ENDS_WITH`. These macros
+already handle shorter strings safely. `csanecheck` reports
+`STYLE-STRING-LENGTH-GUARD` when a comparison on the same length expression
+is joined with `&&` to either macro.
+
+```c
+// bad
+if (name->len >= 6 && ENDS_WITH(name->text, name->len, "_count")) {
+    use();
+}
+
+// good
+if (ENDS_WITH(name->text, name->len, "_count")) {
+    use();
+}
+```
+
 ## Standard-library wrappers
 
 Use the project's own `int64`/`int32` wrappers for useful standard-library

@@ -133,7 +133,7 @@ csane_top_trailing_attribute(CsaneTopStream *stream, int32 first, int32 pos) {
                || csane_top_is(stream, pos, STRLIT("__attribute"))
                || csane_top_is(stream, pos, STRLIT("__declspec"))
                || csane_top_is(stream, pos, STRLIT("__asm__"))
-               || (token->kind == TOKEN_IDENT && token->len > 5
+               || (token->kind == TOKEN_IDENT
                    && BEGINS_WITH(token->text, token->len, "ATTR_"));
         goto _i57_done;
         _i57_done: ;

@@ -1380,10 +1380,10 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         int32 prefix = -1;
         Token *name = &tokens->tokens[last];
 
-        if ((name->len >= 6 && ENDS_WITH(name->text, name->len, "_count"))
-            || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_len"))
-            || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_cap"))
-            || (name->len >= 9 && ENDS_WITH(name->text, name->len, "_capacity"))
+        if (ENDS_WITH(name->text, name->len, "_count")
+            || ENDS_WITH(name->text, name->len, "_len")
+            || ENDS_WITH(name->text, name->len, "_cap")
+            || ENDS_WITH(name->text, name->len, "_capacity")
             || (last != range.first
                 && (TOKEN_IS(name, "len") || TOKEN_IS(name, "count")
                     || TOKEN_IS(name, "cap")
@@ -1419,6 +1419,73 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         }
     }
     return true;
+}
+
+/* The comparison macros already reject strings shorter than their pattern.
+ * Recognize a directly preceding length guard on the same length argument. */
+static bool
+csane_style_redundant_string_guard(CsaneTokenView *view, int32 name,
+                                   int32 open) {
+    Tokenization *tokens = view->tokens;
+    TokenRange args[4];
+    TokenRange length;
+    int32 and_token = csane_tokens_previous(view, name);
+    int32 last;
+    int32 first;
+    int32 bound;
+    int32 comparison;
+    int32 left;
+    int32 right;
+
+    if (and_token < view->range.first
+        || !TOKEN_IS(&tokens->tokens[and_token], "&&")
+        || csane_tokens_arguments(view, open, args, LENGTH(args)) < 3) {
+        return false;
+    }
+    length = csane_tokens_unwrap(view, args[1]);
+    last = csane_tokens_previous(view, and_token);
+    if (last < view->range.first) {
+        return false;
+    }
+    if (TOKEN_IS(&tokens->tokens[last], ")")) {
+        first = csane_tokens_match(view, last);
+        if (first < 0 || !TOKEN_IS(&tokens->tokens[first], "(")) {
+            return false;
+        }
+        right = csane_tokens_previous(view, last);
+    } else {
+        first = -1;
+        right = last;
+    }
+    if (right < view->range.first
+        || tokens->tokens[right].kind != TOKEN_LITERAL) {
+        return false;
+    }
+    comparison = csane_tokens_previous(view, right);
+    if (comparison < view->range.first
+        || (!TOKEN_IS(&tokens->tokens[comparison], ">=")
+            && !TOKEN_IS(&tokens->tokens[comparison], ">"))) {
+        return false;
+    }
+    left = csane_tokens_previous(view, comparison);
+    bound = csane_tokens_previous(view, length.end);
+    while (bound >= length.first) {
+        if (left < view->range.first
+            || !STREQUAL(tokens->tokens[left].text, tokens->tokens[left].len,
+                         tokens->tokens[bound].text,
+                         tokens->tokens[bound].len)) {
+            return false;
+        }
+        left = csane_tokens_previous(view, left);
+        bound = csane_tokens_previous(view, bound);
+    }
+    if (first >= 0) {
+        return left == first;
+    }
+    return left < view->range.first
+           || TOKEN_IS(&tokens->tokens[left], "(")
+           || TOKEN_IS(&tokens->tokens[left], "&&")
+           || TOKEN_IS(&tokens->tokens[left], "||");
 }
 
 /* strcmp is a three-way comparator, not a string equality predicate.
@@ -1663,6 +1730,14 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
                 continue;
+            }
+            if ((TOKEN_IS(token, "BEGINS_WITH")
+                 || TOKEN_IS(token, "ENDS_WITH"))
+                && csane_style_redundant_string_guard(&local, i, next)) {
+                csane_rule_issue(file, token->offset,
+                                 STRLIT("STYLE-STRING-LENGTH-GUARD"),
+                                 "omit the redundant length guard before "
+                                 "BEGINS_WITH or ENDS_WITH");
             }
             if (TOKEN_IS(token, "strcmp")
                 && !csane_style_strcmp_allowed(file, i, call_start, close)) {
