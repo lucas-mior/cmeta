@@ -42,6 +42,46 @@ csane_control_block(CsaneFile *file, int32 index) {
            && TOKEN_IS(&file->tokens->tokens[first], "{");
 }
 
+/* Compare the complete brace spans, using the enclosing function body
+ * instead of its signature so multiline parameter lists do not distort
+ * the ratio. Strictly more than four fifths is too large. */
+static bool
+csane_control_large_artificial_block(CsaneFile *file, CsaneStatement *stmt) {
+    CsaneTopItem function;
+    int32 opening;
+    int32 closing;
+    int64 block_size;
+    int64 body_size;
+
+    if (stmt->function < 0
+        || stmt->function >= ARRAY_LEN(file->toplevel->items)) {
+        return false;
+    }
+    function = file->toplevel->items[stmt->function];
+    if (function.kind != CSANE_TOP_FUNCTION_DEFINITION
+        || function.body.first < 0
+        || function.body.end <= function.body.first
+        || function.body.end > ARRAY_LEN(file->tokens->tokens)) {
+        return false;
+    }
+    opening = function.body.first;
+    closing = function.body.end - 1;
+    if (!TOKEN_IS(&file->tokens->tokens[opening], "{")
+        || !TOKEN_IS(&file->tokens->tokens[closing], "}")) {
+        return false;
+    }
+    block_size = stmt->source.end - stmt->source.start;
+    body_size = file->tokens->tokens[closing].offset
+                + file->tokens->tokens[closing].len
+                - file->tokens->tokens[opening].offset;
+    if (body_size <= 0 || block_size <= 0
+        || stmt->source.start <= file->tokens->tokens[opening].offset
+        || stmt->source.end > file->tokens->tokens[closing].offset) {
+        return false;
+    }
+    return block_size*5 > body_size*4;
+}
+
 static bool
 csane_control_for_empty(CsaneFile *file, int32 index) {
     CsaneStatement *body;
@@ -631,17 +671,43 @@ csane_control_check(CsaneFile *file) {
             }
             _i16_done: ;
         } while (false);
-        /* A nested block only needs its own scope when it directly
-         * declares a variable. Declarations inside control-flow children
-         * have their own scope and do not justify this outer block. */
+        /* A standalone block needs a directly declared local variable and
+         * should never encompass almost the entire function body. */
         if (stmt->kind == CSANE_STMT_BLOCK
             && (stmt->parent < 0
                 || file->statements->items[stmt->parent].kind
                    == CSANE_STMT_BLOCK)
+            && stmt->function >= 0
+            && stmt->function < ARRAY_LEN(file->toplevel->items)
             && csane_control_first(file, stmt)
                != file->toplevel->items[stmt->function].body.first) {
             bool declares_variable = false;
+            int32 first = csane_control_first(file, stmt);
+            int32 pos = file->tokens->tokens[first].offset;
+            char *source = file->tokens->text;
+            int32 line;
+            bool shared_block;
 
+            /* A shared block may follow an if/else header selected by
+             * preprocessor branches. It is not an extra scope. */
+            while (pos > 0 && is_space(source[pos - 1])) {
+                pos -= 1;
+            }
+            line = pos;
+            while (line > 0 && source[line - 1] != '\n') {
+                line -= 1;
+            }
+            while (line < pos && char_is_horizontal_space(source[line])) {
+                line += 1;
+            }
+            shared_block = BEGINS_WITH(source + line, pos - line, "#endif");
+            if (!shared_block
+                && csane_control_large_artificial_block(file, stmt)) {
+                csane_control_issue(file, stmt,
+                                    STRLIT("AST-ARTIFICIAL-BLOCK-LARGE"),
+                                    "standalone block exceeds 80% of "
+                                    "enclosing function body");
+            }
             for (int32 child = stmt->first_child; child >= 0;
                  child = file->statements->items[child].next_sibling) {
                 CsaneStatement *inner = &file->statements->items[child];
@@ -651,30 +717,11 @@ csane_control_check(CsaneFile *file) {
                     break;
                 }
             }
-            if (!declares_variable) {
-                int32 first = csane_control_first(file, stmt);
-                int32 pos = file->tokens->tokens[first].offset;
-                char *source = file->tokens->text;
-                int32 line;
-
-                /* A shared block may follow an if/else header selected by
-                 * preprocessor branches. It is not an extra scope. */
-                while (pos > 0 && is_space(source[pos - 1])) {
-                    pos -= 1;
-                }
-                line = pos;
-                while (line > 0 && source[line - 1] != '\n') {
-                    line -= 1;
-                }
-                while (line < pos && char_is_horizontal_space(source[line])) {
-                    line += 1;
-                }
-                if (!BEGINS_WITH(source + line, pos - line, "#endif")) {
-                    csane_control_issue(file, stmt,
-                                        STRLIT("AST-ARTIFICIAL-BLOCK"),
-                                        "standalone block does not declare "
-                                        "a local variable");
-                }
+            if (!declares_variable && !shared_block) {
+                csane_control_issue(file, stmt,
+                                    STRLIT("AST-ARTIFICIAL-BLOCK"),
+                                    "standalone block does not declare "
+                                    "a local variable");
             }
         }
         do {
