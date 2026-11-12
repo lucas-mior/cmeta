@@ -104,6 +104,7 @@ enum CsaneTargetKind {
     CSANE_TARGET_CALLS,
     CSANE_TARGET_OPERATORS,
     CSANE_TARGET_DECL_ONE,
+    CSANE_TARGET_STRUCT_MEMBERS,
     CSANE_TARGET_FUNC_HEADERS,
     CSANE_TARGET_STATIC_SINGLE_USE,
     CSANE_TARGET_CONTROL,
@@ -187,14 +188,14 @@ typedef struct CsaneIncludeName {
 
 typedef struct CsaneIncludeNode {
     char *path;
+    char *source;
     int32 path_len;
+    int32 source_len;
     uint64 device;
     uint64 inode;
     CsaneIncludeEdge *edges;
     CsaneIncludeName *names;
     int32 *units; /* Possible containing .c translation-unit roots. */
-    char *source;
-    int32 source_len;
     bool unresolved_source;
     bool identity_valid;
     bool scanned;
@@ -245,6 +246,7 @@ void csane_coverage_report_structural(char *, int32, Tokenization *,
                                       CsaneTopLevels *, CsaneStatements *);
 bool csane_declarations_variable_statement(CsaneFile *, CsaneStatement *);
 void csane_declarations_check(CsaneFile *);
+void csane_member_order_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
 void csane_single_use_check(CsaneFile *);
 void csane_control_check(CsaneFile *);

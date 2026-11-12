@@ -26,6 +26,7 @@
 #include "csck_layout.c"
 #include "csck_calls.c"
 #include "csck_declarations.c"
+#include "csck_member_order.c"
 #include "csck_single_use.c"
 #include "csck_wrap.c"
 #include "csck_coverage.c"

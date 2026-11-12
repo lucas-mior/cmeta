@@ -675,6 +675,8 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_SIZEOF, false},
     {STRLIT("AST-DECL-ONE"), csane_declarations_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_DECL_ONE, false},
+    {STRLIT("STYLE-STRUCT-ARRAY-LENGTH-ORDER"), csane_member_order_check,
+     CSANE_PASS_TOKEN, CSANE_TARGET_STRUCT_MEMBERS, false},
     {STRLIT("API"), csane_rule_calls, CSANE_PASS_TOKEN,
      CSANE_TARGET_APIS, true},
     {STRLIT("CONTROL"), csane_control_check, CSANE_PASS_TOKEN,

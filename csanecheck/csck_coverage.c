@@ -397,6 +397,46 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                                           report);
             }
         }
+    } else if (kind == CSANE_TARGET_STRUCT_MEMBERS) {
+        TokenRange range = {0, ARRAY_LEN(tokens->tokens)};
+        CsaneTokenView view = csane_tokens_full(tokens);
+        for (int32 i = 0; i < range.end; i += 1) {
+            int32 region;
+            int32 open;
+            int32 close;
+            if (!TOKEN_IS(&tokens->tokens[i], "struct")) {
+                continue;
+            }
+            region = csane_regions_at_token(file->regions, i);
+            if (region < 0 || file->regions->items[region].kind
+                              != CSANE_REGION_CODE) {
+                continue;
+            }
+            open = token_range_next_significant(tokens, range, i);
+            while (open < range.end) {
+                int32 next_region = csane_regions_at_token(file->regions, open);
+                if (next_region >= 0
+                    && file->regions->items[next_region].kind
+                       == CSANE_REGION_CODE) {
+                    break;
+                }
+                open = token_range_next_significant(tokens, range, open);
+            }
+            if (open < range.end && tokens->tokens[open].kind == TOKEN_IDENT) {
+                open = token_range_next_significant(tokens, range, open);
+            }
+            if (open >= range.end || !TOKEN_IS(&tokens->tokens[open], "{")) {
+                continue;
+            }
+            close = csane_tokens_match(&view, open);
+            if (close >= 0) {
+                csane_coverage_target(&counts, true);
+            } else {
+                csane_coverage_unresolved(file, &counts, group, group_len,
+                                          open, "struct-body-unbalanced",
+                                          report);
+            }
+        }
     } else if (kind == CSANE_TARGET_STATIC_SINGLE_USE) {
         for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
             CsaneTopItem *item = &file->toplevel->items[i];
