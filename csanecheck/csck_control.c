@@ -467,6 +467,113 @@ csane_control_final_fixed_member_set(CsaneFile *file, CsaneTokenView *view,
     return true;
 }
 
+/* Recognize only the literal one-shot form, not an arbitrary do-loop.
+ * Macro definitions are not function statements and are never examined. */
+static bool
+csane_control_do_while_zero(CsaneFile *file, CsaneStatement *stmt) {
+    CsaneTokenView view;
+    int32 semicolon;
+    int32 close;
+    int32 zero;
+    int32 open;
+    int32 keyword;
+
+    if (stmt->kind != CSANE_STMT_DO
+        || !csane_tokens_view(&view, file->tokens, stmt->tokens)) {
+        return false;
+    }
+    semicolon = csane_tokens_previous(&view, view.range.end);
+    close = csane_tokens_previous(&view, semicolon);
+    zero = csane_tokens_previous(&view, close);
+    open = csane_tokens_previous(&view, zero);
+    keyword = csane_tokens_previous(&view, open);
+    if (keyword < view.range.first) {
+        return false;
+    }
+    return TOKEN_IS(&file->tokens->tokens[semicolon], ";")
+           && TOKEN_IS(&file->tokens->tokens[close], ")")
+           && TOKEN_IS(&file->tokens->tokens[zero], "0")
+           && TOKEN_IS(&file->tokens->tokens[open], "(")
+           && TOKEN_IS(&file->tokens->tokens[keyword], "while");
+}
+
+/* A break counts only if guarded by an if/else inside this one-shot loop.
+ * The nearest breakable ancestor must be the do-loop itself; breaks in a
+ * nested loop or switch do not exit the outer loop. */
+void
+csane_control_conditional_do_check(CsaneFile *file) {
+    CsaneStatements *statements = file->statements;
+    Tokenization *tokens = file->tokens;
+
+    if (statements == NULL || file->toplevel == NULL || file->is_ryu
+        || ENDS_WITH(file->path, file->path_len, ".meta.h")) {
+        return;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
+        CsaneStatement *loop = &statements->items[i];
+        bool guarded_break = false;
+
+        if (loop->kind != CSANE_STMT_DO || loop->function < 0
+            || loop->function >= ARRAY_LEN(file->toplevel->items)
+            || !csane_control_do_while_zero(file, loop)) {
+            continue;
+        }
+        if (loop->body >= 0 && csane_control_block(file, loop->body)) {
+            for (int32 j = 0; j < ARRAY_LEN(statements->items); j += 1) {
+                CsaneStatement *item = &statements->items[j];
+                CsaneTokenView view;
+                int32 first;
+                int32 second;
+                bool guarded = false;
+
+                if (item->kind != CSANE_STMT_SIMPLE
+                    || item->function != loop->function
+                    || item->owner_region != loop->owner_region
+                    || !csane_tokens_view(&view, tokens, item->tokens)) {
+                    continue;
+                }
+                first = csane_tokens_next(&view, view.range.first - 1);
+                second = csane_tokens_next(&view, first);
+                if (first >= view.range.end || second >= view.range.end
+                    || !TOKEN_IS(&tokens->tokens[first], "break")
+                    || !TOKEN_IS(&tokens->tokens[second], ";")
+                    || csane_tokens_next(&view, second) != view.range.end) {
+                    continue;
+                }
+                for (int32 parent = item->parent; parent >= 0;
+                     parent = statements->items[parent].parent) {
+                    CsaneStatement *ancestor = &statements->items[parent];
+
+                    if (parent == i) {
+                        guarded_break = guarded;
+                        break;
+                    }
+                    if (ancestor->kind == CSANE_STMT_DO
+                        || ancestor->kind == CSANE_STMT_FOR
+                        || ancestor->kind == CSANE_STMT_WHILE
+                        || ancestor->kind == CSANE_STMT_SWITCH) {
+                        break;
+                    }
+                    if (ancestor->kind == CSANE_STMT_IF
+                        || ancestor->kind == CSANE_STMT_ELSE) {
+                        guarded = true;
+                    }
+                }
+                if (guarded_break) {
+                    break;
+                }
+            }
+        }
+        if (!guarded_break) {
+            csane_control_issue(file, loop,
+                                STRLIT("STYLE-DO-WHILE-ZERO-COND-BREAK"),
+                                "do { ... } while (0) has no conditional "
+                                "break that exits the loop; use a block "
+                                "or direct control flow");
+        }
+    }
+}
+
 /* A one-shot loop at the end of a function cannot provide shared work
  * after break. Neither a simple return nor a fixed flag set and return
  * require the artificial loop.
@@ -481,11 +588,6 @@ csane_control_final_do_check(CsaneFile *file) {
         CsaneStatement *stmt = &file->statements->items[i];
         CsaneTopItem *function = NULL;
         CsaneTokenView view;
-        int32 semicolon;
-        int32 close;
-        int32 zero;
-        int32 open;
-        int32 keyword;
         int32 end;
         int32 next;
         bool fixed_member_set = false;
@@ -497,20 +599,7 @@ csane_control_final_do_check(CsaneFile *file) {
         function = &file->toplevel->items[stmt->function];
         if (function->kind != CSANE_TOP_FUNCTION_DEFINITION
             || stmt->owner_region != function->owner_region
-            || !csane_tokens_view(&view, file->tokens, stmt->tokens)) {
-            continue;
-        }
-        semicolon = csane_tokens_previous(&view, view.range.end);
-        close = csane_tokens_previous(&view, semicolon);
-        zero = csane_tokens_previous(&view, close);
-        open = csane_tokens_previous(&view, zero);
-        keyword = csane_tokens_previous(&view, open);
-        if (keyword < view.range.first
-            || !TOKEN_IS(&file->tokens->tokens[semicolon], ";")
-            || !TOKEN_IS(&file->tokens->tokens[close], ")")
-            || !TOKEN_IS(&file->tokens->tokens[zero], "0")
-            || !TOKEN_IS(&file->tokens->tokens[open], "(")
-            || !TOKEN_IS(&file->tokens->tokens[keyword], "while")) {
+            || !csane_control_do_while_zero(file, stmt)) {
             continue;
         }
         if (stmt->body >= 0) {
@@ -576,6 +665,7 @@ csane_control_check(CsaneFile *file) {
         || ENDS_WITH(file->path, file->path_len, ".meta.h")) {
         return;
     }
+    csane_control_conditional_do_check(file);
     for (int32 stmt_i =
         0; stmt_i < ARRAY_LEN(file->statements->items); stmt_i += 1) {
         CsaneStatement *stmt = &file->statements->items[stmt_i];

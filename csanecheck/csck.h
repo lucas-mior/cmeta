@@ -251,6 +251,7 @@ void csane_declarations_headers(CsaneFile *);
 void csane_single_use_check(CsaneFile *);
 void csane_control_check(CsaneFile *);
 void csane_control_final_do_check(CsaneFile *);
+void csane_control_conditional_do_check(CsaneFile *);
 void csane_pointer_check(CsaneFile *);
 void csane_bounds_check(CsaneFile *);
 void csane_status_check(CsaneFile *);

@@ -1041,6 +1041,12 @@ result encodes an error number.
   `for` or `while`. Consequently, it cannot replace `goto` for jumping out of
   multiple nested loops. Multi-statement macros using `do { ... } while (0)`
   as a single-statement wrapper are a separate use of the idiom.
+- A function-level `do { ... } while (0);` must contain an `if`- or
+  `else`-guarded `break;` that actually exits that one-shot loop. Without
+  such an early exit, use a normal block or direct statements instead.
+  Unconditional `break;` does not justify the wrapper, nor does a `break;`
+  in a nested loop or `switch`. The checker reports
+  `STYLE-DO-WHILE-ZERO-COND-BREAK` for these cases; macro wrappers are exempt.
 
   ```c
   // Bad: after the artificial loop there is no shared work, only a return.
