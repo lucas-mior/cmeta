@@ -1237,12 +1237,15 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         range.end = edge + 1;
         range.first = edge;
         if (TOKEN_IS(&tokens->tokens[edge], ")")) {
+            int32 name;
+
             range.first = csane_tokens_match(view, edge);
             if (range.first < view->range.first) {
                 return false;
             }
+
             /* A direct call ends at ')'; include its name and owner. */
-            int32 name = csane_tokens_previous(view, range.first);
+            name = csane_tokens_previous(view, range.first);
             if (name >= view->range.first
                 && tokens->tokens[name].kind == TOKEN_IDENT
                 && !TOKEN_IS(&tokens->tokens[name], "if")
