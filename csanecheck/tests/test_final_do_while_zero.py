@@ -222,6 +222,220 @@ void second(void) {
 }
 """, [])
 
+    def test_flag_break_followed_by_return_from_user_example(self):
+        self.check("""void compare_units(void) {
+    char *previous_name;
+    bool symbols_equal = false;
+    do {
+        char *src_name;
+        char *dst_name;
+
+        ASSERT(src_unit);
+        ASSERT(dst_unit);
+
+        src_name = cy_unit_name(src_unit);
+        dst_name = cy_unit_name(dst_unit);
+
+        if (src_name == NULL || dst_name == NULL) {
+            symbols_equal = src_name == dst_name;
+            break;
+        }
+        symbols_equal = STREQUAL(src_name, strlen32(src_name), dst_name,
+                                 strlen32(dst_name));
+    } while (0);
+    if (symbols_equal) {
+        return;
+    }
+    previous_name = cy_unit_name(other_unit);
+    use(previous_name);
+}
+""", [(4, 5)])
+
+    def test_negated_flag_guard(self):
+        self.check("""int32 f(void) {
+    bool ok = true;
+    do {
+        if (bad()) {
+            ok = false;
+            break;
+        }
+        ok = check();
+    } while (0);
+    if (!ok) {
+        return -1;
+    }
+    return 0;
+}
+""", [(3, 5)])
+
+    def test_nested_if_break_inside_outer_do(self):
+        self.check("""void f(void) {
+    bool found = false;
+    if (ready) {
+        do {
+            if (missing) {
+                found = true;
+                break;
+            }
+            work();
+        } while (0);
+        if (found) {
+            return;
+        }
+        continue_work();
+    }
+}
+""", [(4, 9)])
+
+    def test_unrelated_statement_before_guard(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            break;
+        }
+    } while (0);
+    cleanup();
+    if (flag) {
+        return;
+    }
+}
+""", [])
+
+    def test_shared_work_after_loop_is_not_flag_guard(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            break;
+        }
+    } while (0);
+    if (flag) {
+        cleanup();
+        return;
+    }
+}
+""", [])
+
+    def test_nested_for_break_does_not_exit_do(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        for (int32 i = 0; i < 10; i += 1) {
+            if (bad(i)) {
+                flag = true;
+                break;
+            }
+        }
+        after_for();
+    } while (0);
+    if (flag) {
+        return;
+    }
+}
+""", [])
+
+    def test_flag_assignment_not_before_break(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            report();
+            break;
+        }
+    } while (0);
+    if (flag) {
+        return;
+    }
+}
+""", [])
+
+    def test_flag_guard_with_else_is_not_a_pure_return(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            break;
+        }
+    } while (0);
+    if (flag) {
+        return;
+    } else {
+        cleanup();
+    }
+}
+""", [])
+
+    def test_break_and_guard_must_use_same_flag(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    bool other = false;
+    do {
+        if (bad()) {
+            other = true;
+            break;
+        }
+    } while (0);
+    if (flag) {
+        return;
+    }
+}
+""", [])
+
+    def test_ordinary_do_while_is_not_flagged(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            break;
+        }
+    } while (again());
+    if (flag) {
+        return;
+    }
+}
+""", [])
+
+    def test_nonreturn_flag_guard_is_not_flagged(self):
+        self.check("""void f(void) {
+    bool flag = false;
+    do {
+        if (bad()) {
+            flag = true;
+            break;
+        }
+    } while (0);
+    if (flag) {
+        report();
+    }
+    cleanup();
+}
+""", [])
+
+    def test_flag_break_with_return_guard_can_be_exempted(self):
+        config = Path(self.temporary.name) / "csanecheck.conf"
+        config.write_text("allow-rule STYLE-FINAL-DO-WHILE-ZERO .*\n",
+                          encoding="utf-8")
+        self.check("""void f(void) {
+    bool found = false;
+    do {
+        if (bad()) {
+            found = true;
+            break;
+        }
+    } while (0);
+    if (found) {
+        return;
+    }
+    other_work();
+}
+""", [], config=config)
+
     def test_rule_can_be_exempted(self):
         config = Path(self.temporary.name) / "csanecheck.conf"
         config.write_text("allow-rule STYLE-FINAL-DO-WHILE-ZERO .*\n",

@@ -219,6 +219,167 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
                      "wrap call arguments before breaking after = in if");
 }
 
+/* A flag assigned immediately before breaking out of a one-shot loop,
+ * then tested solely to return, can be handled by returning at the point
+ * of the assignment instead. Require a parsed sibling guard and a break
+ * that actually exits this do-loop, not an inner loop or switch. */
+static bool
+csane_control_flag_return_loop(CsaneFile *file, int32 loop_index) {
+    CsaneStatements *statements = file->statements;
+    CsaneStatement *loop = &statements->items[loop_index];
+    CsaneTopItem *function = &file->toplevel->items[loop->function];
+    CsaneTokenView view;
+    CsaneStatement *guard = NULL;
+    CsaneStatement *block = NULL;
+    CsaneStatement *returned = NULL;
+    Token *name = NULL;
+    int32 next;
+    int32 opening;
+    int32 closing;
+    int32 condition;
+    int32 first;
+    int32 last;
+
+    if (loop->body < 0
+        || !csane_tokens_view(&view, file->tokens, function->body)) {
+        return false;
+    }
+    next = csane_tokens_next(&view, loop->tokens.end - 1);
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
+        CsaneStatement *candidate = &statements->items[i];
+        if (candidate->kind == CSANE_STMT_IF
+            && candidate->tokens.first == next
+            && candidate->function == loop->function
+            && candidate->owner_region == loop->owner_region
+            && candidate->parent == loop->parent) {
+            guard = candidate;
+            break;
+        }
+    }
+    if (guard == NULL || guard->alternative >= 0 || guard->body < 0
+        || !csane_tokens_view(&view, file->tokens, guard->header)) {
+        return false;
+    }
+    opening = csane_tokens_next(&view, guard->header.first);
+    closing = csane_tokens_match(&view, opening);
+    condition = csane_tokens_next(&view, opening);
+    if (!TOKEN_IS(&file->tokens->tokens[opening], "(")
+        || closing < 0 || closing != csane_tokens_previous(&view,
+                                                           view.range.end)) {
+        return false;
+    }
+    if (TOKEN_IS(&file->tokens->tokens[condition], "!")) {
+        condition = csane_tokens_next(&view, condition);
+    }
+    if (condition >= closing
+        || file->tokens->tokens[condition].kind != TOKEN_IDENT
+        || csane_tokens_next(&view, condition) != closing) {
+        return false;
+    }
+    name = &file->tokens->tokens[condition];
+    block = &statements->items[guard->body];
+    if (block->kind != CSANE_STMT_BLOCK || block->first_child < 0
+        || block->first_child != block->last_child) {
+        return false;
+    }
+    returned = &statements->items[block->first_child];
+    if (returned->kind != CSANE_STMT_SIMPLE
+        || !csane_tokens_view(&view, file->tokens, returned->tokens)) {
+        return false;
+    }
+    first = csane_tokens_next(&view, view.range.first - 1);
+    last = csane_tokens_previous(&view, view.range.end);
+    if (!TOKEN_IS(&file->tokens->tokens[first], "return")
+        || !TOKEN_IS(&file->tokens->tokens[last], ";")) {
+        return false;
+    }
+    /* Reject side-effecting return expressions: they are real work after
+     * the loop. Accept 'return;', 'return result;' and 'return 0;'. */
+    next = csane_tokens_next(&view, first);
+    if (next != last) {
+        if (TOKEN_IS(&file->tokens->tokens[next], "-")
+            || TOKEN_IS(&file->tokens->tokens[next], "+")) {
+            next = csane_tokens_next(&view, next);
+        }
+        if (csane_tokens_next(&view, next) != last) {
+            return false;
+        }
+    }
+    for (int32 i = 0; i < ARRAY_LEN(statements->items); i += 1) {
+        CsaneStatement *item = &statements->items[i];
+        CsaneStatement *branch = NULL;
+        CsaneStatement *previous = NULL;
+        CsaneTokenView assignment;
+        int32 parent;
+        int32 a;
+        int32 b;
+
+        if (item->kind != CSANE_STMT_SIMPLE || item->parent < 0
+            || item->function != loop->function
+            || item->owner_region != loop->owner_region
+            || !csane_tokens_view(&view, file->tokens, item->tokens)) {
+            continue;
+        }
+        first = csane_tokens_next(&view, view.range.first - 1);
+        next = csane_tokens_next(&view, first);
+        if (!TOKEN_IS(&file->tokens->tokens[first], "break")
+            || !TOKEN_IS(&file->tokens->tokens[next], ";")
+            || csane_tokens_next(&view, next) != view.range.end) {
+            continue;
+        }
+        parent = item->parent;
+        branch = &statements->items[parent];
+        if (branch->kind != CSANE_STMT_BLOCK || branch->parent < 0
+            || statements->items[branch->parent].kind != CSANE_STMT_IF
+            || statements->items[branch->parent].body != parent) {
+            continue;
+        }
+        /* The most recent breakable ancestor must be this do-loop. */
+        for (int32 ancestor = parent; ancestor >= 0;
+             ancestor = statements->items[ancestor].parent) {
+            CsaneStatement *container = &statements->items[ancestor];
+            if (ancestor == loop_index) {
+                break;
+            }
+            if (container->kind == CSANE_STMT_DO
+                || container->kind == CSANE_STMT_FOR
+                || container->kind == CSANE_STMT_WHILE
+                || container->kind == CSANE_STMT_SWITCH) {
+                parent = -1;
+                break;
+            }
+            if (container->parent < 0) {
+                parent = -1;
+            }
+        }
+        if (parent < 0) {
+            continue;
+        }
+        for (int32 child = branch->first_child; child >= 0;
+             child = statements->items[child].next_sibling) {
+            if (child == i) {
+                break;
+            }
+            previous = &statements->items[child];
+        }
+        if (previous == NULL || previous->next_sibling != i
+            || previous->kind != CSANE_STMT_SIMPLE
+            || !csane_tokens_view(&assignment, file->tokens,
+                                  previous->tokens)) {
+            continue;
+        }
+        a = csane_tokens_next(&assignment, assignment.range.first - 1);
+        b = csane_tokens_next(&assignment, a);
+        if (file->tokens->tokens[a].kind == TOKEN_IDENT
+            && STREQUAL(file->tokens->tokens[a].text,
+                        file->tokens->tokens[a].len, name->text, name->len)
+            && TOKEN_IS(&file->tokens->tokens[b], "=")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* A one-shot loop at the end of a function cannot provide shared work
  * after break. A simple return after the loop is not shared work either.
  * Inspect the original function tail so a conditional branch cannot make
@@ -240,8 +401,7 @@ csane_control_final_do_check(CsaneFile *file) {
         int32 end;
         int32 next;
 
-        if (stmt->kind != CSANE_STMT_DO || stmt->parent >= 0
-            || stmt->function < 0
+        if (stmt->kind != CSANE_STMT_DO || stmt->function < 0
             || stmt->function >= ARRAY_LEN(file->toplevel->items)) {
             continue;
         }
@@ -264,7 +424,18 @@ csane_control_final_do_check(CsaneFile *file) {
             || !TOKEN_IS(&file->tokens->tokens[keyword], "while")) {
             continue;
         }
-        if (!csane_tokens_view(&view, file->tokens, function->body)) {
+        if (stmt->body >= 0) {
+            if (csane_control_flag_return_loop(file, i)) {
+                csane_control_issue(file, stmt,
+                                    STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+                                    "do { ... } while (0) sets a flag before "
+                                    "break solely for a following return; "
+                                    "return directly instead");
+                continue;
+            }
+        }
+        if (stmt->parent >= 0
+            || !csane_tokens_view(&view, file->tokens, function->body)) {
             continue;
         }
         end = csane_tokens_previous(&view, view.range.end);
