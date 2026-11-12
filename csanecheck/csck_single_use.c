@@ -321,8 +321,7 @@ csane_single_use_check(CsaneFile *file) {
                                                         stmt->tokens)
                                    == CSANE_LOCAL_DECLARATION) {
                             declaration = true;
-                            for (int32 m = stmt->tokens.first; m < j;
-                                 m += 1) {
+                            for (int32 m = stmt->tokens.first; m < j; m += 1) {
                                 if (TOKEN_IS(&tokens->tokens[m], "=")) {
                                     declaration = false;
                                     break;

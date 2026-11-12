@@ -166,8 +166,7 @@ stmt_unsupported(StmtCursor *c, int32 first,
     if (semi < end) {
         next = stmt_sig(c, semi + 1);
     } else {
-        for (int32 i = stmt_sig(c, first); i < end;
-             i = stmt_sig(c, i + 1)) {
+        for (int32 i = stmt_sig(c, first); i < end; i = stmt_sig(c, i + 1)) {
             if (stmt_at(c, i, ";")) {
                 next = stmt_sig(c, i + 1);
                 break;

@@ -40,8 +40,7 @@ csane_cache_fingerprint(int32 argc, char **argv, CsanePolicy *policy) {
         hash = csane_cache_hash(hash, argv[i], strlen32(argv[i]) + 1);
     }
     hash = csane_cache_stat(hash, "/proc/self/exe");
-    for (int32 i = 0; i < strflex_list_len(&policy->configs.strings);
-         i += 1) {
+    for (int32 i = 0; i < strflex_list_len(&policy->configs.strings); i += 1) {
         hash = csane_cache_stat(hash, policy->configs.strings.items[i]->data);
     }
     /* Imported policy lists also affect results. */

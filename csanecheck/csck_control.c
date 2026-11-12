@@ -883,6 +883,102 @@ csane_control_check(CsaneFile *file) {
             _i24_done: ;
         } while (false);
     }
+    /* A for header should not span lines when its unchanged text, joined
+     * at whitespace boundaries, fits within the configured column limit.
+     * Keep comments, directives, macro continuations and unusual trailers.
+     */
+    for (int32 stmt_i = 0; stmt_i < ARRAY_LEN(file->statements->items);
+         stmt_i += 1) {
+        CsaneStatement *stmt = &file->statements->items[stmt_i];
+        Tokenization *tokens = file->tokens;
+        CsaneTokenView view;
+        int32 first;
+        int32 last;
+        int32 open;
+        int32 close;
+        int32 start;
+        int32 end;
+        int32 line_end;
+        int32 tail;
+        int32 width;
+        bool prefix_is_indent = true;
+        bool duplicate = false;
+
+        if (stmt->kind != CSANE_STMT_FOR
+            || !csane_tokens_view(&view, tokens, stmt->header)) {
+            continue;
+        }
+        for (int32 i = 0; i < stmt_i; i += 1) {
+            CsaneStatement *previous = &file->statements->items[i];
+            if (previous->kind == CSANE_STMT_FOR
+                && previous->header.first == stmt->header.first
+                && previous->header.end == stmt->header.end) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            continue;
+        }
+        first = token_range_first_significant(tokens, stmt->header);
+        last = token_range_last_significant(tokens, stmt->header);
+        if (first < 0 || last <= first
+            || !TOKEN_IS(&tokens->tokens[first], "for")) {
+            continue;
+        }
+        open = csane_tokens_next(&view, first);
+        if (open >= last || !TOKEN_IS(&tokens->tokens[open], "(")) {
+            continue;
+        }
+        close = csane_tokens_match(&view, open);
+        if (close != last
+            || tokenization_token_location(tokens, first).line
+               == tokenization_token_location(tokens, close).line
+            || !csane_wrap_safe(file, first, last, true)) {
+            continue;
+        }
+        start = tokens->tokens[first].offset;
+        while (start > 0 && tokens->text[start - 1] != '\n') {
+            start -= 1;
+        }
+        for (int32 i = start; i < tokens->tokens[first].offset; i += 1) {
+            if (tokens->text[i] != ' ' && tokens->text[i] != '\t') {
+                prefix_is_indent = false;
+                break;
+            }
+        }
+        if (!prefix_is_indent) {
+            continue;
+        }
+        end = tokens->tokens[close].offset + tokens->tokens[close].len;
+        line_end = end;
+        while (line_end < tokens->text_len
+               && tokens->text[line_end] != '\n') {
+            line_end += 1;
+        }
+        while (line_end > end && (tokens->text[line_end - 1] == ' '
+                                  || tokens->text[line_end - 1] == '\r')) {
+            line_end -= 1;
+        }
+        tail = end;
+        while (tail < line_end && tokens->text[tail] == ' ') {
+            tail += 1;
+        }
+        if (tail < line_end) {
+            if (tokens->text[tail] != '{' || tail + 1 != line_end) {
+                continue;
+            }
+            end = tail + 1;
+        }
+        width = csane_wrap_flat_length(tokens->text, start, end,
+                                       file->column_limit);
+        if (width >= 0 && (file->column_limit <= 0
+                           || width <= file->column_limit)) {
+            csane_rule_issue(file, tokens->tokens[first].offset,
+                             STRLIT("FMT-FOR-WRAP"),
+                             "for header fits on one line");
+        }
+    }
     csane_pointer_check(file);
     return;
 }

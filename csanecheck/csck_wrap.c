@@ -64,8 +64,7 @@ csane_wrap_literal_newline(Token *token) {
         || token->text[token->len - 2] != 'n') {
         return false;
     }
-    for (int32 i = token->len - 3; i >= 0 && token->text[i] == '\\';
-         i -= 1) {
+    for (int32 i = token->len - 3; i >= 0 && token->text[i] == '\\'; i -= 1) {
         backslashes += 1;
     }
     return (backslashes % 2) != 0;

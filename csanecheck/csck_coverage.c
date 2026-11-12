@@ -444,8 +444,7 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                 || item->name_token < 0) {
                 continue;
             }
-            for (int32 j = item->header.first; j < item->name_token;
-                 j += 1) {
+            for (int32 j = item->header.first; j < item->name_token; j += 1) {
                 if (TOKEN_IS(&tokens->tokens[j], "static")) {
                     csane_coverage_target(&counts, true);
                     break;
@@ -498,8 +497,7 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
             CsaneTopItem *item = &file->toplevel->items[i];
             bool contains_status = false;
 
-            for (int32 j = item->tokens.first; j < item->tokens.end;
-                 j += 1) {
+            for (int32 j = item->tokens.first; j < item->tokens.end; j += 1) {
                 if (csane_coverage_token(file, j, STRLIT("status"))) {
                     contains_status = true;
                     break;

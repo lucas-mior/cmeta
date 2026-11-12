@@ -1013,14 +1013,12 @@ csane_calls_token_check(CsaneFile *file) {
                     goto _i6_done;
                 }
                 names = regions->items[parameters].tokens;
-                for (int32 i =
-                    content.first; i < content.end; i += 1) {
+                for (int32 i = content.first; i < content.end; i += 1) {
                     Token *candidate = &macro_tokens->tokens[i];
                     if (candidate->kind != TOKEN_IDENT) {
                         continue;
                     }
-                    for (int32 j =
-                        names.first; j < names.end; j += 1) {
+                    for (int32 j = names.first; j < names.end; j += 1) {
                         Token *nested_name = &macro_tokens->tokens[j];
                         if (nested_name->kind == TOKEN_IDENT
                             && candidate->len == nested_name->len

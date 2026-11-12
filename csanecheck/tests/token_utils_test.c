@@ -1244,8 +1244,7 @@ test_path_navigation(void) {
                 CsaneTokenView subview;
                 CHECK(csane_tokens_subview(&subview, &view,
                                            (TokenRange){first, end}));
-                for (int32 cursor = first - 2; cursor <= end + 2;
-                     cursor += 1) {
+                for (int32 cursor = first - 2; cursor <= end + 2; cursor += 1) {
                     CHECK(csane_tokens_next(&subview, cursor)
                           == test_path_next_reference(&subview, cursor));
                     CHECK(csane_tokens_previous(&subview, cursor)
@@ -1307,8 +1306,7 @@ test_preprocessor_path_navigation(void) {
             CsaneTokenView subview;
             CHECK(csane_tokens_subview(&subview, &view,
                                        (TokenRange){first, end}));
-            for (int32 cursor = first - 2; cursor <= end + 2;
-                 cursor += 1) {
+            for (int32 cursor = first - 2; cursor <= end + 2; cursor += 1) {
                 CHECK(csane_tokens_next(&subview, cursor)
                       == test_path_next_reference(&subview, cursor));
                 CHECK(csane_tokens_previous(&subview, cursor)

@@ -137,8 +137,7 @@ unit_unsupported(UnitCursor *c, int32 first,
         .range = c->range,
     };
 
-    for (int32 i = unit_sig(c, first); i < boundary;
-         i = unit_sig(c, i + 1)) {
+    for (int32 i = unit_sig(c, first); i < boundary; i = unit_sig(c, i + 1)) {
         Token *token = &tokens->tokens[i];
 
         if (TOKEN_IS(token, "(")) {
@@ -241,8 +240,7 @@ static bool
 unit_maybe_function_body(UnitCursor *c, int32 first, int32 boundary) {
     Tokenization *tokens = c->ast->tokenization;
     int32 previous = -1;
-    for (int32 i = unit_sig(c, first); i < boundary;
-         i = unit_sig(c, i + 1)) {
+    for (int32 i = unit_sig(c, first); i < boundary; i = unit_sig(c, i + 1)) {
         Token *token = &tokens->tokens[i];
         if (TOKEN_IS(token, "{") && previous >= 0
             && TOKEN_IS(&tokens->tokens[previous], ")")) {
