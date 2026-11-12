@@ -12,7 +12,6 @@ typedef struct CsaneArrayOrderMember {
     int32 name_token;
     int32 branch;
     bool pointer;
-    bool paired;
 } CsaneArrayOrderMember;
 
 static int32
@@ -72,18 +71,17 @@ csane_order_struct(CsaneFile *file, int32 open, int32 close) {
     }
     for (int32 start = open + 1; start < close;) {
         int32 end = csane_tokens_top_level(&view, start, STRLIT(";"));
+        CsaneArrayOrderMember member = {.name_token = -1};
+        if (end < 0 || end >= close) {
+            break;
+        }
         TokenRange range = {start, end};
-        CsaneArrayOrderMember member;
-        int32 first;
+        int32 first = csane_order_next(file, range, range.first - 1);
         int32 name = -1;
         int32 stars = 0;
         int32 first_type = -1;
         int32 type_next = -1;
         bool valid = true;
-        if (end < 0 || end >= close) {
-            break;
-        }
-        first = csane_order_next(file, range, range.first - 1);
         for (int32 k = first; k < range.end;
              k = csane_order_next(file, range, k)) {
             Token *token = &tokens->tokens[k];
@@ -131,58 +129,40 @@ csane_order_struct(CsaneFile *file, int32 open, int32 close) {
                 .branch = branch,
                 .pointer = stars > 0,
             };
-            ARRAY_PUSH(members, member);
         }
+        ARRAY_PUSH(members, member);
         start = end + 1;
     }
-    for (int32 i = 0; i < ARRAY_LEN(members); i += 1) {
-        CsaneArrayOrderMember *pointer = &members[i];
-        if (!pointer->pointer) {
+    for (int32 i = 0; i + 3 < ARRAY_LEN(members); i += 1) {
+        CsaneArrayOrderMember *first = &members[i];
+        CsaneArrayOrderMember *first_len = &members[i + 1];
+        CsaneArrayOrderMember *second = &members[i + 2];
+        CsaneArrayOrderMember *second_len = &members[i + 3];
+        bool compatible = true;
+        if (first->name_token < 0 || first_len->name_token < 0
+            || second->name_token < 0 || second_len->name_token < 0
+            || !first->pointer || first_len->pointer
+            || !second->pointer || second_len->pointer) {
             continue;
         }
-        for (int32 j = 0; j < ARRAY_LEN(members); j += 1) {
-            CsaneArrayOrderMember *length = &members[j];
-            if (!length->pointer
-                && csane_order_compatible(file, pointer, length)
-                && csane_order_matching(&tokens->tokens[pointer->name_token],
-                                        &tokens->tokens[length->name_token])) {
-                pointer->paired = true;
-                break;
-            }
-        }
-    }
-    for (int32 i = 0; i < ARRAY_LEN(members); i += 1) {
-        CsaneArrayOrderMember *length = &members[i];
-        bool earlier_pair = false;
-        bool later_pair = false;
-        if (length->pointer) {
+        if (!csane_order_matching(&tokens->tokens[first->name_token],
+                                  &tokens->tokens[first_len->name_token])
+            || !csane_order_matching(&tokens->tokens[second->name_token],
+                                     &tokens->tokens[second_len->name_token])) {
             continue;
         }
-        for (int32 j = 0; j < i; j += 1) {
-            CsaneArrayOrderMember *pointer = &members[j];
-            if (pointer->pointer
-                && csane_order_compatible(file, pointer, length)
-                && csane_order_matching(&tokens->tokens[pointer->name_token],
-                                        &tokens->tokens[length->name_token])) {
-                earlier_pair = true;
-                break;
+        for (int32 j = i; j < i + 4 && compatible; j += 1) {
+            for (int32 k = j + 1; k < i + 4; k += 1) {
+                if (!csane_order_compatible(file, &members[j], &members[k])) {
+                    compatible = false;
+                    break;
+                }
             }
         }
-        if (!earlier_pair) {
-            continue;
-        }
-        for (int32 j = i + 1; j < ARRAY_LEN(members); j += 1) {
-            CsaneArrayOrderMember *pointer = &members[j];
-            if (pointer->pointer && pointer->paired
-                && csane_order_compatible(file, pointer, length)) {
-                later_pair = true;
-                break;
-            }
-        }
-        if (later_pair) {
-            csane_rule_issue(file, tokens->tokens[length->name_token].offset,
+        if (compatible) {
+            csane_rule_issue(file, tokens->tokens[first_len->name_token].offset,
                              STRLIT("STYLE-STRUCT-ARRAY-LENGTH-ORDER"),
-                             "group array pointer members before their "
+                             "group adjacent array pointers before their "
                              "length members");
         }
     }

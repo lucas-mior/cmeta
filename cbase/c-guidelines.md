@@ -386,9 +386,10 @@ to avoid unused function warnings when compiling the main program.
 
 ## Struct declarations
 
-Group pointer fields representing arrays before their matching length fields.
-For multiple arrays, declare all the pointers first, then all their lengths.
-The signed length fields may use `int16`, `int32`, or `int64`, with the name
+When two or more pointer/length pairs are declared consecutively, group the
+pointer fields before their matching length fields. A single pointer/length pair
+is fine, and unrelated declarations between pairs break the sequence. The
+signed length fields may use `int16`, `int32`, or `int64`, with the name
 `n<array>` or `<array>_len`. This also applies to pointers to pointers.
 
 ```c
