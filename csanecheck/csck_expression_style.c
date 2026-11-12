@@ -1129,9 +1129,9 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
     }
 }
 
-/* Match a whole count/zero operand beside !=. A simple identifier or
- * member access can be a count; calculations and function calls cannot.
- * This deliberately uses names rather than guessing variable types. */
+/* Match a whole count/zero operand beside !=. Identifiers, member
+ * accesses, and direct calls are named counts; arbitrary expressions are not.
+ * Use names instead of guessing the type of a variable or return value. */
 static bool
 csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
                           bool count) {
@@ -1149,10 +1149,24 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
             return false;
         }
         range.end = edge + 1;
+        range.first = edge;
         if (TOKEN_IS(&tokens->tokens[edge], ")")) {
             range.first = csane_tokens_match(view, edge);
-        } else if (tokens->tokens[edge].kind == TOKEN_IDENT) {
-            range.first = edge;
+            if (range.first < view->range.first) {
+                return false;
+            }
+            /* A direct call ends at ')'; include its name and owner. */
+            int32 name = csane_tokens_previous(view, range.first);
+            if (name >= view->range.first
+                && tokens->tokens[name].kind == TOKEN_IDENT
+                && !TOKEN_IS(&tokens->tokens[name], "if")
+                && !TOKEN_IS(&tokens->tokens[name], "while")
+                && !TOKEN_IS(&tokens->tokens[name], "for")
+                && !TOKEN_IS(&tokens->tokens[name], "switch")) {
+                range.first = name;
+            }
+        }
+        if (tokens->tokens[range.first].kind == TOKEN_IDENT) {
             for (;;) {
                 int32 separator = csane_tokens_previous(view, range.first);
                 int32 owner = csane_tokens_previous(view, separator);
@@ -1164,8 +1178,6 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
                 }
                 range.first = owner;
             }
-        } else {
-            range.first = edge;
         }
         if (range.first < view->range.first) {
             return false;
@@ -1209,6 +1221,15 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
                     }
                     range.end = member + 1;
                 }
+                int32 call = csane_tokens_next(view, range.end - 1);
+                if (call < view->range.end
+                    && TOKEN_IS(&tokens->tokens[call], "(")) {
+                    int32 close = csane_tokens_match(view, call);
+                    if (close < 0) {
+                        return false;
+                    }
+                    range.end = close + 1;
+                }
             }
         }
         other = csane_tokens_next(view, range.end - 1);
@@ -1242,11 +1263,9 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
     }
     last = i;
     i = csane_tokens_next(&local, i);
-    while (i < range.end) {
-        if (!TOKEN_IS(&tokens->tokens[i], ".")
-            && !TOKEN_IS(&tokens->tokens[i], "->")) {
-            return false;
-        }
+    while (i < range.end
+           && (TOKEN_IS(&tokens->tokens[i], ".")
+               || TOKEN_IS(&tokens->tokens[i], "->"))) {
         i = csane_tokens_next(&local, i);
         if (i >= range.end || tokens->tokens[i].kind != TOKEN_IDENT) {
             return false;
@@ -1254,26 +1273,52 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         last = i;
         i = csane_tokens_next(&local, i);
     }
+    /* Only a call of the last identifier is allowed, not a calculation
+     * involving a call or a chain of calls. */
+    if (i < range.end && TOKEN_IS(&tokens->tokens[i], "(")) {
+        int32 close = csane_tokens_match(&local, i);
+        if (close < 0) {
+            return false;
+        }
+        i = csane_tokens_next(&local, close);
+    }
+    if (i < range.end) {
+        return false;
+    }
     {
         Token *name = &tokens->tokens[last];
-        if ((name->len > 6 && ENDS_WITH(name->text, name->len, "_count"))
-            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_len"))
-            || (name->len > 4 && ENDS_WITH(name->text, name->len, "_cap"))
-            || (name->len > 9 && ENDS_WITH(name->text, name->len, "_capacity"))
+        if ((name->len >= 6 && ENDS_WITH(name->text, name->len, "_count"))
+            || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_len"))
+            || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_cap"))
+            || (name->len >= 9 && ENDS_WITH(name->text, name->len, "_capacity"))
             || (last != range.first
                 && (TOKEN_IS(name, "len") || TOKEN_IS(name, "count")
                     || TOKEN_IS(name, "cap")
                     || TOKEN_IS(name, "capacity")))) {
             return true;
         }
-        if (name->len < 3 || name->text[0] != 'n'
+        int32 prefix = -1;
+        if (name->len >= 3 && name->text[0] == 'n') {
+            prefix = 0;
+        } else {
+            for (int32 j = 0; j < name->len - 3; j += 1) {
+                if (name->text[j] == '_' && name->text[j + 1] == 'n') {
+                    prefix = j + 1;
+                    break;
+                }
+            }
+        }
+        if (prefix < 0 || name->len - prefix < 3
             || name->text[name->len - 1] != 's'
-            || name->text[1] < 'a' || name->text[1] > 'z'
+            || name->text[prefix + 1] < 'a'
+            || name->text[prefix + 1] > 'z'
             || ENDS_WITH(name->text, name->len, "_status")
-            || ENDS_WITH(name->text, name->len, "_success")) {
+            || ENDS_WITH(name->text, name->len, "_success")
+            || ENDS_WITH(name->text, name->len, "nstatus")
+            || ENDS_WITH(name->text, name->len, "nsuccess")) {
             return false;
         }
-        for (int32 j = 2; j < name->len - 1; j += 1) {
+        for (int32 j = prefix + 2; j < name->len - 1; j += 1) {
             char c = name->text[j];
             if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
                   || c == '_')) {

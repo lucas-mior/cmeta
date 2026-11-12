@@ -85,6 +85,86 @@ class CountNonzeroTests(unittest.TestCase):
 }
 """, [2, 3, *range(4, 16), 16, 17, 18, 19, 20, 20, 21])
 
+    def test_suffix_n_plural_and_members(self):
+        self.check("""void f(void) {
+    if (file_nitems != 0) { use(); }
+    if (buffer_nrows != 0) { use(); }
+    if (input_nchannels != 0) { use(); }
+    if (0 != entries_ninput_channels) { use(); }
+    if (mstruct->nitems != 0) { use(); }
+    if (mstruct->nrows != 0) { use(); }
+    if (mstruct->ninput_channels != 0) { use(); }
+    if (mstruct.nfiles != 0) { use(); }
+    if (((mstruct->items.nrows)) != 0) { use(); }
+    if (0 != obj->entry_nitems) { use(); }
+}
+""", list(range(2, 12)))
+
+    def test_direct_count_function_calls(self):
+        self.check("""void f(void) {
+    if (get_count() != 0) { use(); }
+    if (array_len() != 0) { use(); }
+    if (buffer_cap() != 0) { use(); }
+    if (buffer_capacity() != 0) { use(); }
+    if (get_nitems() != 0) { use(); }
+    if (get_ninput_channels() != 0) { use(); }
+    if (0 != get_nrows()) { use(); }
+    if (0 != get_capacity(data)) { use(); }
+    if (0 != array_len(data, sizeof(data))) { use(); }
+    if (((get_count())) != ((0))) { use(); }
+    if (0 != ((buffer_nitems(1, helper(2))))) { use(); }
+    if (obj.get_count() != 0) { use(); }
+    if (ptr->get_len() != 0) { use(); }
+    if (ptr->get_cap() != 0) { use(); }
+    if (obj.buffer_capacity() != 0) { use(); }
+    if (ptr->get_nrows() != 0) { use(); }
+    if (ptr->nitems() != 0) { use(); }
+    if (obj.count() != 0) { use(); }
+    if (obj->len() != 0) { use(); }
+    if (obj->capacity() != 0) { use(); }
+    while (get_count() != 0) { use(); }
+    int32 available = get_nitems() != 0;
+}
+""", list(range(2, 24)))
+
+    def test_exact_suffix_names_and_macro_calls(self):
+        self.check("""#define NONEMPTY (0 != get_count())
+#define CALL_LEN(x) (0 != get_len(x))
+void f(void) {
+    if (_count() != 0) { use(); }
+    if (_len() != 0) { use(); }
+    if (_cap() != 0) { use(); }
+    if (_capacity() != 0) { use(); }
+    if (_nrows() != 0) { use(); }
+    if (_count != 0) { use(); }
+    if (_capacity != 0) { use(); }
+    if (0 != mstruct->nitems) { use(); }
+    if (0 != mstruct->get_nfiles()) { use(); }
+    if (0 != (get_nitems(one(), two(3)))) { use(); }
+}
+""", [1, 2, *range(4, 14)])
+
+    def test_calls_do_not_match_computed_expressions(self):
+        self.check("""void f(void) {
+    if (foo_count() + 1 != 0) { use(); }
+    if (0 != foo_count() + 1) { use(); }
+    if (obj->get_len() * scale != 0) { use(); }
+    if (foo_count()[0] != 0) { use(); }
+    if (0 != foo_count()[0]) { use(); }
+    if (foo_count()->len != 0) { use(); }
+    if (foo_count()() != 0) { use(); }
+    if (0 != (foo_count() || ready)) { use(); }
+    if (obj->get_counted() != 0) { use(); }
+    if (obj->get_nstatus() != 0) { use(); }
+    if (obj->get_network_success() != 0) { use(); }
+    if (get_nerror_code() != 0) { use(); }
+    if (foo_ncapacity() != 0) { use(); }
+    if (foo_count(2) != 1) { use(); }
+    if (foo_len() == 0) { use(); }
+    if (foo_capacity() > 0) { use(); }
+}
+""", [])
+
     def test_no_false_positives_for_noncounts_and_expressions(self):
         self.check("""void f(void) {
     if (status != 0) { use(); }
@@ -105,11 +185,11 @@ class CountNonzeroTests(unittest.TestCase):
     if (foo_count != 1) { use(); }
     if (foo_count == 0) { use(); }
     if (foo_count > 0) { use(); }
-    if (foo_count() != 0) { use(); }
-    if (0 != foo_count()) { use(); }
-    if (obj.foo_count() != 0) { use(); }
-    if (obj.count() != 0) { use(); }
-    if (obj->len() != 0) { use(); }
+    if (foo_counted() != 0) { use(); }
+    if (0 != foo_counter()) { use(); }
+    if (obj.foo_counter() != 0) { use(); }
+    if (obj.status() != 0) { use(); }
+    if (obj->length() != 0) { use(); }
     if (value + logged_count != 0) { use(); }
     if (logged_count + value != 0) { use(); }
     if (logged_count != 0 + value) { use(); }
