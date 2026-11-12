@@ -380,8 +380,56 @@ csane_control_flag_return_loop(CsaneFile *file, int32 loop_index) {
     return false;
 }
 
+/* A fixed member flag followed by return does not use a result from the
+ * do-loop. Keep this narrow: calls, cleanup, and computed assignments can
+ * perform actual shared work that must remain after a break. */
+static bool
+csane_control_final_fixed_member_set(CsaneFile *file, CsaneTokenView *view,
+                                     int32 *next) {
+    Tokenization *tokens = file->tokens;
+    int32 cursor = *next;
+    bool has_member = false;
+
+    if (cursor >= view->range.end
+        || tokens->tokens[cursor].kind != TOKEN_IDENT) {
+        return false;
+    }
+    cursor = csane_tokens_next(view, cursor);
+    while (cursor < view->range.end
+           && (TOKEN_IS(&tokens->tokens[cursor], "->")
+               || TOKEN_IS(&tokens->tokens[cursor], "."))) {
+        has_member = true;
+        cursor = csane_tokens_next(view, cursor);
+        if (cursor >= view->range.end
+            || tokens->tokens[cursor].kind != TOKEN_IDENT) {
+            return false;
+        }
+        cursor = csane_tokens_next(view, cursor);
+    }
+    if (!has_member || cursor >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[cursor], "=")) {
+        return false;
+    }
+    cursor = csane_tokens_next(view, cursor);
+    if (cursor >= view->range.end
+        || (!TOKEN_IS(&tokens->tokens[cursor], "true")
+            && !TOKEN_IS(&tokens->tokens[cursor], "false")
+            && !TOKEN_IS(&tokens->tokens[cursor], "0")
+            && !TOKEN_IS(&tokens->tokens[cursor], "1"))) {
+        return false;
+    }
+    cursor = csane_tokens_next(view, cursor);
+    if (cursor >= view->range.end
+        || !TOKEN_IS(&tokens->tokens[cursor], ";")) {
+        return false;
+    }
+    *next = csane_tokens_next(view, cursor);
+    return true;
+}
+
 /* A one-shot loop at the end of a function cannot provide shared work
- * after break. A simple return after the loop is not shared work either.
+ * after break. Neither a simple return nor a fixed flag set and return
+ * require the artificial loop.
  * Inspect the original function tail so a conditional branch cannot make
  * later source statements disappear from the selected statement stream. */
 void
@@ -400,6 +448,7 @@ csane_control_final_do_check(CsaneFile *file) {
         int32 keyword;
         int32 end;
         int32 next;
+        bool fixed_member_set = false;
 
         if (stmt->kind != CSANE_STMT_DO || stmt->function < 0
             || stmt->function >= ARRAY_LEN(file->toplevel->items)) {
@@ -445,6 +494,13 @@ csane_control_final_do_check(CsaneFile *file) {
         }
         next = csane_tokens_next(&view, stmt->tokens.end - 1);
         if (next != end) {
+            if (next < end
+                && !TOKEN_IS(&file->tokens->tokens[next], "return")) {
+                if (!csane_control_final_fixed_member_set(file, &view, &next)) {
+                    continue;
+                }
+                fixed_member_set = true;
+            }
             if (next >= end
                 || !TOKEN_IS(&file->tokens->tokens[next], "return")) {
                 continue;
@@ -460,9 +516,17 @@ csane_control_final_do_check(CsaneFile *file) {
                 continue;
             }
         }
-        csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
-                            "do { ... } while (0) at function end has no "
-                            "shared work after break; use direct control flow");
+        if (fixed_member_set) {
+            csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+                                "do { ... } while (0) followed only by a "
+                                "fixed member assignment and return; "
+                                "use direct control flow");
+        } else {
+            csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+                                "do { ... } while (0) at function end has no "
+                                "shared work after break; "
+                                "use direct control flow");
+        }
     }
 }
 

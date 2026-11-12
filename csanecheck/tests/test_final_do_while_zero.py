@@ -90,6 +90,146 @@ class FinalDoWhileZeroTests(unittest.TestCase):
 }
 """, [(2, 5)])
 
+    def test_final_fixed_member_assignment_and_return(self):
+        self.check("""void boiler_nmpc_job_commit(BoilerNmpcJob *job) {
+    do {
+        CySimulationResult prediction = {0};
+        if (!cy_plot_data_has_callback()) {
+            break;
+        }
+        if (cy_simulate(&prediction) < 0) {
+            cy_simulation_result_clear(&prediction);
+            break;
+        }
+        cy_plot_data_emit(&prediction);
+        cy_simulation_result_clear(&prediction);
+        break;
+    } while (0);
+    job->committed = true;
+    return;
+}
+""", [(2, 5)])
+
+    def test_final_fixed_nested_member_assignment(self):
+        self.check("""void f(void) {
+    do {
+        if (bad()) {
+            break;
+        }
+        work();
+    } while (0);
+    job->state.committed = false;
+    return;
+}
+""", [(2, 5)])
+
+    def test_final_zero_member_assignment(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    job->committed = 0;
+    return;
+}
+""", [(2, 5)])
+
+    def test_computed_member_assignment_keeps_loop(self):
+        self.check("""void f(void) {
+    do {
+        if (bad()) {
+            break;
+        }
+        status = compute();
+    } while (0);
+    job->committed = status;
+    return;
+}
+""", [])
+
+    def test_call_assignment_keeps_loop(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    job->committed = commit_result();
+    return;
+}
+""", [])
+
+    def test_cleanup_before_final_fixed_set_keeps_loop(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    release(resource);
+    job->committed = true;
+    return;
+}
+""", [])
+
+    def test_work_after_final_fixed_set_keeps_loop(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    job->committed = true;
+    notify();
+    return;
+}
+""", [])
+
+    def test_final_fixed_set_then_side_effecting_return_keeps_loop(self):
+        self.check("""int32 f(void) {
+    do {
+        work();
+    } while (0);
+    job->committed = true;
+    return finalize(job);
+}
+""", [])
+
+    def test_local_fixed_assignment_is_not_a_member_flag(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    committed = true;
+    return;
+}
+""", [])
+
+    def test_final_member_set_without_return_keeps_loop(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (0);
+    job->committed = true;
+    cleanup();
+}
+""", [])
+
+    def test_nonliteral_condition_keeps_loop_with_fixed_set(self):
+        self.check("""void f(void) {
+    do {
+        work();
+    } while (again());
+    job->committed = true;
+    return;
+}
+""", [])
+
+    def test_nested_loop_not_terminal_with_fixed_set(self):
+        self.check("""void f(void) {
+    if (enabled) {
+        do {
+            work();
+        } while (0);
+    }
+    job->committed = true;
+    return;
+}
+""", [])
+
     def test_work_after_loop_prevents_diagnostic(self):
         self.check("""void f(void) {
     do {
