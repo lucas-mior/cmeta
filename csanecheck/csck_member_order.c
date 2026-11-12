@@ -72,17 +72,18 @@ csane_order_struct(CsaneFile *file, int32 open, int32 close) {
     }
     for (int32 start = open + 1; start < close;) {
         int32 end = csane_tokens_top_level(&view, start, STRLIT(";"));
-        CsaneArrayOrderMember member;
-        if (end < 0 || end >= close) {
-            break;
-        }
         TokenRange range = {start, end};
-        int32 first = csane_order_next(file, range, range.first - 1);
+        CsaneArrayOrderMember member;
+        int32 first;
         int32 name = -1;
         int32 stars = 0;
         int32 first_type = -1;
         int32 type_next = -1;
         bool valid = true;
+        if (end < 0 || end >= close) {
+            break;
+        }
+        first = csane_order_next(file, range, range.first - 1);
         for (int32 k = first; k < range.end;
              k = csane_order_next(file, range, k)) {
             Token *token = &tokens->tokens[k];
