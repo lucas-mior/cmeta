@@ -1377,7 +1377,9 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         return false;
     }
     {
+        int32 prefix = -1;
         Token *name = &tokens->tokens[last];
+
         if ((name->len >= 6 && ENDS_WITH(name->text, name->len, "_count"))
             || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_len"))
             || (name->len >= 4 && ENDS_WITH(name->text, name->len, "_cap"))
@@ -1388,7 +1390,6 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
                     || TOKEN_IS(name, "capacity")))) {
             return true;
         }
-        int32 prefix = -1;
         if (name->len >= 3 && name->text[0] == 'n') {
             prefix = 0;
         } else {
