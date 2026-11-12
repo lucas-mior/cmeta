@@ -1298,6 +1298,7 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
         } else {
             range.end = edge + 1;
             if (tokens->tokens[edge].kind == TOKEN_IDENT) {
+                int32 call;
                 for (;;) {
                     int32 separator = csane_tokens_next(view, range.end - 1);
                     int32 member = csane_tokens_next(view, separator);
@@ -1310,7 +1311,8 @@ csane_style_count_operand(CsaneTokenView *view, int32 op, bool before,
                     }
                     range.end = member + 1;
                 }
-                int32 call = csane_tokens_next(view, range.end - 1);
+
+                call = csane_tokens_next(view, range.end - 1);
                 if (call < view->range.end
                     && TOKEN_IS(&tokens->tokens[call], "(")) {
                     int32 close = csane_tokens_match(view, call);
