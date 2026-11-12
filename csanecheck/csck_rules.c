@@ -681,6 +681,8 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_APIS, true},
     {STRLIT("CONTROL"), csane_control_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CONTROL, false},
+    {STRLIT("STYLE-FINAL-DO-WHILE-ZERO"), csane_control_final_do_check,
+     CSANE_PASS_TOKEN, CSANE_TARGET_FUNCTIONS, false},
     {STRLIT("LAYOUT"), csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
     {STRLIT("ASSIGN-EQ"), csane_layout_assignment_check, CSANE_PASS_TOKEN,

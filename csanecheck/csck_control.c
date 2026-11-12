@@ -219,6 +219,82 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
                      "wrap call arguments before breaking after = in if");
 }
 
+/* A one-shot loop at the end of a function cannot provide shared work
+ * after break. A simple return after the loop is not shared work either.
+ * Inspect the original function tail so a conditional branch cannot make
+ * later source statements disappear from the selected statement stream. */
+void
+csane_control_final_do_check(CsaneFile *file) {
+    if (file->statements == NULL || file->toplevel == NULL) {
+        return;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        CsaneStatement *stmt = &file->statements->items[i];
+        CsaneTopItem *function = NULL;
+        CsaneTokenView view;
+        int32 semicolon;
+        int32 close;
+        int32 zero;
+        int32 open;
+        int32 keyword;
+        int32 end;
+        int32 next;
+
+        if (stmt->kind != CSANE_STMT_DO || stmt->parent >= 0
+            || stmt->function < 0
+            || stmt->function >= ARRAY_LEN(file->toplevel->items)) {
+            continue;
+        }
+        function = &file->toplevel->items[stmt->function];
+        if (function->kind != CSANE_TOP_FUNCTION_DEFINITION
+            || stmt->owner_region != function->owner_region
+            || !csane_tokens_view(&view, file->tokens, stmt->tokens)) {
+            continue;
+        }
+        semicolon = csane_tokens_previous(&view, view.range.end);
+        close = csane_tokens_previous(&view, semicolon);
+        zero = csane_tokens_previous(&view, close);
+        open = csane_tokens_previous(&view, zero);
+        keyword = csane_tokens_previous(&view, open);
+        if (keyword < view.range.first
+            || !TOKEN_IS(&file->tokens->tokens[semicolon], ";")
+            || !TOKEN_IS(&file->tokens->tokens[close], ")")
+            || !TOKEN_IS(&file->tokens->tokens[zero], "0")
+            || !TOKEN_IS(&file->tokens->tokens[open], "(")
+            || !TOKEN_IS(&file->tokens->tokens[keyword], "while")) {
+            continue;
+        }
+        if (!csane_tokens_view(&view, file->tokens, function->body)) {
+            continue;
+        }
+        end = csane_tokens_previous(&view, view.range.end);
+        if (end < view.range.first
+            || !TOKEN_IS(&file->tokens->tokens[end], "}")) {
+            continue;
+        }
+        next = csane_tokens_next(&view, stmt->tokens.end - 1);
+        if (next != end) {
+            if (next >= end
+                || !TOKEN_IS(&file->tokens->tokens[next], "return")) {
+                continue;
+            }
+            next = csane_tokens_next(&view, next);
+            if (next < end
+                && !TOKEN_IS(&file->tokens->tokens[next], ";")) {
+                next = csane_tokens_next(&view, next);
+            }
+            if (next >= end
+                || !TOKEN_IS(&file->tokens->tokens[next], ";")
+                || csane_tokens_next(&view, next) != end) {
+                continue;
+            }
+        }
+        csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+                            "do { ... } while (0) at function end has no "
+                            "shared work after break; use direct control flow");
+    }
+}
+
 void
 csane_control_check(CsaneFile *file) {
     if (file->statements == NULL || file->is_ryu
