@@ -3,3 +3,7 @@ cbase/csanecheck
 cbase/csanecheck
 *.bin
 *.bin
+*.bin
+.cache
+*.bin
+.cache

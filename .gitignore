@@ -9,3 +9,5 @@ cbase/csanecheck
 cbase/csanecheck
 *.callgrind
 *.bin
+*.bin
+.cache
