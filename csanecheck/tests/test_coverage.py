@@ -45,7 +45,8 @@ class CoverageTests(unittest.TestCase):
                                          map(int, values)))
                 groups[group]["status"] = status
                 groups[group]["pass"] = int(pass_number)
-        self.assertEqual(len(groups), 19, result.stdout + result.stderr)
+        self.assertEqual(len(groups), 20, result.stdout + result.stderr)
+        self.assertIn("STYLE-STATIC-NULL-GUARD", groups)
         self.assertIn("SRC-COMMENT-RATIO", groups)
         self.assertNotIn("STYLE", groups)
         for group in groups.values():

@@ -1430,6 +1430,15 @@ if (pointer == NULL) {
 }
 ```
 
+A `static` function must not defensively check a pointer parameter against
+`NULL` when all call sites are visible in the same file and pass an address
+such as `&variable`. Remove the redundant entry guard instead of accepting an
+impossible argument. `csanecheck` reports `STYLE-STATIC-NULL-GUARD` for simple
+entry guards of the form `if (pointer == NULL) { return; }` (also the
+reversed comparison and `!pointer`) when it can establish this property. If a call uses a
+pointer value, the function address escapes, or callers cannot be fully
+verified, retain any NULL handling required by the contract.
+
 Don't use `!= NULL` to check if a pointer is not null (except in assertions):
 ```c
 // bad
