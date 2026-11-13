@@ -572,8 +572,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                         int32 first;
                         int32 type;
 
-                        if (!csane_layout_is(nested_tokens, p_open,
-                                             SL("("))) {
+                        if (!csane_layout_is(nested_tokens, p_open, SL("("))) {
                             continue;
                         }
                         p_close = csane_tokens_match(view, p_open);
@@ -587,8 +586,7 @@ csane_layout_pointer(CsaneFile *file, CsaneTokenView *view, int32 index,
                                 == TOKEN_IDENT) {
                             type = csane_tokens_previous(view,
                                                          declarator_close);
-                            if (csane_layout_is(nested_tokens, type,
-                                                SL("*"))) {
+                            if (csane_layout_is(nested_tokens, type, SL("*"))) {
                                 type = csane_tokens_previous(view, type);
                             }
                             if (type >= item->header.first) {

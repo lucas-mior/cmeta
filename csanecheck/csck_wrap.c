@@ -315,8 +315,7 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
             break;
         }
         nested_name = nested_first;
-        if (csane_wrap_token_is(&tokens->tokens[nested_name],
-                                SL("return"))) {
+        if (csane_wrap_token_is(&tokens->tokens[nested_name], SL("return"))) {
             nested_name = csane_tokens_next(&view, nested_name);
         } else {
             /* A declaration initializer or plain assignment may precede the

@@ -589,7 +589,7 @@ static void
 test_single_pass_path(void) {
     Tokenization tokens =
         tokenize_copy(SL("start = value, (broken], other = data, "
-                             "call(x, y)"), TOKENIZE_DEFAULT);
+                         "call(x, y)"), TOKENIZE_DEFAULT);
     CsaneTokenPath path;
     CsaneTokenView raw = csane_tokens_full(&tokens);
     CsaneTokenView view;
@@ -1225,7 +1225,7 @@ static void
 test_path_navigation(void) {
     Tokenization tokens =
         tokenize_copy(SL("a /* comment */ b + c // ignore\n"
-                             "d (e, f) + g /* block */ h + i;"),
+                         "d (e, f) + g /* block */ h + i;"),
                       TOKENIZE_DEFAULT);
     for (int32 stride = 0; stride <= 8; stride += 1) {
         CsaneTokenPath path;

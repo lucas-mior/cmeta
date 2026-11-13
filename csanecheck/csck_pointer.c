@@ -520,8 +520,7 @@ csane_pointer_for(CsaneFile *file, CsanePointerState *state,
                                  (TokenRange){open + 1, close})) {
         return;
     }
-    semicolon = csane_tokens_top_level(&init, init.range.first - 1,
-                                       SL(";"));
+    semicolon = csane_tokens_top_level(&init, init.range.first - 1, SL(";"));
     if (semicolon < 0 || semicolon >= init.range.end) {
         return;
     }
