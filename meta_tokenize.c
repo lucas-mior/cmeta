@@ -1671,9 +1671,8 @@ tokenization_find_matching(Tokenization *tokenization, int32 open_index) {
 
     depth = 0;
     for (int32 i = open_index; i < ARRAY_LEN(tokenization->tokens); i += 1) {
-        Token *token;
+        Token *token = &tokenization->tokens[i];
 
-        token = &tokenization->tokens[i];
         if (TOKEN_IS(token, open->text, open->len)) {
             depth += 1;
         } else if (TOKEN_IS(token, close, 1)) {
