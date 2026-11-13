@@ -1323,6 +1323,52 @@ csane_decl_postponed_assignment(CsaneFile *file, int32 index) {
     return name;
 }
 
+/* Only suggest moving an assignment when both statements occupy one
+ * physical line and the resulting initializer also fits on one line. */
+static bool
+csane_decl_postponed_inline(CsaneFile *file, int32 declaration,
+                            int32 assignment, int32 name) {
+    CsaneStatement *decl = &file->statements->items[declaration];
+    CsaneStatement *assign = &file->statements->items[assignment];
+    CsaneTokenView decl_view;
+    CsaneTokenView assign_view;
+    int32 decl_first;
+    int32 decl_last;
+    int32 assign_first;
+    int32 assign_last;
+    int32 equal;
+    int32 expression;
+    int32 length;
+
+    if (!csane_tokens_view(&decl_view, file->tokens, decl->tokens)
+        || !csane_tokens_view(&assign_view, file->tokens, assign->tokens)) {
+        return false;
+    }
+    decl_first = csane_tokens_next(&decl_view, decl->tokens.first - 1);
+    decl_last = csane_tokens_previous(&decl_view, decl->tokens.end);
+    assign_first = csane_tokens_next(&assign_view, assign->tokens.first - 1);
+    assign_last = csane_tokens_previous(&assign_view, assign->tokens.end);
+    if (csane_local_decl_line(file, decl_first)
+        != csane_local_decl_line(file, decl_last)
+        || csane_local_decl_line(file, assign_first)
+           != csane_local_decl_line(file, assign_last)) {
+        return false;
+    }
+    equal = csane_tokens_next(&assign_view, assign_first);
+    expression = csane_tokens_next(&assign_view, equal);
+    if (expression >= assign_last) {
+        return false;
+    }
+    length = tokenization_token_location(file->tokens, decl_first).column
+             + file->tokens->tokens[name].offset
+             + file->tokens->tokens[name].len
+             - file->tokens->tokens[decl_first].offset + 3
+             + file->tokens->tokens[assign_last].offset
+             + file->tokens->tokens[assign_last].len
+             - file->tokens->tokens[expression].offset;
+    return length <= file->column_limit;
+}
+
 static bool
 csane_post_adjacent(CsaneFile *file, int32 left, int32 right) {
     CsaneStatement *a = &file->statements->items[left];
@@ -1412,6 +1458,8 @@ csane_declarations_postponed_check(CsaneFile *file) {
             }
             if (supported && end >= 0
                 && csane_post_adjacent(file, last, end)) {
+                int32 declaration = current;
+
                 next = end;
                 for (int32 i = 0; i < ARRAY_LEN(names); i += 1) {
                     int32 assignment;
@@ -1434,6 +1482,11 @@ csane_declarations_postponed_check(CsaneFile *file) {
                         complete = false;
                         break;
                     }
+                    if (!csane_decl_postponed_inline(file, declaration, next,
+                                                     names[i])) {
+                        complete = false;
+                        break;
+                    }
                     if (i + 1 < ARRAY_LEN(names)) {
                         int32 following = csane_decl_postponed_next(tree, next);
 
@@ -1443,6 +1496,8 @@ csane_declarations_postponed_check(CsaneFile *file) {
                             break;
                         }
                         next = following;
+                        declaration = csane_decl_postponed_next(tree,
+                                                                declaration);
                     }
                 }
                 if (complete) {

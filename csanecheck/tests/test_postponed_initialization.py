@@ -178,6 +178,79 @@ class PostponedInitializationTests(unittest.TestCase):
 }
 """, [])
 
+    def test_multiline_assignment_suppresses_entire_group(self):
+        self.check("""void f(Composite *comp, double *r, double *base_scales,
+       double *w) {
+    for (int32 i = 0; i < comp->top->nconns; i += 1) {
+        double residual = fabs(r[i]);
+        double scale = base_scales[i];
+        double abs_w = fabs(w[i]);
+        double allowed;
+        double err;
+
+        allowed = cy_tolerance_scale(abs_w, scale,
+                                     comp->options.signal_rtol,
+                                     comp->options.signal_atol);
+        err = residual / allowed;
+        if (err > max_error) {
+            max_error = err;
+        }
+    }
+}
+""", [])
+        self.check("""void f(void) {
+    int32 first;
+    int32 second;
+    first = 1;
+    second = compute(
+        first);
+}
+""", [])
+        self.check("""void f(void) {
+    int32 first;
+    int32 second;
+    first = compute(
+        second);
+    second = 1;
+}
+""", [])
+        self.check("""void f(void) {
+    int32 value;
+    value =
+        compute();
+}
+""", [])
+
+    def test_multiline_declaration_suppresses_entire_group(self):
+        self.check("""void f(void) {
+    int32 first;
+    int32
+        second;
+    first = 1;
+    second = 2;
+}
+""", [])
+        self.check("""void f(void) {
+    int32
+        first;
+    int32 second;
+    first = 1;
+    second = 2;
+}
+""", [])
+
+    def test_initializer_must_fit_column_limit(self):
+        self.check("""void f(void) {
+    int32 value;
+    value = fairly_long_function_name_with_many_arguments(first, second, third);
+}
+""", [])
+        self.check("""void f(void) {
+    int32 value;
+    value = 2;
+}
+""", [2])
+
     def test_config_exemption(self):
         self.check("""void f(void) {
     int32 count;
