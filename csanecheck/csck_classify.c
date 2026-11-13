@@ -51,7 +51,7 @@ csane_name_kind(Token *token) {
         return CSANE_NAME_PRIMITIVE;
     }
     /* The documented lowercase macro exception is not a type. */
-    if (csane_class_word(token, STRLIT("error"))) {
+    if (csane_class_word(token, SL("error"))) {
         return CSANE_NAME_MACRO;
     }
     for (int32 i = 0; i < token->len; i += 1) {

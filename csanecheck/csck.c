@@ -133,7 +133,7 @@ csane_run(int32 argc, char **argv) {
     /* Discover repository policy roots first. Explicit configuration can
      * then extend or override the imported project's default name lists.
      */
-    if (!csane_policy_project(&options.policy, STRLIT("."))) {
+    if (!csane_policy_project(&options.policy, SL("."))) {
         exit_status = 2;
         goto cleanup;
     }
@@ -332,7 +332,7 @@ csane_run(int32 argc, char **argv) {
         }
     }
     if (!had_inputs
-        && !csane_collect_root(&options.files, STRLIT("."), options.max_depth,
+        && !csane_collect_root(&options.files, SL("."), options.max_depth,
                                &options.source_roots,
                                &options.skip_dirs)) {
         exit_status = 2;

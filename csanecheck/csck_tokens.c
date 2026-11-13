@@ -558,7 +558,7 @@ csane_tokens_arguments(CsaneTokenView *view, int32 open,
     if (csane_tokens_empty(&inner)) {
         return 0;
     }
-    count = csane_tokens_split(&inner, STRLIT(","), args, capacity);
+    count = csane_tokens_split(&inner, SL(","), args, capacity);
     if (count < 0 || count > capacity) {
         return -1;
     }

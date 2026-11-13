@@ -163,10 +163,10 @@ test_split_nested_arguments(void) {
     TokenRange item;
     int32 count;
 
-    count = token_range_split_collect(&tokenization, all, STRLIT(","),
+    count = token_range_split_collect(&tokenization, all, SL(","),
                                       items, LENGTH(items));
     ASSERT_EQ(count, 4);
-    ASSERT(token_range_split_init(&split, &tokenization, all, STRLIT(",")));
+    ASSERT(token_range_split_init(&split, &tokenization, all, SL(",")));
     for (int32 i = 0; i < count; i += 1) {
         TokenRange trimmed;
         int32 len = strlen32(expected[i]);
@@ -193,7 +193,7 @@ test_split_empty_elements(void) {
     TokenRange items[4];
     int32 count;
 
-    count = token_range_split_collect(&tokenization, all, STRLIT(","),
+    count = token_range_split_collect(&tokenization, all, SL(","),
                                       items, LENGTH(items));
     ASSERT_EQ(count, 4);
     for (int32 i = 0; i < count; i += 1) {
@@ -202,7 +202,7 @@ test_split_empty_elements(void) {
         if (i != 2) {
             ASSERT(token_range_is_empty(&tokenization, trimmed));
         } else {
-            test_split_assert_text(&tokenization, trimmed, STRLIT("x"));
+            test_split_assert_text(&tokenization, trimmed, SL("x"));
         }
     }
     free_tokenization(&tokenization);
@@ -216,9 +216,9 @@ test_split_empty_elements(void) {
         TokenRangeSplit split;
         TokenRange item;
 
-        ASSERT(token_range_split_init(&split, &empty, range, STRLIT(",")));
+        ASSERT(token_range_split_init(&split, &empty, range, SL(",")));
         ASSERT(!token_range_split_next(&split, &item));
-        ASSERT_EQ(token_range_split_collect(&empty, range, STRLIT(","),
+        ASSERT_EQ(token_range_split_collect(&empty, range, SL(","),
                                             NULL, 0), 0);
         free_tokenization(&empty);
     }
@@ -237,12 +237,12 @@ test_split_separators_and_collector(void) {
     TokenRange full[5];
     int32 count;
 
-    count = token_range_split_collect(&tokenization, range, STRLIT(","),
+    count = token_range_split_collect(&tokenization, range, SL(","),
                                       NULL, 0);
     ASSERT_EQ(count, 4);
-    ASSERT_EQ(token_range_split_collect(&tokenization, range, STRLIT(","),
+    ASSERT_EQ(token_range_split_collect(&tokenization, range, SL(","),
                                         partial, LENGTH(partial)), 4);
-    ASSERT_EQ(token_range_split_collect(&tokenization, range, STRLIT(","),
+    ASSERT_EQ(token_range_split_collect(&tokenization, range, SL(","),
                                         full, LENGTH(full)), 4);
     for (int32 i = 0; i < 2; i += 1) {
         ASSERT_EQ(partial[i].first, full[i].first);
@@ -250,10 +250,10 @@ test_split_separators_and_collector(void) {
     }
     ASSERT_EQ(full[0].first, full[0].end);
     ASSERT_EQ(full[1].first, full[1].end);
-    test_split_assert_text(&tokenization, full[2], STRLIT("f(a, b)"));
+    test_split_assert_text(&tokenization, full[2], SL("f(a, b)"));
     ASSERT_EQ(full[3].first, full[3].end);
     ASSERT_EQ(full[3].first, range.end);
-    ASSERT_EQ(token_range_split_collect(&tokenization, range, STRLIT(";"),
+    ASSERT_EQ(token_range_split_collect(&tokenization, range, SL(";"),
                                         NULL, 0), 1);
     free_tokenization(&tokenization);
     return;
@@ -272,7 +272,7 @@ test_split_literals_comments_and_flags(void) {
         TokenRange item;
         int32 count = 0;
 
-        ASSERT(token_range_split_init(&split, &t, all, STRLIT(",")));
+        ASSERT(token_range_split_init(&split, &t, all, SL(",")));
         while (token_range_split_next(&split, &item)) {
             TokenRange trimmed = token_range_trim_trivia(&t, item);
 
@@ -305,7 +305,7 @@ test_split_source_spans_without_whitespace_tokens(void) {
     SourceRange source;
     int32 count = 0;
 
-    ASSERT(token_range_split_init(&split, &t, all, STRLIT(",")));
+    ASSERT(token_range_split_init(&split, &t, all, SL(",")));
     while (token_range_split_next_spans(&split, &item, &source)) {
         int32 len = strlen32(expected[count]);
 
@@ -314,7 +314,7 @@ test_split_source_spans_without_whitespace_tokens(void) {
         ASSERT_EQ(t.text + source.start, len, expected[count]);
         if (count == 1) {
             test_split_assert_text(&t, token_range_trim_trivia(&t, item),
-                                   STRLIT("g(3, 4)"));
+                                   SL("g(3, 4)"));
         }
         count += 1;
     }
@@ -351,9 +351,9 @@ test_split_deep_nesting(void) {
         Tokenization t = tokenize(text, pos);
         TokenRange all = {0, ARRAY_LEN(t.tokens)};
 
-        ASSERT_EQ(token_range_split_collect(&t, all, STRLIT(","), items, 2), 2);
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","), items, 2), 2);
         ASSERT_EQ(items[1].end - items[1].first, 1);
-        test_split_assert_text(&t, items[1], STRLIT("y"));
+        test_split_assert_text(&t, items[1], SL("y"));
         free_tokenization(&t);
     }
     return;
@@ -369,9 +369,9 @@ test_split_invalid_and_unbalanced(void) {
         TokenRangeSplit split;
         TokenRange result;
 
-        ASSERT(!token_range_split_init(&split, &t, all, STRLIT(",")));
+        ASSERT(!token_range_split_init(&split, &t, all, SL(",")));
         ASSERT(!token_range_split_next(&split, &result));
-        ASSERT_EQ(token_range_split_collect(&t, all, STRLIT(","), NULL, 0), -1);
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","), NULL, 0), -1);
         free_tokenization(&t);
     }
 
@@ -380,16 +380,16 @@ test_split_invalid_and_unbalanced(void) {
         TokenRange all = {0, ARRAY_LEN(t.tokens)};
         TokenRangeSplit split;
 
-        ASSERT(!token_range_split_init(NULL, &t, all, STRLIT(",")));
-        ASSERT(!token_range_split_init(&split, NULL, all, STRLIT(",")));
+        ASSERT(!token_range_split_init(NULL, &t, all, SL(",")));
+        ASSERT(!token_range_split_init(&split, NULL, all, SL(",")));
         ASSERT(!token_range_split_init(&split, &t,
                                        (TokenRange){-1, all.end},
-                                       STRLIT(",")));
+                                       SL(",")));
         ASSERT(!token_range_split_init(&split, &t, all, NULL, 1));
         ASSERT(!token_range_split_init(&split, &t, all, "", 0));
-        ASSERT_EQ(token_range_split_collect(&t, all, STRLIT(","),
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","),
                                             NULL, -1), -1);
-        ASSERT_EQ(token_range_split_collect(&t, all, STRLIT(","),
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","),
                                             NULL, 2), -1);
         free_tokenization(&t);
     }
@@ -406,17 +406,17 @@ test_split_raw_macro_parameters(void) {
     TokenRange items[3];
     int32 hash;
 
-    hash = token_range_next_text(&t, all, -1, STRLIT("#"));
+    hash = token_range_next_text(&t, all, -1, SL("#"));
     ASSERT(c_preprocessor_directive_at(&t, hash, &directive));
     ASSERT(c_preprocessor_define_info(&t, &directive, &define));
-    ASSERT_EQ(token_range_split_collect(&t, define.parameters, STRLIT(","),
+    ASSERT_EQ(token_range_split_collect(&t, define.parameters, SL(","),
                                         items, LENGTH(items)), 3);
     test_split_assert_text(&t, token_range_trim_trivia(&t, items[0]),
-                           STRLIT("x"));
+                           SL("x"));
     test_split_assert_text(&t, token_range_trim_trivia(&t, items[1]),
-                           STRLIT("y"));
+                           SL("y"));
     test_split_assert_text(&t, token_range_trim_trivia(&t, items[2]),
-                           STRLIT("..."));
+                           SL("..."));
     free_tokenization(&t);
     return;
 }

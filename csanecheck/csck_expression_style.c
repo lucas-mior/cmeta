@@ -60,7 +60,7 @@ csane_style_strlit_argument(CsaneFile *file, TokenRange range) {
     Token *token;
 
     if (first >= range.end
-        || !TOKEN_IS(&file->tokens->tokens[first], "STRLIT")) {
+        || !TOKEN_IS(&file->tokens->tokens[first], "SL")) {
         return -1;
     }
     open = tokenization_next_significant(file->tokens, first);
@@ -288,24 +288,24 @@ csane_style_one(CsaneFile *file, CsaneTokenView *view,
             && tokenization_next_significant(tokens, tolerance)
                >= args[2].end) {
             csane_rule_issue(file, token->offset,
-                             STRLIT("STYLE-ASSERT-CLOSE-ZERO"),
+                             SL("STYLE-ASSERT-CLOSE-ZERO"),
                              "use ASSERT_EQ instead of ASSERT_CLOSE "
                              "with zero tolerance");
         }
     }
     if (TOKEN_IS(token, "STRLIT_LEN") && count == 1
         && csane_style_literal_argument(file, args[0])) {
-        csane_rule_issue(file, token->offset, STRLIT("STYLE-STRLIT-LEN"),
+        csane_rule_issue(file, token->offset, SL("STYLE-SL-LEN"),
                          "do not call STRLIT_LEN on a string literal");
     }
     if (TOKEN_IS(token, "SIZEOF") && count == 1
         && csane_style_literal_argument(file, args[0])) {
-        csane_rule_issue(file, token->offset, STRLIT("STYLE-SIZEOF-LITERAL"),
+        csane_rule_issue(file, token->offset, SL("STYLE-SIZEOF-LITERAL"),
                          "do not call SIZEOF on a string literal");
     }
     if (TOKEN_IS(token, "LENGTH") && count == 1
         && csane_style_literal_argument(file, args[0])) {
-        csane_rule_issue(file, token->offset, STRLIT("STYLE-LENGTH-LITERAL"),
+        csane_rule_issue(file, token->offset, SL("STYLE-LENGTH-LITERAL"),
                          "do not call LENGTH on a string literal");
     }
     if (TOKEN_IS(token, "STREQUAL")
@@ -316,13 +316,13 @@ csane_style_one(CsaneFile *file, CsaneTokenView *view,
         if ((count == 3 || count == 4)
             && csane_style_literal_argument(file, args[0])) {
             csane_rule_issue(file, tokens->tokens[args[0].first].offset,
-                             STRLIT("STYLE-LITERAL-LENGTH"),
+                             SL("STYLE-LITERAL-LENGTH"),
                              "do not pass a string literal with an explicit "
                              "length; use the literal-aware macro form");
         }
         if (count == 4 && csane_style_literal_argument(file, args[2])) {
             csane_rule_issue(file, tokens->tokens[args[2].first].offset,
-                             STRLIT("STYLE-LITERAL-LENGTH"),
+                             SL("STYLE-LITERAL-LENGTH"),
                              "do not specify the length of a string literal; "
                              "use the three-argument macro form");
         }
@@ -333,7 +333,7 @@ csane_style_one(CsaneFile *file, CsaneTokenView *view,
                 csane_style_strequal_strlen32(file, view, args[i]);
             if (strlen_name >= 0) {
                 csane_rule_issue(file, tokens->tokens[strlen_name].offset,
-                                 STRLIT("STYLE-STRLEN32-REDUNDANT"),
+                                 SL("STYLE-STRLEN32-REDUNDANT"),
                                  "STREQUAL length for a struct member "
                                  "must use the stored length");
             }
@@ -344,8 +344,8 @@ csane_style_one(CsaneFile *file, CsaneTokenView *view,
             int32 strlit = csane_style_strlit_argument(file, args[i]);
             if (strlit >= 0) {
                 csane_rule_issue(file, tokens->tokens[args[i].first].offset,
-                                 STRLIT("STYLE-STREQUAL"),
-                                 "STREQUAL called with STRLIT literal");
+                                 SL("STYLE-STREQUAL"),
+                                 "STREQUAL called with SL literal");
                 break;
             }
         }
@@ -449,7 +449,7 @@ csane_style_one(CsaneFile *file, CsaneTokenView *view,
         }
         if (_i29_predicate) {
             csane_rule_issue(file, tokens->tokens[format.first].offset,
-                             STRLIT("STYLE-PRINTF"),
+                             SL("STYLE-PRINTF"),
                              "format contains only one conversion");
         }
     }
@@ -576,7 +576,7 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     _i30_predicate = _i30_result;
     if (_i30_predicate) {
         csane_rule_issue(file, view->tokens->tokens[name].offset,
-                         STRLIT("STYLE-ASSERT-CLOSE"),
+                         SL("STYLE-ASSERT-CLOSE"),
                          "use ASSERT_CLOSE(a, b, tol) for floating-point "
                          "tolerance comparisons");
         return true;
@@ -647,7 +647,7 @@ csane_style_assert_rel(CsaneFile *file, CsaneTokenView *view,
                   "ASSERT_LE_VAR(lhs, rhs)";
     }
     csane_rule_issue(file, view->tokens->tokens[name].offset,
-                     STRLIT("STYLE-ASSERT-REL"), message);
+                     SL("STYLE-ASSERT-REL"), message);
 }
 
 /* Accept plain C integer tokens, including octal/hex/binary forms and
@@ -825,7 +825,7 @@ csane_style_minmax_literal(CsaneFile *file, CsaneTokenView *view,
     }
     if (literal >= 0) {
         csane_rule_issue(file, file->tokens->tokens[name].offset,
-                         STRLIT("STYLE-MINMAX-LITERAL"),
+                         SL("STYLE-MINMAX-LITERAL"),
                          "use a named type limit instead of MAXOF/MINOF "
                          "on an integer literal");
     }
@@ -843,7 +843,7 @@ csane_style_literal_cast_arguments(CsaneFile *file, CsaneTokenView *view,
         int32 cast = csane_style_literal_cast(view, args[i], true);
         if (cast >= 0) {
             csane_rule_issue(file, file->tokens->tokens[cast].offset,
-                             STRLIT("STYLE-LITERAL-INT-CAST"),
+                             SL("STYLE-LITERAL-INT-CAST"),
                              "pass integer literals without int32/int64 casts");
         }
     }
@@ -875,15 +875,15 @@ csane_style_round64(CsaneFile *file, CsaneTokenView *view, int32 name) {
     }
     if (TOKEN_IS(&tokens->tokens[name], "floor")) {
         csane_rule_issue(file, tokens->tokens[cast_open].offset,
-                         STRLIT("STYLE-ROUND64"),
+                         SL("STYLE-ROUND64"),
                          "use floor64(x) instead of (int64)floor(x)");
     } else if (TOKEN_IS(&tokens->tokens[name], "ceil")) {
         csane_rule_issue(file, tokens->tokens[cast_open].offset,
-                         STRLIT("STYLE-ROUND64"),
+                         SL("STYLE-ROUND64"),
                          "use ceil64(x) instead of (int64)ceil(x)");
     } else {
         csane_rule_issue(file, tokens->tokens[cast_open].offset,
-                         STRLIT("STYLE-ROUND64"),
+                         SL("STYLE-ROUND64"),
                          "use round64(x) instead of (int64)round(x)");
     }
 }
@@ -966,7 +966,7 @@ csane_style_sizeof_length(CsaneFile *file, CsaneTokenView *view,
         return;
     }
     csane_rule_issue(file, tokens->tokens[name].offset,
-                     STRLIT("STYLE-SIZEOF-LENGTH"),
+                     SL("STYLE-SIZEOF-LENGTH"),
                      "use LENGTH(array) instead of manual SIZEOF division");
 }
 
@@ -1062,7 +1062,7 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
         cast = in_result_before;
         if (cast >= 0) {
             csane_rule_issue(file, expression_tokens->tokens[cast].offset,
-                             STRLIT("STYLE-SIZEOF-INT64-CAST"),
+                             SL("STYLE-SIZEOF-INT64-CAST"),
                              "remove redundant int64 cast before "
                              "multiplication by SIZEOF");
         }
@@ -1122,7 +1122,7 @@ csane_style_sizeof_int64_cast(CsaneFile *file, CsaneTokenView *view,
         cast = in_result_after;
         if (cast >= 0) {
             csane_rule_issue(file, expression_tokens->tokens[cast].offset,
-                             STRLIT("STYLE-SIZEOF-INT64-CAST"),
+                             SL("STYLE-SIZEOF-INT64-CAST"),
                              "remove redundant int64 cast before "
                              "multiplication by SIZEOF");
         }
@@ -1150,7 +1150,7 @@ csane_style_sizeof_first(CsaneFile *file, CsaneTokenView *view, int32 open) {
     for (int32 i = begin; i < end; i += 1) {
         if (tokens->text[i] == '\n') {
             csane_rule_issue(file, tokens->tokens[open].offset,
-                             STRLIT("FMT-SIZEOF-FIRST"),
+                             SL("FMT-SIZEOF-FIRST"),
                              "keep the first SIZEOF operand on the "
                              "same line as SIZEOF(");
             return;
@@ -1568,7 +1568,7 @@ csane_style_strcmp_simple(CsaneFile *file, CsaneStatement *statement,
         expression = (TokenRange){first + 1, span.end};
         return csane_style_strcmp_value(&view, expression, start, close);
     }
-    count = csane_tokens_split(&view, STRLIT(","), ranges, LENGTH(ranges));
+    count = csane_tokens_split(&view, SL(","), ranges, LENGTH(ranges));
     if (count < 0 || count > LENGTH(ranges)) {
         return false;
     }
@@ -1580,7 +1580,7 @@ csane_style_strcmp_simple(CsaneFile *file, CsaneStatement *statement,
             continue;
         }
         equal = csane_tokens_top_level(&segment, ranges[i].first - 1,
-                                       STRLIT("="));
+                                       SL("="));
         if (equal < ranges[i].first || equal >= ranges[i].end) {
             continue;
         }
@@ -1767,14 +1767,14 @@ csane_expression_style_check(CsaneFile *file) {
                  || TOKEN_IS(token, "ENDS_WITH"))
                 && csane_style_redundant_string_guard(&local, i, next)) {
                 csane_rule_issue(file, token->offset,
-                                 STRLIT("STYLE-STRING-LENGTH-GUARD"),
+                                 SL("STYLE-STRING-LENGTH-GUARD"),
                                  "omit the redundant length guard before "
                                  "BEGINS_WITH or ENDS_WITH");
             }
             if (TOKEN_IS(token, "strcmp")
                 && !csane_style_strcmp_allowed(file, i, call_start, close)) {
                 csane_rule_issue(file, token->offset,
-                                 STRLIT("STYLE-STRCMP"),
+                                 SL("STYLE-STRCMP"),
                                  "use STREQUAL or strequal for equality; "
                                  "strcmp only allowed for sorting purposes.");
             }
@@ -1792,7 +1792,7 @@ csane_expression_style_check(CsaneFile *file) {
                                                                i, next, close);
                     if (!initializing) {
                         csane_rule_issue(file, token->offset,
-                                         STRLIT("STYLE-STRLEN32-REDUNDANT"),
+                                         SL("STYLE-STRLEN32-REDUNDANT"),
                                          "strlen32 of a struct array item "
                                          "must use the stored item length");
                     }
@@ -1836,7 +1836,7 @@ csane_expression_style_check(CsaneFile *file) {
             || (csane_style_count_operand(&view, i, true, false)
                 && csane_style_count_operand(&view, i, false, true))) {
             csane_rule_issue(file, token->offset,
-                             STRLIT("STYLE-COUNT-NONZERO"),
+                             SL("STYLE-COUNT-NONZERO"),
                              "use > 0 instead of != 0 for counts, lengths, "
                              "or capacities");
         }
@@ -1845,7 +1845,7 @@ csane_expression_style_check(CsaneFile *file) {
             || (csane_style_count_operand(&view, i, true, false)
                 && csane_style_bitwise_operand(&view, i, false))) {
             csane_rule_issue(file, token->offset,
-                             STRLIT("STYLE-BITWISE-NONZERO"),
+                             SL("STYLE-BITWISE-NONZERO"),
                              "omit != 0 after a parenthesized bitwise AND");
         }
     }

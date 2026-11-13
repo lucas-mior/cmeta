@@ -264,7 +264,7 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
         free2(path, (int64)path_len + 1);
     }
     /* Ryu's vendored sources are checked at all nesting depths. */
-    ryu = csane_join(root, root_len, STRLIT("cbase/ryu"), &ryu_len);
+    ryu = csane_join(root, root_len, SL("cbase/ryu"), &ryu_len);
     if (csane_discovered_directory(ryu, ryu_len)) {
         if (!csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;
@@ -274,10 +274,10 @@ csane_collect_root(CsanePaths *paths, char *root, int32 root_len,
     /* The cbase repository can also be checked directly (with the policy
      * lists in its root rather than under a cbase subdirectory).
      */
-    standalone = csane_join(root, root_len, STRLIT("functions_never_use.txt"),
+    standalone = csane_join(root, root_len, SL("functions_never_use.txt"),
                             &standalone_len);
     if (stat(standalone, &st) == 0 && S_ISREG(st.st_mode)) {
-        ryu = csane_join(root, root_len, STRLIT("ryu"), &ryu_len);
+        ryu = csane_join(root, root_len, SL("ryu"), &ryu_len);
         if (csane_discovered_directory(ryu, ryu_len)
             && !csane_walk(paths, ryu, ryu_len, 0, -1, skip_dirs)) {
             ok = false;

@@ -217,7 +217,7 @@ csane_policy_columns(CsanePolicy *policy, char *path, int32 path_len) {
      */
     if (realpath(path, resolved) != NULL
         && memmem64(resolved, strnlen32(resolved, PATH_MAX),
-                    STRLIT("/cecup/src/")) != NULL) {
+                    SL("/cecup/src/")) != NULL) {
         columns = 100;
     }
     for (int32 i = 0; i < ARRAY_LEN(policy->column_overrides.items); i += 1) {
@@ -255,7 +255,7 @@ csane_policy_add_root(CsanePolicy *policy, char *path, int32 path_len) {
  */
 static bool
 csane_cbase_segment(char *path, int32 path_len) {
-    return memmem64(path, path_len, STRLIT("/cbase/")) != NULL;
+    return memmem64(path, path_len, SL("/cbase/")) != NULL;
 }
 
 bool
@@ -407,17 +407,17 @@ csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
                project_len, project);
         return false;
     }
-    cbase = csane_join_path(project, project_len, STRLIT("cbase"), &cbase_len);
+    cbase = csane_join_path(project, project_len, SL("cbase"), &cbase_len);
     root = cbase;
     root_len = cbase_len;
-    names = csane_join_path(root, root_len, STRLIT("functions_never_use.txt"),
+    names = csane_join_path(root, root_len, SL("functions_never_use.txt"),
                             &names_len);
     if (!csane_exists(names, names_len)) {
         free2(names, names_len + 1);
         root = project;
         root_len = project_len;
         names = csane_join_path(root, root_len,
-                                STRLIT("functions_never_use.txt"), &names_len);
+                                SL("functions_never_use.txt"), &names_len);
     }
     if (csane_exists(names, names_len)) {
         ok = csane_load_names(&policy->never_names, names, names_len) && ok;
@@ -431,28 +431,28 @@ csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
     }
     free2(names, names_len + 1);
     names = csane_join_path(root, root_len,
-                            STRLIT("functions_allowed_cbase_only.txt"),
+                            SL("functions_allowed_cbase_only.txt"),
                             &names_len);
     if (csane_exists(names, names_len)) {
         ok = csane_load_names(&policy->cbase_names, names, names_len) && ok;
     }
     free2(names, names_len + 1);
-    names = csane_join_path(project, project_len, STRLIT("piscou.1"),
+    names = csane_join_path(project, project_len, SL("piscou.1"),
                             &names_len);
     if (csane_exists(names, names_len)) {
         int32 config_len;
-        char *config = csane_join_path(project, project_len, STRLIT("config.h"),
+        char *config = csane_join_path(project, project_len, SL("config.h"),
                                        &config_len);
         if (csane_exists(config, config_len)) {
             ok = csane_policy_add_regex(&policy->no_columns,
-                                        STRLIT("(^|/)config\\.h$"),
+                                        SL("(^|/)config\\.h$"),
                                         NULL, 0, NULL, 0, 0)
                  && ok;
         }
         free2(config, config_len + 1);
     }
     free2(names, names_len + 1);
-    names = csane_join_path(root, root_len, STRLIT("csanecheck.conf"),
+    names = csane_join_path(root, root_len, SL("csanecheck.conf"),
                             &names_len);
     if (!policy->skip_project_config && csane_exists(names, names_len)) {
         char resolved_config[PATH_MAX];
@@ -556,9 +556,9 @@ csane_policy_source(CsanePolicy *policy, char *source, int32 source_len) {
             }
         }
         names = csane_join_path(resolved, resolved_len,
-                                STRLIT("functions_never_use.txt"), &names_len);
+                                SL("functions_never_use.txt"), &names_len);
         cbase = csane_join_path(resolved, resolved_len,
-                                STRLIT("cbase/functions_never_use.txt"),
+                                SL("cbase/functions_never_use.txt"),
                                 &cbase_len);
         found = csane_exists(names, names_len)
                 || csane_exists(cbase, cbase_len);
@@ -692,7 +692,7 @@ static StrFlex *csane_known_rules[] = {
     SFLIT("STYLE-ASSERT-BOUNDS"),
     SFLIT("STYLE-ASSERT-CLOSE-ZERO"),
     SFLIT("STYLE-ASSERT-CLOSE"),
-    SFLIT("STYLE-STRLIT-LEN"),
+    SFLIT("STYLE-SL-LEN"),
     SFLIT("STYLE-LITERAL-LENGTH"),
     SFLIT("STYLE-LENGTH-LITERAL"),
     SFLIT("STYLE-STRLEN32-LITERAL"),

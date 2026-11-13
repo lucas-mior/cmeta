@@ -128,11 +128,11 @@ test_conditional_call_argument_gap(void) {
     TestStructure test;
     int32 function;
     test_init(&test, text, strlen32(text));
-    function = test_function(&test, STRLIT("example"));
+    function = test_function(&test, SL("example"));
     CHECK(function >= 0);
     CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_statement(&test, function, STRLIT("return call(key"),
+    CHECK(test_statement(&test, function, SL("return call(key"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -158,17 +158,17 @@ test_conditional_if_header_gap(void) {
     TestStructure test;
     int32 function;
     test_init(&test, text, strlen32(text));
-    function = test_function(&test, STRLIT("example"));
+    function = test_function(&test, SL("example"));
     CHECK(function >= 0);
     CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_statement(&test, function, STRLIT("if (stat(path"),
+    CHECK(test_statement(&test, function, SL("if (stat(path"),
                          CSANE_STMT_IF) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("if (lstat(path"),
+    CHECK(test_statement(&test, function, SL("if (lstat(path"),
                          CSANE_STMT_IF) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("return false;"),
+    CHECK(test_statement(&test, function, SL("return false;"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_top_item(&test, STRLIT("}"), CSANE_TOP_OPAQUE) < 0);
+    CHECK(test_top_item(&test, SL("}"), CSANE_TOP_OPAQUE) < 0);
     test_free(&test);
     return;
 }
@@ -191,9 +191,9 @@ test_initializer_macro_gap(void) {
     test_init(&test, text, strlen32(text));
     CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_top_item(&test, STRLIT("static int32 values[]"),
+    CHECK(test_top_item(&test, SL("static int32 values[]"),
                         CSANE_TOP_DECLARATION) >= 0);
-    CHECK(test_top_item(&test, STRLIT("ITEM(B),"),
+    CHECK(test_top_item(&test, SL("ITEM(B),"),
                         CSANE_TOP_MACRO_INITIALIZER_FRAGMENT) >= 0);
     test_free(&test);
     return;
@@ -220,12 +220,12 @@ test_enum_macro_gap(void) {
         "#endif\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    CHECK(test_function(&test, STRLIT("CAT")) < 0);
+    CHECK(test_function(&test, SL("CAT")) < 0);
     CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_top_item(&test, STRLIT("enum CAT(ENUM_NAME, _Indices)"),
+    CHECK(test_top_item(&test, SL("enum CAT(ENUM_NAME, _Indices)"),
                         CSANE_TOP_TYPE_DECLARATION) >= 0);
-    CHECK(test_top_item(&test, STRLIT("ENUM_FIELDS"),
+    CHECK(test_top_item(&test, SL("ENUM_FIELDS"),
                         CSANE_TOP_MACRO_ENUMERATOR_FRAGMENT) >= 0);
     test_free(&test);
     return;
@@ -260,15 +260,15 @@ test_generated_statement_macro_gap(void) {
     TestStructure test;
     int32 function;
     test_init(&test, text, strlen32(text));
-    function = test_function(&test, STRLIT("example"));
+    function = test_function(&test, SL("example"));
     CHECK(function >= 0);
     CHECK(test.top.opaque_count == 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_statement(&test, function, STRLIT("ENUM_FIELDS"),
+    CHECK(test_statement(&test, function, SL("ENUM_FIELDS"),
                          CSANE_STMT_MACRO_FRAGMENT) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("switch (value)"),
+    CHECK(test_statement(&test, function, SL("switch (value)"),
                          CSANE_STMT_SWITCH) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("return value;"),
+    CHECK(test_statement(&test, function, SL("return value;"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -283,8 +283,8 @@ test_bad_top_level_expression(void) {
     TestStructure test;
     test_init(&test, text, strlen32(text));
     CHECK(test.top.opaque_count == 1);
-    CHECK(test_function(&test, STRLIT("first")) >= 0);
-    CHECK(test_function(&test, STRLIT("second")) >= 0);
+    CHECK(test_function(&test, SL("first")) >= 0);
+    CHECK(test_function(&test, SL("second")) >= 0);
     test_free(&test);
     return;
 }
@@ -299,10 +299,10 @@ test_unclosed_function(void) {
         "}\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 recovered = test_function(&test, STRLIT("recovered"));
+    int32 recovered = test_function(&test, SL("recovered"));
     CHECK(recovered >= 0);
     CHECK(test.top.opaque_count >= 1);
-    CHECK(test_statement(&test, recovered, STRLIT("recovered_call()"),
+    CHECK(test_statement(&test, recovered, SL("recovered_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -322,14 +322,14 @@ test_bad_inner_expression(void) {
         "}\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 damaged = test_function(&test, STRLIT("damaged"));
-    int32 unaffected = test_function(&test, STRLIT("unaffected"));
+    int32 damaged = test_function(&test, SL("damaged"));
+    int32 unaffected = test_function(&test, SL("unaffected"));
     CHECK(damaged >= 0 && unaffected >= 0);
-    CHECK(test_statement(&test, damaged, STRLIT("if (bad"),
+    CHECK(test_statement(&test, damaged, SL("if (bad"),
                          CSANE_STMT_OPAQUE) >= 0);
-    CHECK(test_statement(&test, damaged, STRLIT("following_call()"),
+    CHECK(test_statement(&test, damaged, SL("following_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, unaffected, STRLIT("good_call()"),
+    CHECK(test_statement(&test, unaffected, SL("good_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -351,13 +351,13 @@ test_aggregates_and_labels(void) {
         "}\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 function = test_function(&test, STRLIT("example"));
+    int32 function = test_function(&test, SL("example"));
     CHECK(function >= 0);
-    CHECK(test_statement(&test, function, STRLIT("Thing x ="),
+    CHECK(test_statement(&test, function, SL("Thing x ="),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("switch (x.value)"),
+    CHECK(test_statement(&test, function, SL("switch (x.value)"),
                          CSANE_STMT_SWITCH) >= 0);
-    int32 label = test_statement(&test, function, STRLIT("case 1 ? 2 : 3:"),
+    int32 label = test_statement(&test, function, SL("case 1 ? 2 : 3:"),
                                  CSANE_STMT_CASE);
     CHECK(label >= 0);
     if (label >= 0) {
@@ -365,7 +365,7 @@ test_aggregates_and_labels(void) {
         CHECK(STREQUAL(test.tokens.text + span.start,
                        span.end - span.start, "case 1 ? 2 : 3:"));
     }
-    CHECK(test_statement(&test, function, STRLIT("tail()"),
+    CHECK(test_statement(&test, function, SL("tail()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -380,10 +380,10 @@ test_trailing_function_attribute(void) {
         "static void ordinary(void) { ordinary_call(); }\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 annotated = test_function(&test, STRLIT("annotated"));
+    int32 annotated = test_function(&test, SL("annotated"));
     CHECK(annotated >= 0);
-    CHECK(test_function(&test, STRLIT("ordinary")) >= 0);
-    CHECK(test_statement(&test, annotated, STRLIT("annotated_call()"),
+    CHECK(test_function(&test, SL("ordinary")) >= 0);
+    CHECK(test_statement(&test, annotated, SL("annotated_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -403,16 +403,16 @@ test_conditionals(void) {
         "void another(void) { call_other(); }\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 function = test_function(&test, STRLIT("example"));
-    int32 another = test_function(&test, STRLIT("another"));
+    int32 function = test_function(&test, SL("example"));
+    int32 another = test_function(&test, SL("another"));
     CHECK(function >= 0 && another >= 0);
-    CHECK(test_statement(&test, function, STRLIT("first_branch()"),
+    CHECK(test_statement(&test, function, SL("first_branch()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("second_branch()"),
+    CHECK(test_statement(&test, function, SL("second_branch()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("afterwards()"),
+    CHECK(test_statement(&test, function, SL("afterwards()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, another, STRLIT("call_other()"),
+    CHECK(test_statement(&test, another, SL("call_other()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -427,11 +427,11 @@ test_local_bad_statement(void) {
         "}\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 function = test_function(&test, STRLIT("example"));
+    int32 function = test_function(&test, SL("example"));
     CHECK(function >= 0);
-    CHECK(test_statement(&test, function, STRLIT("broken = (1;"),
+    CHECK(test_statement(&test, function, SL("broken = (1;"),
                          CSANE_STMT_OPAQUE) >= 0);
-    CHECK(test_statement(&test, function, STRLIT("good()"),
+    CHECK(test_statement(&test, function, SL("good()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -469,31 +469,31 @@ test_nested_function_guards(void) {
         "#endif\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    int32 guarded = test_function(&test, STRLIT("guarded"));
-    int32 platform = test_function(&test, STRLIT("platform"));
-    int32 alternative = test_function(&test, STRLIT("alternative"));
+    int32 guarded = test_function(&test, SL("guarded"));
+    int32 platform = test_function(&test, SL("platform"));
+    int32 alternative = test_function(&test, SL("alternative"));
     CHECK(test.top.opaque_count == 0);
     CHECK(guarded >= 0 && platform >= 0 && alternative >= 0);
     CHECK(test.statements.opaque_count == 0);
-    CHECK(test_statement(&test, guarded, STRLIT("before()"),
+    CHECK(test_statement(&test, guarded, SL("before()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("while (ready())"),
+    CHECK(test_statement(&test, guarded, SL("while (ready())"),
                          CSANE_STMT_WHILE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("first()"),
+    CHECK(test_statement(&test, guarded, SL("first()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("second()"),
+    CHECK(test_statement(&test, guarded, SL("second()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("third()"),
+    CHECK(test_statement(&test, guarded, SL("third()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("fourth()"),
+    CHECK(test_statement(&test, guarded, SL("fourth()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("fifth()"),
+    CHECK(test_statement(&test, guarded, SL("fifth()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, guarded, STRLIT("after()"),
+    CHECK(test_statement(&test, guarded, SL("after()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, platform, STRLIT("platform_call()"),
+    CHECK(test_statement(&test, platform, SL("platform_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, alternative, STRLIT("alternative_call()"),
+    CHECK(test_statement(&test, alternative, SL("alternative_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -555,8 +555,8 @@ test_guarded_function_parameters(void) {
         "int32 ordinary(void) { return 0; }\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
-    CHECK(test_function(&test, STRLIT("run")) >= 0);
-    CHECK(test_function(&test, STRLIT("ordinary")) >= 0);
+    CHECK(test_function(&test, SL("run")) >= 0);
+    CHECK(test_function(&test, SL("ordinary")) >= 0);
     CHECK(test.top.opaque_count == 0);
     int32 parameters = 0;
     for (int32 i = 0; i < ARRAY_LEN(test.top.items); i += 1) {
@@ -628,15 +628,15 @@ test_macro_generated_headers(void) {
     CHECK(test.top.opaque_count == 0);
     CHECK(functions == 8);
     CHECK(macro_names == 2);
-    CHECK(test_function(&test, STRLIT("ordinary_pointer")) >= 0);
-    CHECK(test_function(&test, STRLIT("GENERATED_NAME")) >= 0);
-    CHECK(test_function(&test, STRLIT("ATTR_GENERATED_NAME")) >= 0);
-    int32 annotated = test_function(&test, STRLIT("annotated"));
-    int32 reverse = test_function(&test, STRLIT("reverse"));
+    CHECK(test_function(&test, SL("ordinary_pointer")) >= 0);
+    CHECK(test_function(&test, SL("GENERATED_NAME")) >= 0);
+    CHECK(test_function(&test, SL("ATTR_GENERATED_NAME")) >= 0);
+    int32 annotated = test_function(&test, SL("annotated"));
+    int32 reverse = test_function(&test, SL("reverse"));
     CHECK(annotated >= 0 && reverse >= 0);
-    CHECK(test_statement(&test, annotated, STRLIT("body_call()"),
+    CHECK(test_statement(&test, annotated, SL("body_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
-    CHECK(test_statement(&test, reverse, STRLIT("reverse_call()"),
+    CHECK(test_statement(&test, reverse, SL("reverse_call()"),
                          CSANE_STMT_SIMPLE) >= 0);
     test_free(&test);
     return;
@@ -703,7 +703,7 @@ test_bounded_names_and_fragments(void) {
     TestStructure test;
     char name[] = {'a', 'l', 'p', 'h', 'a', 'X',};
     char fragment[] = {'a', 'c', 't', 'i', 'o', 'n', '(', ')', 'X',};
-    test_init(&test, STRLIT("void alpha(void) { action(); }"));
+    test_init(&test, SL("void alpha(void) { action(); }"));
     int32 function = test_function(&test, name, 5);
     CHECK(function >= 0);
     CHECK(test_function(&test, name, 6) == -1);

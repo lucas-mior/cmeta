@@ -36,7 +36,7 @@ csane_bounds_call(CsaneFile *file, TokenRange range,
     }
     open = tokenization_next_significant(file->tokens, first);
     view = csane_tokens_full(file->tokens);
-    if (open >= range.end || !csane_bounds_token(file, open, STRLIT("("))) {
+    if (open >= range.end || !csane_bounds_token(file, open, SL("("))) {
         return false;
     }
     close = csane_tokens_match(&view, open);
@@ -78,12 +78,12 @@ csane_bounds_check(CsaneFile *file) {
             int32 upper;
             TokenRange upper_args[2];
 
-            if (!csane_bounds_token(file, _i5_first, STRLIT("ASSERT_GE"))) {
+            if (!csane_bounds_token(file, _i5_first, SL("ASSERT_GE"))) {
                 goto _i5_done;
             }
             view = csane_tokens_full(tokens);
             open = csane_tokens_next(&view, _i5_first);
-            if (!csane_bounds_token(file, open, STRLIT("("))) {
+            if (!csane_bounds_token(file, open, SL("("))) {
                 goto _i5_done;
             }
             close = csane_tokens_match(&view, open);
@@ -92,7 +92,7 @@ csane_bounds_check(CsaneFile *file) {
             }
             _i2_predicate =
                 !csane_bounds_call(file, (TokenRange){_i5_first, close + 1},
-                                   STRLIT("ASSERT_GE"), lower);
+                                   SL("ASSERT_GE"), lower);
             if (!_i2_predicate) {
                 bool _i3_result;
                 do {
@@ -105,7 +105,7 @@ csane_bounds_check(CsaneFile *file) {
                                                           _i3_range);
                     _i3_result = false;
                     if (first < _i3_range.end
-                        && csane_bounds_token(file, first, STRLIT("0"))) {
+                        && csane_bounds_token(file, first, SL("0"))) {
                         int32 next = tokenization_next_significant(file->tokens,
                                                                    first);
                         _i3_result = next >= _i3_range.end;
@@ -137,8 +137,8 @@ csane_bounds_check(CsaneFile *file) {
                         int32 first;
                         Token *index;
 
-                        if (csane_bounds_token(file, i, STRLIT("."))
-                            || csane_bounds_token(file, i, STRLIT("->"))) {
+                        if (csane_bounds_token(file, i, SL("."))
+                            || csane_bounds_token(file, i, SL("->"))) {
                             i = tokenization_next_significant(file->tokens, i);
                             if (i >= _i2_range.end
                                 || file->tokens->tokens[i].kind
@@ -149,7 +149,7 @@ csane_bounds_check(CsaneFile *file) {
                             i = tokenization_next_significant(file->tokens, i);
                             continue;
                         }
-                        if (!csane_bounds_token(file, i, STRLIT("["))) {
+                        if (!csane_bounds_token(file, i, SL("["))) {
                             _i2_result = false;
                             goto _i2_done;
                         }
@@ -191,7 +191,7 @@ csane_bounds_check(CsaneFile *file) {
                 goto _i5_done;
             }
             semicolon = csane_tokens_next(&view, close);
-            if (!csane_bounds_token(file, semicolon, STRLIT(";"))) {
+            if (!csane_bounds_token(file, semicolon, SL(";"))) {
                 goto _i5_done;
             }
             /* The Perl rule requires the semicolon on the closing-call line. */
@@ -208,10 +208,10 @@ csane_bounds_check(CsaneFile *file) {
                                             CSANE_REGION_MACRO_REPLACEMENT)
                                                 >= 0;
             upper = csane_tokens_next(&view, semicolon);
-            if (macro && csane_bounds_token(file, upper, STRLIT("\\"))) {
+            if (macro && csane_bounds_token(file, upper, SL("\\"))) {
                 upper = csane_tokens_next(&view, upper);
             }
-            if (!csane_bounds_token(file, upper, STRLIT("ASSERT_LT"))
+            if (!csane_bounds_token(file, upper, SL("ASSERT_LT"))
                 || region != csane_regions_at_token(file->regions, upper)) {
                 goto _i5_done;
             }
@@ -264,7 +264,7 @@ csane_bounds_check(CsaneFile *file) {
                 goto _i5_done;
             }
             open = csane_tokens_next(&view, upper);
-            if (!csane_bounds_token(file, open, STRLIT("("))) {
+            if (!csane_bounds_token(file, open, SL("("))) {
                 goto _i5_done;
             }
             close = csane_tokens_match(&view, open);
@@ -273,7 +273,7 @@ csane_bounds_check(CsaneFile *file) {
             }
             _i1_predicate = !csane_bounds_call(file,
                                                (TokenRange){upper, close + 1},
-                                               STRLIT("ASSERT_LT"),
+                                               SL("ASSERT_LT"),
                                                upper_args);
             if (!_i1_predicate) {
                 bool _i1_result;
@@ -314,7 +314,7 @@ csane_bounds_check(CsaneFile *file) {
                 _i1_predicate = !csane_bounds_token(file,
                                                     csane_tokens_next(&view,
                                                                       close),
-                                                    STRLIT(";"));
+                                                    SL(";"));
             }
             if (_i1_predicate) {
                 goto _i5_done;
@@ -326,7 +326,7 @@ csane_bounds_check(CsaneFile *file) {
                 goto _i5_done;
             }
             csane_rule_issue(file, tokens->tokens[_i5_first].offset,
-                             STRLIT("STYLE-ASSERT-BOUNDS"),
+                             SL("STYLE-ASSERT-BOUNDS"),
                              "use ASSERT_BETWEEN for adjacent bounds");
             _i5_done: ;
         } while (false);

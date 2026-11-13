@@ -317,7 +317,7 @@ csane_static_null_check(CsaneFile *file) {
                              tokens->tokens[parameter_name].len,
                              tokens->tokens[parameter_name].text);
                 csane_rule_issue(file, tokens->tokens[cursor].offset,
-                                 STRLIT("STYLE-STATIC-NULL-GUARD"), message);
+                                 SL("STYLE-STATIC-NULL-GUARD"), message);
             }
             cursor = csane_tokens_next(&body, guard_end);
         }

@@ -106,7 +106,7 @@ csane_matrix_index_check(CsaneFile *file) {
         if (!csane_tokens_subview(&expression, &local, content)) {
             continue;
         }
-        count = csane_tokens_split(&expression, STRLIT("+"), terms, 32);
+        count = csane_tokens_split(&expression, SL("+"), terms, 32);
         if (count < 2 || count > LENGTH(terms)) {
             continue;
         }
@@ -130,7 +130,7 @@ csane_matrix_index_check(CsaneFile *file) {
                 valid = false;
                 break;
             }
-            product_count = csane_tokens_split(&part, STRLIT("*"), factors, 3);
+            product_count = csane_tokens_split(&part, SL("*"), factors, 3);
             if (product_count == 2) {
                 for (int32 f = 0; f < product_count; f += 1) {
                     CsaneTokenView factor_view;
@@ -194,7 +194,7 @@ csane_matrix_index_check(CsaneFile *file) {
                 Token *macro = &tokens->tokens[define.name_token];
                 if (csane_policy_macro_allowed(file->policy, file->path,
                                                file->path_len,
-                                               STRLIT("STYLE-MANUAL-2D-INDEX"),
+                                               SL("STYLE-MANUAL-2D-INDEX"),
                                                macro)) {
                     continue;
                 }
@@ -206,13 +206,13 @@ csane_matrix_index_check(CsaneFile *file) {
         }
         if (!multiple_matches) {
             csane_rule_issue(file, tokens->tokens[first_match].offset,
-                             STRLIT("STYLE-MANUAL-2D-INDEX"),
+                             SL("STYLE-MANUAL-2D-INDEX"),
                              "use a 2D indexing accessor instead of "
                              "array[row*stride + column]");
             multiple_matches = true;
         }
         csane_rule_issue(file, tokens->tokens[i].offset,
-                         STRLIT("STYLE-MANUAL-2D-INDEX"),
+                         SL("STYLE-MANUAL-2D-INDEX"),
                          "use a 2D indexing accessor instead of "
                          "array[row*stride + column]");
     }

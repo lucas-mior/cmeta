@@ -307,12 +307,12 @@ test_conditional_path(void) {
     TokenRange split[3];
     CsaneTokenView inner;
     CsaneTokenView segment;
-    int32 first_hash = test_find_token(&tokens, STRLIT("#"), 0);
-    int32 endif_hash = test_find_token(&tokens, STRLIT("#"), 2);
-    int32 second = test_find_token(&tokens, STRLIT("second"), 0);
-    int32 suffix = test_find_token(&tokens, STRLIT("suffix"), 0);
-    int32 open = test_find_token(&tokens, STRLIT("("), 0);
-    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
+    int32 first_hash = test_find_token(&tokens, SL("#"), 0);
+    int32 endif_hash = test_find_token(&tokens, SL("#"), 2);
+    int32 second = test_find_token(&tokens, SL("second"), 0);
+    int32 suffix = test_find_token(&tokens, SL("suffix"), 0);
+    int32 open = test_find_token(&tokens, SL("("), 0);
+    int32 close = test_find_token(&tokens, SL(")"), 0);
 
     CHECK(first_hash >= 0 && endif_hash >= 0 && second >= 0 && suffix >= 0);
     CHECK(csane_token_path_init(&path, &tokens,
@@ -328,20 +328,20 @@ test_conditional_path(void) {
     CHECK(csane_tokens_match(&view, open) == close);
     CHECK(csane_tokens_arguments(&view, open, args, 3) == 3);
     CHECK(csane_tokens_subview(&inner, &view, (TokenRange){open + 1, close}));
-    CHECK(csane_tokens_top_level(&inner, open, STRLIT(","))
-          == test_find_token(&tokens, STRLIT(","), 0));
-    CHECK(csane_tokens_split(&inner, STRLIT(","), split, 3) == 3);
+    CHECK(csane_tokens_top_level(&inner, open, SL(","))
+          == test_find_token(&tokens, SL(","), 0));
+    CHECK(csane_tokens_split(&inner, SL(","), split, 3) == 3);
     CHECK(csane_tokens_subview(&segment, &inner, split[1]));
-    CHECK(test_view_first_is(&segment, STRLIT("second")));
+    CHECK(test_view_first_is(&segment, SL("second")));
 
     CHECK(csane_tokens_subview(&argument, &view, args[0]));
-    CHECK(test_view_first_is(&argument, STRLIT("prefix")));
+    CHECK(test_view_first_is(&argument, SL("prefix")));
     CHECK(csane_tokens_subview(&argument, &view, args[1]));
-    CHECK(test_view_first_is(&argument, STRLIT("second")));
+    CHECK(test_view_first_is(&argument, SL("second")));
     CHECK(csane_tokens_subview(&argument, &view, args[2]));
-    CHECK(test_view_first_is(&argument, STRLIT("suffix")));
-    CHECK(test_find_token(&tokens, STRLIT("first"), 0) < second);
-    int32 comma = test_find_token(&tokens, STRLIT(","), 0);
+    CHECK(test_view_first_is(&argument, SL("suffix")));
+    CHECK(test_find_token(&tokens, SL("first"), 0) < second);
+    int32 comma = test_find_token(&tokens, SL(","), 0);
     CHECK(csane_tokens_next(&view, comma) == second);
 
     csane_token_path_free(&path);
@@ -369,14 +369,14 @@ test_nested_conditional_path(void) {
     CsaneTokenView view;
     CsaneTokenView argument;
     TokenRange args[4];
-    int32 outer_hash = test_find_token(&tokens, STRLIT("#"), 0);
-    int32 inner_hash = test_find_token(&tokens, STRLIT("#"), 1);
-    int32 inner_endif_hash = test_find_token(&tokens, STRLIT("#"), 3);
-    int32 outer = test_find_token(&tokens, STRLIT("outer"), 0);
-    int32 inner_b = test_find_token(&tokens, STRLIT("inner_b"), 0);
-    int32 suffix = test_find_token(&tokens, STRLIT("suffix"), 0);
-    int32 open = test_find_token(&tokens, STRLIT("("), 0);
-    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
+    int32 outer_hash = test_find_token(&tokens, SL("#"), 0);
+    int32 inner_hash = test_find_token(&tokens, SL("#"), 1);
+    int32 inner_endif_hash = test_find_token(&tokens, SL("#"), 3);
+    int32 outer = test_find_token(&tokens, SL("outer"), 0);
+    int32 inner_b = test_find_token(&tokens, SL("inner_b"), 0);
+    int32 suffix = test_find_token(&tokens, SL("suffix"), 0);
+    int32 open = test_find_token(&tokens, SL("("), 0);
+    int32 close = test_find_token(&tokens, SL(")"), 0);
 
     CHECK(outer_hash >= 0 && inner_hash >= 0 && inner_endif_hash >= 0);
     CHECK(csane_token_path_init(&path, &tokens,
@@ -394,13 +394,13 @@ test_nested_conditional_path(void) {
     CHECK(csane_tokens_arguments(&view, open, args, 4) == 4);
 
     CHECK(csane_tokens_subview(&argument, &view, args[0]));
-    CHECK(test_view_first_is(&argument, STRLIT("prefix")));
+    CHECK(test_view_first_is(&argument, SL("prefix")));
     CHECK(csane_tokens_subview(&argument, &view, args[1]));
-    CHECK(test_view_first_is(&argument, STRLIT("outer")));
+    CHECK(test_view_first_is(&argument, SL("outer")));
     CHECK(csane_tokens_subview(&argument, &view, args[2]));
-    CHECK(test_view_first_is(&argument, STRLIT("inner_b")));
+    CHECK(test_view_first_is(&argument, SL("inner_b")));
     CHECK(csane_tokens_subview(&argument, &view, args[3]));
-    CHECK(test_view_first_is(&argument, STRLIT("suffix")));
+    CHECK(test_view_first_is(&argument, SL("suffix")));
 
     csane_token_path_free(&path);
     free_tokenization(&tokens);
@@ -410,7 +410,7 @@ test_nested_conditional_path(void) {
 static void
 test_nested_arguments(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("call(a, nested(x, y), (Type){1, 2}, arr[i, j]);"),
+        tokenize_copy(SL("call(a, nested(x, y), (Type){1, 2}, arr[i, j]);"),
                       TOKENIZE_DEFAULT);
     CsaneTokenView view = csane_tokens_full(&tokens);
     TokenRange ranges[4];
@@ -421,10 +421,10 @@ test_nested_arguments(void) {
     CHECK(csane_tokens_group(&view, open, &content, &close));
     CHECK(close > open);
     CHECK(csane_tokens_arguments(&view, open, ranges, 4) == 4);
-    CHECK(test_range_text(&tokens, ranges[0], STRLIT("a")));
-    CHECK(test_range_text(&tokens, ranges[1], STRLIT("nested(x, y)")));
-    CHECK(test_range_text(&tokens, ranges[2], STRLIT("(Type){1, 2}")));
-    CHECK(test_range_text(&tokens, ranges[3], STRLIT("arr[i, j]")));
+    CHECK(test_range_text(&tokens, ranges[0], SL("a")));
+    CHECK(test_range_text(&tokens, ranges[1], SL("nested(x, y)")));
+    CHECK(test_range_text(&tokens, ranges[2], SL("(Type){1, 2}")));
+    CHECK(test_range_text(&tokens, ranges[3], SL("arr[i, j]")));
     CHECK(csane_tokens_arguments(&view, open, ranges, 3) == -1);
     CHECK(csane_tokens_arguments(&view, open, NULL, 0) == -1);
     CHECK(csane_tokens_previous(&view, open) == 0);
@@ -432,9 +432,9 @@ test_nested_arguments(void) {
     CsaneTokenView inner;
     CHECK(csane_tokens_subview(&inner, &view, content));
     CHECK(csane_tokens_balanced(&inner));
-    CHECK(csane_tokens_split(&inner, STRLIT(","), ranges, 4) == 4);
+    CHECK(csane_tokens_split(&inner, SL(","), ranges, 4) == 4);
     CHECK(csane_tokens_top_level(&inner, inner.range.first - 1,
-                                 STRLIT(","))
+                                 SL(","))
           < inner.range.end);
     CHECK(csane_tokens_source(&inner).start
           == tokens.tokens[open].offset + tokens.tokens[open].len);
@@ -480,10 +480,10 @@ test_empty_malformed_arguments(void) {
 static void
 test_unwrap(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("  ((( value )))  "), TOKENIZE_DEFAULT);
+        tokenize_copy(SL("  ((( value )))  "), TOKENIZE_DEFAULT);
     CsaneTokenView view = csane_tokens_full(&tokens);
     TokenRange range = csane_tokens_unwrap(&view, view.range);
-    CHECK(test_range_text(&tokens, range, STRLIT("value")));
+    CHECK(test_range_text(&tokens, range, SL("value")));
     CHECK(csane_tokens_unwrap(&view, range).first == range.first);
     CHECK(csane_tokens_unwrap(&view, range).end == range.end);
     free_tokenization(&tokens);
@@ -531,28 +531,28 @@ test_assignments(void) {
 static void
 test_single_pass_scans(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("first, nested(a, b), last = value"),
+        tokenize_copy(SL("first, nested(a, b), last = value"),
                       TOKENIZE_DEFAULT);
     CsaneTokenView view = csane_tokens_full(&tokens);
     TokenRange parts[3];
     TokenRange lhs;
     TokenRange rhs;
-    int32 comma = test_find_token(&tokens, STRLIT(","), 0);
-    int32 second = test_find_token(&tokens, STRLIT(","), 2);
-    int32 open = test_find_token(&tokens, STRLIT("("), 0);
+    int32 comma = test_find_token(&tokens, SL(","), 0);
+    int32 second = test_find_token(&tokens, SL(","), 2);
+    int32 open = test_find_token(&tokens, SL("("), 0);
     int32 op = -1;
 
-    CHECK(csane_tokens_top_level(&view, -1, STRLIT(",")) == comma);
-    CHECK(csane_tokens_top_level(&view, comma, STRLIT(",")) == second);
-    CHECK(csane_tokens_top_level(&view, -1, STRLIT("(")) == open);
-    CHECK(csane_tokens_top_level(&view, -1, STRLIT(";")) == view.range.end);
-    CHECK(csane_tokens_split(&view, STRLIT(","), parts, 3) == 3);
-    CHECK(test_range_text(&tokens, parts[0], STRLIT("first")));
-    CHECK(test_range_text(&tokens, parts[1], STRLIT("nested(a, b)")));
-    CHECK(test_range_text(&tokens, parts[2], STRLIT("last = value")));
+    CHECK(csane_tokens_top_level(&view, -1, SL(",")) == comma);
+    CHECK(csane_tokens_top_level(&view, comma, SL(",")) == second);
+    CHECK(csane_tokens_top_level(&view, -1, SL("(")) == open);
+    CHECK(csane_tokens_top_level(&view, -1, SL(";")) == view.range.end);
+    CHECK(csane_tokens_split(&view, SL(","), parts, 3) == 3);
+    CHECK(test_range_text(&tokens, parts[0], SL("first")));
+    CHECK(test_range_text(&tokens, parts[1], SL("nested(a, b)")));
+    CHECK(test_range_text(&tokens, parts[2], SL("last = value")));
     CHECK(csane_tokens_assignment(&view, &lhs, &rhs, &op));
-    CHECK(op == test_find_token(&tokens, STRLIT("="), 0));
-    CHECK(test_range_text(&tokens, rhs, STRLIT("value")));
+    CHECK(op == test_find_token(&tokens, SL("="), 0));
+    CHECK(test_range_text(&tokens, rhs, SL("value")));
     free_tokenization(&tokens);
 
     StrFlex *malformed[] = {
@@ -570,17 +570,17 @@ test_single_pass_scans(void) {
         CsaneTokenView invalid = csane_tokens_full(&bad);
         TokenRange output[3];
         CHECK(!csane_tokens_balanced(&invalid));
-        CHECK(csane_tokens_top_level(&invalid, -1, STRLIT(",")) == -1);
-        CHECK(csane_tokens_split(&invalid, STRLIT(","), output, 3) == -1);
+        CHECK(csane_tokens_top_level(&invalid, -1, SL(",")) == -1);
+        CHECK(csane_tokens_split(&invalid, SL(","), output, 3) == -1);
         CHECK(!csane_tokens_assignment(&invalid, NULL, NULL, NULL));
         free_tokenization(&bad);
     }
 
     Tokenization empty =
-        tokenize_copy(STRLIT(" /* only trivia */ "), TOKENIZE_DEFAULT);
+        tokenize_copy(SL(" /* only trivia */ "), TOKENIZE_DEFAULT);
     CsaneTokenView blank = csane_tokens_full(&empty);
-    CHECK(csane_tokens_split(&blank, STRLIT(","), NULL, 0) == 0);
-    CHECK(csane_tokens_top_level(&blank, -1, STRLIT(",")) == blank.range.end);
+    CHECK(csane_tokens_split(&blank, SL(","), NULL, 0) == 0);
+    CHECK(csane_tokens_top_level(&blank, -1, SL(",")) == blank.range.end);
     free_tokenization(&empty);
     return;
 }
@@ -588,23 +588,23 @@ test_single_pass_scans(void) {
 static void
 test_single_pass_path(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("start = value, (broken], other = data, "
+        tokenize_copy(SL("start = value, (broken], other = data, "
                              "call(x, y)"), TOKENIZE_DEFAULT);
     CsaneTokenPath path;
     CsaneTokenView raw = csane_tokens_full(&tokens);
     CsaneTokenView view;
     CsaneTokenView segment;
     TokenRange parts[3];
-    int32 broken = test_find_token(&tokens, STRLIT("("), 0);
-    int32 other = test_find_token(&tokens, STRLIT("other"), 0);
-    int32 first_comma = test_find_token(&tokens, STRLIT(","), 0);
-    int32 first_assign = test_find_token(&tokens, STRLIT("="), 0);
+    int32 broken = test_find_token(&tokens, SL("("), 0);
+    int32 other = test_find_token(&tokens, SL("other"), 0);
+    int32 first_comma = test_find_token(&tokens, SL(","), 0);
+    int32 first_assign = test_find_token(&tokens, SL("="), 0);
     int32 op = -1;
     int32 end = ARRAY_LEN(tokens.tokens);
 
     CHECK(!csane_tokens_balanced(&raw));
-    CHECK(csane_tokens_top_level(&raw, -1, STRLIT(",")) == -1);
-    CHECK(csane_tokens_split(&raw, STRLIT(","), parts, 3) == -1);
+    CHECK(csane_tokens_top_level(&raw, -1, SL(",")) == -1);
+    CHECK(csane_tokens_split(&raw, SL(","), parts, 3) == -1);
     CHECK(!csane_tokens_assignment(&raw, NULL, NULL, NULL));
     CHECK(csane_token_path_init(&path, &tokens,
                                 (TokenRange){0, ARRAY_LEN(tokens.tokens)}));
@@ -612,10 +612,10 @@ test_single_pass_path(void) {
     CHECK(csane_token_path_append(&path, (TokenRange){other, end}));
     CHECK(csane_tokens_path_view(&view, &path));
     CHECK(csane_tokens_balanced(&view));
-    CHECK(csane_tokens_top_level(&view, -1, STRLIT(",")) == first_comma);
-    CHECK(csane_tokens_split(&view, STRLIT(","), parts, 3) == 3);
+    CHECK(csane_tokens_top_level(&view, -1, SL(",")) == first_comma);
+    CHECK(csane_tokens_split(&view, SL(","), parts, 3) == 3);
     CHECK(csane_tokens_subview(&segment, &view, parts[1]));
-    CHECK(test_view_first_is(&segment, STRLIT("other")));
+    CHECK(test_view_first_is(&segment, SL("other")));
     CHECK(csane_tokens_assignment(&view, NULL, NULL, &op));
     CHECK(op == first_assign);
     csane_token_path_free(&path);
@@ -626,7 +626,7 @@ test_single_pass_path(void) {
 static void
 test_bounded_expected_strings(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("alpha beta alpha"), TOKENIZE_DEFAULT);
+        tokenize_copy(SL("alpha beta alpha"), TOKENIZE_DEFAULT);
     CsaneTokenView view = csane_tokens_full(&tokens);
     char expected[] = {'a', 'l', 'p', 'h', 'a', 'X',};
     CHECK(test_find_token(&tokens, expected, 5, 0) == 0);
@@ -641,9 +641,9 @@ test_bounded_expected_strings(void) {
 
     char source[] = {'o', 'n', 'e', ' ', 't', 'w', 'o', 'X',};
     Tokenization bounded = tokenize_copy(source, 7, TOKENIZE_DEFAULT);
-    CHECK(test_find_token(&bounded, STRLIT("one"), 0) >= 0);
-    CHECK(test_find_token(&bounded, STRLIT("two"), 0) >= 0);
-    CHECK(test_find_token(&bounded, STRLIT("X"), 0) == -1);
+    CHECK(test_find_token(&bounded, SL("one"), 0) >= 0);
+    CHECK(test_find_token(&bounded, SL("two"), 0) >= 0);
+    CHECK(test_find_token(&bounded, SL("X"), 0) == -1);
     free_tokenization(&bounded);
     return;
 }
@@ -856,7 +856,7 @@ test_delimiter_index_modes(void) {
         }
     }
 
-    malformed = tokenize_copy(STRLIT("([)] {}"), TOKENIZE_DEFAULT);
+    malformed = tokenize_copy(SL("([)] {}"), TOKENIZE_DEFAULT);
     CHECK(malformed.matching_delimiter[0] == -1);
     CHECK(malformed.matching_delimiter[1] == -1);
     CHECK(malformed.matching_delimiter[2] == -1);
@@ -946,12 +946,12 @@ test_delimiter_match_ranges(void) {
 static void
 test_delimiter_match_index_fallback(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("before (a[b]{c}) after"), TOKENIZE_DEFAULT);
+        tokenize_copy(SL("before (a[b]{c}) after"), TOKENIZE_DEFAULT);
     TokenRange all = {0, ARRAY_LEN(tokens.tokens)};
-    int32 open = test_find_token(&tokens, STRLIT("("), 0);
-    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
-    int32 bracket = test_find_token(&tokens, STRLIT("["), 0);
-    int32 bracket_close = test_find_token(&tokens, STRLIT("]"), 0);
+    int32 open = test_find_token(&tokens, SL("("), 0);
+    int32 close = test_find_token(&tokens, SL(")"), 0);
+    int32 bracket = test_find_token(&tokens, SL("["), 0);
+    int32 bracket_close = test_find_token(&tokens, SL("]"), 0);
     TokenRange bracket_range = {bracket, bracket_close + 1};
     int32 saved_open = tokens.matching_delimiter[open];
     int32 saved_close = tokens.matching_delimiter[close];
@@ -989,7 +989,7 @@ test_delimiter_match_index_fallback(void) {
 
 static void
 test_delimiter_match_invalid_ranges(void) {
-    Tokenization tokens = tokenize_copy(STRLIT("(x)"), TOKENIZE_DEFAULT);
+    Tokenization tokens = tokenize_copy(SL("(x)"), TOKENIZE_DEFAULT);
     TokenRange invalid[] = {
         {-1, 1},
         {0, ARRAY_LEN(tokens.tokens) + 1},
@@ -1059,12 +1059,12 @@ test_delimiter_match_paths(void) {
     Tokenization tokens = tokenize_copy(source, strlen32(source),
                                         TOKENIZE_DEFAULT);
     int32 count = ARRAY_LEN(tokens.tokens);
-    int32 first_hash = test_find_token(&tokens, STRLIT("#"), 0);
-    int32 endif_hash = test_find_token(&tokens, STRLIT("#"), 2);
-    int32 kept = test_find_token(&tokens, STRLIT("nested"), 0);
-    int32 suffix = test_find_token(&tokens, STRLIT("suffix"), 0);
-    int32 outer_open = test_find_token(&tokens, STRLIT("("), 0);
-    int32 outer_close = test_find_token(&tokens, STRLIT(")"), 1);
+    int32 first_hash = test_find_token(&tokens, SL("#"), 0);
+    int32 endif_hash = test_find_token(&tokens, SL("#"), 2);
+    int32 kept = test_find_token(&tokens, SL("nested"), 0);
+    int32 suffix = test_find_token(&tokens, SL("suffix"), 0);
+    int32 outer_open = test_find_token(&tokens, SL("("), 0);
+    int32 outer_close = test_find_token(&tokens, SL(")"), 1);
     CsaneTokenPath path;
     CsaneTokenView view;
     CsaneTokenView full = csane_tokens_full(&tokens);
@@ -1098,13 +1098,13 @@ test_delimiter_match_paths(void) {
 static void
 test_delimiter_match_filtered_path(void) {
     Tokenization malformed =
-        tokenize_copy(STRLIT("([)]"), TOKENIZE_DEFAULT);
+        tokenize_copy(SL("([)]"), TOKENIZE_DEFAULT);
     CsaneTokenView raw = csane_tokens_full(&malformed);
     CsaneTokenPath filtered;
-    int32 paren_open = test_find_token(&malformed, STRLIT("("), 0);
-    int32 bracket_open = test_find_token(&malformed, STRLIT("["), 0);
-    int32 paren_close = test_find_token(&malformed, STRLIT(")"), 0);
-    int32 bracket_close = test_find_token(&malformed, STRLIT("]"), 0);
+    int32 paren_open = test_find_token(&malformed, SL("("), 0);
+    int32 bracket_open = test_find_token(&malformed, SL("["), 0);
+    int32 paren_close = test_find_token(&malformed, SL(")"), 0);
+    int32 bracket_close = test_find_token(&malformed, SL("]"), 0);
 
     CHECK(csane_tokens_match(&raw, paren_open) == -1);
     CHECK(csane_token_path_init(&filtered, &malformed,
@@ -1126,11 +1126,11 @@ test_delimiter_match_filtered_path(void) {
 static void
 test_delimiter_match_single_path_part(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("x(a[b]+{c})y(d)"), TOKENIZE_DEFAULT);
+        tokenize_copy(SL("x(a[b]+{c})y(d)"), TOKENIZE_DEFAULT);
     int32 count = ARRAY_LEN(tokens.tokens);
-    int32 open = test_find_token(&tokens, STRLIT("("), 0);
-    int32 close = test_find_token(&tokens, STRLIT(")"), 0);
-    int32 other_open = test_find_token(&tokens, STRLIT("("), 1);
+    int32 open = test_find_token(&tokens, SL("("), 0);
+    int32 close = test_find_token(&tokens, SL(")"), 0);
+    int32 other_open = test_find_token(&tokens, SL("("), 1);
     CsaneTokenPath path;
     CsaneTokenView view;
     CsaneTokenView clipped;
@@ -1224,7 +1224,7 @@ test_delimiter_match_path_masks(void) {
 static void
 test_path_navigation(void) {
     Tokenization tokens =
-        tokenize_copy(STRLIT("a /* comment */ b + c // ignore\n"
+        tokenize_copy(SL("a /* comment */ b + c // ignore\n"
                              "d (e, f) + g /* block */ h + i;"),
                       TOKENIZE_DEFAULT);
     for (int32 stride = 0; stride <= 8; stride += 1) {
@@ -1273,11 +1273,11 @@ test_preprocessor_path_navigation(void) {
     Tokenization tokens = tokenize_copy(source, strlen32(source),
                                         TOKENIZE_DEFAULT);
     int32 count = ARRAY_LEN(tokens.tokens);
-    int32 first_hash = test_find_token(&tokens, STRLIT("#"), 0);
-    int32 endif_hash = test_find_token(&tokens, STRLIT("#"), 2);
-    int32 discarded = test_find_token(&tokens, STRLIT("discarded_a"), 0);
-    int32 kept = test_find_token(&tokens, STRLIT("kept_a"), 0);
-    int32 finish = test_find_token(&tokens, STRLIT("finish"), 0);
+    int32 first_hash = test_find_token(&tokens, SL("#"), 0);
+    int32 endif_hash = test_find_token(&tokens, SL("#"), 2);
+    int32 discarded = test_find_token(&tokens, SL("discarded_a"), 0);
+    int32 kept = test_find_token(&tokens, SL("kept_a"), 0);
+    int32 finish = test_find_token(&tokens, SL("finish"), 0);
     CsaneTokenPath path;
     CsaneTokenView view;
 

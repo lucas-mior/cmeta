@@ -78,16 +78,16 @@ csane_rule_source(CsaneFile *file) {
                 }
             }
             if (columns > file->column_limit) {
-                csane_rule_issue(file, start, STRLIT("SRC-COLUMNS"),
+                csane_rule_issue(file, start, SL("SRC-COLUMNS"),
                                  "line exceeds allowed column limit");
             }
         }
         if (tab >= 0) {
-            csane_rule_issue(file, tab, STRLIT("SRC-TABS"),
+            csane_rule_issue(file, tab, SL("SRC-TABS"),
                              "tab character is forbidden");
         }
         if (trailing < end) {
-            csane_rule_issue(file, trailing, STRLIT("SRC-TRAILING"),
+            csane_rule_issue(file, trailing, SL("SRC-TRAILING"),
                              "trailing whitespace");
         }
         if (end < len) {
@@ -97,14 +97,14 @@ csane_rule_source(CsaneFile *file) {
                 newline_run = 1;
             }
             if (newline_run >= 3) {
-                csane_rule_issue(file, end, STRLIT("SRC-EXCESS-NEWLINES"),
+                csane_rule_issue(file, end, SL("SRC-EXCESS-NEWLINES"),
                                  "more than two consecutive newlines");
             }
         }
         start = end + (end < len);
     }
     if (file->is_ryu && (len > 0) && text[len - 1] != '\n') {
-        csane_rule_issue(file, len - 1, STRLIT("RYU-FINAL-NEWLINE"),
+        csane_rule_issue(file, len - 1, SL("RYU-FINAL-NEWLINE"),
                          "missing final newline");
     }
     return;
@@ -169,7 +169,7 @@ csane_rule_comment_ratio(CsaneFile *file) {
         fmt_snprintf(message, SIZEOF(message),
                      "%d of %d nonblank lines contain comments; "
                      "exceeds %d%% limit", comments, lines, limit);
-        csane_rule_issue(file, 0, STRLIT("SRC-COMMENT-RATIO"), message);
+        csane_rule_issue(file, 0, SL("SRC-COMMENT-RATIO"), message);
     }
     return;
 }
@@ -293,9 +293,9 @@ csane_rule_preprocessor(CsaneFile *file) {
             _i46_done: ;
         } while (false);
         keyword = _i46_result;
-        if (csane_source_keyword(text, end, keyword, STRLIT("ifdef"))
-            || csane_source_keyword(text, end, keyword, STRLIT("ifndef"))) {
-            csane_rule_issue(file, start, STRLIT("PP-DEFINED"),
+        if (csane_source_keyword(text, end, keyword, SL("ifdef"))
+            || csane_source_keyword(text, end, keyword, SL("ifndef"))) {
+            csane_rule_issue(file, start, SL("PP-DEFINED"),
                              "use #if defined or #if !defined");
         }
         /* The Ryu rule is a raw-line check in Perl, not a parsed-directive
@@ -311,11 +311,11 @@ csane_rule_preprocessor(CsaneFile *file) {
                 while (i < end && char_is_horizontal_space(text[i])) {
                     i += 1;
                 }
-                if (csane_source_keyword(text, end, i, STRLIT("endif"))) {
+                if (csane_source_keyword(text, end, i, SL("endif"))) {
                     for (int32 j = i + 5; j + 1 < end; j += 1) {
                         if (text[j] == '/' && text[j + 1] == '/') {
                             csane_rule_issue(file, j,
-                                             STRLIT("RYU-ENDIF-COMMENT"),
+                                             SL("RYU-ENDIF-COMMENT"),
                                              "use a block comment after "
                                              "#endif");
                             break;
@@ -364,7 +364,7 @@ csane_rule_preprocessor(CsaneFile *file) {
                              "compiler macro definedness",
                              flag);
                 csane_rule_issue(file, token->offset,
-                                 STRLIT("PP-COMPILER-MACRO"), message);
+                                 SL("PP-COMPILER-MACRO"), message);
             }
         }
     }
@@ -383,7 +383,7 @@ csane_rule_sizeof(CsaneFile *file) {
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
         bool _i47_predicate;
-        _i47_predicate = !csane_token_text(token, STRLIT("sizeof"));
+        _i47_predicate = !csane_token_text(token, SL("sizeof"));
         if (!_i47_predicate) {
             _i47_predicate = token->kind != TOKEN_IDENT;
         }
@@ -417,7 +417,7 @@ csane_rule_sizeof(CsaneFile *file) {
                     goto _i47_done;
                 }
                 name = &file->tokens->tokens[define.name_token];
-                _i47_result = csane_token_text(name, STRLIT("SIZEOF"));
+                _i47_result = csane_token_text(name, SL("SIZEOF"));
                 goto _i47_done;
                 _i47_done: ;
             } while (false);
@@ -449,13 +449,13 @@ csane_rule_sizeof(CsaneFile *file) {
                     _i48_result = true;
                     goto _i48_done;
                 }
-                _i48_result = csane_token_text(nested_token, STRLIT("("))
-                       || csane_token_text(nested_token, STRLIT("*"))
-                       || csane_token_text(nested_token, STRLIT("&"))
-                       || csane_token_text(nested_token, STRLIT("+"))
-                       || csane_token_text(nested_token, STRLIT("-"))
-                       || csane_token_text(nested_token, STRLIT("!"))
-                       || csane_token_text(nested_token, STRLIT("~"));
+                _i48_result = csane_token_text(nested_token, SL("("))
+                       || csane_token_text(nested_token, SL("*"))
+                       || csane_token_text(nested_token, SL("&"))
+                       || csane_token_text(nested_token, SL("+"))
+                       || csane_token_text(nested_token, SL("-"))
+                       || csane_token_text(nested_token, SL("!"))
+                       || csane_token_text(nested_token, SL("~"));
                 goto _i48_done;
                 _i48_done: ;
             } while (false);
@@ -467,7 +467,7 @@ csane_rule_sizeof(CsaneFile *file) {
         /* Perl checks directive conditions and macro names as raw code too.
          * Exclude only the SIZEOF wrapper's own definition and vendored Ryu.
          */
-        csane_rule_issue(file, token->offset, STRLIT("PP-SIZEOF"),
+        csane_rule_issue(file, token->offset, SL("PP-SIZEOF"),
                          "use SIZEOF instead of sizeof");
     }
     return;
@@ -648,14 +648,14 @@ csane_rule_calls(CsaneFile *file) {
             continue;
         }
         if (never) {
-            csane_rule_issue(file, token->offset, STRLIT("API-NEVER"),
+            csane_rule_issue(file, token->offset, SL("API-NEVER"),
                              "function must never be used");
         } else if (restricted) {
-            csane_rule_issue(file, token->offset, STRLIT("API-CBASE-ONLY"),
+            csane_rule_issue(file, token->offset, SL("API-CBASE-ONLY"),
                              "function is allowed only inside cbase");
         } else {
             csane_rule_issue(file, token->offset,
-                             STRLIT("API-LIBC-PRINTF"),
+                             SL("API-LIBC-PRINTF"),
                              "use cbase formatting instead of libc printf");
         }
     }
@@ -665,45 +665,45 @@ csane_rule_calls(CsaneFile *file) {
  * The ordering within each pass retains
  * the legacy dispatch order and its rule-specific exemptions. */
 static CsaneRule csane_rules[] = {
-    {STRLIT("SRC"), csane_rule_source, CSANE_PASS_SOURCE,
+    {SL("SRC"), csane_rule_source, CSANE_PASS_SOURCE,
      CSANE_TARGET_LINES, false},
-    {STRLIT("SRC-COMMENT-RATIO"), csane_rule_comment_ratio,
+    {SL("SRC-COMMENT-RATIO"), csane_rule_comment_ratio,
      CSANE_PASS_SOURCE, CSANE_TARGET_LINES, false},
-    {STRLIT("PP"), csane_rule_preprocessor, CSANE_PASS_TOKEN,
+    {SL("PP"), csane_rule_preprocessor, CSANE_PASS_TOKEN,
      CSANE_TARGET_DIRECTIVES, false},
-    {STRLIT("PP-SIZEOF"), csane_rule_sizeof, CSANE_PASS_TOKEN,
+    {SL("PP-SIZEOF"), csane_rule_sizeof, CSANE_PASS_TOKEN,
      CSANE_TARGET_SIZEOF, false},
-    {STRLIT("AST-DECL-ONE"), csane_declarations_check, CSANE_PASS_TOKEN,
+    {SL("AST-DECL-ONE"), csane_declarations_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_DECL_ONE, false},
-    {STRLIT("STYLE-STRUCT-ARRAY-LENGTH-ORDER"), csane_member_order_check,
+    {SL("STYLE-STRUCT-ARRAY-LENGTH-ORDER"), csane_member_order_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_STRUCT_MEMBERS, false},
-    {STRLIT("API"), csane_rule_calls, CSANE_PASS_TOKEN,
+    {SL("API"), csane_rule_calls, CSANE_PASS_TOKEN,
      CSANE_TARGET_APIS, true},
-    {STRLIT("CONTROL"), csane_control_check, CSANE_PASS_TOKEN,
+    {SL("CONTROL"), csane_control_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CONTROL, false},
-    {STRLIT("STYLE-FINAL-DO-WHILE-ZERO"), csane_control_final_do_check,
+    {SL("STYLE-FINAL-DO-WHILE-ZERO"), csane_control_final_do_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_FUNCTIONS, false},
-    {STRLIT("LAYOUT"), csane_layout_check, CSANE_PASS_TOKEN,
+    {SL("LAYOUT"), csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
-    {STRLIT("ASSIGN-EQ"), csane_layout_assignment_check, CSANE_PASS_TOKEN,
+    {SL("ASSIGN-EQ"), csane_layout_assignment_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGNMENTS, false},
-    {STRLIT("FUNC-HEADERS"), csane_declarations_headers, CSANE_PASS_TOKEN,
+    {SL("FUNC-HEADERS"), csane_declarations_headers, CSANE_PASS_TOKEN,
      CSANE_TARGET_FUNC_HEADERS, false},
-    {STRLIT("STYLE-STATIC-ONCE"), csane_single_use_check, CSANE_PASS_TOKEN,
+    {SL("STYLE-STATIC-ONCE"), csane_single_use_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATIC_SINGLE_USE, false},
-    {STRLIT("STYLE-STATIC-NULL-GUARD"), csane_static_null_check,
+    {SL("STYLE-STATIC-NULL-GUARD"), csane_static_null_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_STATIC_SINGLE_USE, false},
-    {STRLIT("CALL-BASIC"), csane_calls_token_check, CSANE_PASS_TOKEN,
+    {SL("CALL-BASIC"), csane_calls_token_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALLS, false},
-    {STRLIT("STYLE-EXPRESSIONS"), csane_expression_style_check,
+    {SL("STYLE-EXPRESSIONS"), csane_expression_style_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_STYLE_CALLS, false},
-    {STRLIT("STYLE-BOUNDS"), csane_bounds_check, CSANE_PASS_TOKEN,
+    {SL("STYLE-BOUNDS"), csane_bounds_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STATEMENTS, false},
-    {STRLIT("STYLE-STATUS"), csane_status_check, CSANE_PASS_TOKEN,
+    {SL("STYLE-STATUS"), csane_status_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_STYLE_STATUS, false},
-    {STRLIT("CALL-WRAP"), csane_wrap_call_check, CSANE_PASS_TOKEN,
+    {SL("CALL-WRAP"), csane_wrap_call_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_CALL_WRAP, false},
-    {STRLIT("ASSIGN-WRAP"), csane_wrap_check, CSANE_PASS_TOKEN,
+    {SL("ASSIGN-WRAP"), csane_wrap_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGN_WRAP, false},
 };
 

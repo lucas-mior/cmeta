@@ -91,11 +91,11 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last,
             role = file->preprocessor->token_roles[i];
         }
         if (role != C_PP_TOKEN_CODE || token->kind == TOKEN_COMMENT
-            || csane_wrap_token_is(token, STRLIT("{"))
-            || csane_wrap_token_is(token, STRLIT("}"))) {
+            || csane_wrap_token_is(token, SL("{"))
+            || csane_wrap_token_is(token, SL("}"))) {
             return false;
         }
-        if (!allow_semicolons && csane_wrap_token_is(token, STRLIT(";"))
+        if (!allow_semicolons && csane_wrap_token_is(token, SL(";"))
             && i != last) {
             return false;
         }
@@ -274,7 +274,7 @@ csane_wrap_first_arg(CsaneTokenView *view, int32 name, TokenRange *arg) {
     if (first >= close) {
         return false;
     }
-    comma = csane_tokens_top_level(&inside, open, STRLIT(","));
+    comma = csane_tokens_top_level(&inside, open, SL(","));
     if (comma < 0) {
         return false;
     }
@@ -310,24 +310,24 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
 
         if (nested_first < 0 || nested_last < nested_first
             || !csane_wrap_token_is(&tokens->tokens[nested_last],
-                                    STRLIT(";"))) {
+                                    SL(";"))) {
             in_result_call = -1;
             break;
         }
         nested_name = nested_first;
         if (csane_wrap_token_is(&tokens->tokens[nested_name],
-                                STRLIT("return"))) {
+                                SL("return"))) {
             nested_name = csane_tokens_next(&view, nested_name);
         } else {
             /* A declaration initializer or plain assignment may precede the
              * invocation. Ignore operators nested within delimiters. */
             int32 equals = -1;
             for (int32 i = nested_first; i < nested_last; i += 1) {
-                if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("="))) {
+                if (csane_wrap_token_is(&tokens->tokens[i], SL("="))) {
                     equals = i;
-                } else if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("("))
+                } else if (csane_wrap_token_is(&tokens->tokens[i], SL("("))
                            || csane_wrap_token_is(&tokens->tokens[i],
-                                                  STRLIT("["))) {
+                                                  SL("["))) {
                     int32 match = csane_tokens_match(&view, i);
                     if (match > i && match < nested_last) {
                         i = match;
@@ -341,15 +341,15 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
         if (nested_name < 0 || nested_name >= nested_last
             || tokens->tokens[nested_name].kind != TOKEN_IDENT
             || csane_wrap_token_is(&tokens->tokens[nested_name],
-                                   STRLIT("error_impl"))
+                                   SL("error_impl"))
             || csane_wrap_token_is(&tokens->tokens[nested_name],
-                                   STRLIT("assert_error"))) {
+                                   SL("assert_error"))) {
             in_result_call = -1;
             break;
         }
         open = csane_tokens_next(&view, nested_name);
         if (open < 0 || open >= nested_last
-            || !csane_wrap_token_is(&tokens->tokens[open], STRLIT("("))) {
+            || !csane_wrap_token_is(&tokens->tokens[open], SL("("))) {
             in_result_call = -1;
             break;
         }
@@ -398,7 +398,7 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
             span->first_arg = first_arg;
             break;
         }
-        if (csane_wrap_token_is(&tokens->tokens[name], STRLIT("ASSERT"))) {
+        if (csane_wrap_token_is(&tokens->tokens[name], SL("ASSERT"))) {
             for (int32 i = first_arg.first; i < first_arg.end;
                  i = csane_tokens_next(&view, i)) {
                 Token *token = &tokens->tokens[i];
@@ -407,7 +407,7 @@ csane_wrap_local_span(CsaneFile *file, TokenRange range, CsaneWrapSpan *span) {
 
                 if (token->kind != TOKEN_IDENT || next >= first_arg.end
                     || !csane_wrap_token_is(&tokens->tokens[next],
-                                            STRLIT("("))) {
+                                            SL("("))) {
                     continue;
                 }
                 close = csane_tokens_match(&view, next);
@@ -606,7 +606,7 @@ csane_wrap_call_check(CsaneFile *file) {
             for (int32 i = first; i < end; i += 1) {
                 if (in_items[i].wrapped) {
                     csane_rule_issue(file, in_items[i].start,
-                                     STRLIT("FMT-CALL-WRAP"),
+                                     SL("FMT-CALL-WRAP"),
                                      "call fits on one line but is "
                                      "split across multiple lines");
                 }
@@ -674,7 +674,7 @@ csane_wrap_call_check(CsaneFile *file) {
                 call_open = csane_tokens_next(&view, j);
                 if (call_open >= close
                     || !csane_wrap_token_is(&tokens->tokens[call_open],
-                                            STRLIT("("))) {
+                                            SL("("))) {
                     continue;
                 }
                 call_close = csane_tokens_match(&view, call_open);
@@ -727,7 +727,7 @@ csane_wrap_call_check(CsaneFile *file) {
 
                 if (width >= 0 && (file->column_limit <= 0
                                    || width <= file->column_limit)) {
-                    csane_rule_issue(file, start, STRLIT("FMT-CALL-WRAP"),
+                    csane_rule_issue(file, start, SL("FMT-CALL-WRAP"),
                                      "call fits on one line but is "
                                      "split across multiple lines");
                 }
@@ -742,17 +742,17 @@ csane_wrap_call_check(CsaneFile *file) {
  * statement fits on one line. Comparisons and other operators do not count. */
 static bool
 csane_wrap_assignment_operator(Token *token) {
-    return csane_wrap_token_is(token, STRLIT("="))
-           || csane_wrap_token_is(token, STRLIT("+="))
-           || csane_wrap_token_is(token, STRLIT("-="))
-           || csane_wrap_token_is(token, STRLIT("*="))
-           || csane_wrap_token_is(token, STRLIT("/="))
-           || csane_wrap_token_is(token, STRLIT("%="))
-           || csane_wrap_token_is(token, STRLIT("&="))
-           || csane_wrap_token_is(token, STRLIT("|="))
-           || csane_wrap_token_is(token, STRLIT("^="))
-           || csane_wrap_token_is(token, STRLIT("<<="))
-           || csane_wrap_token_is(token, STRLIT(">>="));
+    return csane_wrap_token_is(token, SL("="))
+           || csane_wrap_token_is(token, SL("+="))
+           || csane_wrap_token_is(token, SL("-="))
+           || csane_wrap_token_is(token, SL("*="))
+           || csane_wrap_token_is(token, SL("/="))
+           || csane_wrap_token_is(token, SL("%="))
+           || csane_wrap_token_is(token, SL("&="))
+           || csane_wrap_token_is(token, SL("|="))
+           || csane_wrap_token_is(token, SL("^="))
+           || csane_wrap_token_is(token, SL("<<="))
+           || csane_wrap_token_is(token, SL(">>="));
 }
 
 /* Assignment wrapping uses direct, top-level assignment operators in simple
@@ -790,7 +790,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         nested_last_2 = token_range_last_significant(nested_tokens, range);
         if (nested_first_2 < 0 || nested_last_2 <= nested_first_2
             || !csane_wrap_token_is(&nested_tokens->tokens[nested_last_2],
-                                    STRLIT(";"))) {
+                                    SL(";"))) {
             _i65_result = -1;
             goto _i65_done;
         }
@@ -802,9 +802,9 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
                     goto _i65_done;
                 }
                 equals = i;
-            } else if (csane_wrap_token_is(token, STRLIT("("))
-                       || csane_wrap_token_is(token, STRLIT("["))
-                       || csane_wrap_token_is(token, STRLIT("{"))) {
+            } else if (csane_wrap_token_is(token, SL("("))
+                       || csane_wrap_token_is(token, SL("["))
+                       || csane_wrap_token_is(token, SL("{"))) {
                 int32 close = csane_tokens_match(&view, i);
                 if (close > i && close < nested_last_2) {
                     i = close;
@@ -865,8 +865,8 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         }
     }
     for (int32 i = first; i <= last; i += 1) {
-        if (csane_wrap_token_is(&tokens->tokens[i], STRLIT("{"))
-            || csane_wrap_token_is(&tokens->tokens[i], STRLIT("}"))) {
+        if (csane_wrap_token_is(&tokens->tokens[i], SL("{"))
+            || csane_wrap_token_is(&tokens->tokens[i], SL("}"))) {
             /* When a multiline initializer introduces braces, the Perl
              * local scan cannot form a complete statement. */
             if (csane_wrap_location(tokens, i).line >
@@ -888,7 +888,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         after += 1;
     }
     span->wrapped = after < tokens->text_len && text[after] == '\n';
-    span->compound = !csane_wrap_token_is(&tokens->tokens[op], STRLIT("="));
+    span->compound = !csane_wrap_token_is(&tokens->tokens[op], SL("="));
     span->fits = false;
     /* A locally recognized type name need not be declared in this file.
      * Preserve the legacy conservative grouping for such declarations. */
@@ -996,11 +996,11 @@ csane_wrap_check(CsaneFile *file) {
             end = op + 1;
             while (end < ARRAY_LEN(tokens->tokens)) {
                 Token *token = &tokens->tokens[end];
-                if (csane_wrap_token_is(token, STRLIT("}"))
+                if (csane_wrap_token_is(token, SL("}"))
                     || token->kind == TOKEN_PREPROC) {
                     break;
                 }
-                if (csane_wrap_token_is(token, STRLIT(";"))) {
+                if (csane_wrap_token_is(token, SL(";"))) {
                     end += 1;
                     break;
                 }
@@ -1008,7 +1008,7 @@ csane_wrap_check(CsaneFile *file) {
             }
             if (end <= op + 1 || end > ARRAY_LEN(tokens->tokens)
                 || !csane_wrap_token_is(&tokens->tokens[end - 1],
-                                        STRLIT(";"))) {
+                                        SL(";"))) {
                 continue;
             }
             range = (TokenRange){first, end};
@@ -1048,7 +1048,7 @@ csane_wrap_check(CsaneFile *file) {
                 if (in_items[i].wrapped && in_items[i].fits
                     && (all_fit || in_items[i].compound)) {
                     csane_rule_issue(file, in_items[i].start,
-                                     STRLIT("FMT-ASSIGN-WRAP"),
+                                     SL("FMT-ASSIGN-WRAP"),
                                      "assignment fits on one line "
                                      "but is split after its operator");
                 }

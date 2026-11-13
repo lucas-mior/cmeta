@@ -373,11 +373,11 @@ c_preprocessor_define_parameter_count(Tokenization *tokenization,
     count = 1;
     comma = token_range_next_text_at_depth(tokenization, parameters,
                                            parameters.first - 1, zero,
-                                           STRLIT(","));
+                                           SL(","));
     while (comma < parameters.end) {
         count += 1;
         comma = token_range_next_text_at_depth(tokenization, parameters,
-                                               comma, zero, STRLIT(","));
+                                               comma, zero, SL(","));
     }
     return count;
 }
@@ -406,7 +406,7 @@ c_preprocessor_define_parameter(Tokenization *tokenization,
         int32 comma;
 
         comma = token_range_next_text_at_depth(tokenization, parameters,
-                                               first - 1, zero, STRLIT(","));
+                                               first - 1, zero, SL(","));
         parameter = (TokenRange){first, comma};
         if (comma >= parameters.end) {
             parameter.end = parameters.end;
@@ -521,11 +521,11 @@ test_preprocessor_logical_directive_range(void) {
     int32 x;
 
     tokenization = tokenize(text, strlen32(text));
-    hash = test_find_text(&tokenization, STRLIT("#"));
-    b = test_find_text(&tokenization, STRLIT("b"));
+    hash = test_find_text(&tokenization, SL("#"));
+    b = test_find_text(&tokenization, SL("b"));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    b = token_range_next_text(&tokenization, all, b, STRLIT("b"));
-    x = test_find_text(&tokenization, STRLIT("int"));
+    b = token_range_next_text(&tokenization, all, b, SL("b"));
+    x = test_find_text(&tokenization, SL("int"));
 
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
@@ -550,7 +550,7 @@ test_preprocessor_define_info(void) {
     int32 hash;
 
     tokenization = tokenize(text, strlen32(text));
-    hash = test_find_text(&tokenization, STRLIT("#"));
+    hash = test_find_text(&tokenization, SL("#"));
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
     ASSERT(define.function_like);
@@ -558,22 +558,22 @@ test_preprocessor_define_info(void) {
     ASSERT(TOKEN_IS(&tokenization.tokens[define.open_paren_token], "("));
     ASSERT(TOKEN_IS(&tokenization.tokens[define.close_paren_token], ")"));
     test_assert_range_text(&tokenization, define.parameter_list,
-                           STRLIT("(a, b, ...)"));
+                           SL("(a, b, ...)"));
     ASSERT_EQ(c_preprocessor_define_parameter_count(&tokenization, &define), 3);
 
     ASSERT(c_preprocessor_define_parameter(&tokenization, &define, 0,
                                            &parameter));
-    test_assert_range_text(&tokenization, parameter, STRLIT("a"));
+    test_assert_range_text(&tokenization, parameter, SL("a"));
     ASSERT(c_preprocessor_define_parameter(&tokenization, &define, 1,
                                            &parameter));
-    test_assert_range_text(&tokenization, parameter, STRLIT("b"));
+    test_assert_range_text(&tokenization, parameter, SL("b"));
     ASSERT(c_preprocessor_define_parameter(&tokenization, &define, 2,
                                            &parameter));
-    test_assert_range_text(&tokenization, parameter, STRLIT("..."));
+    test_assert_range_text(&tokenization, parameter, SL("..."));
     ASSERT(!c_preprocessor_define_parameter(&tokenization, &define, 3,
                                             &parameter));
     test_assert_range_text(&tokenization, define.replacement,
-                           STRLIT("((a) + (b))"));
+                           SL("((a) + (b))"));
     ASSERT_EQ(define.replacement_source.end - define.replacement_source.start,
               strlen32(expected_replacement));
     ASSERT_EQ(tokenization.text + define.replacement_source.start,
@@ -603,7 +603,7 @@ test_preprocessor_object_and_function_spacing(void) {
         CPreprocessorDefine define;
         int32 hash;
 
-        hash = token_range_next_text(&tokenization, all, cursor, STRLIT("#"));
+        hash = token_range_next_text(&tokenization, all, cursor, SL("#"));
         ASSERT_LT_VAR(hash, all.end);
         ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
         ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
@@ -629,11 +629,11 @@ test_preprocessor_empty_define_and_malformed(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    first_hash = token_range_next_text(&tokenization, all, -1, STRLIT("#"));
+    first_hash = token_range_next_text(&tokenization, all, -1, SL("#"));
     second_hash = token_range_next_text(&tokenization, all, first_hash,
-                                        STRLIT("#"));
+                                        SL("#"));
     third_hash = token_range_next_text(&tokenization, all, second_hash,
-                                       STRLIT("#"));
+                                       SL("#"));
 
     ASSERT(c_preprocessor_directive_at(&tokenization, first_hash, &directive));
     ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
@@ -666,11 +666,11 @@ test_preprocessor_unknown_and_non_directive_hash(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    first_hash = token_range_next_text(&tokenization, all, -1, STRLIT("#"));
+    first_hash = token_range_next_text(&tokenization, all, -1, SL("#"));
     second_hash = token_range_next_text(&tokenization, all, first_hash,
-                                        STRLIT("#"));
+                                        SL("#"));
     third_hash = token_range_next_text(&tokenization, all, second_hash,
-                                       STRLIT("#"));
+                                       SL("#"));
 
     ASSERT(c_preprocessor_directive_at(&tokenization, first_hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_UNKNOWN);
@@ -691,13 +691,13 @@ test_preprocessor_hash_digraph(void) {
     int32 hash;
 
     tokenization = tokenize(text, strlen32(text));
-    hash = test_find_text(&tokenization, STRLIT("%:"));
+    hash = test_find_text(&tokenization, SL("%:"));
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
     ASSERT_EQ(directive.source.end, strlen32(text));
     ASSERT(c_preprocessor_define_info(&tokenization, &directive, &define));
     ASSERT(TOKEN_IS(&tokenization.tokens[define.name_token], "VALUE"));
-    test_assert_range_text(&tokenization, define.replacement, STRLIT("3"));
+    test_assert_range_text(&tokenization, define.replacement, SL("3"));
     free_tokenization(&tokenization);
     return;
 }
@@ -717,7 +717,7 @@ test_preprocessor_skip_whitespace_tokens(void) {
 
     tokenization = tokenize_with_flags(text, strlen32(text),
                                        TOKENIZE_SKIP_WHITESPACE);
-    hash = test_find_text(&tokenization, STRLIT("#"));
+    hash = test_find_text(&tokenization, SL("#"));
     ASSERT(c_preprocessor_directive_at(&tokenization, hash, &directive));
     ASSERT(directive.kind == C_PREPROCESSOR_DIRECTIVE_DEFINE);
     ASSERT_EQ(directive.source.start, 0);
@@ -727,9 +727,9 @@ test_preprocessor_skip_whitespace_tokens(void) {
     ASSERT_EQ(c_preprocessor_define_parameter_count(&tokenization, &define), 2);
     ASSERT(c_preprocessor_define_parameter(&tokenization, &define, 1,
                                            &parameter));
-    test_assert_range_text(&tokenization, parameter, STRLIT("b"));
+    test_assert_range_text(&tokenization, parameter, SL("b"));
     test_assert_range_text(&tokenization, define.replacement,
-                           STRLIT("a + b"));
+                           SL("a + b"));
     free_tokenization(&tokenization);
     return;
 }

@@ -40,15 +40,15 @@ csane_pointer_same(Token *a, Token *b) {
 
 static bool
 csane_pointer_qualifier(Token *token) {
-    return csane_pointer_word(token, STRLIT("const"))
-           || csane_pointer_word(token, STRLIT("volatile"))
-           || csane_pointer_word(token, STRLIT("restrict"))
-           || csane_pointer_word(token, STRLIT("static"))
-           || csane_pointer_word(token, STRLIT("extern"))
-           || csane_pointer_word(token, STRLIT("register"))
-           || csane_pointer_word(token, STRLIT("inline"))
-           || csane_pointer_word(token, STRLIT("_Atomic"))
-           || csane_pointer_word(token, STRLIT("_Thread_local"));
+    return csane_pointer_word(token, SL("const"))
+           || csane_pointer_word(token, SL("volatile"))
+           || csane_pointer_word(token, SL("restrict"))
+           || csane_pointer_word(token, SL("static"))
+           || csane_pointer_word(token, SL("extern"))
+           || csane_pointer_word(token, SL("register"))
+           || csane_pointer_word(token, SL("inline"))
+           || csane_pointer_word(token, SL("_Atomic"))
+           || csane_pointer_word(token, SL("_Thread_local"));
 }
 
 /* Recognize declared types, not variable-name guesses. Unknown included
@@ -161,7 +161,7 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
     part = first;
     while (part < view.range.end) {
         int32 _i39_result;
-        int32 comma = csane_tokens_top_level(&view, part, STRLIT(","));
+        int32 comma = csane_tokens_top_level(&view, part, SL(","));
         TokenRange segment;
         bool pointer;
         int32 name;
@@ -176,7 +176,7 @@ csane_pointer_declarations(CsaneFile *file, CsanePointerState *state,
 
             Tokenization *tokens = file->tokens;
             int32 nested_end = csane_tokens_top_level(_i39_view, segment.first,
-                                                      STRLIT("="));
+                                                      SL("="));
             int32 i = segment.first;
             int32 nested_name = -1;
             bool star = false;
@@ -478,14 +478,14 @@ csane_pointer_condition(CsaneFile *file, CsanePointerState *state,
             }
             if (name >= 0 && csane_pointer_known(file, state, stmt, name)) {
                 csane_rule_issue(file, token->offset,
-                                 STRLIT("STYLE-POINTER-NOT"),
+                                 SL("STYLE-POINTER-NOT"),
                                  "use `pointer == NULL` instead of `!pointer`");
             }
         } else if (TOKEN_IS(token, "!=")) {
             int32 name = csane_pointer_ne_name(file, view, i);
             if (name >= 0 && csane_pointer_known(file, state, stmt, name)) {
                 csane_rule_issue(file, token->offset,
-                                 STRLIT("STYLE-POINTER-NE-NULL"),
+                                 SL("STYLE-POINTER-NE-NULL"),
                                  "use `if (pointer)` instead of `!= NULL`");
             }
         }
@@ -521,7 +521,7 @@ csane_pointer_for(CsaneFile *file, CsanePointerState *state,
         return;
     }
     semicolon = csane_tokens_top_level(&init, init.range.first - 1,
-                                       STRLIT(";"));
+                                       SL(";"));
     if (semicolon < 0 || semicolon >= init.range.end) {
         return;
     }
@@ -576,7 +576,7 @@ csane_pointer_check(CsaneFile *file) {
             part = csane_tokens_next(&view, open);
             while (part < close) {
                 TokenRange segment;
-                int32 comma = csane_tokens_top_level(&view, part, STRLIT(","));
+                int32 comma = csane_tokens_top_level(&view, part, SL(","));
                 if (comma < 0) {
                     goto _i40_done;
                 }
@@ -650,7 +650,7 @@ csane_pointer_check(CsaneFile *file) {
                 goto _i43_done;
             }
             comparison = csane_tokens_top_level(_i43_view, _i43_range.first,
-                                                STRLIT("!="));
+                                                SL("!="));
             if (comparison < _i43_range.first || comparison >= _i43_range.end) {
                 _i43_result = false;
                 goto _i43_done;
@@ -779,7 +779,7 @@ csane_pointer_check(CsaneFile *file) {
         }
         if (_i45_predicate) {
             csane_rule_issue(file, file->tokens->tokens[guard.first].offset,
-                             STRLIT("STYLE-FREE2-GUARD"),
+                             SL("STYLE-FREE2-GUARD"),
                              "free2 already accepts NULL; remove the guard");
         }
     }

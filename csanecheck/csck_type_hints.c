@@ -223,16 +223,16 @@ csane_type_hints_init(CsaneTypeHints *hints, CsaneRegions *regions) {
                                   regions->items[region].tokens)) {
             continue;
         }
-        if (csane_hint_word(token, STRLIT("struct"))
-            || csane_hint_word(token, STRLIT("union"))
-            || csane_hint_word(token, STRLIT("enum"))) {
+        if (csane_hint_word(token, SL("struct"))
+            || csane_hint_word(token, SL("union"))
+            || csane_hint_word(token, SL("enum"))) {
             int32 name = csane_tokens_next(&view, i);
             if (name < view.range.end
                 && tokens->tokens[name].kind == TOKEN_IDENT) {
                 csane_hint_add(hints, name, CSANE_TYPE_HINT_TAG);
             }
         }
-        if (csane_hint_word(token, STRLIT("typedef"))) {
+        if (csane_hint_word(token, SL("typedef"))) {
             csane_hint_typedef(hints, &view, i);
         }
     }

@@ -375,7 +375,7 @@ csane_single_use_check(CsaneFile *file) {
             capacity = strlen32(format) + name->len + 1;
             message = malloc2(capacity);
             fmt_sprintf(message, capacity, format, name->len, name->text);
-            csane_rule_issue(file, name->offset, STRLIT("STYLE-STATIC-ONCE"),
+            csane_rule_issue(file, name->offset, SL("STYLE-STATIC-ONCE"),
                              message);
             free2(message, capacity);
         }

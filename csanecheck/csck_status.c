@@ -34,9 +34,9 @@ csane_status_reference(CsaneFile *file, int32 token_index, TokenRange body) {
     previous = tokenization_previous_significant(file->tokens, token_index);
     next = tokenization_next_significant(file->tokens, token_index);
     if ((previous >= body.first
-         && (csane_status_is(file, previous, STRLIT("."))
-             || csane_status_is(file, previous, STRLIT("->"))))
-        || (next < body.end && csane_status_is(file, next, STRLIT(":")))) {
+         && (csane_status_is(file, previous, SL("."))
+             || csane_status_is(file, previous, SL("->"))))
+        || (next < body.end && csane_status_is(file, next, SL(":")))) {
         return false;
     }
     return true;
@@ -47,8 +47,8 @@ csane_status_declaration(CsaneFile *file, int32 token, TokenRange body) {
     int32 previous = tokenization_previous_significant(file->tokens, token);
     int32 next = tokenization_next_significant(file->tokens, token);
     return previous >= body.first && next < body.end
-           && csane_status_is(file, previous, STRLIT("int32"))
-           && csane_status_is(file, next, STRLIT(";"));
+           && csane_status_is(file, previous, SL("int32"))
+           && csane_status_is(file, next, SL(";"));
 }
 
 /* Find the adjacent call/check pair in source tokens. Statement parsing can
@@ -113,13 +113,13 @@ csane_status_check(CsaneFile *file) {
                     SourceLocation b;
 
                     if (next >= nested_body.end
-                        || !csane_status_is(file, next, STRLIT("="))) {
+                        || !csane_status_is(file, next, SL("="))) {
                         in_result_pair = false;
                         break;
                     }
                     for (int32 sep_i = next + 1; sep_i < in_use; sep_i += 1) {
                         terminators += csane_status_is(file, sep_i,
-                                                       STRLIT(";"));
+                                                       SL(";"));
                     }
                     /* A second completed statement can have side effects that
                      * would be
@@ -138,7 +138,7 @@ csane_status_check(CsaneFile *file) {
             }
             if (matches) {
                 csane_rule_issue(file, file->tokens->tokens[refs[0]].offset,
-                                 STRLIT("STYLE-STATUS-TEMP"),
+                                 SL("STYLE-STATUS-TEMP"),
                                  "inline int32 status assignment/use pairs");
             }
             free2(refs, count*SIZEOF(*refs));
@@ -162,7 +162,7 @@ csane_status_check(CsaneFile *file) {
             int32 region;
             TokenRange condition;
 
-            if (!csane_status_is(file, j, STRLIT("status"))) {
+            if (!csane_status_is(file, j, SL("status"))) {
                 continue;
             }
             region = csane_regions_at_token(file->regions, j);
@@ -171,10 +171,10 @@ csane_status_check(CsaneFile *file) {
                 continue;
             }
             previous = tokenization_previous_significant(file->tokens, j);
-            if (!csane_status_is(file, previous, STRLIT(";"))
-                && !csane_status_is(file, previous, STRLIT("{"))
-                && !csane_status_is(file, previous, STRLIT("}"))
-                && !csane_status_is(file, previous, STRLIT(":"))
+            if (!csane_status_is(file, previous, SL(";"))
+                && !csane_status_is(file, previous, SL("{"))
+                && !csane_status_is(file, previous, SL("}"))
+                && !csane_status_is(file, previous, SL(":"))
                 && !(file->preprocessor != NULL
                      && file->preprocessor->token_directives != NULL
                      && previous >= 0
@@ -184,10 +184,10 @@ csane_status_check(CsaneFile *file) {
             eq = tokenization_next_significant(file->tokens, j);
             call = tokenization_next_significant(file->tokens, eq);
             open = tokenization_next_significant(file->tokens, call);
-            if (!csane_status_is(file, eq, STRLIT("="))
+            if (!csane_status_is(file, eq, SL("="))
                 || call >= body.end
                 || file->tokens->tokens[call].kind != TOKEN_IDENT
-                || !csane_status_is(file, open, STRLIT("("))) {
+                || !csane_status_is(file, open, SL("("))) {
                 continue;
             }
             close = csane_tokens_match(&view, open);
@@ -195,16 +195,16 @@ csane_status_check(CsaneFile *file) {
                 continue;
             }
             semicolon = tokenization_next_significant(file->tokens, close);
-            if (!csane_status_is(file, semicolon, STRLIT(";"))) {
+            if (!csane_status_is(file, semicolon, SL(";"))) {
                 continue;
             }
             check = tokenization_next_significant(file->tokens, semicolon);
-            if (!csane_status_is(file, check, STRLIT("if"))
+            if (!csane_status_is(file, check, SL("if"))
                 || csane_regions_at_token(file->regions, check) != region) {
                 continue;
             }
             open = tokenization_next_significant(file->tokens, check);
-            if (!csane_status_is(file, open, STRLIT("("))) {
+            if (!csane_status_is(file, open, SL("("))) {
                 continue;
             }
             close = csane_tokens_match(&view, open);
@@ -216,13 +216,13 @@ csane_status_check(CsaneFile *file) {
             name = token_range_first_significant(file->tokens, condition);
             compare = tokenization_next_significant(file->tokens, name);
             zero = tokenization_next_significant(file->tokens, compare);
-            if (csane_status_is(file, name, STRLIT("status"))
-                && csane_status_is(file, compare, STRLIT("<"))
-                && csane_status_is(file, zero, STRLIT("0"))
+            if (csane_status_is(file, name, SL("status"))
+                && csane_status_is(file, compare, SL("<"))
+                && csane_status_is(file, zero, SL("0"))
                 && tokenization_next_significant(file->tokens, zero)
                    >= condition.end) {
                 csane_rule_issue(file, file->tokens->tokens[j].offset,
-                                 STRLIT("STYLE-STATUS-IF"),
+                                 SL("STYLE-STATUS-IF"),
                                  "combine status assignment with the following "
                                  "if (status < 0) check");
             }

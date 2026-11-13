@@ -228,7 +228,7 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
         return;
     }
     for (int32 arg = first_arg; arg < call_close;) {
-        int32 comma = csane_tokens_top_level(&args, arg - 1, STRLIT(","));
+        int32 comma = csane_tokens_top_level(&args, arg - 1, SL(","));
         int32 end;
         int32 start = arg == first_arg ? line_start
                                       : tokens->tokens[arg].offset;
@@ -255,7 +255,7 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
         }
     }
     csane_rule_issue(file, tokens->tokens[assignment].offset,
-                     STRLIT("FMT-IF-ASSIGN-WRAP"),
+                     SL("FMT-IF-ASSIGN-WRAP"),
                      "wrap call arguments before breaking after = in if");
 }
 
@@ -566,7 +566,7 @@ csane_control_conditional_do_check(CsaneFile *file) {
         }
         if (!guarded_break) {
             csane_control_issue(file, loop,
-                                STRLIT("STYLE-DO-WHILE-ZERO-COND-BREAK"),
+                                SL("STYLE-DO-WHILE-ZERO-COND-BREAK"),
                                 "do { ... } while (0) has no conditional "
                                 "break that exits the loop; use a block "
                                 "or direct control flow");
@@ -605,7 +605,7 @@ csane_control_final_do_check(CsaneFile *file) {
         if (stmt->body >= 0) {
             if (csane_control_flag_return_loop(file, i)) {
                 csane_control_issue(file, stmt,
-                                    STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+                                    SL("STYLE-FINAL-DO-WHILE-ZERO"),
                                     "do { ... } while (0) sets a flag before "
                                     "break solely for a following return; "
                                     "return directly instead");
@@ -646,12 +646,12 @@ csane_control_final_do_check(CsaneFile *file) {
             }
         }
         if (fixed_member_set) {
-            csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+            csane_control_issue(file, stmt, SL("STYLE-FINAL-DO-WHILE-ZERO"),
                                 "do { ... } while (0) followed only by a "
                                 "fixed member assignment and return; "
                                 "use direct control flow");
         } else {
-            csane_control_issue(file, stmt, STRLIT("STYLE-FINAL-DO-WHILE-ZERO"),
+            csane_control_issue(file, stmt, SL("STYLE-FINAL-DO-WHILE-ZERO"),
                                 "do { ... } while (0) at function end has no "
                                 "shared work after break; "
                                 "use direct control flow");
@@ -688,7 +688,7 @@ csane_control_check(CsaneFile *file) {
                 && !csane_control_block(in_file, in_stmt->body)
                 && !(in_stmt->kind == CSANE_STMT_FOR
                      && csane_control_for_empty(in_file, in_stmt->body))) {
-                csane_control_issue(in_file, in_stmt, STRLIT("AST-BRACES"),
+                csane_control_issue(in_file, in_stmt, SL("AST-BRACES"),
                                     "control body must use curly braces");
             }
             if (in_stmt->kind != CSANE_STMT_IF || in_stmt->alternative < 0) {
@@ -703,7 +703,7 @@ csane_control_check(CsaneFile *file) {
                 || body->kind == CSANE_STMT_IF) {
                 break;
             }
-            csane_control_issue(in_file, alternative, STRLIT("AST-BRACES"),
+            csane_control_issue(in_file, alternative, SL("AST-BRACES"),
                                 "else body must use curly braces");
         } while (false);
         do {
@@ -756,7 +756,7 @@ csane_control_check(CsaneFile *file) {
             switch_column = tokenization_token_location(file->tokens,
                                                         switch_token).column;
             if (label_column != switch_column) {
-                csane_control_issue(file, stmt, STRLIT("AST-SWITCH-ALIGN"),
+                csane_control_issue(file, stmt, SL("AST-SWITCH-ALIGN"),
                                     "case/default must align with switch");
             }
             _i16_done: ;
@@ -794,7 +794,7 @@ csane_control_check(CsaneFile *file) {
             if (!shared_block
                 && csane_control_large_artificial_block(file, stmt)) {
                 csane_control_issue(file, stmt,
-                                    STRLIT("AST-ARTIFICIAL-BLOCK-LARGE"),
+                                    SL("AST-ARTIFICIAL-BLOCK-LARGE"),
                                     "standalone block exceeds 80% of "
                                     "enclosing function body");
             }
@@ -809,7 +809,7 @@ csane_control_check(CsaneFile *file) {
             }
             if (!declares_variable && !shared_block) {
                 csane_control_issue(file, stmt,
-                                    STRLIT("AST-ARTIFICIAL-BLOCK"),
+                                    SL("AST-ARTIFICIAL-BLOCK"),
                                     "standalone block does not declare "
                                     "a local variable");
             }
@@ -1078,7 +1078,7 @@ csane_control_check(CsaneFile *file) {
             if (width >= 0 && (file->column_limit <= 0
                                || width <= file->column_limit)) {
                 csane_rule_issue(file, tokens->tokens[first].offset,
-                                 STRLIT("FMT-IF-WRAP"),
+                                 SL("FMT-IF-WRAP"),
                                  "simple if header fits on one line");
             }
             _i24_done: ;
@@ -1176,7 +1176,7 @@ csane_control_check(CsaneFile *file) {
         if (width >= 0 && (file->column_limit <= 0
                            || width <= file->column_limit)) {
             csane_rule_issue(file, tokens->tokens[first].offset,
-                             STRLIT("FMT-FOR-WRAP"),
+                             SL("FMT-FOR-WRAP"),
                              "for header fits on one line");
         }
     }

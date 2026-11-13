@@ -70,7 +70,7 @@ csane_order_struct(CsaneFile *file, int32 open, int32 close) {
         return;
     }
     for (int32 start = open + 1; start < close;) {
-        int32 end = csane_tokens_top_level(&view, start, STRLIT(";"));
+        int32 end = csane_tokens_top_level(&view, start, SL(";"));
         CsaneArrayOrderMember member = {.name_token = -1};
         TokenRange range = {start, end};
         int32 first;
@@ -170,7 +170,7 @@ csane_order_struct(CsaneFile *file, int32 open, int32 close) {
         }
         if (compatible) {
             csane_rule_issue(file, tokens->tokens[first_len->name_token].offset,
-                             STRLIT("STYLE-STRUCT-ARRAY-LENGTH-ORDER"),
+                             SL("STYLE-STRUCT-ARRAY-LENGTH-ORDER"),
                              "group adjacent array pointers before their "
                              "length members");
         }

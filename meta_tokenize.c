@@ -1894,11 +1894,11 @@ test_character_classifiers(void) {
 
 static void
 test_scan_number_literal(void) {
-    ASSERT_EQ(scan_number_literal(STRLIT("123 "), 0), 3);
-    ASSERT_EQ(scan_number_literal(STRLIT(".5f "), 0), 3);
-    ASSERT_EQ(scan_number_literal(STRLIT("3.14e+2;"), 0), 7);
-    ASSERT_EQ(scan_number_literal(STRLIT("0x1.fp-2,"), 0), 8);
-    ASSERT_EQ(scan_number_literal(STRLIT("1'000u"), 0), 6);
+    ASSERT_EQ(scan_number_literal(SL("123 "), 0), 3);
+    ASSERT_EQ(scan_number_literal(SL(".5f "), 0), 3);
+    ASSERT_EQ(scan_number_literal(SL("3.14e+2;"), 0), 7);
+    ASSERT_EQ(scan_number_literal(SL("0x1.fp-2,"), 0), 8);
+    ASSERT_EQ(scan_number_literal(SL("1'000u"), 0), 6);
     return;
 }
 
@@ -1906,13 +1906,13 @@ static void
 test_literal_scanners(void) {
     char *literal = "\"a\\\"b\" tail";
 
-    ASSERT_EQ(literal_quote_index(STRLIT("'x'"), 0), 0);
-    ASSERT_EQ(literal_quote_index(STRLIT("L\"abc\""), 0), 1);
-    ASSERT_EQ(literal_quote_index(STRLIT("u8\"abc\""), 0), 2);
-    ASSERT_EQ(literal_quote_index(STRLIT("name"), 0), -1);
+    ASSERT_EQ(literal_quote_index(SL("'x'"), 0), 0);
+    ASSERT_EQ(literal_quote_index(SL("L\"abc\""), 0), 1);
+    ASSERT_EQ(literal_quote_index(SL("u8\"abc\""), 0), 2);
+    ASSERT_EQ(literal_quote_index(SL("name"), 0), -1);
     ASSERT_EQ(scan_literal_token(literal, strlen32(literal), 0), 6);
-    ASSERT_EQ(scan_literal_token(STRLIT("u8\"xy\";"), 0), 6);
-    ASSERT_EQ(scan_literal_token(STRLIT("name"), 0), 0);
+    ASSERT_EQ(scan_literal_token(SL("u8\"xy\";"), 0), 6);
+    ASSERT_EQ(scan_literal_token(SL("name"), 0), 0);
 
     {
         char trailing_escape[] = {'\"', 'a', '\\'};
@@ -1928,13 +1928,13 @@ static void
 test_comment_scanners(void) {
     bool in_block_comment = false;
 
-    ASSERT_EQ(scan_line_comment(STRLIT("// abc\nx"), 0), 6);
-    ASSERT_EQ(scan_block_comment(STRLIT("/* abc */x"), 0, &in_block_comment),
+    ASSERT_EQ(scan_line_comment(SL("// abc\nx"), 0), 6);
+    ASSERT_EQ(scan_block_comment(SL("/* abc */x"), 0, &in_block_comment),
               9);
     ASSERT(!in_block_comment);
-    ASSERT_EQ(scan_block_comment(STRLIT("/* abc\nx"), 0, &in_block_comment), 6);
+    ASSERT_EQ(scan_block_comment(SL("/* abc\nx"), 0, &in_block_comment), 6);
     ASSERT(in_block_comment);
-    ASSERT_EQ(scan_block_comment(STRLIT("continued */"), 0, &in_block_comment),
+    ASSERT_EQ(scan_block_comment(SL("continued */"), 0, &in_block_comment),
               12);
     ASSERT(!in_block_comment);
     return;
@@ -1945,23 +1945,23 @@ test_operator_or_punct_category(void) {
     enum TokenKind kind;
     int32 len;
 
-    kind = operator_or_punct_category(STRLIT(">>="), 0, &len);
+    kind = operator_or_punct_category(SL(">>="), 0, &len);
     ASSERT(kind == TOKEN_OPERATOR);
     ASSERT_EQ(len, 3);
 
-    kind = operator_or_punct_category(STRLIT("..."), 0, &len);
+    kind = operator_or_punct_category(SL("..."), 0, &len);
     ASSERT(kind == TOKEN_PUNCT);
     ASSERT_EQ(len, 3);
 
-    kind = operator_or_punct_category(STRLIT("<:"), 0, &len);
+    kind = operator_or_punct_category(SL("<:"), 0, &len);
     ASSERT(kind == TOKEN_PUNCT);
     ASSERT_EQ(len, 2);
 
-    kind = operator_or_punct_category(STRLIT("&&"), 0, &len);
+    kind = operator_or_punct_category(SL("&&"), 0, &len);
     ASSERT(kind == TOKEN_OPERATOR);
     ASSERT_EQ(len, 2);
 
-    kind = operator_or_punct_category(STRLIT("("), 0, &len);
+    kind = operator_or_punct_category(SL("("), 0, &len);
     ASSERT(kind == TOKEN_PUNCT);
     ASSERT_EQ(len, 1);
     return;
@@ -1969,8 +1969,8 @@ test_operator_or_punct_category(void) {
 
 static void
 test_line_starts_preprocessor(void) {
-    ASSERT(line_starts_preprocessor(STRLIT("  #define XX\n")));
-    ASSERT(!line_starts_preprocessor(STRLIT("  int x;\n")));
+    ASSERT(line_starts_preprocessor(SL("  #define XX\n")));
+    ASSERT(!line_starts_preprocessor(SL("  int x;\n")));
     ASSERT(!line_starts_preprocessor("", 0));
     return;
 }
@@ -2151,14 +2151,14 @@ test_token_range_navigation(void) {
                                         TOKEN_COMMENT),
               range.first - 1);
 
-    ASSERT_EQ(token_range_next_text(&tokenization, range, a, STRLIT("b")), b);
-    ASSERT_EQ(token_range_next_text(&tokenization, range, b, STRLIT("c")),
+    ASSERT_EQ(token_range_next_text(&tokenization, range, a, SL("b")), b);
+    ASSERT_EQ(token_range_next_text(&tokenization, range, b, SL("c")),
               range.end);
     ASSERT_EQ(token_range_previous_text(&tokenization, range, semicolon,
-                                        STRLIT("+")),
+                                        SL("+")),
               plus);
     ASSERT_EQ(token_range_previous_text(&tokenization, range, plus,
-                                        STRLIT("a")),
+                                        SL("a")),
               a);
 
     range = (TokenRange){semicolon, semicolon};
@@ -2237,13 +2237,13 @@ test_tokenization_between_queries(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    a = token_range_next_text(&tokenization, all, -1, STRLIT("a"));
-    b = token_range_next_text(&tokenization, all, a, STRLIT("b"));
-    c = token_range_next_text(&tokenization, all, b, STRLIT("c"));
-    d = token_range_next_text(&tokenization, all, c, STRLIT("d"));
-    e = token_range_next_text(&tokenization, all, d, STRLIT("e"));
-    f = token_range_next_text(&tokenization, all, e, STRLIT("f"));
-    g = token_range_next_text(&tokenization, all, f, STRLIT("g"));
+    a = token_range_next_text(&tokenization, all, -1, SL("a"));
+    b = token_range_next_text(&tokenization, all, a, SL("b"));
+    c = token_range_next_text(&tokenization, all, b, SL("c"));
+    d = token_range_next_text(&tokenization, all, c, SL("d"));
+    e = token_range_next_text(&tokenization, all, d, SL("e"));
+    f = token_range_next_text(&tokenization, all, e, SL("f"));
+    g = token_range_next_text(&tokenization, all, f, SL("g"));
 
     ASSERT(tokenization_comment_between(&tokenization, a, b));
     ASSERT(!tokenization_newline_between(&tokenization, a, b));
@@ -2269,11 +2269,11 @@ test_tokenization_between_queries(void) {
     tokenization = tokenize_with_flags(text, strlen32(text),
                                        TOKENIZE_SKIP_WHITESPACE);
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    a = token_range_next_text(&tokenization, all, -1, STRLIT("a"));
-    b = token_range_next_text(&tokenization, all, a, STRLIT("b"));
-    c = token_range_next_text(&tokenization, all, b, STRLIT("c"));
-    d = token_range_next_text(&tokenization, all, c, STRLIT("d"));
-    e = token_range_next_text(&tokenization, all, d, STRLIT("e"));
+    a = token_range_next_text(&tokenization, all, -1, SL("a"));
+    b = token_range_next_text(&tokenization, all, a, SL("b"));
+    c = token_range_next_text(&tokenization, all, b, SL("c"));
+    d = token_range_next_text(&tokenization, all, c, SL("d"));
+    e = token_range_next_text(&tokenization, all, d, SL("e"));
     ASSERT(tokenization_comment_between(&tokenization, a, b));
     ASSERT(tokenization_newline_between(&tokenization, b, c));
     ASSERT(tokenization_blank_line_between(&tokenization, c, d));
@@ -2434,11 +2434,11 @@ test_token_range_balanced_delimiters(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    outer = token_range_next_text(&tokenization, all, -1, STRLIT("("));
-    bracket = token_range_next_text(&tokenization, all, outer, STRLIT("["));
-    nested = token_range_next_text(&tokenization, all, bracket, STRLIT("("));
-    nested = token_range_next_text(&tokenization, all, nested, STRLIT("("));
-    brace = token_range_next_text(&tokenization, all, nested, STRLIT("{"));
+    outer = token_range_next_text(&tokenization, all, -1, SL("("));
+    bracket = token_range_next_text(&tokenization, all, outer, SL("["));
+    nested = token_range_next_text(&tokenization, all, bracket, SL("("));
+    nested = token_range_next_text(&tokenization, all, nested, SL("("));
+    brace = token_range_next_text(&tokenization, all, nested, SL("{"));
 
     ASSERT(token_is_open_delimiter(&tokenization.tokens[outer]));
     ASSERT(token_is_open_delimiter(&tokenization.tokens[bracket]));
@@ -2486,10 +2486,10 @@ test_token_range_malformed_delimiters(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    paren = token_range_next_text(&tokenization, all, -1, STRLIT("("));
-    bracket = token_range_next_text(&tokenization, all, paren, STRLIT("["));
+    paren = token_range_next_text(&tokenization, all, -1, SL("("));
+    bracket = token_range_next_text(&tokenization, all, paren, SL("["));
     close_bracket = token_range_next_text(&tokenization, all, bracket,
-                                          STRLIT("]"));
+                                          SL("]"));
     ASSERT(!token_range_is_balanced(&tokenization, all));
     ASSERT_EQ(token_range_matching_delimiter_forward(&tokenization, all,
                                                      paren),
@@ -2507,11 +2507,11 @@ test_token_range_malformed_delimiters(void) {
     text = "(a[0]) (";
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    paren = token_range_next_text(&tokenization, all, -1, STRLIT("("));
+    paren = token_range_next_text(&tokenization, all, -1, SL("("));
     ASSERT_GE(token_range_matching_delimiter_forward(&tokenization, all,
                                                      paren),
               0);
-    paren = token_range_next_text(&tokenization, all, paren, STRLIT("("));
+    paren = token_range_next_text(&tokenization, all, paren, SL("("));
     ASSERT_EQ(token_range_matching_delimiter_forward(&tokenization, all,
                                                      paren),
               -1);
@@ -2555,11 +2555,11 @@ test_token_range_delimiter_depth(void) {
 
     tokenization = tokenize(text, strlen32(text));
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    foo = token_range_next_text(&tokenization, all, -1, STRLIT("foo"));
-    open = token_range_next_text(&tokenization, all, foo, STRLIT("("));
+    foo = token_range_next_text(&tokenization, all, -1, SL("foo"));
+    open = token_range_next_text(&tokenization, all, foo, SL("("));
     close = token_range_matching_delimiter_forward(&tokenization, all, open);
-    b = token_range_next_text(&tokenization, all, open, STRLIT("b"));
-    one = token_range_next_text(&tokenization, all, b, STRLIT("1"));
+    b = token_range_next_text(&tokenization, all, open, SL("b"));
+    one = token_range_next_text(&tokenization, all, b, SL("1"));
 
     ASSERT(token_range_delimiter_depth_before(&tokenization, all, b, &depth));
     ASSERT(token_delimiter_depth_equal(depth, paren_depth));
@@ -2572,27 +2572,27 @@ test_token_range_delimiter_depth(void) {
     ASSERT(token_delimiter_depth_is_zero(depth));
 
     comma1 = token_range_next_text_at_depth(&tokenization, all, -1, zero,
-                                            STRLIT(","));
+                                            SL(","));
     comma2 = token_range_next_text_at_depth(&tokenization, all, comma1, zero,
-                                            STRLIT(","));
+                                            SL(","));
     ASSERT_LT_VAR(comma1, foo);
     ASSERT_GT_VAR(comma2, close);
     ASSERT_EQ(token_range_next_text_at_depth(&tokenization, all, comma2, zero,
-                                             STRLIT(",")),
+                                             SL(",")),
               all.end);
     ASSERT_EQ(token_range_previous_text_at_depth(&tokenization, all, all.end,
-                                                 zero, STRLIT(",")),
+                                                 zero, SL(",")),
               comma2);
     ASSERT_EQ(token_range_previous_text_at_depth(&tokenization, all, comma2,
-                                                 zero, STRLIT(",")),
+                                                 zero, SL(",")),
               comma1);
 
     inner_comma = token_range_next_text_at_depth(&tokenization, all, open,
-                                                 paren_depth, STRLIT(","));
+                                                 paren_depth, SL(","));
     ASSERT_GT_VAR(inner_comma, b);
     ASSERT_LT_VAR(inner_comma, one);
     ASSERT_EQ(token_range_next_text_at_depth(&tokenization, all, inner_comma,
-                                             paren_depth, STRLIT(",")),
+                                             paren_depth, SL(",")),
               all.end);
 
     a = token_range_next_kind_at_depth(&tokenization, all, -1, zero,
@@ -2606,7 +2606,7 @@ test_token_range_delimiter_depth(void) {
     ASSERT(token_range_is_balanced(&tokenization, args));
     inner_comma = token_range_next_text_at_depth(&tokenization, args,
                                                  args.first - 1, zero,
-                                                 STRLIT(","));
+                                                 SL(","));
     ASSERT_GT_VAR(inner_comma, b);
     ASSERT_LT_VAR(inner_comma, one);
     free_tokenization(&tokenization);
@@ -2727,8 +2727,8 @@ test_tokenization_define_digraph_and_continuation(void) {
 
     tokenization = tokenize(text, strlen32(text));
     range = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
-    inside = token_range_next_text(&tokenization, range, -1, STRLIT("x"));
-    outside = token_range_next_text(&tokenization, range, -1, STRLIT("int"));
+    inside = token_range_next_text(&tokenization, range, -1, SL("x"));
+    outside = token_range_next_text(&tokenization, range, -1, SL("int"));
     ASSERT(tokenization_is_in_preprocessor_define(&tokenization, inside));
     ASSERT(!tokenization_is_in_preprocessor_define(&tokenization, outside));
     free_tokenization(&tokenization);

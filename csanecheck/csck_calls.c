@@ -217,7 +217,7 @@ csane_call_literals(CsaneFile *file, TokenRange range) {
         if (csane_calls_line_break(file, previous, i)
             && csane_calls_location(file, first).column
                != csane_calls_location(file, i).column) {
-            csane_rule_issue(file, token->offset, STRLIT("FMT-LITERAL-ALIGN"),
+            csane_rule_issue(file, token->offset, SL("FMT-LITERAL-ALIGN"),
                              "call string literal is not aligned "
                              "with first literal");
             return;
@@ -244,7 +244,7 @@ csane_call_arguments(CsaneFile *file, CsaneTokenView *view,
     if (capacity > 256 || capacity < 0) {
         return -1;
     }
-    parts = csane_tokens_split(view, STRLIT(","), ranges, capacity);
+    parts = csane_tokens_split(view, SL(","), ranges, capacity);
     if (parts < 0 || parts > capacity) {
         return -1;
     }
@@ -493,7 +493,7 @@ csane_call_sp_format(CsaneFile *file, CsaneTokenView *view,
                                       &args[next_arg + 1])) {
                 csane_rule_issue(file,
                                  tokens->tokens[args[next_arg].first].offset,
-                                 STRLIT("STYLE-SP-SOA"),
+                                 SL("STYLE-SP-SOA"),
                                  "use SP(array, index) for %.*s with "
                                  "parallel string arrays");
             }
@@ -567,7 +567,7 @@ csane_call_free2_strlen_size(CsaneFile *file, CsaneTokenView *view,
     if (!csane_tokens_subview(&expression, view, size)) {
         return false;
     }
-    plus = csane_tokens_top_level(&expression, size.first - 1, STRLIT("+"));
+    plus = csane_tokens_top_level(&expression, size.first - 1, SL("+"));
     if (plus < size.first || plus >= size.end) {
         return false;
     }
@@ -728,7 +728,7 @@ csane_calls_token_check(CsaneFile *file) {
             _i10_predicate = _i10_result;
         }
         if (_i10_predicate) {
-            csane_rule_issue(file, token->offset, STRLIT("FMT-CALL-SPACING"),
+            csane_rule_issue(file, token->offset, SL("FMT-CALL-SPACING"),
                              "no whitespace before call parenthesis");
         }
         close = csane_tokens_match(&local, call_i);
@@ -743,7 +743,7 @@ csane_calls_token_check(CsaneFile *file) {
             if (csane_tokens_arguments(&local, call_i, args, 1) == 1) {
                 if (csane_call_literal_argument(file, &local, args[0])) {
                     csane_rule_issue(file, tokens->tokens[name].offset,
-                                     STRLIT("STYLE-STRLEN32-LITERAL"),
+                                     SL("STYLE-STRLEN32-LITERAL"),
                                      "do not call strlen32 directly on a "
                                      "string literal");
                 }
@@ -865,7 +865,7 @@ csane_calls_token_check(CsaneFile *file) {
                     }
                     if (boundary) {
                         csane_rule_issue(file, tokens->tokens[name].offset,
-                                         STRLIT("STYLE-OPT-STRLEN32"),
+                                         SL("STYLE-OPT-STRLEN32"),
                                          "use opt_strlen32 for nullable "
                                          "strings");
                     }
@@ -894,7 +894,7 @@ csane_calls_token_check(CsaneFile *file) {
                 break;
             }
             csane_rule_issue(in_file, in_file->tokens->tokens[name].offset,
-                             STRLIT("STYLE-FREE2-STRLEN"),
+                             SL("STYLE-FREE2-STRLEN"),
                              "use opt_strlen32(pointer) in the free2 size "
                              "argument");
         } while (false);
@@ -1113,7 +1113,7 @@ csane_calls_token_check(CsaneFile *file) {
                             ftokens->tokens[args[fmt_i].first]
                                               .offset;
                         csane_rule_issue(file, format_offset,
-                                         STRLIT("FMT-FORMAT-LINE"),
+                                         SL("FMT-FORMAT-LINE"),
                                          "format-string line must contain all "
                                          "format arguments or none");
                     }
@@ -1252,7 +1252,7 @@ csane_calls_token_check(CsaneFile *file) {
 
                                 csane_rule_issue(file,
                                                  ftokens->tokens[tok_i].offset,
-                                                 STRLIT("FMT-STRING-PAIR"),
+                                                 SL("FMT-STRING-PAIR"),
                                                  "related string arguments "
                                                  "must share a line or each "
                                                  "be on its own line");
@@ -1290,7 +1290,7 @@ csane_calls_token_check(CsaneFile *file) {
                             || csane_call_count_on_line(file, args, count,
                                                         line_b) != 1)) {
                         csane_rule_issue(file, ftokens->tokens[b].offset,
-                                         STRLIT("FMT-RELATED-ARGS"),
+                                         SL("FMT-RELATED-ARGS"),
                                          "related arguments must be the only "
                                          "arguments on their lines");
                         break;
@@ -1302,7 +1302,7 @@ csane_calls_token_check(CsaneFile *file) {
             cursor = content.first;
             while (cursor < close) {
                 int32 comma = csane_tokens_top_level(&nested_view, cursor,
-                                                     STRLIT(","));
+                                                     SL(","));
                 int32 end;
                 TokenRange argument;
                 int32 current;
@@ -1350,7 +1350,7 @@ csane_calls_token_check(CsaneFile *file) {
                 }
                 while (cursor < close) {
                     int32 comma = csane_tokens_top_level(&nested_view, cursor,
-                                                         STRLIT(","));
+                                                         SL(","));
                     int32 end;
                     TokenRange argument;
                     int32 current;
@@ -1369,7 +1369,7 @@ csane_calls_token_check(CsaneFile *file) {
                             Token *current_token =
                                 &call_tokens->tokens[current];
                             csane_rule_issue(file, current_token->offset,
-                                             STRLIT("FMT-ARG-ALIGN"),
+                                             SL("FMT-ARG-ALIGN"),
                                              "call argument is not aligned "
                                              "with its alignment anchor");
                             break;
