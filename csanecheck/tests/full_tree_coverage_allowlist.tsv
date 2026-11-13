@@ -64,6 +64,7 @@ csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement 
 csanecheck/csck_control.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_coverage.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	CsaneRegions *r;	1
+csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	Token *array_name;	1
 csanecheck/csck_expression_style.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
 csanecheck/csck_files.c	RULE:CONTROL	control-structure-unrecognized	csane_discovered_directory(char *path, int32 path_len) {	1
 csanecheck/csck_files.c	STRUCTURE:statement	conditional construct could not be merged	csane_discovered_directory(char *path, int32 path_len) {	1
@@ -81,6 +82,7 @@ csanecheck/csck_regions.c	RULE:LAYOUT	ambiguous-operator-context	CsaneSourceRegi
 csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	CPreprocessorDirective *directive;	1
 csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *name;	1
 csanecheck/csck_rules.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	3
+csanecheck/csck_static_null.c	RULE:LAYOUT	ambiguous-operator-context	Token *guarded_name;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneRegions *regions;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *item;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStatement *owner;	1
@@ -88,6 +90,7 @@ csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	CsaneStateme
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *last;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Token *start;	1
 csanecheck/csck_statements.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	1
+csanecheck/csck_string_literals.c	RULE:LAYOUT	ambiguous-operator-context	Token *left;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Token *token;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	TokenRange *last;	1
 csanecheck/csck_tokens.c	RULE:LAYOUT	ambiguous-operator-context	Tokenization *tokens;	1
