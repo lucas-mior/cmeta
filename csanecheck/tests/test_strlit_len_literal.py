@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "bin/csanecheck"
-DIAGNOSTIC = re.compile(r":(\d+):(\d+): error\[STYLE-STRLIT-LEN\]")
+DIAGNOSTIC = re.compile(r":(\d+):(\d+): error\[STYLE-SL-LEN\]")
 
 
 class StrlitLenLiteralTests(unittest.TestCase):

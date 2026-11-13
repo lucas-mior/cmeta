@@ -109,6 +109,11 @@ csane_string_safe_boundary(Token *left, Token *right, int32 prefix) {
     return true;
 }
 
+bool
+csane_string_literal_token(Token *token) {
+    return csane_string_prefix(token) >= 0;
+}
+
 static int32
 csane_string_columns(char *text, int32 first, int32 end) {
     int32 columns = 0;

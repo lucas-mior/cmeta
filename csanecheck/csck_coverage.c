@@ -579,13 +579,16 @@ csane_coverage_rule(CsaneFile *file, enum CsaneTargetKind kind,
                 continue;
             }
             if ((kind == CSANE_TARGET_OPERATORS
-                 || kind == CSANE_TARGET_ASSIGNMENTS)
+                 || kind == CSANE_TARGET_ASSIGNMENTS
+                 || kind == CSANE_TARGET_STRING_LITERALS)
                 && file->preprocessor->token_roles != NULL
                 && file->preprocessor->token_roles[i]
                    != C_PP_TOKEN_CODE) {
                 continue;
             }
-            if (kind == CSANE_TARGET_SIZEOF) {
+            if (kind == CSANE_TARGET_STRING_LITERALS) {
+                relevant = csane_string_literal_token(token);
+            } else if (kind == CSANE_TARGET_SIZEOF) {
                 relevant = token->kind == TOKEN_IDENT
                            && TOKEN_IS(token, "sizeof");
             } else if (kind == CSANE_TARGET_APIS) {

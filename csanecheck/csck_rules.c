@@ -686,7 +686,7 @@ static CsaneRule csane_rules[] = {
     {SL("LAYOUT"), csane_layout_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_OPERATORS, false},
     {SL("FMT-STRING-SPLIT"), csane_string_literals_check,
-     CSANE_PASS_TOKEN, CSANE_TARGET_OPERATORS, false},
+     CSANE_PASS_TOKEN, CSANE_TARGET_STRING_LITERALS, false},
     {SL("ASSIGN-EQ"), csane_layout_assignment_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_ASSIGNMENTS, false},
     {SL("FUNC-HEADERS"), csane_declarations_headers, CSANE_PASS_TOKEN,

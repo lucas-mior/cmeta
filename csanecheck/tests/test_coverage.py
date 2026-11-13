@@ -45,7 +45,7 @@ class CoverageTests(unittest.TestCase):
                                          map(int, values)))
                 groups[group]["status"] = status
                 groups[group]["pass"] = int(pass_number)
-        self.assertEqual(len(groups), 20, result.stdout + result.stderr)
+        self.assertEqual(len(groups), 21, result.stdout + result.stderr)
         self.assertIn("STYLE-STATIC-NULL-GUARD", groups)
         self.assertIn("SRC-COMMENT-RATIO", groups)
         self.assertNotIn("STYLE", groups)
@@ -53,6 +53,31 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(group["eligible"], group["checked"]
                              + group["excluded"] + group["unresolved"])
         return result, groups
+
+    def test_string_literal_coverage_ignores_ambiguous_operators(self):
+        source = ('void f(void) {\n'
+                  '    mystery_type *pointer;\n'
+                  '    use(SL("hello"\n'
+                  '           " world"));\n'
+                  '}\n')
+        result, groups = self.check(source, require=True)
+        self.assertEqual(groups["FMT-STRING-SPLIT"]["eligible"], 2,
+                         result.stdout)
+        self.assertEqual(groups["FMT-STRING-SPLIT"]["checked"], 2,
+                         result.stdout)
+        self.assertEqual(groups["FMT-STRING-SPLIT"]["unresolved"], 0,
+                         result.stdout)
+        self.assertGreater(groups["LAYOUT"]["unresolved"], 0,
+                           result.stdout)
+
+    def test_string_literal_coverage_skips_preprocessor_directives(self):
+        source = ('#define PHRASE "literal"\n'
+                  'void f(void) { use(SL("hello" " world")); }\n')
+        result, groups = self.check(source)
+        self.assertEqual(groups["FMT-STRING-SPLIT"]["eligible"], 2,
+                         result.stdout)
+        self.assertEqual(groups["FMT-STRING-SPLIT"]["unresolved"], 0,
+                         result.stdout)
 
     def test_clean_file_is_fully_checked_without_ast_operator_targets(self):
         result, groups = self.check("int32 good(void) {\n    return 0;\n}\n",

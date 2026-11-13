@@ -111,6 +111,7 @@ enum CsaneTargetKind {
     CSANE_TARGET_STYLE_STATUS,
     CSANE_TARGET_CALL_WRAP,
     CSANE_TARGET_ASSIGN_WRAP,
+    CSANE_TARGET_STRING_LITERALS,
 };
 
 enum CsanePass {
@@ -279,6 +280,7 @@ enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
 void csane_layout_index_init(CsaneFile *);
 void csane_layout_index_free(CsaneFile *);
 void csane_layout_check(CsaneFile *);
+bool csane_string_literal_token(Token *);
 void csane_string_literals_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
 bool csane_calls_code(CsaneFile *, int32);
