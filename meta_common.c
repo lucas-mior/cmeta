@@ -480,8 +480,7 @@ test_c_keywords_and_type_words(void) {
     Token token = test_token(TOKEN_IDENT, "if");
 
     ASSERT(C_KEYWORD_parse(SL("return")) == C_KEYWORD_RETURN);
-    ASSERT(C_KEYWORD_parse(SL("_Static_assert"))
-           == C_KEYWORD_STATIC_ASSERT);
+    ASSERT(C_KEYWORD_parse(SL("_Static_assert")) == C_KEYWORD_STATIC_ASSERT);
     ASSERT(c_token_keyword(&token) == C_KEYWORD_IF);
 
     token = test_token(TOKEN_OPERATOR, "if");

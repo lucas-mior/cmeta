@@ -237,8 +237,7 @@ test_split_separators_and_collector(void) {
     TokenRange full[5];
     int32 count;
 
-    count = token_range_split_collect(&tokenization, range, SL(","),
-                                      NULL, 0);
+    count = token_range_split_collect(&tokenization, range, SL(","), NULL, 0);
     ASSERT_EQ(count, 4);
     ASSERT_EQ(token_range_split_collect(&tokenization, range, SL(","),
                                         partial, LENGTH(partial)), 4);
@@ -387,10 +386,8 @@ test_split_invalid_and_unbalanced(void) {
                                        SL(",")));
         ASSERT(!token_range_split_init(&split, &t, all, NULL, 1));
         ASSERT(!token_range_split_init(&split, &t, all, "", 0));
-        ASSERT_EQ(token_range_split_collect(&t, all, SL(","),
-                                            NULL, -1), -1);
-        ASSERT_EQ(token_range_split_collect(&t, all, SL(","),
-                                            NULL, 2), -1);
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","), NULL, -1), -1);
+        ASSERT_EQ(token_range_split_collect(&t, all, SL(","), NULL, 2), -1);
         free_tokenization(&t);
     }
     return;

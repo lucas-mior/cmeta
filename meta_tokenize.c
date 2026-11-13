@@ -1929,13 +1929,11 @@ test_comment_scanners(void) {
     bool in_block_comment = false;
 
     ASSERT_EQ(scan_line_comment(SL("// abc\nx"), 0), 6);
-    ASSERT_EQ(scan_block_comment(SL("/* abc */x"), 0, &in_block_comment),
-              9);
+    ASSERT_EQ(scan_block_comment(SL("/* abc */x"), 0, &in_block_comment), 9);
     ASSERT(!in_block_comment);
     ASSERT_EQ(scan_block_comment(SL("/* abc\nx"), 0, &in_block_comment), 6);
     ASSERT(in_block_comment);
-    ASSERT_EQ(scan_block_comment(SL("continued */"), 0, &in_block_comment),
-              12);
+    ASSERT_EQ(scan_block_comment(SL("continued */"), 0, &in_block_comment), 12);
     ASSERT(!in_block_comment);
     return;
 }
@@ -2488,8 +2486,7 @@ test_token_range_malformed_delimiters(void) {
     all = (TokenRange){0, ARRAY_LEN(tokenization.tokens)};
     paren = token_range_next_text(&tokenization, all, -1, SL("("));
     bracket = token_range_next_text(&tokenization, all, paren, SL("["));
-    close_bracket = token_range_next_text(&tokenization, all, bracket,
-                                          SL("]"));
+    close_bracket = token_range_next_text(&tokenization, all, bracket, SL("]"));
     ASSERT(!token_range_is_balanced(&tokenization, all));
     ASSERT_EQ(token_range_matching_delimiter_forward(&tokenization, all,
                                                      paren),
