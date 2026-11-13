@@ -174,8 +174,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                 }
                 preproc_analysis_add_issue(analysis, issue, directive_index);
             } else {
-                CPreprocessorGroup *group =
-                    &analysis->groups[current_group];
+                CPreprocessorGroup *group = &analysis->groups[current_group];
 
                 if (group->has_else
                     && (directive.kind
