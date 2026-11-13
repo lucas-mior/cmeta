@@ -177,8 +177,7 @@ c_preprocessor_analysis_init(CPreprocessorAnalysis *analysis,
                 CPreprocessorGroup *group = &analysis->groups[current_group];
 
                 if (group->has_else
-                    && (directive.kind
-                        != C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
+                    && (directive.kind != C_PREPROCESSOR_DIRECTIVE_ENDIF)) {
                     enum CPreprocessorIssueKind issue;
 
                     issue = (directive.kind
