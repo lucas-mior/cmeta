@@ -174,8 +174,7 @@ get_directory_entries(char *directory, DirEntry **directory_list) {
             if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
                                     find_data.cFileName, -1,
                                     entries[length].name,
-                                    utf8_length, NULL, NULL)
-                != utf8_length) {
+                                    utf8_length, NULL, NULL) != utf8_length) {
                 error_code = GetLastError();
                 FindClose(find_handle);
                 get_directory_entries_free(entries, capacity);
