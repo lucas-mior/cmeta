@@ -259,7 +259,6 @@ csane_static_null_check(CsaneFile *file) {
     for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
         CsaneTopItem *item = &file->toplevel->items[i];
         CsaneTokenView body;
-        Token *name;
         bool is_static = false;
         int32 cursor;
 
@@ -278,10 +277,10 @@ csane_static_null_check(CsaneFile *file) {
             || !csane_tokens_subview(&body, &full, item->body)) {
             continue;
         }
-        name = &tokens->tokens[item->name_token];
         cursor = csane_tokens_next(&body, body.range.first);
         while (cursor < body.range.end
                && TOKEN_IS(&tokens->tokens[cursor], "if")) {
+            Token *name = &tokens->tokens[item->name_token];
             int32 open = csane_tokens_next(&body, cursor);
             int32 close;
             int32 parameter_name;
