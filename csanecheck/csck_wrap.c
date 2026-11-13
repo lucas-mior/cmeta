@@ -103,11 +103,9 @@ csane_wrap_safe(CsaneFile *file, int32 first, int32 last,
         }
         if (quote >= 0 && token->text[quote] == '"') {
             if (previous_string >= 0) {
-                SourceLocation a;
-                SourceLocation b;
+                SourceLocation a = csane_wrap_location(tokens, previous_string);
+                SourceLocation b = csane_wrap_location(tokens, i);
 
-                a = csane_wrap_location(tokens, previous_string);
-                b = csane_wrap_location(tokens, i);
                 if (a.line != b.line) {
                     run_count += 1;
                     run_newlines = run_newlines
