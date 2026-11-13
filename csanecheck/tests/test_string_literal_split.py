@@ -111,7 +111,43 @@ class StringLiteralSplitTests(unittest.TestCase):
     use("?"
         "?/ ");
 }
-''', [2, 8])
+''', [8])
+
+    def test_newline_terminated_fragments_and_sl(self):
+        self.check(r'''void f(void) {
+    use("double a;\n"
+        "double b = a;\n"
+        "xdot[0] = b;\n");
+    use(SL("alpha\n"
+           "beta\n"
+           "gamma\n"));
+    use("first\r\n"
+        "second");
+}
+''', [])
+
+    def test_newline_splits_only_exempt_their_own_boundary(self):
+        self.check(r'''void f(void) {
+    use("first\n"
+        "second"
+        " third");
+    use("one"
+        " two\n"
+        "three");
+    use(SL("a\n"
+           "b"
+           "c"));
+}
+''', [3, 5, 9])
+
+    def test_escaped_backslash_n_is_not_a_newline(self):
+        self.check(r'''void f(void) {
+    use("literal\\n"
+        " followed");
+    use(SL("literal\\n"
+           " followed"));
+}
+''', [2, 4])
 
     def test_exact_column_boundary(self):
         def sample(length):

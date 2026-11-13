@@ -126,6 +126,22 @@ csane_string_columns(char *text, int32 first, int32 end) {
     return columns;
 }
 
+/* A fragment ending in a newline escape intentionally starts a new source
+ * line for the following fragment. A doubled backslash is not an escape. */
+static bool
+csane_string_ends_with_newline(Token *token) {
+    int32 last = token->len - 2;
+    int32 slashes = 0;
+
+    if (last < 1 || token->text[last] != 'n') {
+        return false;
+    }
+    for (int32 i = last - 1; i >= 0 && token->text[i] == '\\'; i -= 1) {
+        slashes += 1;
+    }
+    return slashes % 2 == 1;
+}
+
 static bool
 csane_string_code(CsaneFile *file, int32 token) {
     return file->preprocessor->token_roles == NULL
@@ -170,6 +186,7 @@ csane_string_literals_check(CsaneFile *file) {
                 || !csane_string_whitespace(source,
                                             left->offset + left->len,
                                             right->offset)
+                || csane_string_ends_with_newline(left)
                 || !csane_string_safe_boundary(left, right, prefix)) {
                 break;
             }

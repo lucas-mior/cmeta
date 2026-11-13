@@ -287,7 +287,9 @@ assignments, macro definitions, array declarations, string literals, etc:
    and conjuctions (of, in, to, with, on, and, but, or, because, if, etc).
    Adjacent string literals on separate source lines must be combined when the
    complete resulting line, including the surrounding expression, fits the
-   configured column limit. This also applies inside `SL()`.
+   configured column limit. This also applies inside `SL()`. A split after a
+   fragment ending in a `\n` newline escape is intentional and is allowed,
+   even when the resulting line would fit the column limit.
    `csanecheck` reports `FMT-STRING-SPLIT` for unnecessary splits.
 
 ## Identation
