@@ -841,8 +841,7 @@ csane_calls_token_check(CsaneFile *file) {
                     }
                     boundary = before_condition < local.range.first;
                     if (!boundary) {
-                        Token *token_before =
-                            &tokens->tokens[before_condition];
+                        Token *token_before = &tokens->tokens[before_condition];
                         boundary = TOKEN_IS(token_before, "=")
                                    || TOKEN_IS(token_before, "+=")
                                    || TOKEN_IS(token_before, "-=")
