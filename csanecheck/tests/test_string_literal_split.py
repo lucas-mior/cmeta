@@ -149,6 +149,51 @@ class StringLiteralSplitTests(unittest.TestCase):
 }
 ''', [2, 4])
 
+    def test_color_formatters_and_complete_expression(self):
+        self.check(r'''void f(void) {
+    error("Consistency error:"
+         " %s.row_ids["RED("%d")"] -> row_id="YELLOW("%d")","
+         " but %s["YELLOW("%d")"] -> idx="RED("%d")".\n",
+         which_traversal, idx, row_id, which_rows, row_id, rows[row_id]);
+    error("Consistency error:"
+         " %s.row_ids["RED("%d")"] -> row_id="YELLOW("%d")","
+         which_traversal, idx, row_id);
+}
+''', [6])
+
+    def test_formatter_continuation_after_macro(self):
+        self.check(r'''void f(void) {
+    use("short"
+        " prefix"RED("%d")
+        " lengthy lengthy lengthy lengthy lengthy end"YELLOW("%d"));
+    use("short"
+        " prefix"RED("%d")" end");
+    use(SL("prefix"
+           " suffix"GREEN("%d")" last"));
+    use(RED("hello"
+            " world"));
+}
+''', [5, 7, 9])
+
+    def test_formatter_before_literal_pair(self):
+        self.check(r'''void f(void) {
+    use("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"RED("%d")
+        " trailing"
+        " words");
+    use("small"BLUE("%d")
+        " words"
+        " here");
+}
+''', [6])
+
+    def test_unrelated_macro_does_not_mask_splits(self):
+        self.check(r'''void f(void) {
+    use("part"
+        " one"SOME_FUNCTION("%d")
+        " more long long long long long words words words");
+}
+''', [2])
+
     def test_exact_column_boundary(self):
         def sample(length):
             return ('void f(void) {\n    use("' + 'a'*45 + '"\n'

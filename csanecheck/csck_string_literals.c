@@ -148,6 +148,155 @@ csane_string_code(CsaneFile *file, int32 token) {
            || file->preprocessor->token_roles[token] == C_PP_TOKEN_CODE;
 }
 
+/* Color formatters expand into string literals. */
+static int32
+csane_string_format_close(CsaneFile *file, CsaneTokenView *view, int32 name) {
+    Tokenization *tokens = file->tokens;
+    int32 open;
+    int32 close;
+    Token *macro = &tokens->tokens[name];
+
+    if (!csane_string_code(file, name)
+        || !(TOKEN_IS(macro, "RED") || TOKEN_IS(macro, "GREEN")
+             || TOKEN_IS(macro, "YELLOW") || TOKEN_IS(macro, "BLUE")
+             || TOKEN_IS(macro, "CYAN") || TOKEN_IS(macro, "PURPLE")
+             || TOKEN_IS(macro, "BRED") || TOKEN_IS(macro, "BGREEN")
+             || TOKEN_IS(macro, "BYELLOW") || TOKEN_IS(macro, "BBLUE")
+             || TOKEN_IS(macro, "BCYAN"))) {
+        return -1;
+    }
+    open = csane_tokens_next(view, name);
+    if (open >= ARRAY_LEN(tokens->tokens)
+        || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return -1;
+    }
+    close = csane_tokens_match(view, open);
+    if (close < 0 || !csane_string_code(file, close)) {
+        return -1;
+    }
+    return close;
+}
+
+/* Compute the width of the complete format expression, not only the two
+ * neighboring literals. A continuation after a color macro may make the
+ * expression too long to combine even when the first pair alone fits. */
+static int32
+csane_string_format_columns(CsaneFile *file, CsaneTokenView *view,
+                            int32 first, int32 prefix, bool *has_macro) {
+    Tokenization *tokens = file->tokens;
+    char *source = tokens->text;
+    int32 count = ARRAY_LEN(tokens->tokens);
+    int32 start = first;
+    int32 previous = -1;
+    int32 end = -1;
+    int32 width = 0;
+
+    while (start > 0) {
+        Token *right = &tokens->tokens[start];
+        int32 before = csane_tokens_previous(view, start);
+
+        if (before < 0 || !csane_string_code(file, before)) {
+            break;
+        }
+        Token *left = &tokens->tokens[before];
+        if (!csane_string_whitespace(source, left->offset + left->len,
+                                     right->offset)) {
+            break;
+        }
+        if (csane_string_prefix(left) == prefix) {
+            if (csane_string_ends_with_newline(left)
+                || (csane_string_prefix(right) == prefix
+                    && !csane_string_safe_boundary(left, right, prefix))) {
+                break;
+            }
+            start = before;
+            continue;
+        }
+        if (TOKEN_IS(left, ")")) {
+            int32 open = csane_tokens_match(view, before);
+            int32 name;
+
+            if (open < 0) {
+                break;
+            }
+            name = csane_tokens_previous(view, open);
+            if (name < 0
+                || csane_string_format_close(file, view, name) != before) {
+                break;
+            }
+            start = name;
+            continue;
+        }
+        break;
+    }
+    for (int32 i = start; i < count;) {
+        Token *current = &tokens->tokens[i];
+        int32 close = csane_string_format_close(file, view, i);
+        int32 literal_prefix = csane_string_prefix(current);
+
+        if (literal_prefix != prefix && close < 0) {
+            break;
+        }
+        if (previous >= 0) {
+            Token *left = &tokens->tokens[previous];
+            if (!csane_string_whitespace(source,
+                                         left->offset + left->len,
+                                         current->offset)) {
+                break;
+            }
+            if (csane_string_prefix(left) == prefix) {
+                if (csane_string_ends_with_newline(left)) {
+                    break;
+                }
+                if (literal_prefix == prefix) {
+                    if (!csane_string_safe_boundary(left, current, prefix)) {
+                        break;
+                    }
+                    width -= prefix + 2;
+                }
+            }
+        }
+        if (close >= 0) {
+            Token *closing = &tokens->tokens[close];
+            int32 after = closing->offset + closing->len;
+
+            *has_macro = true;
+            for (int32 j = current->offset; j < after; j += 1) {
+                if (source[j] == '\n' || source[j] == '\r') {
+                    return INT32_MAX;
+                }
+            }
+            width += csane_string_columns(source, current->offset, after);
+            previous = close;
+        } else {
+            width += csane_string_columns(current->text, 0, current->len);
+            previous = i;
+        }
+        end = previous;
+        i = csane_tokens_next(view, previous);
+    }
+    if (end < 0) {
+        return INT32_MAX;
+    }
+    {
+        Token *head = &tokens->tokens[start];
+        Token *tail = &tokens->tokens[end];
+        int32 line_start = head->offset;
+        int32 line_end = tail->offset + tail->len;
+
+        while (line_start > 0 && source[line_start - 1] != '\n') {
+            line_start -= 1;
+        }
+        while (line_end < tokens->text_len && source[line_end] != '\n') {
+            line_end += 1;
+        }
+        width += csane_string_columns(source, line_start, head->offset);
+        width += csane_string_columns(source, tail->offset + tail->len,
+                                      line_end);
+    }
+    return width;
+}
+
 /* Report only when the *whole* adjacent group fits on the first literal's
  * physical line, including preceding code and the last literal's suffix.
  * This also handles strings in SL("..." "...") without special casing SL. */
@@ -227,8 +376,16 @@ csane_string_literals_check(CsaneFile *file) {
             j = csane_tokens_next(&view, j);
         }
         if (columns <= file->column_limit) {
-            csane_rule_issue(file, first->offset, SL("FMT-STRING-SPLIT"),
-                             "adjacent string literals can fit on one line");
+            bool has_macro = false;
+            int32 format_columns =
+                csane_string_format_columns(file, &view, i, prefix,
+                                            &has_macro);
+
+            if (!has_macro || format_columns <= file->column_limit) {
+                csane_rule_issue(file, first->offset,
+                                 SL("FMT-STRING-SPLIT"),
+                                 "adjacent string literals fit on one line");
+            }
         }
         i = last + 1;
     }
