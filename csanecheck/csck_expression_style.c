@@ -1740,130 +1740,6 @@ csane_style_sprintf_declaration(CsaneFile *file, TokenRange range,
     return 0;
 }
 
-/* Do not use an array from a sibling block or an unrelated function as
- * evidence. Only declarations in an enclosing lexical block are visible. */
-bool
-csane_style_sprintf_parent(CsaneStatements *statements, int32 call,
-                           int32 parent) {
-    while (call >= 0) {
-        if (call == parent) {
-            return true;
-        }
-        call = statements->items[call].parent;
-    }
-    return parent == -1;
-}
-
-bool
-csane_style_sprintf_array(CsaneFile *file, int32 call, Token *name) {
-    CsaneTopItem *function = NULL;
-    int32 function_id = -1;
-    int32 statement_id = -1;
-    int32 best = -1;
-    int32 result = 0;
-    int32 branch;
-    enum CsaneRegionKind branch_kind = CSANE_REGION_CONDITIONAL_BRANCH;
-
-    if (file->toplevel == NULL || file->statements == NULL) {
-        return false;
-    }
-    branch = csane_regions_enclosing(file->regions,
-                                     csane_regions_at_token(file->regions,
-                                                            call),
-                                     branch_kind);
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
-            && item->body.first <= call && call < item->body.end) {
-            function = item;
-            function_id = i;
-            break;
-        }
-    }
-    if (function == NULL) {
-        return false;
-    }
-    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
-        CsaneStatement *statement = &file->statements->items[i];
-        if (statement->function != function_id
-            || statement->tokens.first > call
-            || call >= statement->tokens.end) {
-            continue;
-        }
-        if (statement_id < 0
-            || statement->tokens.first
-               >= file->statements->items[statement_id].tokens.first) {
-            statement_id = i;
-        }
-    }
-    if (statement_id < 0) {
-        return false;
-    }
-    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
-        CsaneStatement *statement = &file->statements->items[i];
-        int32 declared;
-        int32 candidate_branch;
-        int32 statement_region;
-
-        if (statement->function != function_id
-            || statement->kind != CSANE_STMT_SIMPLE
-            || statement->tokens.first >= call
-            || statement->tokens.end > call
-            || !csane_style_sprintf_parent(file->statements, statement_id,
-                                           statement->parent)) {
-            continue;
-        }
-        statement_region = csane_regions_at_token(file->regions,
-                                                  statement->tokens.first);
-        candidate_branch = csane_regions_enclosing(file->regions,
-                                                   statement_region,
-                                                   branch_kind);
-        if (candidate_branch >= 0 && candidate_branch != branch) {
-            continue;
-        }
-        declared = csane_style_sprintf_declaration(file, statement->tokens,
-                                                   name);
-        if (declared != 0 && statement->tokens.first > best) {
-            best = statement->tokens.first;
-            result = declared;
-        }
-    }
-    if (best >= 0) {
-        return result == 1;
-    }
-    /* A matching function parameter shadows a file-scope array; it is a
-     * pointer even if its declaration spells name[]. */
-    for (int32 i = function->header.first; i < function->header.end; i += 1) {
-        Token *token = &file->tokens->tokens[i];
-        if (i != function->name_token && token->kind == TOKEN_IDENT
-            && STREQUAL(token->text, token->len, name->text, name->len)) {
-            return false;
-        }
-    }
-    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
-        CsaneTopItem *item = &file->toplevel->items[i];
-        int32 item_region;
-        int32 declared;
-
-        if (item->kind != CSANE_TOP_DECLARATION
-            || item->tokens.first >= call) {
-            continue;
-        }
-        item_region = csane_regions_at_token(file->regions, item->tokens.first);
-        item_region = csane_regions_enclosing(file->regions, item_region,
-                                              branch_kind);
-        if (item_region >= 0 && item_region != branch) {
-            continue;
-        }
-        declared = csane_style_sprintf_declaration(file, item->tokens, name);
-        if (declared != 0 && item->tokens.first > best) {
-            best = item->tokens.first;
-            result = declared;
-        }
-    }
-    return best >= 0 && result == 1;
-}
-
 static void
 csane_style_sprintf_array_check(CsaneFile *file, CsaneTokenView *view,
                                 int32 name, int32 open) {
@@ -1873,6 +1749,14 @@ csane_style_sprintf_array_check(CsaneFile *file, CsaneTokenView *view,
     TokenRange sizeof_args[1];
     CsaneTokenView argument;
     Tokenization *tokens = file->tokens;
+    Token *array_name;
+    CsaneTopItem *function = NULL;
+    enum CsaneRegionKind branch_kind = CSANE_REGION_CONDITIONAL_BRANCH;
+    int32 function_id = -1;
+    int32 statement_id = -1;
+    int32 best = -1;
+    int32 result = 0;
+    int32 branch;
     int32 count;
     int32 identifier;
     int32 size;
@@ -1920,9 +1804,127 @@ csane_style_sprintf_array_check(CsaneFile *file, CsaneTokenView *view,
         || !STREQUAL(tokens->tokens[identifier].text,
                      tokens->tokens[identifier].len,
                      tokens->tokens[size_identifier].text,
-                     tokens->tokens[size_identifier].len)
-        || !csane_style_sprintf_array(file, name,
-                                      &tokens->tokens[identifier])) {
+                     tokens->tokens[size_identifier].len)) {
+        return;
+    }
+    array_name = &tokens->tokens[identifier];
+    if (file->toplevel == NULL || file->statements == NULL) {
+        return;
+    }
+    branch = csane_regions_enclosing(file->regions,
+                                     csane_regions_at_token(file->regions,
+                                                            name),
+                                     branch_kind);
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+
+        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+            && item->body.first <= name && name < item->body.end) {
+            function = item;
+            function_id = i;
+            break;
+        }
+    }
+    if (function == NULL) {
+        return;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        CsaneStatement *statement = &file->statements->items[i];
+
+        if (statement->function != function_id
+            || statement->tokens.first > name
+            || name >= statement->tokens.end) {
+            continue;
+        }
+        if (statement_id < 0
+            || statement->tokens.first
+               >= file->statements->items[statement_id].tokens.first) {
+            statement_id = i;
+        }
+    }
+    if (statement_id < 0) {
+        return;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        CsaneStatement *statement = &file->statements->items[i];
+        int32 declared;
+        int32 candidate_branch;
+        int32 statement_region;
+        int32 parent;
+        bool enclosing;
+
+        if (statement->function != function_id
+            || statement->kind != CSANE_STMT_SIMPLE
+            || statement->tokens.first >= name
+            || statement->tokens.end > name) {
+            continue;
+        }
+        /* Do not use an array from a sibling block as evidence. */
+        parent = statement_id;
+        enclosing = statement->parent == -1;
+        while (parent >= 0) {
+            if (parent == statement->parent) {
+                enclosing = true;
+                break;
+            }
+            parent = file->statements->items[parent].parent;
+        }
+        if (!enclosing) {
+            continue;
+        }
+        statement_region = csane_regions_at_token(file->regions,
+                                                  statement->tokens.first);
+        candidate_branch = csane_regions_enclosing(file->regions,
+                                                   statement_region,
+                                                   branch_kind);
+        if (candidate_branch >= 0 && candidate_branch != branch) {
+            continue;
+        }
+        declared = csane_style_sprintf_declaration(file, statement->tokens,
+                                                   array_name);
+        if (declared != 0 && statement->tokens.first > best) {
+            best = statement->tokens.first;
+            result = declared;
+        }
+    }
+    if (best < 0) {
+        /* A matching parameter shadows a file-scope array; it is a pointer
+         * even if its declaration spells name[]. */
+        for (int32 i = function->header.first; i < function->header.end;
+             i += 1) {
+            Token *token = &file->tokens->tokens[i];
+
+            if (i != function->name_token && token->kind == TOKEN_IDENT
+                && STREQUAL(token->text, token->len, array_name->text,
+                            array_name->len)) {
+                return;
+            }
+        }
+        for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+            CsaneTopItem *item = &file->toplevel->items[i];
+            int32 item_region;
+            int32 declared;
+
+            if (item->kind != CSANE_TOP_DECLARATION
+                || item->tokens.first >= name) {
+                continue;
+            }
+            item_region = csane_regions_at_token(file->regions,
+                                                 item->tokens.first);
+            item_region = csane_regions_enclosing(file->regions, item_region,
+                                                  branch_kind);
+            if (item_region >= 0 && item_region != branch) {
+                continue;
+            }
+            declared = csane_style_sprintf_declaration(file, item->tokens,
+                                                       array_name);
+            if (declared != 0 && item->tokens.first > best) {
+                best = item->tokens.first;
+                result = declared;
+            }
+        }
+    }
+    if (best < 0 || result != 1) {
         return;
     }
     csane_rule_issue(file, tokens->tokens[name].offset,

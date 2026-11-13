@@ -45,6 +45,7 @@ csane_static_null_parameter(CsaneTokenView *view, CsaneTopItem *item,
     }
     for (int32 i = 0; i < count; i += 1) {
         CsaneTokenView parameter;
+        int32 first;
         int32 last;
         bool pointer = false;
         bool complex = false;
@@ -57,7 +58,7 @@ csane_static_null_parameter(CsaneTokenView *view, CsaneTopItem *item,
             || !csane_static_null_same(&tokens->tokens[last], name)) {
             continue;
         }
-        int32 first = parameter.range.first - 1;
+        first = parameter.range.first - 1;
         for (int32 j = csane_tokens_next(&parameter, first); j < last;
              j = csane_tokens_next(&parameter, j)) {
             if (TOKEN_IS(&tokens->tokens[j], "*")) {
@@ -281,6 +282,7 @@ csane_static_null_check(CsaneFile *file) {
         while (cursor < body.range.end
                && TOKEN_IS(&tokens->tokens[cursor], "if")) {
             Token *name = &tokens->tokens[item->name_token];
+            Token *guarded_name;
             int32 open = csane_tokens_next(&body, cursor);
             int32 close;
             int32 parameter_name;
@@ -300,7 +302,7 @@ csane_static_null_check(CsaneFile *file) {
             if (parameter_name < 0 || guard_end < 0) {
                 break;
             }
-            Token *guarded_name = &tokens->tokens[parameter_name];
+            guarded_name = &tokens->tokens[parameter_name];
             parameter = csane_static_null_parameter(&full, item, guarded_name);
             if (parameter >= 0
                 && !csane_include_graph_foreign_reference(file->include_graph,

@@ -193,12 +193,13 @@ csane_string_format_columns(CsaneFile *file, CsaneTokenView *view,
 
     while (start > 0) {
         Token *right = &tokens->tokens[start];
+        Token *left;
         int32 before = csane_tokens_previous(view, start);
 
         if (before < 0 || !csane_string_code(file, before)) {
             break;
         }
-        Token *left = &tokens->tokens[before];
+        left = &tokens->tokens[before];
         if (!csane_string_whitespace(source, left->offset + left->len,
                                      right->offset)) {
             break;
