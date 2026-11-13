@@ -599,6 +599,20 @@ That means to also avoid calling `strlen32`:
 ## Important pattern:
 - Macros `ENDS_WITH` and `BEGINS_WITH`: they use a macro trick to allow passing
   only the string, or also passing the string length. See `cbase.h`.
+* For fixed-size stack or static `char` arrays, use `SNPRINTF` rather than
+  calling `fmt_sprintf` with an explicit `SIZEOF` capacity. `SNPRINTF`
+  obtains the array size directly and keeps the capacity tied to the buffer.
+  ```c
+  // bad
+  char name[128];
+  fmt_sprintf(name, SIZEOF(name), "%s", label);
+
+  // good
+  char name[128];
+  SNPRINTF(name, "%s", label);
+  ```
+  The checker reports `STYLE-SPRINTF-ARRAY`. For a pointer to an externally
+  allocated buffer with a runtime capacity, `fmt_sprintf` remains permitted.
 * `SNPRINTF` returns the number of bytes written (excluding the terminating
   null byte). No need to call `strlen32` on the buffer:
   ```c

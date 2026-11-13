@@ -1629,6 +1629,262 @@ csane_style_strcmp_allowed(CsaneFile *file, int32 name, int32 start,
     return false;
 }
 
+/* Only explicit char-array declarations prove that SNPRINTF can infer the
+ * destination capacity. A pointer, including an array parameter (which
+ * decays to a pointer), is not an interchangeable replacement. */
+static int32
+csane_style_sprintf_declaration(CsaneFile *file, TokenRange range,
+                                Token *name) {
+    CsaneTokenView view;
+    TokenRange parts[64];
+    int32 first;
+    int32 count;
+
+    if (!csane_tokens_view(&view, file->tokens, range)) {
+        return 0;
+    }
+    first = csane_tokens_next(&view, range.first - 1);
+    while (first < range.end
+           && (TOKEN_IS(&file->tokens->tokens[first], "static")
+               || TOKEN_IS(&file->tokens->tokens[first], "extern")
+               || TOKEN_IS(&file->tokens->tokens[first], "auto")
+               || TOKEN_IS(&file->tokens->tokens[first], "const")
+               || TOKEN_IS(&file->tokens->tokens[first], "volatile"))) {
+        first = csane_tokens_next(&view, first);
+    }
+    if (first >= range.end
+        || !TOKEN_IS(&file->tokens->tokens[first], "char")) {
+        return 0;
+    }
+    range.first = csane_tokens_next(&view, first);
+    if (range.first >= range.end
+        || !csane_tokens_view(&view, file->tokens, range)) {
+        return 0;
+    }
+    count = csane_tokens_split(&view, SL(","), parts, LENGTH(parts));
+    if (count < 0) {
+        return 0;
+    }
+    for (int32 part = 0; part < count; part += 1) {
+        CsaneTokenView segment;
+        int32 i;
+        int32 next;
+        int32 pointer = 0;
+
+        if (!csane_tokens_subview(&segment, &view, parts[part])) {
+            continue;
+        }
+        i = csane_tokens_next(&segment, parts[part].first - 1);
+        while (i < parts[part].end
+               && TOKEN_IS(&file->tokens->tokens[i], "*")) {
+            pointer += 1;
+            i = csane_tokens_next(&segment, i);
+        }
+        if (i >= parts[part].end
+            || file->tokens->tokens[i].kind != TOKEN_IDENT
+            || !STREQUAL(file->tokens->tokens[i].text,
+                         file->tokens->tokens[i].len,
+                         name->text, name->len)) {
+            continue;
+        }
+        next = csane_tokens_next(&segment, i);
+        return pointer == 0 && next < parts[part].end
+               && TOKEN_IS(&file->tokens->tokens[next], "[") ? 1 : -1;
+    }
+    return 0;
+}
+
+/* Do not use an array from a sibling block or an unrelated function as
+ * evidence. Only declarations in an enclosing lexical block are visible. */
+bool
+csane_style_sprintf_parent(CsaneStatements *statements, int32 call,
+                           int32 parent) {
+    while (call >= 0) {
+        if (call == parent) {
+            return true;
+        }
+        call = statements->items[call].parent;
+    }
+    return parent == -1;
+}
+
+bool
+csane_style_sprintf_array(CsaneFile *file, int32 call, Token *name) {
+    CsaneTopItem *function = NULL;
+    int32 function_id = -1;
+    int32 statement_id = -1;
+    int32 best = -1;
+    int32 result = 0;
+    int32 branch;
+    enum CsaneRegionKind branch_kind = CSANE_REGION_CONDITIONAL_BRANCH;
+
+    if (file->toplevel == NULL || file->statements == NULL) {
+        return false;
+    }
+    branch = csane_regions_enclosing(file->regions,
+                                     csane_regions_at_token(file->regions,
+                                                            call),
+                                     branch_kind);
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        if (item->kind == CSANE_TOP_FUNCTION_DEFINITION
+            && item->body.first <= call && call < item->body.end) {
+            function = item;
+            function_id = i;
+            break;
+        }
+    }
+    if (function == NULL) {
+        return false;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        CsaneStatement *statement = &file->statements->items[i];
+        if (statement->function != function_id
+            || statement->tokens.first > call
+            || call >= statement->tokens.end) {
+            continue;
+        }
+        if (statement_id < 0
+            || statement->tokens.first
+               >= file->statements->items[statement_id].tokens.first) {
+            statement_id = i;
+        }
+    }
+    if (statement_id < 0) {
+        return false;
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->statements->items); i += 1) {
+        CsaneStatement *statement = &file->statements->items[i];
+        int32 declared;
+        int32 candidate_branch;
+        int32 statement_region;
+
+        if (statement->function != function_id
+            || statement->kind != CSANE_STMT_SIMPLE
+            || statement->tokens.first >= call
+            || statement->tokens.end > call
+            || !csane_style_sprintf_parent(file->statements, statement_id,
+                                           statement->parent)) {
+            continue;
+        }
+        statement_region = csane_regions_at_token(file->regions,
+                                                  statement->tokens.first);
+        candidate_branch = csane_regions_enclosing(file->regions,
+                                                   statement_region,
+                                                   branch_kind);
+        if (candidate_branch >= 0 && candidate_branch != branch) {
+            continue;
+        }
+        declared = csane_style_sprintf_declaration(file, statement->tokens,
+                                                   name);
+        if (declared != 0 && statement->tokens.first > best) {
+            best = statement->tokens.first;
+            result = declared;
+        }
+    }
+    if (best >= 0) {
+        return result == 1;
+    }
+    /* A matching function parameter shadows a file-scope array; it is a
+     * pointer even if its declaration spells name[]. */
+    for (int32 i = function->header.first; i < function->header.end; i += 1) {
+        Token *token = &file->tokens->tokens[i];
+        if (i != function->name_token && token->kind == TOKEN_IDENT
+            && STREQUAL(token->text, token->len, name->text, name->len)) {
+            return false;
+        }
+    }
+    for (int32 i = 0; i < ARRAY_LEN(file->toplevel->items); i += 1) {
+        CsaneTopItem *item = &file->toplevel->items[i];
+        int32 item_region;
+        int32 declared;
+
+        if (item->kind != CSANE_TOP_DECLARATION
+            || item->tokens.first >= call) {
+            continue;
+        }
+        item_region = csane_regions_at_token(file->regions, item->tokens.first);
+        item_region = csane_regions_enclosing(file->regions, item_region,
+                                              branch_kind);
+        if (item_region >= 0 && item_region != branch) {
+            continue;
+        }
+        declared = csane_style_sprintf_declaration(file, item->tokens, name);
+        if (declared != 0 && item->tokens.first > best) {
+            best = item->tokens.first;
+            result = declared;
+        }
+    }
+    return best >= 0 && result == 1;
+}
+
+static void
+csane_style_sprintf_array_check(CsaneFile *file, CsaneTokenView *view,
+                                int32 name, int32 open) {
+    TokenRange args[64];
+    TokenRange destination;
+    TokenRange capacity;
+    TokenRange sizeof_args[1];
+    CsaneTokenView argument;
+    Tokenization *tokens = file->tokens;
+    int32 count;
+    int32 identifier;
+    int32 size;
+    int32 sizeof_open;
+    int32 sizeof_close;
+    int32 size_identifier;
+
+    count = csane_tokens_arguments(view, open, args, LENGTH(args));
+    if (count < 3) {
+        return;
+    }
+    destination = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&argument, view, destination)) {
+        return;
+    }
+    identifier = csane_tokens_next(&argument, destination.first - 1);
+    if (identifier >= destination.end
+        || tokens->tokens[identifier].kind != TOKEN_IDENT
+        || csane_tokens_next(&argument, identifier) < destination.end) {
+        return;
+    }
+    capacity = csane_tokens_unwrap(view, args[1]);
+    if (!csane_tokens_subview(&argument, view, capacity)) {
+        return;
+    }
+    size = csane_tokens_next(&argument, capacity.first - 1);
+    sizeof_open = csane_tokens_next(&argument, size);
+    if (size >= capacity.end || sizeof_open >= capacity.end
+        || !TOKEN_IS(&tokens->tokens[size], "SIZEOF")
+        || !TOKEN_IS(&tokens->tokens[sizeof_open], "(")) {
+        return;
+    }
+    sizeof_close = csane_tokens_match(&argument, sizeof_open);
+    if (sizeof_close < 0
+        || csane_tokens_next(&argument, sizeof_close) < capacity.end
+        || csane_tokens_arguments(&argument, sizeof_open, sizeof_args, 1)
+           != 1) {
+        return;
+    }
+    capacity = csane_tokens_unwrap(&argument, sizeof_args[0]);
+    size_identifier = csane_tokens_next(&argument, capacity.first - 1);
+    if (size_identifier >= capacity.end
+        || tokens->tokens[size_identifier].kind != TOKEN_IDENT
+        || csane_tokens_next(&argument, size_identifier) < capacity.end
+        || !STREQUAL(tokens->tokens[identifier].text,
+                     tokens->tokens[identifier].len,
+                     tokens->tokens[size_identifier].text,
+                     tokens->tokens[size_identifier].len)
+        || !csane_style_sprintf_array(file, name,
+                                      &tokens->tokens[identifier])) {
+        return;
+    }
+    csane_rule_issue(file, tokens->tokens[name].offset,
+                     SL("STYLE-SPRINTF-ARRAY"),
+                     "use SNPRINTF(array, ...) instead of "
+                     "fmt_sprintf(array, SIZEOF(array), ...)");
+}
+
 void
 csane_expression_style_check(CsaneFile *file) {
     CsaneTokenView view = csane_tokens_full(file->tokens);
@@ -1761,6 +2017,9 @@ csane_expression_style_check(CsaneFile *file) {
                 && (TOKEN_IS(&tokens->tokens[previous], ".")
                     || TOKEN_IS(&tokens->tokens[previous], "->"))) {
                 continue;
+            }
+            if (TOKEN_IS(token, "fmt_sprintf")) {
+                csane_style_sprintf_array_check(file, &local, i, next);
             }
             if ((TOKEN_IS(token, "BEGINS_WITH")
                  || TOKEN_IS(token, "ENDS_WITH"))
