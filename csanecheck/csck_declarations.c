@@ -78,8 +78,7 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
     }
     type = first;
     while (true) {
-        bool _i25_predicate;
-        _i25_predicate = type < range.end;
+        bool _i25_predicate = type < range.end;
         if (_i25_predicate) {
             bool _i25_result;
             do {
@@ -131,9 +130,7 @@ csane_decl_type_start(CsaneFile *file, TokenRange range) {
         return true;
     }
     if (csane_decl_is(file, second, SL("("))) {
-        int32 inside;
-
-        inside = csane_decl_next(file, range, second);
+        int32 inside = csane_decl_next(file, range, second);
         return inside < range.end
                    && csane_decl_is(file, inside, SL("*"));
     }
@@ -689,11 +686,8 @@ csane_decl_parameter_checks(CsaneFile *file, TokenRange args,
     }
     first = csane_tokens_next(&view, args.first - 1);
     while (first >= args.first && first < args.end) {
-        int32 comma;
-        TokenRange parameter;
-
-        comma = csane_tokens_top_level(&view, first - 1, SL(","));
-        parameter = (TokenRange){first, args.end};
+        int32 comma = csane_tokens_top_level(&view, first - 1, SL(","));
+        TokenRange parameter = {first, args.end};
         if (comma >= first && comma < args.end) {
             parameter.end = comma;
         }
@@ -865,9 +859,7 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
         bool _i26_predicate;
         bool _i26_result;
         do {
-            int32 token;
-
-            token = csane_decl_next(file, range, range.first - 1);
+            int32 token = csane_decl_next(file, range, range.first - 1);
             if (token >= range.end) {
                 _i26_result = false;
                 goto _i26_done;
@@ -896,9 +888,7 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
                 goto _i26_done;
             }
             if (csane_decl_known_type(file, token)) {
-                int32 next;
-
-                next = csane_decl_next(file, range, token);
+                int32 next = csane_decl_next(file, range, token);
                 if (next >= range.end) {
                     _i26_result = false;
                     goto _i26_done;
@@ -909,9 +899,7 @@ csane_decl_one(CsaneFile *file, TokenRange range, uint8 *lines,
                     goto _i26_done;
                 }
                 if (csane_decl_is(file, next, SL("("))) {
-                    int32 inside;
-
-                    inside = csane_decl_next(file, range, next);
+                    int32 inside = csane_decl_next(file, range, next);
                     _i26_result = inside < range.end
                            && csane_decl_is(file, inside, SL("*"));
                     goto _i26_done;
@@ -1010,16 +998,12 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
         Token *token = &file->tokens->tokens[i];
 
         if (TOKEN_IS(token, "for")) {
-            int32 open;
-
-            open = csane_decl_next(file, range, i);
+            int32 open = csane_decl_next(file, range, i);
             if (csane_decl_is(file, open, SL("("))) {
                 CsaneTokenView view;
 
                 if (csane_tokens_view(&view, file->tokens, range)) {
-                    int32 close;
-
-                    close = csane_tokens_match(&view, open);
+                    int32 close = csane_tokens_match(&view, open);
                     if (close >= 0) {
                         TokenRange header;
                         CsaneTokenView inner;
@@ -1043,9 +1027,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
             CsaneTokenView view;
 
             if (csane_tokens_view(&view, file->tokens, range)) {
-                int32 close;
-
-                close = csane_tokens_match(&view, i);
+                int32 close = csane_tokens_match(&view, i);
                 if (close >= 0) {
                     i = close;
                 }
@@ -1054,9 +1036,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
             CsaneTokenView view;
 
             if (csane_tokens_view(&view, file->tokens, range)) {
-                int32 close;
-
-                close = csane_tokens_match(&view, i);
+                int32 close = csane_tokens_match(&view, i);
                 if (close >= 0) {
                     TokenRange prefix;
                     bool type_prefix;
@@ -1065,9 +1045,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                     prefix = (TokenRange){start, i};
                     type_prefix = csane_decl_type_start(file, prefix);
                     if (type_prefix) {
-                        int32 cursor;
-
-                        cursor = start;
+                        int32 cursor = start;
                         while (cursor < i) {
                             if (csane_decl_is(file, cursor, SL("struct"))
                                 || csane_decl_is(file, cursor,
@@ -1182,9 +1160,7 @@ csane_decl_header(CsaneFile *file, TokenRange range) {
     first_column = tokenization_token_location(file->tokens, first).column;
     comma = csane_decl_comma(file, args);
     while (comma >= 0 && comma < args.end) {
-        int32 current;
-
-        current = csane_decl_next(file, args, comma);
+        int32 current = csane_decl_next(file, args, comma);
         if (current >= args.end) {
             break;
         }
@@ -1236,10 +1212,8 @@ csane_declarations_check(CsaneFile *file) {
             csane_decl_signature_check(file, item->header);
             csane_decl_scope(file, item->body, lines, line_count);
         } else if (item->kind == CSANE_TOP_TYPE_DECLARATION) {
-            int32 open;
-
             /* Type members form a separate declaration sequence. */
-            open = item->tokens.first;
+            int32 open = item->tokens.first;
             while (open < item->tokens.end
                    && !csane_decl_is(file, open, SL("{"))) {
                 open += 1;
@@ -1248,9 +1222,7 @@ csane_declarations_check(CsaneFile *file) {
                 CsaneTokenView view;
 
                 if (csane_tokens_view(&view, file->tokens, item->tokens)) {
-                    int32 close;
-
-                    close = csane_tokens_match(&view, open);
+                    int32 close = csane_tokens_match(&view, open);
                     if (close >= 0) {
                         csane_decl_scope(file, (TokenRange){open + 1, close},
                                          lines, line_count);
@@ -1260,6 +1232,231 @@ csane_declarations_check(CsaneFile *file) {
         }
     }
     free2(lines, line_count*SIZEOF(*lines));
+}
+
+/* Only an uninitialized object declaration can start a candidate group.
+ * Keep unsupported declarators in the group so that an incomplete or
+ * complicated group can never be reduced to a misleading suffix match. */
+static bool
+csane_decl_postponed_uninitialized(CsaneFile *file, int32 index) {
+    CsaneStatement *stmt = &file->statements->items[index];
+    CsaneTokenView view;
+    TokenRange range = stmt->tokens;
+
+    if (stmt->kind != CSANE_STMT_SIMPLE
+        || !csane_declarations_variable_statement(file, stmt)
+        || !csane_tokens_view(&view, file->tokens, range)) {
+        return false;
+    }
+    return csane_tokens_top_level(&view, range.first - 1, SL("="))
+           == range.end;
+}
+
+/* Leave complex declarators, storage-duration modifiers and volatile objects
+ * alone. In particular, an assignment is not equivalent to initializing a
+ * static object on every execution of its containing block. */
+static int32
+csane_decl_postponed_name(CsaneFile *file, int32 index) {
+    CsaneStatement *stmt = &file->statements->items[index];
+    TokenRange range = stmt->tokens;
+    CsaneTokenView view;
+    int32 last;
+    int32 name;
+    int32 token;
+
+    if (!csane_decl_postponed_uninitialized(file, index)
+        || !csane_tokens_view(&view, file->tokens, range)) {
+        return -1;
+    }
+    last = csane_tokens_previous(&view, range.end);
+    name = csane_tokens_previous(&view, last);
+    if (!csane_decl_is(file, last, SL(";")) || name < range.first
+        || file->tokens->tokens[name].kind != TOKEN_IDENT) {
+        return -1;
+    }
+    token = csane_tokens_next(&view, range.first - 1);
+    for (; token < name; token = csane_tokens_next(&view, token)) {
+        Token *word = &file->tokens->tokens[token];
+
+        if (csane_decl_is(file, token, SL("static"))
+            || csane_decl_is(file, token, SL("extern"))
+            || csane_decl_is(file, token, SL("typedef"))
+            || csane_decl_is(file, token, SL("_Thread_local"))
+            || csane_decl_is(file, token, SL("volatile"))
+            || csane_decl_is(file, token, SL("_Atomic"))
+            || csane_decl_is(file, token, SL("const"))) {
+            return -1;
+        }
+        if (word->kind != TOKEN_IDENT
+            && !csane_decl_is(file, token, SL("*"))) {
+            return -1;
+        }
+    }
+    return name;
+}
+
+/* Require an ordinary statement of the form NAME = expression; . */
+static int32
+csane_decl_postponed_assignment(CsaneFile *file, int32 index) {
+    CsaneStatement *stmt = &file->statements->items[index];
+    TokenRange range = stmt->tokens;
+    CsaneTokenView view;
+    int32 name;
+    int32 equal;
+    int32 last;
+
+    if (stmt->kind != CSANE_STMT_SIMPLE
+        || !csane_tokens_view(&view, file->tokens, range)) {
+        return -1;
+    }
+    name = csane_tokens_next(&view, range.first - 1);
+    equal = csane_tokens_next(&view, name);
+    last = csane_tokens_previous(&view, range.end);
+    if (name >= range.end
+        || file->tokens->tokens[name].kind != TOKEN_IDENT
+        || !csane_decl_is(file, equal, SL("="))
+        || !csane_decl_is(file, last, SL(";"))
+        || csane_tokens_next(&view, equal) >= last
+        || csane_tokens_top_level(&view, equal, SL(",")) < last) {
+        return -1;
+    }
+    return name;
+}
+
+static bool
+csane_post_adjacent(CsaneFile *file, int32 left, int32 right) {
+    CsaneStatement *a = &file->statements->items[left];
+    CsaneStatement *b = &file->statements->items[right];
+
+    if (a->parent != b->parent || a->function != b->function
+        || a->owner_region != b->owner_region
+        || a->source.end > b->source.start) {
+        return false;
+    }
+    for (int32 i = a->tokens.end; i < b->tokens.first; i += 1) {
+        if (!token_is_trivia(&file->tokens->tokens[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Function-body statements may be stored as root statements with no parent
+ * or sibling links. Their original indices still preserve source order. */
+static int32
+csane_decl_postponed_next(CsaneStatements *tree, int32 index) {
+    CsaneStatement *stmt = &tree->items[index];
+
+    if (stmt->parent >= 0) {
+        return stmt->next_sibling;
+    }
+    for (int32 i = index + 1; i < ARRAY_LEN(tree->items); i += 1) {
+        CsaneStatement *next = &tree->items[i];
+
+        if (next->parent == -1 && next->function == stmt->function
+            && next->owner_region == stmt->owner_region) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* A maximal run of uninitialized declarations must be followed by exactly
+ * the matching number of plain assignments, in declaration order. This
+ * preserves evaluation order and forbids partial-group diagnostics. */
+void
+csane_declarations_postponed_check(CsaneFile *file) {
+    CsaneStatements *tree = file->statements;
+
+    for (int32 parent = -1; parent < ARRAY_LEN(tree->items); parent += 1) {
+        int32 current = parent < 0 ? -1 : tree->items[parent].first_child;
+
+        if (parent < 0) {
+            for (int32 i = 0; i < ARRAY_LEN(tree->items); i += 1) {
+                if (tree->items[i].parent == -1) {
+                    current = i;
+                    break;
+                }
+            }
+        }
+
+        while (current >= 0) {
+            int32 *names = NULL;
+            int32 end = current;
+            int32 last = -1;
+            int32 next;
+            bool supported = true;
+            bool complete = true;
+
+            if (!csane_decl_postponed_uninitialized(file, current)) {
+                current = csane_decl_postponed_next(tree, current);
+                continue;
+            }
+            while (end >= 0
+                   && csane_decl_postponed_uninitialized(file, end)) {
+                int32 name = csane_decl_postponed_name(file, end);
+
+                last = end;
+
+                if (name < 0) {
+                    supported = false;
+                }
+                ARRAY_PUSH(names, name);
+                next = csane_decl_postponed_next(tree, end);
+                if (next < 0
+                    || !csane_post_adjacent(file, end, next)) {
+                    end = next;
+                    break;
+                }
+                end = next;
+            }
+            if (supported && end >= 0
+                && csane_post_adjacent(file, last, end)) {
+                next = end;
+                for (int32 i = 0; i < ARRAY_LEN(names); i += 1) {
+                    int32 assignment;
+                    Token *declared = &file->tokens->tokens[names[i]];
+
+                    if (next < 0 || !complete) {
+                        complete = false;
+                        break;
+                    }
+                    assignment = csane_decl_postponed_assignment(file, next);
+                    if (assignment < 0) {
+                        complete = false;
+                        break;
+                    }
+                    if (declared->len
+                        != file->tokens->tokens[assignment].len
+                        || memcmp64(declared->text,
+                                    file->tokens->tokens[assignment].text,
+                                    declared->len) != 0) {
+                        complete = false;
+                        break;
+                    }
+                    if (i + 1 < ARRAY_LEN(names)) {
+                        int32 following = csane_decl_postponed_next(tree, next);
+
+                        if (following < 0
+                            || !csane_post_adjacent(file, next, following)) {
+                            complete = false;
+                            break;
+                        }
+                        next = following;
+                    }
+                }
+                if (complete) {
+                    int32 offset = file->tokens->tokens[names[0]].offset;
+
+                    csane_rule_issue(file, offset, SL("STYLE-POSTPONED-INIT"),
+                                     "initialize the complete declaration "
+                                     "group at its declarations");
+                }
+            }
+            ARRAY_FREE(names);
+            current = end;
+        }
+    }
 }
 
 void

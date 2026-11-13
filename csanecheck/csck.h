@@ -249,6 +249,7 @@ void csane_coverage_report_structural(char *, int32, Tokenization *,
                                       CsaneTopLevels *, CsaneStatements *);
 bool csane_declarations_variable_statement(CsaneFile *, CsaneStatement *);
 void csane_declarations_check(CsaneFile *);
+void csane_declarations_postponed_check(CsaneFile *);
 void csane_member_order_check(CsaneFile *);
 void csane_declarations_headers(CsaneFile *);
 void csane_single_use_check(CsaneFile *);

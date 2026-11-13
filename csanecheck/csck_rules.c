@@ -393,8 +393,7 @@ csane_rule_sizeof(CsaneFile *file) {
     }
     for (int32 i = 0; i < ARRAY_LEN(file->tokens->tokens); i += 1) {
         Token *token = &file->tokens->tokens[i];
-        bool _i47_predicate;
-        _i47_predicate = !csane_token_text(token, SL("sizeof"));
+        bool _i47_predicate = !csane_token_text(token, SL("sizeof"));
         if (!_i47_predicate) {
             _i47_predicate = token->kind != TOKEN_IDENT;
         }
@@ -686,6 +685,8 @@ static CsaneRule csane_rules[] = {
      CSANE_TARGET_SIZEOF, false},
     {SL("AST-DECL-ONE"), csane_declarations_check, CSANE_PASS_TOKEN,
      CSANE_TARGET_DECL_ONE, false},
+    {SL("STYLE-POSTPONED-INIT"), csane_declarations_postponed_check,
+     CSANE_PASS_TOKEN, CSANE_TARGET_DECLARATIONS, false},
     {SL("STYLE-STRUCT-ARRAY-LENGTH-ORDER"), csane_member_order_check,
      CSANE_PASS_TOKEN, CSANE_TARGET_STRUCT_MEMBERS, false},
     {SL("API"), csane_rule_calls, CSANE_PASS_TOKEN,
