@@ -50,7 +50,7 @@ class PostponedInitializationTests(unittest.TestCase):
         }
     }
 }
-""", [5])
+""", [])
 
     def test_one_declaration_followed_by_assignment(self):
         self.check("""void f(void) {
@@ -248,6 +248,119 @@ class PostponedInitializationTests(unittest.TestCase):
         self.check("""void f(void) {
     int32 value;
     value = 2;
+}
+""", [2])
+
+    def test_later_plain_reassignment_suppresses_rule(self):
+        self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    use(count);
+    count = updated();
+}
+""", [])
+
+    def test_nested_reassignment_suppresses_rule(self):
+        self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    if (condition()) {
+        count = updated();
+    }
+}
+""", [])
+        self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    for (int32 i = 0; i < 3; i += 1) {
+        count = i;
+    }
+}
+""", [])
+
+    def test_updates_suppress_rule(self):
+        for update in ("count += 1;", "count -= 1;", "count *= 2;",
+                       "count /= 2;", "count %= 2;", "count &= mask;",
+                       "count |= mask;", "count ^= mask;",
+                       "count <<= 1;", "count >>= 1;", "count++;",
+                       "++count;", "count--;", "--count;"):
+            with self.subTest(update=update):
+                self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    %s
+}
+""" % update, [])
+
+    def test_parenthesized_writes_suppress_rule(self):
+        self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    ((count)) = next_value();
+}
+""", [])
+        self.check("""void f(void) {
+    int32 count;
+    count = initial();
+    (++(count));
+}
+""", [])
+
+    def test_other_member_writes_do_not_count(self):
+        self.check("""void f(Info *info) {
+    int32 count;
+    count = initial();
+    info->count = updated();
+    use(count);
+}
+""", [2])
+
+    def test_reassignment_suppresses_entire_group(self):
+        self.check("""void f(void) {
+    int32 first;
+    int32 second;
+    first = one();
+    second = two();
+    second = three();
+}
+""", [])
+        self.check("""void f(void) {
+    int32 first;
+    int32 second;
+    first = one();
+    second = two();
+    first = three();
+}
+""", [])
+
+    def test_initialization_only_once_remains_flagged(self):
+        self.check("""void f(void) {
+    int32 count;
+    count = compute();
+    use(count);
+    if (enabled()) {
+        use(count);
+    }
+}
+""", [2])
+        self.check("""void f(void) {
+    int32 first;
+    int32 second;
+    first = one();
+    second = two();
+    consume(first, second);
+}
+""", [2])
+
+    def test_other_function_writes_do_not_count(self):
+        self.check("""void f(void) {
+    int32 count;
+    count = compute();
+}
+void other(void) {
+    int32 count;
+    count = 1;
+    count = 2;
 }
 """, [2])
 

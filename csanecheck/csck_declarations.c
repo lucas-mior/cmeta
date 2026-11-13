@@ -1407,6 +1407,70 @@ csane_decl_postponed_next(CsaneStatements *tree, int32 index) {
     return -1;
 }
 
+/* An initializer suggestion is useful only when the object has exactly
+ * one write in its enclosing scope. Include nested controls and updates. */
+static bool
+csane_decl_postponed_written_once(CsaneFile *file, int32 declaration,
+                                  int32 name) {
+    CsaneStatement *stmt = &file->statements->items[declaration];
+    TokenRange scope = stmt->parent >= 0
+                       ? file->statements->items[stmt->parent].tokens
+                       : file->toplevel->items[stmt->function].body;
+    CsaneTokenView view;
+    Token *declared = &file->tokens->tokens[name];
+    int32 writes = 0;
+
+    if (!csane_tokens_view(&view, file->tokens, scope)) {
+        return false;
+    }
+    for (int32 i = csane_tokens_next(&view, name); i < scope.end;
+         i = csane_tokens_next(&view, i)) {
+        Token *token = &file->tokens->tokens[i];
+        int32 before;
+        int32 after;
+        bool assigns;
+
+        if (token->kind != TOKEN_IDENT || token->len != declared->len
+            || memcmp64(token->text, declared->text, token->len) != 0) {
+            continue;
+        }
+        before = csane_tokens_previous(&view, i);
+        after = csane_tokens_next(&view, i);
+        while (csane_decl_is(file, before, SL("("))
+               && csane_decl_is(file, after, SL(")"))
+               && csane_tokens_match(&view, before) == after) {
+            before = csane_tokens_previous(&view, before);
+            after = csane_tokens_next(&view, after);
+        }
+        if (csane_decl_is(file, before, SL("."))
+            || csane_decl_is(file, before, SL("->"))) {
+            continue;
+        }
+        assigns = after < scope.end
+                  && (csane_decl_is(file, after, SL("="))
+                      || csane_decl_is(file, after, SL("+="))
+                      || csane_decl_is(file, after, SL("-="))
+                      || csane_decl_is(file, after, SL("*="))
+                      || csane_decl_is(file, after, SL("/="))
+                      || csane_decl_is(file, after, SL("%="))
+                      || csane_decl_is(file, after, SL("&="))
+                      || csane_decl_is(file, after, SL("|="))
+                      || csane_decl_is(file, after, SL("^="))
+                      || csane_decl_is(file, after, SL("<<="))
+                      || csane_decl_is(file, after, SL(">>="))
+                      || csane_decl_is(file, after, SL("++"))
+                      || csane_decl_is(file, after, SL("--")));
+        if (assigns || csane_decl_is(file, before, SL("++"))
+            || csane_decl_is(file, before, SL("--"))) {
+            writes += 1;
+            if (writes > 1) {
+                return false;
+            }
+        }
+    }
+    return writes == 1;
+}
+
 /* A maximal run of uninitialized declarations must be followed by exactly
  * the matching number of plain assignments, in declaration order. This
  * preserves evaluation order and forbids partial-group diagnostics. */
@@ -1483,7 +1547,10 @@ csane_declarations_postponed_check(CsaneFile *file) {
                         break;
                     }
                     if (!csane_decl_postponed_inline(file, declaration, next,
-                                                     names[i])) {
+                                                     names[i])
+                        || !csane_decl_postponed_written_once(file,
+                                                              declaration,
+                                                              names[i])) {
                         complete = false;
                         break;
                     }
