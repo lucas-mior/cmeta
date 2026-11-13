@@ -1097,8 +1097,7 @@ test_delimiter_match_paths(void) {
 
 static void
 test_delimiter_match_filtered_path(void) {
-    Tokenization malformed =
-        tokenize_copy(SL("([)]"), TOKENIZE_DEFAULT);
+    Tokenization malformed = tokenize_copy(SL("([)]"), TOKENIZE_DEFAULT);
     CsaneTokenView raw = csane_tokens_full(&malformed);
     CsaneTokenPath filtered;
     int32 paren_open = test_find_token(&malformed, SL("("), 0);
