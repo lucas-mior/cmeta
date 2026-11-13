@@ -19,7 +19,6 @@ typedef struct CsaneWrapSpan {
     int32 indent;
     bool fits;
     bool wrapped;
-    bool compound;
     int32 call_name;
     TokenRange first_arg;
 } CsaneWrapSpan;
@@ -887,13 +886,7 @@ csane_wrap_local_assignment_span(CsaneFile *file, TokenRange range,
         after += 1;
     }
     span->wrapped = after < tokens->text_len && text[after] == '\n';
-    span->compound = !csane_wrap_token_is(&tokens->tokens[op], SL("="));
     span->fits = false;
-    /* A locally recognized type name need not be declared in this file.
-     * Preserve the legacy conservative grouping for such declarations. */
-    if (csane_name_kind(&tokens->tokens[first]) == CSANE_NAME_TYPE) {
-        return true;
-    }
     if (!braced && !trailing_comment
         && csane_wrap_safe(file, first, last, false)) {
         int32 width = csane_wrap_flat_length(text, start, span->end,
@@ -1039,13 +1032,8 @@ csane_wrap_check(CsaneFile *file) {
             CsaneWrapSpan *in_items = &items[first];
             int32 in_count = end - first;
 
-            bool all_fit = true;
             for (int32 i = 0; i < in_count; i += 1) {
-                all_fit = all_fit && in_items[i].fits;
-            }
-            for (int32 i = 0; i < in_count; i += 1) {
-                if (in_items[i].wrapped && in_items[i].fits
-                    && (all_fit || in_items[i].compound)) {
+                if (in_items[i].wrapped && in_items[i].fits) {
                     csane_rule_issue(file, in_items[i].start,
                                      SL("FMT-ASSIGN-WRAP"),
                                      "assignment fits on one line "
