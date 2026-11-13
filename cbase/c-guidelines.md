@@ -1504,6 +1504,7 @@ use_discrete_tree =
   - `ASSERT_EQ(value1, value2)`
   - `ASSERT_NE(value1, value2)`
   - `ASSERT_EQ(string, string_len, other_string)`
+  - `ASSERT_EQ(string, string_len, other_string, other_len)`
   - `ASSERT_LT(value, constant expression)`
   - `ASSERT_GT(value, constant expression)`
   - `ASSERT_LE(value, constant expression)`
@@ -1520,6 +1521,17 @@ use_discrete_tree =
     debugging. Don't use them for non-debugging assertions.
     + Assertions that must happen in non-debugging builds, must be explicit code
       with a clear error message, not an assertion macro.
+- Prefer the string forms of `ASSERT_EQ` rather than wrapping `STREQUAL`
+  in `ASSERT`:
+  ```c
+  // bad
+  ASSERT(STREQUAL(string, string_len, "string"));
+  ASSERT(STREQUAL(string, string_len, other, other_len));
+
+  // good
+  ASSERT_EQ(string, string_len, "string");
+  ASSERT_EQ(string, string_len, other, other_len);
+  ```
 - Do not use `ASSERT_EQ` for enums.
   * Use `ASSERT(enumvalue1 == enumvalue2)` instead, so that the compiler does
     not complain.

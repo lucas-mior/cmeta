@@ -584,6 +584,52 @@ csane_style_assert_tolerance(CsaneFile *file, CsaneTokenView *view,
     return false;
 }
 
+/* A direct STREQUAL assertion should use ASSERT_EQ's string overload.
+ * Keep wrappers around the condition, but not operators or extra calls. */
+static void
+csane_style_assert_strequal(CsaneFile *file, CsaneTokenView *view,
+                            int32 name, int32 open) {
+    TokenRange args[1];
+    TokenRange condition;
+    TokenRange operands[4];
+    CsaneTokenView expression;
+    int32 call;
+    int32 inner_open;
+    int32 inner_close;
+    int32 count;
+
+    if (csane_tokens_arguments(view, open, args, 1) != 1) {
+        return;
+    }
+    condition = csane_tokens_unwrap(view, args[0]);
+    if (!csane_tokens_subview(&expression, view, condition)) {
+        return;
+    }
+    call = csane_tokens_next(&expression, condition.first - 1);
+    if (call >= condition.end
+        || !TOKEN_IS(&view->tokens->tokens[call], "STREQUAL")) {
+        return;
+    }
+    inner_open = csane_tokens_next(&expression, call);
+    if (inner_open >= condition.end
+        || !TOKEN_IS(&view->tokens->tokens[inner_open], "(")) {
+        return;
+    }
+    inner_close = csane_tokens_match(&expression, inner_open);
+    if (inner_close < 0
+        || csane_tokens_next(&expression, inner_close) < condition.end) {
+        return;
+    }
+    count = csane_tokens_arguments(&expression, inner_open, operands, 4);
+    if (count != 3 && count != 4) {
+        return;
+    }
+    csane_rule_issue(file, view->tokens->tokens[name].offset,
+                     SL("STYLE-ASSERT-STREQUAL"),
+                     "use ASSERT_EQ(string, string_len, other[, other_len]) "
+                     "instead of ASSERT(STREQUAL(...))");
+}
+
 /* Only replace a standalone top-level ordered comparison. A relational
  * operator nested inside another expression is not the assertion condition. */
 static void
@@ -2037,6 +2083,7 @@ csane_expression_style_check(CsaneFile *file) {
                                  "strcmp only allowed for sorting purposes.");
             }
             if (TOKEN_IS(token, "ASSERT")) {
+                csane_style_assert_strequal(file, &local, i, next);
                 if (!csane_style_assert_tolerance(file, &local, i, next)) {
                     csane_style_assert_rel(file, &local, i, next);
                 }
