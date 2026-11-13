@@ -12,6 +12,23 @@
                "double b = a + position;"
                "xdot[0] = b;";
   ```
+
+- Relax the FMT-STRING-SPLIT check so that string literal fragments without
+  formatters don't try to mix themselves with format strings:
+  // good, no problem
+  error("Consistency error:"
+        " %s.row_ids["RED("%d")"] -> row_id="YELLOW("%d")","
+        " but %s["YELLOW("%d")"] -> idx="RED("%d")".\n",
+        which_traversal, idx, row_id, which_rows, row_id, rows[row_id]);
+
+  // this must be flagged (note how *the complete literal fits*)
+  error("Consistency error:"
+        " %s.row_ids["RED("%d")"] -> row_id="YELLOW("%d")","
+        which_traversal, idx, row_id);
+  // corrected form:
+  error("Consistency error: %s.row_ids["RED("%d")"] -> row_id="YELLOW("%d")","
+        which_traversal, idx, row_id);
+
 - Add a check to csanecheck and corresponding guideline to cbase/c-guidelines.md
   prohibiting:
   ```c
