@@ -259,6 +259,156 @@ csane_control_if_assignment_wrap(CsaneFile *file, CsaneStatement *stmt) {
                      "wrap call arguments before breaking after = in if");
 }
 
+/* If only the final comparison was wrapped, keep the preceding call's
+ * argument breaks and join the short comparison to its last argument line.
+ * The whole-header rule handles cases where everything fits on one line. */
+static void
+csane_control_if_comparator_wrap(CsaneFile *file, CsaneStatement *stmt) {
+    Tokenization *tokens = file->tokens;
+    CsaneTokenView view;
+    CsaneTokenView condition_view;
+    TokenRange condition;
+    int32 first;
+    int32 last;
+    int32 open;
+    int32 close;
+    int32 comparison = -1;
+    int32 previous;
+    int32 comparison_line;
+    int32 comparison_start;
+    int32 previous_start;
+    int32 end;
+    int32 tail;
+    int32 width;
+
+    if (stmt->kind != CSANE_STMT_IF || file->column_limit <= 0
+        || !csane_tokens_view(&view, tokens, stmt->header)) {
+        return;
+    }
+    first = token_range_first_significant(tokens, stmt->header);
+    last = token_range_last_significant(tokens, stmt->header);
+    if (first < 0 || last <= first) {
+        return;
+    }
+    open = csane_tokens_next(&view, first);
+    if (open >= last || !TOKEN_IS(&tokens->tokens[open], "(")) {
+        return;
+    }
+    close = csane_tokens_match(&view, open);
+    if (close != last || !csane_wrap_safe(file, first, close, true)) {
+        return;
+    }
+    condition = csane_tokens_unwrap(&view, (TokenRange){open + 1, close});
+    if (!csane_tokens_view(&condition_view, tokens, condition)) {
+        return;
+    }
+    for (int32 i = condition.first; i < condition.end; i += 1) {
+        Token *token = &tokens->tokens[i];
+
+        if (TOKEN_IS(token, "&&") || TOKEN_IS(token, "||")
+            || TOKEN_IS(token, "?") || TOKEN_IS(token, ":")) {
+            return;
+        }
+        if (csane_control_comparator(token)) {
+            if (comparison >= 0) {
+                return;
+            }
+            comparison = i;
+        }
+    }
+    if (comparison < 0) {
+        return;
+    }
+    /* The comparison must be at the outer condition level, not inside a
+     * call, subscript or parenthesized operand. */
+    for (int32 i = csane_tokens_next(&condition_view, condition.first - 1);
+         i < condition.end; i = csane_tokens_next(&condition_view, i)) {
+        if (i == comparison) {
+            break;
+        }
+        if (token_is_open_delimiter(&tokens->tokens[i])) {
+            i = csane_tokens_match(&condition_view, i);
+            if (i < 0) {
+                return;
+            }
+        }
+        if (i >= comparison) {
+            return;
+        }
+    }
+    previous = csane_tokens_previous(&condition_view, comparison);
+    comparison_line = tokenization_token_location(tokens, comparison).line;
+    if (previous < condition.first
+        || tokenization_token_location(tokens, previous).line
+           != comparison_line - 1
+        || tokenization_token_location(tokens, close).line
+           != comparison_line) {
+        return;
+    }
+    comparison_start = tokens->tokens[comparison].offset;
+    while (comparison_start > 0
+           && tokens->text[comparison_start - 1] != '\n') {
+        comparison_start -= 1;
+    }
+    for (int32 i = comparison_start;
+         i < tokens->tokens[comparison].offset; i += 1) {
+        if (tokens->text[i] != ' ' && tokens->text[i] != '\t') {
+            return;
+        }
+    }
+    for (int32 i = tokens->tokens[previous].offset
+                     + tokens->tokens[previous].len;
+         i < comparison_start; i += 1) {
+        if (tokens->text[i] != ' ' && tokens->text[i] != '\t'
+            && tokens->text[i] != '\r' && tokens->text[i] != '\n') {
+            return;
+        }
+    }
+    end = tokenization_physical_line_end_offset(tokens, comparison_line);
+    while (end > comparison_start
+           && (tokens->text[end - 1] == '\n'
+               || tokens->text[end - 1] == '\r')) {
+        end -= 1;
+    }
+    tail = tokens->tokens[close].offset + tokens->tokens[close].len;
+    while (tail < end && tokens->text[tail] == ' ') {
+        tail += 1;
+    }
+    if (tail >= end || tokens->text[tail] != '{') {
+        return;
+    }
+    tail += 1;
+    while (tail < end && tokens->text[tail] == ' ') {
+        tail += 1;
+    }
+    if (tail != end) {
+        return;
+    }
+    /* Report only when the entire header cannot already be flattened. */
+    previous_start = tokens->tokens[first].offset;
+    while (previous_start > 0
+           && tokens->text[previous_start - 1] != '\n') {
+        previous_start -= 1;
+    }
+    width = csane_wrap_flat_length(tokens->text, previous_start, end,
+                                   file->column_limit);
+    if (width >= 0 && width <= file->column_limit) {
+        return;
+    }
+    previous_start = comparison_start - 1;
+    while (previous_start > 0
+           && tokens->text[previous_start - 1] != '\n') {
+        previous_start -= 1;
+    }
+    width = csane_wrap_flat_length(tokens->text, previous_start, end,
+                                   file->column_limit);
+    if (width >= 0 && width <= file->column_limit) {
+        csane_rule_issue(file, tokens->tokens[comparison].offset,
+                         SL("FMT-IF-COMPARATOR-WRAP"),
+                         "final comparison fits on the preceding if line");
+    }
+}
+
 /* A flag assigned immediately before breaking out of a one-shot loop,
  * then tested solely to return, can be handled by returning at the point
  * of the assignment instead. Require a parsed sibling guard and a break
@@ -847,6 +997,7 @@ csane_control_check(CsaneFile *file) {
                 }
             }
             csane_control_if_assignment_wrap(file, stmt);
+            csane_control_if_comparator_wrap(file, stmt);
             first = token_range_first_significant(tokens, stmt->header);
             last = token_range_last_significant(tokens, stmt->header);
             if (first < 0 || last <= first) {
