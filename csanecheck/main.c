@@ -24,6 +24,7 @@
 #include "csck_expression_style.c"
 #include "csck_matrix_index.c"
 #include "csck_layout.c"
+#include "csck_string_literals.c"
 #include "csck_calls.c"
 #include "csck_declarations.c"
 #include "csck_member_order.c"

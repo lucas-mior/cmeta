@@ -279,6 +279,7 @@ enum CsaneLayoutOperator csane_layout_classify(CsaneFile *, int32);
 void csane_layout_index_init(CsaneFile *);
 void csane_layout_index_free(CsaneFile *);
 void csane_layout_check(CsaneFile *);
+void csane_string_literals_check(CsaneFile *);
 void csane_layout_assignment_check(CsaneFile *);
 bool csane_calls_code(CsaneFile *, int32);
 bool csane_calls_generated(char *, int32);

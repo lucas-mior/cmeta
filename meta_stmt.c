@@ -1004,8 +1004,7 @@ stmt_test_recovery(void) {
 
 static void
 stmt_test_malformed_headers(void) {
-    char *src = "{ if () f(); if (x) typedef int Y; "
-                "broken( ; valid(); }";
+    char *src = "{ if () f(); if (x) typedef int Y; broken( ; valid(); }";
     Tokenization t = tokenize(src, strlen32(src));
     CAst ast;
     CStmtParseResult r;

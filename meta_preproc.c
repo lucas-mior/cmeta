@@ -616,9 +616,7 @@ test_preprocessor_object_and_function_spacing(void) {
 
 static void
 test_preprocessor_empty_define_and_malformed(void) {
-    char *text = "#define EMPTY\n"
-                 "#define ZERO()\n"
-                 "#define BROKEN(x\n";
+    char *text = "#define EMPTY\n#define ZERO()\n#define BROKEN(x\n";
     Tokenization tokenization;
     TokenRange all;
     int32 first_hash;
@@ -654,9 +652,7 @@ test_preprocessor_empty_define_and_malformed(void) {
 
 static void
 test_preprocessor_unknown_and_non_directive_hash(void) {
-    char *text = "#warning hi\n"
-                 "x # define NOPE 1\n"
-                 "# 123 \"file.c\"\n";
+    char *text = "#warning hi\nx # define NOPE 1\n# 123 \"file.c\"\n";
     Tokenization tokenization;
     TokenRange all;
     CPreprocessorDirective directive;
@@ -704,11 +700,8 @@ test_preprocessor_hash_digraph(void) {
 
 static void
 test_preprocessor_skip_whitespace_tokens(void) {
-    char *text = "  # define FN(a, \\\n"
-                 "b) a + b\n"
-                 "int x;\n";
-    char *expected_directive = "  # define FN(a, \\\n"
-                               "b) a + b\n";
+    char *text = "  # define FN(a, \\\nb) a + b\nint x;\n";
+    char *expected_directive = "  # define FN(a, \\\nb) a + b\n";
     Tokenization tokenization;
     CPreprocessorDirective directive;
     CPreprocessorDefine define;

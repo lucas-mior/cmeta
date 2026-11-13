@@ -1140,8 +1140,7 @@ ast_test_other_constructs(void) {
 
 static void
 ast_test_malformed(void) {
-    char *source = "int missing( ; int broken[3; "
-                   "int x = ; unsigned : 4;";
+    char *source = "int missing( ; int broken[3; int x = ; unsigned : 4;";
     Tokenization tokens = tokenize(source, strlen32(source));
     CAst ast;
     CDeclParseResult result;

@@ -420,11 +420,7 @@ test_conditionals(void) {
 
 static void
 test_local_bad_statement(void) {
-    char *text =
-        "void example(void) {\n"
-        "    broken = (1;\n"
-        "    good();\n"
-        "}\n";
+    char *text = "void example(void) {\n    broken = (1;\n    good();\n}\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
     int32 function = test_function(&test, SL("example"));
@@ -670,10 +666,7 @@ test_guarded_cpp_linkage(void) {
 static void
 test_unmatched_linkage_stays_opaque(void) {
     char *text =
-        "#if defined(__cplusplus)\n"
-        "extern \"C\" {\n"
-        "#endif\n"
-        "char *api(void);\n";
+        "#if defined(__cplusplus)\nextern \"C\" {\n#endif\nchar *api(void);\n";
     TestStructure test;
     test_init(&test, text, strlen32(text));
     CHECK(test.top.opaque_count == 1);

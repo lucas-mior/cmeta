@@ -2184,8 +2184,7 @@ csane_layout_assignment_check(CsaneFile *file) {
             if (start >= 0 && start < token->offset + 1) {
                 csane_rule_issue(file, token->offset,
                                  SL("FMT-ASSIGN-EQ"),
-                                 "assignment = must end "
-                                 "the preceding line");
+                                 "assignment = must end the preceding line");
             }
         }
     }

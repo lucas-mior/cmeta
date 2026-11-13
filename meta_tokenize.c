@@ -2216,13 +2216,7 @@ test_token_range_significant_equal(void) {
 
 static void
 test_tokenization_between_queries(void) {
-    char *text = "a /* c */ b\n"
-                 "c\n"
-                 "   \n"
-                 "d \\\n"
-                 "  + e\n"
-                 "f \\\r\n"
-                 "  + g";
+    char *text = "a /* c */ b\nc\n   \nd \\\n  + e\nf \\\r\n  + g";
     Tokenization tokenization;
     TokenRange all;
     int32 a;
@@ -2714,9 +2708,7 @@ test_tokenize_copy_and_offsets(void) {
 
 static void
 test_tokenization_define_digraph_and_continuation(void) {
-    char *text = "%:define F(x) \\\n"
-                 "    (x)\n"
-                 "int z;\n";
+    char *text = "%:define F(x) \\\n    (x)\nint z;\n";
     Tokenization tokenization;
     TokenRange range;
     int32 inside;

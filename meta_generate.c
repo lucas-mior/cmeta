@@ -369,9 +369,7 @@ test_emit_wrapped_expr(void) {
     String out = {0};
 
     c_emit_wrapped_expr(&out, "  ", "return ", "f(a,b)", ";");
-    ASSERT_EQ(out.data, "  return f(\n"
-                        "         a,\n"
-                        "         b);\n");
+    ASSERT_EQ(out.data, "  return f(\n         a,\n         b);\n");
     free2(out.data, out.cap);
     return;
 }
