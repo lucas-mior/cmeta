@@ -20,9 +20,8 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
                                int32 group_index, int32 directive_index) {
     CPreprocessorGroup *group;
     CPreprocessorBranch branch = {0};
-    int32 index;
+    int32 index = ARRAY_LEN(analysis->branches);
 
-    index = ARRAY_LEN(analysis->branches);
     group = &analysis->groups[group_index];
     branch.group_index = group_index;
     branch.parent_branch = group->parent_branch;
@@ -30,6 +29,7 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
     branch.next_branch = -1;
     branch.body_source.start = analysis->directives[directive_index].source.end;
     branch.body_source.end = analysis->tokenization->text_len;
+
     ARRAY_PUSH(analysis->branches, branch);
     if (group->last_branch >= 0) {
         analysis->branches[group->last_branch].next_branch = index;
@@ -37,6 +37,7 @@ preproc_analysis_append_branch(CPreprocessorAnalysis *analysis,
         group->first_branch = index;
     }
     group->last_branch = index;
+
     return index;
 }
 
