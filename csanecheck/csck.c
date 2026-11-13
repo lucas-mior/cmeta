@@ -6,6 +6,9 @@
 
 #include "cbase.h"
 #include "csck.h"
+#if OS_UNIX
+#include <unistd.h>
+#endif
 
 static bool
 csane_depth(char *text, int32 text_len, int32 *value) {
@@ -26,13 +29,13 @@ csane_depth(char *text, int32 text_len, int32 *value) {
 
 static void
 csane_issue(char *path, int32 path_len, Tokenization *tokens, int32 index,
-            char *code, char *message) {
+            char *code, char *message, bool color) {
     SourceLocation loc = tokenization_token_location(tokens, index);
     if (index < 0 || index >= ARRAY_LEN(tokens->tokens)) {
         loc = tokenization_source_location(tokens, tokens->text_len);
     }
-    fmt_printf("%.*s:%d:%d: note[%s]: %s\n",
-               path_len, path, loc.line, loc.column + 1, code, message);
+    csane_print_location(path, path_len, loc.line, loc.column + 1, color);
+    fmt_printf(" note[%s]: %s\n", code, message);
     return;
 }
 
@@ -80,6 +83,9 @@ csane_run(int32 argc, char **argv) {
     uint64 cache_fingerprint;
 #endif
 
+#if OS_UNIX
+    options.color = isatty(STDOUT_FILENO) != 0;
+#endif
     if (!csane_policy_init(&options.policy)
         || !csane_discovery_defaults(&options.source_roots,
                                      &options.skip_dirs)) {
@@ -378,6 +384,9 @@ csane_run(int32 argc, char **argv) {
 #if OS_UNIX
         path_hash = csane_cache_hash(UINT64_C(14695981039346656037),
                                      path, entry->len);
+        if (options.color) {
+            path_hash = csane_cache_hash(path_hash, SL("ansi"));
+        }
         SNPRINTF(cache_name, ".cache/csanecheck/%016llx.bin", path_hash);
         /* STYLE-STATIC-ONCE depends on other .c files. Per-file cache
          * records cannot be reused without dependency fingerprints. */
@@ -440,6 +449,7 @@ csane_run(int32 argc, char **argv) {
                 .preprocessor = &pp,
                 .policy = &in_options->policy,
                 .include_graph = &graph,
+                .color = in_options->color,
             };
             csane_rules_prepare(&file);
             /* Source checks are independent of preprocessing and syntax
@@ -535,9 +545,11 @@ csane_run(int32 argc, char **argv) {
                            totals.unresolved);
             }
             if (in_options->require_coverage && incomplete > 0) {
-                fmt_printf("%.*s:1:1: error[COVERAGE-INCOMPLETE]: "
+                csane_print_location(in_path, in_path_len, 1, 1,
+                                     in_options->color);
+                fmt_printf(" error[COVERAGE-INCOMPLETE]: "
                            "%d required rule groups have unresolved targets\n",
-                           in_path_len, in_path, incomplete);
+                           incomplete);
             }
 
             in_stats->files += 1;
@@ -559,11 +571,13 @@ csane_run(int32 argc, char **argv) {
                     }
                     csane_issue(in_path, in_path_len, &tokens, token,
                                 "PP-STRUCTURE",
-                                "invalid preprocessor structure");
+                                "invalid preprocessor structure",
+                                in_options->color);
                 }
                 if (!pp_ok && ARRAY_LEN(pp.issues) == 0) {
                     csane_issue(in_path, in_path_len, &tokens, -1,
-                                "PP-STRUCTURE", "preprocessor analysis failed");
+                                "PP-STRUCTURE", "preprocessor analysis failed",
+                                in_options->color);
                 }
                 for (int32 i = 0; i < ARRAY_LEN(toplevel.items); i += 1) {
                     CsaneTopItem *item = &toplevel.items[i];
@@ -571,7 +585,8 @@ csane_run(int32 argc, char **argv) {
                         csane_issue(in_path, in_path_len, &tokens,
                                     item->tokens.first,
                                     "STRUCTURE-OPAQUE",
-                                    "unrecognized top-level construct");
+                                    "unrecognized top-level construct",
+                                    in_options->color);
                     }
                 }
                 for (int32 i = 0; i < ARRAY_LEN(statements.items); i += 1) {
@@ -580,7 +595,8 @@ csane_run(int32 argc, char **argv) {
                         csane_issue(in_path, in_path_len, &tokens,
                                     stmt->tokens.first,
                                     "STRUCTURE-OPAQUE",
-                                    "unrecognized statement");
+                                    "unrecognized statement",
+                                    in_options->color);
                     }
                 }
             }

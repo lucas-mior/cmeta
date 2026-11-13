@@ -25,6 +25,17 @@ csane_fixture_path(char *path, int32 len) {
 }
 
 void
+csane_print_location(char *path, int32 path_len, int32 line, int32 column,
+                     bool color) {
+    if (color) {
+        fmt_printf(RED("%.*s") ":" GREEN("%d") ":" BLUE("%d") ":",
+                   path_len, path, line, column);
+    } else {
+        fmt_printf("%.*s:%d:%d:", path_len, path, line, column);
+    }
+}
+
+void
 csane_rule_issue(CsaneFile *file, int32 offset,
                  char *code, int32 code_len, char *message) {
     SourceLocation loc;
@@ -39,9 +50,9 @@ csane_rule_issue(CsaneFile *file, int32 offset,
         offset = file->tokens->text_len;
     }
     loc = tokenization_source_location(file->tokens, offset);
-    fmt_printf("%.*s:%d:%d: error[%.*s]: %s\n",
-               file->path_len, file->path, loc.line, loc.column + 1,
-               code_len, code, message);
+    csane_print_location(file->path, file->path_len, loc.line, loc.column + 1,
+                         file->color);
+    fmt_printf(" error[%.*s]: %s\n", code_len, code, message);
     file->violations += 1;
     return;
 }

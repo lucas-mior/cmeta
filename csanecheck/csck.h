@@ -63,6 +63,7 @@ typedef struct CsaneOptions {
     bool statistics;
     bool coverage;
     bool rule_coverage;
+    bool color;
 } CsaneOptions;
 
 /* Counts describe local source structures, never translation-unit AST nodes. */
@@ -169,6 +170,7 @@ typedef struct CsaneFile {
     bool in_cbase;
     bool is_ryu;
     bool preprocessor_ok;
+    bool color;
     CsanePolicy *policy;
     struct CsaneIncludeGraph *include_graph;
 } CsaneFile;
@@ -297,6 +299,7 @@ int32 csane_rules_incomplete(CsaneFile *, bool, bool, CsaneRuleCounts *);
 CsaneRuleCounts csane_coverage_rule(CsaneFile *, enum CsaneTargetKind,
                                     char *, int32, bool);
 bool csane_token_name_in(Token *, CsanePaths *);
+void csane_print_location(char *, int32, int32, int32, bool);
 void csane_rule_issue(CsaneFile *, int32, char *, int32, char *);
 
 bool csane_include_graph_build(CsaneIncludeGraph *, CsanePaths *);
