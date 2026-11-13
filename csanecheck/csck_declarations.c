@@ -617,8 +617,7 @@ csane_decl_error_names(CsaneFile *file, TokenRange range) {
         if (!csane_tokens_view(&declarator, file->tokens, part)) {
             break;
         }
-        equal = csane_tokens_top_level(&declarator, part.first - 1,
-                                       SL("="));
+        equal = csane_tokens_top_level(&declarator, part.first - 1, SL("="));
         if (equal < 0) {
             break;
         }
@@ -1030,8 +1029,7 @@ csane_decl_scope(CsaneFile *file, TokenRange range, uint8 *lines,
                         header = (TokenRange){open + 1, close};
                         (void)csane_tokens_view(&inner, file->tokens, header);
                         begin = open + 1;
-                        semi = csane_tokens_top_level(&inner, begin,
-                                                      SL(";"));
+                        semi = csane_tokens_top_level(&inner, begin, SL(";"));
                         if (semi >= 0 && semi < close) {
                             header.end = semi;
                             csane_decl_one(file, header, lines, line_count);

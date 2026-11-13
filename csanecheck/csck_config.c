@@ -437,8 +437,7 @@ csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
         ok = csane_load_names(&policy->cbase_names, names, names_len) && ok;
     }
     free2(names, names_len + 1);
-    names = csane_join_path(project, project_len, SL("piscou.1"),
-                            &names_len);
+    names = csane_join_path(project, project_len, SL("piscou.1"), &names_len);
     if (csane_exists(names, names_len)) {
         int32 config_len;
         char *config = csane_join_path(project, project_len, SL("config.h"),
@@ -452,8 +451,7 @@ csane_policy_project(CsanePolicy *policy, char *project, int32 project_len) {
         free2(config, config_len + 1);
     }
     free2(names, names_len + 1);
-    names = csane_join_path(root, root_len, SL("csanecheck.conf"),
-                            &names_len);
+    names = csane_join_path(root, root_len, SL("csanecheck.conf"), &names_len);
     if (!policy->skip_project_config && csane_exists(names, names_len)) {
         char resolved_config[PATH_MAX];
         bool loaded = false;

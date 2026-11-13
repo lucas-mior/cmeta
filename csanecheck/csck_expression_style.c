@@ -1579,8 +1579,7 @@ csane_style_strcmp_simple(CsaneFile *file, CsaneStatement *statement,
             || !csane_tokens_subview(&segment, &view, ranges[i])) {
             continue;
         }
-        equal = csane_tokens_top_level(&segment, ranges[i].first - 1,
-                                       SL("="));
+        equal = csane_tokens_top_level(&segment, ranges[i].first - 1, SL("="));
         if (equal < ranges[i].first || equal >= ranges[i].end) {
             continue;
         }
