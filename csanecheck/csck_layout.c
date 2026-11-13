@@ -1243,6 +1243,13 @@ csane_layout_array_declaration(CsaneFile *file, CsaneTokenView *view,
     Tokenization *tokens = view->tokens;
     int32 type;
 
+    /* Parenthesized array types in compound literals or casts are not
+     * subscripts: (int32[length]){0} and (NamedType[length])value. */
+    if (csane_layout_known_type(file, view, before)
+        && csane_layout_is(tokens, csane_tokens_previous(view, before),
+                           STRLIT("("))) {
+        return true;
+    }
     /* Walk back through earlier dimensions of the same declarator. */
     while (csane_layout_is(tokens, before, STRLIT("]"))) {
         int32 open = csane_tokens_match(view, before);
@@ -1319,6 +1326,44 @@ csane_layout_array_alignment_check(CsaneFile *file, CsaneTokenView *view,
                              "with the first index token");
             return;
         }
+    }
+    return;
+}
+
+/* A split subscript is unnecessary when joining its physical lines still
+ * fits the column limit. Include the entire first line and the closing
+ * bracket's suffix, so surrounding assignments and punctuation count too.
+ * The shared wrap guard excludes comments, directives and macro expansions.
+ */
+static void
+csane_layout_array_wrap_check(CsaneFile *file, CsaneTokenView *view,
+                              int32 open, int32 close) {
+    Tokenization *tokens = view->tokens;
+    SourceLocation first = tokenization_token_location(tokens, open);
+    SourceLocation last = tokenization_token_location(tokens, close);
+    int32 start = tokens->tokens[open].offset;
+    int32 end;
+    int32 width;
+
+    if (first.line == last.line
+        || !csane_wrap_safe(file, open, close, false)) {
+        return;
+    }
+    while (start > 0 && tokens->text[start - 1] != '\n') {
+        start -= 1;
+    }
+    end = tokenization_physical_line_end_offset(tokens, last.line);
+    if (end > start && tokens->text[end - 1] == '\n') {
+        end -= 1;
+    }
+    width = csane_wrap_flat_length(tokens->text, start, end,
+                                   file->column_limit);
+    if (width >= 0 && (file->column_limit <= 0
+                       || width <= file->column_limit)) {
+        csane_rule_issue(file, tokens->tokens[open].offset,
+                         STRLIT("FMT-ARRAY-WRAP"),
+                         "array indexing fits on one line but is split "
+                         "across multiple lines");
     }
     return;
 }
@@ -1595,6 +1640,9 @@ csane_layout_check(CsaneFile *file) {
                 break;
             }
             csane_layout_array_alignment_check(in_file, &view, first, close);
+            if (csane_layout_code(in_file, in_index)) {
+                csane_layout_array_wrap_check(in_file, &view, in_index, close);
+            }
         } while (false);
         do {
             int32 _i37_equal = i;

@@ -19,6 +19,11 @@ ALIGN_DIAGNOSTIC = re.compile(
 )
 ALIGN_MESSAGE = ("array index continuation is not aligned "
                  "with the first index token")
+WRAP_DIAGNOSTIC = re.compile(
+    r":(\d+):(\d+): error\[FMT-ARRAY-WRAP\]: (.*)"
+)
+WRAP_MESSAGE = ("array indexing fits on one line but is split "
+                "across multiple lines")
 
 
 class ArrayIndexWrapTests(unittest.TestCase):
@@ -64,6 +69,103 @@ class ArrayIndexWrapTests(unittest.TestCase):
                          [(line, column, ALIGN_MESSAGE)
                           for line, column in expected],
                          result.stdout + result.stderr)
+
+    def check_wrap(self, source, expected_lines, config="", name=None):
+        path = self.source_path if name is None else self.root / name
+        path.write_text(source, encoding="utf-8")
+        self.config_path.write_text(config, encoding="utf-8")
+        result = subprocess.run(
+            [str(CHECKER), "--no-project-config", "--config", str(self.config_path),
+             "--file", str(path)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+        found = [(int(line), message) for line, column, message
+                 in WRAP_DIAGNOSTIC.findall(result.stdout)]
+        self.assertEqual(found, [(line, WRAP_MESSAGE) for line in expected_lines],
+                         result.stdout + result.stderr)
+
+    def test_short_nested_call_subscripts(self):
+        self.check_wrap("""void f(void) {
+    nmpc->du_qf = nmpc->plan[boiler_nmpc_plan_idx(0,
+                                                  BOILER_NMPC_MOVE_QF)];
+    nmpc->du_mpa = nmpc->plan[boiler_nmpc_plan_idx(0,
+                                                   BOILER_NMPC_MOVE_MPA)];
+    nmpc->du_mffi = nmpc->plan[boiler_nmpc_plan_idx(0,
+                                                    BOILER_NMPC_MOVE_MFFI)];
+    nmpc->du_qf = nmpc->plan[boiler_nmpc_plan_idx(0, BOILER_NMPC_MOVE_QF)];
+    nmpc->du_mpa = nmpc->plan[boiler_nmpc_plan_idx(0, BOILER_NMPC_MOVE_MPA)];
+    nmpc->du_mffi = nmpc->plan[boiler_nmpc_plan_idx(0, BOILER_NMPC_MOVE_MFFI)];
+}
+""", [2, 4, 6])
+
+    def test_wrap_arithmetic_and_suffix(self):
+        self.check_wrap("""void f(void) {
+    value = items[first +
+                  second];
+    value = items[compute(0,
+                          next)];
+    value = items[compute(0,
+                          next)] + extra_long_expression_that_will_not_fit_with_even_more_letters;
+    value = items[first + much_longer_index_component_with_many_characters
+                  + second_component_with_even_more_characters];
+    value = items[first + second];
+}
+""", [2, 4])
+
+    def test_wrap_exact_column_boundary(self):
+        prefix = "    value = target[compute(0, "
+        suffix = ")];"
+        argument = "X"*(80 - len(prefix) - len(suffix))
+        source = ("void f(void) {\n"
+                  + prefix + "\n" + " "*26 + argument + suffix + "\n"
+                  + prefix + "\n" + " "*26 + argument + "X" + suffix
+                  + "\n}\n")
+        self.check_wrap(source, [2])
+
+    def test_wrap_respects_configured_width_and_exemptions(self):
+        source = """void f(void) {
+    value = items[compute_index(first_arg,
+                                second_arg)];
+}
+"""
+        self.check_wrap(source, [2])
+        self.check_wrap(source, [], "column-limit 40\n")
+        self.check_wrap(source, [], "allow-rule FMT-ARRAY-WRAP .*\n")
+        self.check_wrap(source, [], name="generated.meta.h")
+
+    def test_wrap_does_not_change_comments_macros_or_declarations(self):
+        self.check_wrap("""#define MACRO(I) arr[compute(0, \\
+    I)]
+void f(void) {
+    int32 declaration[compute(0,
+                              1)];
+    int32 *p = (int32[compute(0,
+                                1)]){0};
+    int32 initializer[2] = {[compute(0,
+                                      1)] = 3};
+    value = arr[compute(0, /* keep */
+                        index)];
+    value = arr[compute(0,
+#if defined(A)
+                        index)];
+#else
+                        other)];
+#endif
+    value = arr[compute(0, index)];
+}
+""", [])
+
+    def test_wrap_preserves_first_line_rule_and_flattened_limit(self):
+        self.check_wrap("""void f(void) {
+    value = array[
+        index];
+    value = arr[call(argument_that_makes_this_expression_exceed_80_columns,
+                     second_argument_making_it_even_longer)];
+    value = arr[call(0,
+                     1)];
+}
+""", [6])
 
     def test_alignment_bad_and_good_arithmetic(self):
         bad = "    int32 bad = my_array_has_a_long_name[variable_long_name*cols"

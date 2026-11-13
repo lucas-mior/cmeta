@@ -178,6 +178,18 @@ Sometimes it might be useful to break at arithmetic operators:
                                            + another_variable];
 ```
 
+If joining a multiline array subscript (including the surrounding text on
+its first and last lines) fits within the 80-column limit, keep it on one line.
+The checker reports `FMT-ARRAY-WRAP` for unnecessary breaks inside a subscript:
+```c
+    // bad
+    nmpc->du_qf = nmpc->plan[boiler_nmpc_plan_idx(0,
+                                                  BOILER_NMPC_MOVE_QF)];
+
+    // good
+    nmpc->du_qf = nmpc->plan[boiler_nmpc_plan_idx(0, BOILER_NMPC_MOVE_QF)];
+```
+
 When an index expression spans multiple lines, align each continuation line
 with the first index token (immediately after `[`), not with the indentation
 of the containing statement:
