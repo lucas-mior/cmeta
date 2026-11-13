@@ -19,3 +19,13 @@
   ```
   * The correct pattern is: SNPRINTF(name, ...);
   * fmt_sprintf is not to be called directly in stack/static arrays.
+- Add a check for:
+  ```c
+  // bad
+  ASSERT(STREQUAL(string, string_len, "string"));
+  ASSERT(STREQUAL(string, string_len, other_other_len));
+
+  // good
+  ASSERT_EQ(string, string_len, "string");
+  ASSERT_EQ(string, string_len, other_other_len);
+  ```
